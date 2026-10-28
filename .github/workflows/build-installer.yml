@@ -1,0 +1,32 @@
+name: Build Windows installer
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  installer:
+    runs-on: ubuntu-24.04  # NSIS cross-compiles the Windows installer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nsis libegl1 libgl1 libxkbcommon0 libfontconfig1
+          python -m pip install -r requirements-dev.txt
+      - name: Unit tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -q
+      - name: Build VeilSetup.exe
+        run: python installer/build_installer.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VeilSetup
+          path: |
+            dist/VeilSetup-*.exe
+            dist/VeilSetup-*.exe.sha256

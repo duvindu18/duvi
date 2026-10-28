@@ -12,13 +12,13 @@ N = 40
 
 
 def make_video(path):
-    w = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"MJPG"), 20, (320, 240))
+    w = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"MJPG"), 20, (560, 240))
     for i in range(N):
-        f = np.full((240, 320, 3), 60, np.uint8)
+        f = np.full((240, 560, 3), 60, np.uint8)
         f[60:140, 20 + i * 2:100 + i * 2] = 255           # "Alice" (red dot)
         f[95:105, 55 + i * 2:65 + i * 2] = (0, 0, 255)
-        f[60:140, 200:280] = 255                            # stranger (green dot)
-        f[95:105, 235:245] = (0, 255, 0)
+        f[60:140, 440:520] = 255                            # stranger (green dot)
+        f[95:105, 475:485] = (0, 255, 0)
         w.write(f)
     w.release()
 
@@ -63,14 +63,14 @@ def test_export_blurs_everyone(tmp_path):
     assert len(frames) == N
     assert ev["progress"][-1] == (N, N)
     last = frames[-1]
-    assert white_fraction(last, 205, 275) < 0.3   # stranger hidden
+    assert white_fraction(last, 445, 515) < 0.3   # stranger hidden
     assert white_fraction(last, 20 + 39 * 2 + 5, 100 + 39 * 2 - 5) < 0.3
 
 
 def test_whitelist_keeps_alice_visible(tmp_path):
     frames, _ = run(tmp_path, Policy.ALL_EXCEPT_WHITELIST, whitelist=["Alice"])
     last = frames[-1]
-    assert white_fraction(last, 205, 275) < 0.3   # stranger hidden
+    assert white_fraction(last, 445, 515) < 0.3   # stranger hidden
     assert white_fraction(last, 20 + 39 * 2 + 5, 100 + 39 * 2 - 5) > 0.8   # Alice visible
 
 

@@ -111,7 +111,10 @@ class SettingsPage(QWidget):
         # ---- detection -----------------------------------------------------------
         det = card("Detection", "Sensitivity versus speed")
         det.body.addWidget(label("Detector input size", "caption"))
-        self.det_size = PillGroup([(320, "320 · fastest"), (480, "480"), (640, "640 · balanced"), (960, "960 · small faces")])
+        self.det_size = PillGroup(
+            [(0, "Auto"), (320, "320 · fastest"), (640, "640 · balanced"), (960, "960 · small faces"), (1280, "1280 · crowds")],
+            tooltips={0: "960 on GPU, 640 on CPU"},
+        )
         self.det_size.set_value(cfg.engine.det_size)
         self.det_size.changed.connect(lambda v: self._set(cfg.engine, "det_size", v))
         det.body.addWidget(self.det_size)

@@ -1,32 +1,19 @@
 # Veil - production dependencies (Windows 10/11 x64, Python 3.11)
 # ---------------------------------------------------------------------------
-# Default build: NVIDIA GPU (CUDA 12.x + cuDNN 9.x, optional TensorRT 10.x).
-# For other accelerators swap ONE line (only one onnxruntime flavour may be
-# installed at a time) - scripts/setup_windows.ps1 does this for you:
+# End users should use VeilSetup.exe (see installer/), which installs these
+# for them. This file is for running from source.
+#
+# Default build: NVIDIA GPU. ONNX Runtime GPU 1.19.2 needs CUDA 12.x and
+# cuDNN 9.x. Either install the CUDA Toolkit + cuDNN (README section 2.2) or
+# use the pip-packaged libraries in installer/requirements/cuda.txt.
+# For other accelerators swap the onnxruntime line (only one flavour at a time):
 #   AMD / Intel / any DX12 GPU : onnxruntime-directml==1.19.2
-#   Intel CPU / iGPU / NPU     : onnxruntime-openvino==1.19.0
+#   Intel CPU / iGPU / NPU     : onnxruntime-openvino==1.19.0 + openvino==2024.3.0
 #   CPU only                   : onnxruntime==1.19.2
 # ---------------------------------------------------------------------------
 
-# Core numerics / vision
 numpy==1.26.4
 scipy==1.13.1
 opencv-contrib-python==4.10.0.84
-
-# Inference runtime (CUDA 12.x / cuDNN 9.x / TensorRT 10.x execution providers)
 onnxruntime-gpu==1.19.2
-
-# Face detection (SCRFD) + recognition (ArcFace) model zoo
-insightface==0.7.3
-onnx==1.16.2
-# insightface pulls albumentations, which drags in opencv-python-headless;
-# pinning keeps the resolver deterministic. The setup script removes the
-# duplicate headless OpenCV afterwards so only opencv-contrib-python remains.
-albumentations==1.4.18
-scikit-image==0.24.0
-Pillow==10.4.0
-tqdm==4.66.5
-requests==2.32.3
-
-# GUI
-PySide6==6.7.3
+PySide6-Essentials==6.7.3

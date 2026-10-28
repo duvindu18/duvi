@@ -1,0 +1,6 @@
+# Bundled in VeilSetup.exe (installed offline)
+numpy==1.26.4
+scipy==1.13.1
+opencv-contrib-python==4.10.0.84
+PySide6-Essentials==6.7.3
+shiboken6==6.7.3

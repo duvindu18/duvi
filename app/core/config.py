@@ -62,21 +62,23 @@ class EngineConfig:
     gpu_mem_limit_mb: int = 0  # 0 = unlimited
     tensorrt_fp16: bool = True
     insightface_pack: str = "buffalo_l"  # buffalo_l (accurate) or buffalo_s (fast)
-    det_size: int = 640
-    det_threshold: float = 0.5
-    det_low_threshold: float = 0.2  # second-stage ByteTrack association
-    min_face_px: int = 20
+    # Defaults favour recall: a missed face is a privacy leak, a false positive
+    # only blurs a patch of background.
+    det_size: int = 0  # 0 = auto: 960 on GPU (small/distant faces), 640 on CPU
+    det_threshold: float = 0.35
+    det_low_threshold: float = 0.15  # second-stage ByteTrack association
+    min_face_px: int = 10
     cpu_threads: int = 0  # 0 = let the runtime decide
 
 
 @dataclass
 class TrackerConfig:
-    high_threshold: float = 0.5
+    high_threshold: float = 0.35
     match_iou: float = 0.3
     low_match_iou: float = 0.5
-    new_track_threshold: float = 0.6
+    new_track_threshold: float = 0.35
     max_lost_frames: int = 30
-    min_hits: int = 2
+    min_hits: int = 1  # anonymize from the very first frame a face appears
 
 
 @dataclass
@@ -98,7 +100,7 @@ class AnonymizeConfig:
     style: Style = Style.GAUSSIAN
     shape: Shape = Shape.ELLIPSE
     intensity: int = 70  # 1..100, maps to kernel size / block size
-    padding: float = 0.25  # box enlargement ratio so hair/ears are covered
+    padding: float = 0.15  # extra margin beyond the full detected face (forehead, ears, chin)
     feather: bool = True
     mask_path: str = ""
     box_color: tuple[int, int, int] = (0, 0, 0)

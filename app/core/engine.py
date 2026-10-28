@@ -3,8 +3,8 @@
 Two backends implement the same small interface:
 
 * :class:`InsightFaceBackend` - SCRFD detector and ArcFace recognizer from the
-  InsightFace ``buffalo_*`` packs, executed by ONNX Runtime on TensorRT, CUDA,
-  DirectML, OpenVINO or CPU.
+  InsightFace ``buffalo_*`` packs, run directly by ONNX Runtime (no insightface
+  package needed) on TensorRT, CUDA, DirectML, OpenVINO or CPU.
 * :class:`YuNetBackend` - OpenCV's YuNet detector and SFace recognizer. Tiny,
   dependency-free and fast on CPU; uses the OpenCV DNN CUDA backend when OpenCV
   was compiled with CUDA.
@@ -27,9 +27,9 @@ import numpy as np
 
 from app.core import hardware
 from app.core.config import Backend, Device, EngineConfig
-from app.core.models import SFACE, YUNET, ensure_model
+from app.core.models import SFACE, YUNET, ensure_model, ensure_pack
+from app.core.scrfd_arcface import SCRFD, ArcFace, make_session
 from app.utils.errors import ModelError, is_gpu_oom
-from app.utils.paths import models_dir
 
 log = logging.getLogger(__name__)
 
@@ -85,6 +85,14 @@ def _aligned_crops(frame: np.ndarray, detections: list[Detection]) -> tuple[list
     return crops, slots
 
 
+def auto_det_size(cfg: EngineConfig, device: Device) -> int:
+    """Detector input resolution. ``0`` (default) picks 960 on GPUs, which finds
+    faces down to ~10 px in 1080p, and 640 on CPU to keep the preview real-time."""
+    if cfg.det_size > 0:
+        return int(cfg.det_size) // 32 * 32
+    return 960 if hardware.is_gpu(device) else 640
+
+
 class BaseBackend(ABC):
     backend: Backend
     embedding_dim: int
@@ -117,50 +125,38 @@ class InsightFaceBackend(BaseBackend):
     def __init__(self, cfg: EngineConfig, device: Device) -> None:
         super().__init__(cfg, device)
         try:
-            from insightface.app import FaceAnalysis
-        except Exception as exc:  # ImportError or a broken native extension
-            raise ModelError(f"InsightFace is not installed or failed to import: {exc}") from exc
-
+            import onnxruntime  # noqa: F401
+        except Exception as exc:  # ImportError or a DLL load failure on Windows
+            raise ModelError(f"ONNX Runtime is not installed or failed to load: {exc}") from exc
+        det_path, rec_path = ensure_pack(cfg.insightface_pack)
         providers, options = hardware.providers_for(device, cfg)
-        log.info("Loading InsightFace '%s' on %s", cfg.insightface_pack, providers)
+        log.info("Loading %s on %s", cfg.insightface_pack, providers)
         try:
-            app = FaceAnalysis(
-                name=cfg.insightface_pack,
-                root=str(models_dir() / "insightface"),
-                allowed_modules=["detection", "recognition"],
-                providers=providers,
-                provider_options=options,
-            )
-            app.prepare(
-                ctx_id=-1 if device == Device.CPU else cfg.gpu_id,
-                det_thresh=cfg.det_low_threshold,
-                det_size=(cfg.det_size, cfg.det_size),
-            )
+            det_session = make_session(det_path, providers, options, cfg.cpu_threads)
+            rec_session = make_session(rec_path, providers, options, cfg.cpu_threads)
+            self._det = SCRFD(det_session, auto_det_size(cfg, device))
+            self._rec = ArcFace(rec_session)
         except Exception as exc:
-            raise ModelError(f"Failed to initialise InsightFace on {device.value}: {exc}") from exc
-        self._det = app.det_model
-        self._rec = app.models.get("recognition")
-        if self._rec is None:
-            raise ModelError(f"Model pack '{cfg.insightface_pack}' has no recognition model.")
-        self._app = app
-        active = self._det.session.get_providers()
-        log.info("InsightFace active providers: %s", active)
+            raise ModelError(f"Failed to initialise {cfg.insightface_pack} on {device.value}: {exc}") from exc
+        active = det_session.get_providers()
+        log.info("Active providers: %s", active)
+        if device != Device.CPU and active and active[0] == "CPUExecutionProvider":
+            # ONNX Runtime silently falls back when CUDA/cuDNN DLLs are missing.
+            raise ModelError(f"{device.value} provider could not be initialised (missing runtime DLLs?)")
 
     @property
     def tag(self) -> str:
         return f"insightface-{self.cfg.insightface_pack}"
 
     def detect(self, frame: np.ndarray) -> list[Detection]:
-        bboxes, kpss = self._det.detect(frame, max_num=0, metric="default")
+        bboxes, kpss = self._det.detect(frame, self.cfg.det_low_threshold)
         out: list[Detection] = []
-        if bboxes is None or len(bboxes) == 0:
-            return out
         min_px = self.cfg.min_face_px
         for i, row in enumerate(bboxes):
             box = row[:4].astype(np.float32)
             if (box[2] - box[0]) < min_px or (box[3] - box[1]) < min_px:
                 continue
-            kps = kpss[i].astype(np.float32) if kpss is not None else None
+            kps = kpss[i] if kpss is not None else None
             out.append(Detection(bbox=box, score=float(row[4]), kps=kps))
         return out
 
@@ -168,7 +164,7 @@ class InsightFaceBackend(BaseBackend):
         out = np.zeros((len(detections), self.embedding_dim), dtype=np.float32)
         crops, slots = _aligned_crops(frame, detections)
         if crops:
-            feats = np.asarray(self._rec.get_feat(crops), dtype=np.float32).reshape(len(crops), -1)
+            feats = np.asarray(self._rec.embed(crops), dtype=np.float32).reshape(len(crops), -1)
             out[slots] = l2_normalize(feats)
         return out
 
@@ -177,7 +173,6 @@ class YuNetBackend(BaseBackend):
     backend = Backend.YUNET
     embedding_dim = 128
     recommended_threshold = 0.363
-    _MAX_SIDE = 640
 
     def __init__(self, cfg: EngineConfig, device: Device) -> None:
         super().__init__(cfg, device)
@@ -202,7 +197,7 @@ class YuNetBackend(BaseBackend):
 
     def detect(self, frame: np.ndarray) -> list[Detection]:
         h, w = frame.shape[:2]
-        scale = min(1.0, self._MAX_SIDE / max(h, w))
+        scale = min(1.0, max(320, self.cfg.det_size or 960) / max(h, w))
         img = cv2.resize(frame, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA) if scale < 1 else frame
         size = (img.shape[1], img.shape[0])
         if size != self._input_size:

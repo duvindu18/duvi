@@ -1,6 +1,7 @@
 """Selective anonymization: decides *who* to hide and renders *how*.
 
-Rendering works on a padded region of interest around each face. Effects are
+Rendering works on a region guaranteed to contain the *entire* detected face
+(see :meth:`Anonymizer._region`). Effects are
 computed on a down-scaled copy of the ROI where possible (Gaussian blur cost
 grows with kernel area) and composited back through an elliptical, optionally
 feathered alpha mask so the result looks natural rather than boxy.
@@ -9,8 +10,8 @@ feathered alpha mask so the result looks natural rather than boxy.
 from __future__ import annotations
 
 import logging
+import math
 import threading
-from dataclasses import dataclass
 
 import cv2
 import numpy as np
@@ -44,22 +45,6 @@ def should_anonymize(
     if policy == Policy.ALL_EXCEPT_WHITELIST:
         return identity is None or identity not in rec.whitelist
     return True
-
-
-@dataclass
-class _Roi:
-    x1: int
-    y1: int
-    x2: int
-    y2: int
-
-    @property
-    def w(self) -> int:
-        return self.x2 - self.x1
-
-    @property
-    def h(self) -> int:
-        return self.y2 - self.y1
 
 
 def _builtin_mask(size: int = 256) -> np.ndarray:
@@ -110,32 +95,45 @@ class Anonymizer:
         return _builtin_mask()
 
     # ------------------------------------------------------------------
-    def _roi(self, frame: np.ndarray, bbox: np.ndarray, padding: float) -> _Roi | None:
-        h, w = frame.shape[:2]
-        x1, y1, x2, y2 = bbox.astype(np.float32)
-        bw, bh = x2 - x1, y2 - y1
-        px, py = bw * padding / 2, bh * padding / 2
-        # Faces are taller than detector boxes suggest (forehead / hair).
-        roi = _Roi(
-            int(max(0, x1 - px)), int(max(0, y1 - py * 1.4)), int(min(w, x2 + px)), int(min(h, y2 + py * 0.8))
-        )
-        return roi if roi.w >= 2 and roi.h >= 2 else None
+    @staticmethod
+    def _region(bbox: np.ndarray, cfg: AnonymizeConfig) -> tuple[float, float, float, float]:
+        """Unclipped effect region (x1, y1, x2, y2) that fully contains the face.
 
-    def _alpha(self, w: int, h: int, cfg: AnonymizeConfig) -> np.ndarray | None:
+        An ellipse inscribed in a rectangle reaches the rectangle's corners only
+        when its semi-axes are sqrt(2) x the half-sizes, so the ellipse shape
+        scales the region by sqrt(2) before padding. Feathered edges get extra
+        margin so the soft fall-off happens outside the face, never on it. The
+        region is biased upwards because detector boxes stop around the brows
+        and miss the forehead and hairline.
+        """
+        x1, y1, x2, y2 = (float(v) for v in bbox[:4])
+        bw, bh = max(1.0, x2 - x1), max(1.0, y2 - y1)
+        cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+        k = 1.0 + max(0.0, cfg.padding)
+        if cfg.shape == Shape.ELLIPSE:
+            k *= math.sqrt(2.0) * (1.2 if cfg.feather else 1.05)
+        elif cfg.feather:
+            k *= 1.35  # inset + blur fall-off of the feathered rectangle
+        half_w = bw / 2 * k
+        half_h = bh / 2 * k + bh * 0.08
+        cy -= bh * 0.08
+        return cx - half_w, cy - half_h, cx + half_w, cy + half_h
+
+    @staticmethod
+    def _alpha(w: int, h: int, cfg: AnonymizeConfig) -> np.ndarray | None:
         if cfg.shape == Shape.RECTANGLE and not cfg.feather:
             return None
         alpha = np.zeros((h, w), np.float32)
         if cfg.shape == Shape.ELLIPSE:
             cv2.ellipse(alpha, (w // 2, h // 2), (max(1, w // 2 - 1), max(1, h // 2 - 1)), 0, 0, 360, 1.0, -1, cv2.LINE_AA)
         else:
-            inset = max(1, min(w, h) // 12) if cfg.feather else 0
+            inset = max(1, min(w, h) // 14) if cfg.feather else 0
             alpha[inset : h - inset, inset : w - inset] = 1.0
         if cfg.feather:
-            k = max(3, (min(w, h) // 6) | 1)
+            k = max(3, (min(w, h) // 10) | 1)
             alpha = cv2.GaussianBlur(alpha, (k, k), 0)
-            if cfg.shape == Shape.ELLIPSE:
-                # Keep the core fully opaque so no facial detail leaks through.
-                alpha = np.clip(alpha * 1.6, 0, 1)
+            # Saturate the interior so it is fully opaque; only the rim fades.
+            alpha = np.clip(alpha * 2.0, 0, 1)
         return alpha[..., None]
 
     def _effect(self, roi: np.ndarray, cfg: AnonymizeConfig) -> np.ndarray:
@@ -171,17 +169,26 @@ class Anonymizer:
 
     def apply(self, frame: np.ndarray, boxes: list[np.ndarray]) -> None:
         """Anonymize ``boxes`` in-place."""
+        fh, fw = frame.shape[:2]
         with self._lock:
             cfg = self.cfg
             for bbox in boxes:
-                roi_box = self._roi(frame, bbox, cfg.padding)
-                if roi_box is None:
+                rx1, ry1, rx2, ry2 = self._region(bbox, cfg)
+                # The mask is built for the full (possibly off-frame) region so
+                # its shape never shrinks when the frame border cuts a face.
+                gx1, gy1 = int(math.floor(rx1)), int(math.floor(ry1))
+                gw = max(2, int(math.ceil(rx2)) - gx1)
+                gh = max(2, int(math.ceil(ry2)) - gy1)
+                x1, y1 = max(0, gx1), max(0, gy1)
+                x2, y2 = min(fw, gx1 + gw), min(fh, gy1 + gh)
+                if x2 - x1 < 1 or y2 - y1 < 1:
                     continue
-                roi = frame[roi_box.y1 : roi_box.y2, roi_box.x1 : roi_box.x2]
+                roi = frame[y1:y2, x1:x2]
                 effect = self._effect(roi, cfg)
-                alpha = self._alpha(roi_box.w, roi_box.h, cfg)
+                alpha = self._alpha(gw, gh, cfg)
                 if alpha is None:
                     roi[:] = effect
                 else:
-                    blended = effect.astype(np.float32) * alpha + roi.astype(np.float32) * (1.0 - alpha)
+                    a = alpha[y1 - gy1 : y2 - gy1, x1 - gx1 : x2 - gx1]
+                    blended = effect.astype(np.float32) * a + roi.astype(np.float32) * (1.0 - a)
                     roi[:] = blended.astype(np.uint8)

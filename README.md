@@ -23,6 +23,75 @@ into a slide-over drawer on narrow windows.
 
 ---
 
+## 0. Install with VeilSetup.exe (recommended)
+
+`VeilSetup-<version>.exe` is a single self-contained installer. It needs no
+Python, CUDA Toolkit, compiler or command line.
+
+1. Run `VeilSetup-1.0.0.exe` and accept the UAC prompt. The app installs to
+   `C:\Program Files\Veil`.
+2. On **Choose Components** (the installation menu), setup detects your
+   graphics card and pre-selects the matching type:
+
+   | Setup type | Inference runtime | Download during setup |
+   | --- | --- | --- |
+   | NVIDIA GPU: CUDA | ONNX Runtime GPU + CUDA 12 / cuDNN 9 libraries (pip wheels, no CUDA Toolkit) | ~1.3 GB |
+   | NVIDIA GPU: CUDA + TensorRT | as above + TensorRT 10.2 | ~2.3 GB |
+   | AMD / Intel / other GPU | DirectML (bundled) | models only |
+   | Intel CPU / iGPU / NPU | OpenVINO | ~70 MB |
+   | CPU only | bundled, works offline | models only |
+
+   Individual checkboxes: face models (buffalo_l accurate, buffalo_s fast,
+   YuNet/SFace fallback), the Microsoft Visual C++ runtime (installed only if
+   missing), Start-menu and desktop shortcuts, and the `veil` CLI on `PATH`.
+   Exactly one runtime can be selected. Choosing TensorRT selects CUDA too.
+3. The progress page streams each step. Everything is also written to
+   `C:\Program Files\Veil\install.log`.
+
+If an optional download fails (no internet, NVIDIA sign-in wall), setup falls
+back to the next working runtime, finishes with a warning and the app still
+works. Run the same setup again to add components, change the runtime or
+repair the install. Uninstall from *Settings → Apps* or the Start menu.
+Identity photos in `Documents\Veil\Faces` are never deleted.
+
+The only prerequisite for CUDA is an **NVIDIA driver ≥ 551.61**. Setup warns
+if it is missing.
+
+Unattended install (IT deployment):
+
+```powershell
+VeilSetup-1.0.0.exe /S /ACCEL=cuda          # cuda | tensorrt | directml | openvino | cpu
+VeilSetup-1.0.0.exe /S /ACCEL=cpu /D=D:\Apps\Veil
+"C:\Program Files\Veil\Uninstall.exe" /S
+```
+
+### Building the installer
+
+```bash
+# Linux (cross-compile) or Windows, Python 3.11 + internet access
+sudo apt install nsis            # Windows: winget install -e --id NSIS.NSIS
+pip install -r requirements-dev.txt
+python installer/build_installer.py --version 1.0.0
+# -> dist/VeilSetup-1.0.0.exe (+ .sha256)
+```
+
+The build stages the official Python 3.11.9 x64 runtime (NuGet), the app, an
+offline wheelhouse (Qt, OpenCV, NumPy, SciPy, ONNX Runtime CPU + DirectML),
+component lists, the `Veil.exe` launcher and the ember-theme installer artwork,
+then compiles `installer/veil.nsi`. The `Build Windows installer` GitHub
+Actions workflow does the same on every `v*` tag and uploads the exe as an
+artifact.
+
+| File | Role |
+| --- | --- |
+| `installer/veil.nsi` | NSIS installer: pages, setup types, components menu, GPU detection, uninstaller |
+| `installer/launcher.nsi` | `Veil.exe`, which starts the app on the private Python with the app icon |
+| `installer/provision.py` | runs during setup: VC++ runtime, offline/online packages, models, verification, PATH |
+| `installer/requirements/*.txt` | pinned package sets per component |
+| `installer/build_installer.py` | stages everything and runs `makensis` |
+
+---
+
 ## 1. System architecture
 
 ```
@@ -56,7 +125,8 @@ app/
 │   ├── config.py           typed dataclass config (JSON in %APPDATA%\Veil)
 │   ├── hardware.py         ONNX Runtime provider discovery + fallback chain
 │   ├── models.py           model download with retries / size checks
-│   ├── engine.py           InsightFace (SCRFD+ArcFace) and YuNet+SFace backends; OOM recovery
+│   ├── engine.py           SCRFD+ArcFace and YuNet+SFace backends; device fallback / OOM recovery
+│   ├── scrfd_arcface.py    native SCRFD / ArcFace inference on ONNX Runtime (no insightface package)
 │   ├── tracker.py          ByteTrack (Kalman + two-stage IoU association)
 │   ├── face_db.py          identity folder, embedding cache, cosine matching
 │   ├── anonymizer.py       policy decision + Gaussian / pixelate / box / mask rendering
@@ -75,6 +145,7 @@ app/
 │   └── pages/              live, identities, export, settings
 └── utils/                  paths, logging, errors, Unicode-safe image I/O, rate meters
 tests/                      unit + pipeline + offscreen GUI tests (run without models)
+installer/                  VeilSetup.exe build (NSIS script, launcher, provisioning, pinned component lists)
 scripts/                    setup_windows.ps1, build_opencv_cuda.ps1, run.ps1
 faces/                      your identity photos (git-ignored)
 ```
@@ -116,7 +187,9 @@ few frames after the detector loses it to avoid one-frame "flashes".
 
 ---
 
-## 2. Windows setup (PowerShell)
+## 2. Developer setup from source (PowerShell)
+
+End users don't need this section. Use VeilSetup.exe (section 0).
 
 Tested target: **Windows 11 23H2/24H2 x64, Python 3.11**. Windows 10 22H2
 works too, but the ember-tinted title bar needs Windows 11.
@@ -126,12 +199,11 @@ works too, but the ember-tinted title bar needs Windows 11.
 ```powershell
 winget install -e --id Python.Python.3.11
 winget install -e --id Git.Git
-# C++ build tools are needed to compile insightface's small Cython extension:
-winget install -e --id Microsoft.VisualStudio.2022.BuildTools --override "--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
 ```
 
-Open a **new** PowerShell window afterwards so `py`, `git` and the compiler
-are on `PATH`.
+Open a **new** PowerShell window afterwards so `py` and `git` are on `PATH`.
+No C++ compiler is needed: the InsightFace models run through Veil's own
+SCRFD/ArcFace implementation, not the `insightface` package.
 
 ### 2.2 NVIDIA CUDA / cuDNN (skip for DirectML / OpenVINO / CPU)
 
@@ -184,11 +256,10 @@ Manual equivalent:
 ```powershell
 py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip==24.2 setuptools==75.1.0 wheel==0.44.0 Cython==3.0.11
+python -m pip install --upgrade pip==24.2
 pip install -r requirements.txt
-# insightface -> albumentations pulls opencv-python-headless; keep exactly one OpenCV:
-pip uninstall -y opencv-python opencv-python-headless
-pip install --force-reinstall --no-deps opencv-contrib-python==4.10.0.84
+# Without a CUDA Toolkit install, the CUDA 12 / cuDNN 9 libraries can come from PyPI:
+pip install -r installer\requirements\cuda.txt
 python main.py --hardware
 ```
 
@@ -289,24 +360,38 @@ models or a GPU. It covers the tracker, the anonymizer policies and styles,
 the face DB cache, threaded export end to end, missing-source errors, and an
 offscreen GUI smoke test.
 
-### Packaging (optional)
+### Packaging
 
-```powershell
-pyinstaller --noconfirm --windowed --name Veil --collect-all insightface --collect-all onnxruntime main.py
-```
-
-Ship CUDA/cuDNN DLLs separately or require them on the target machine. Their
-licences do not allow bundling everything in every context.
+See section 0, *Building the installer*. NVIDIA libraries are never bundled
+in the exe. They are downloaded from PyPI or NVIDIA during setup, only when
+you select them.
 
 ---
 
-## 4. Performance tuning
+## 4. Detection defaults and performance tuning
+
+The defaults favour **recall**: a missed face is a privacy leak, while a
+false positive only blurs a patch of background.
+
+* **Detector input: Auto.** 960 px on GPUs (finds faces down to about 10 px
+  in 1080p) and 640 px on CPU. Confidence is 0.35, low-score recovery 0.15 and
+  the minimum face size 10 px.
+* **Tracks start immediately** (`Confirm after 1 hit`). Faces that are not yet
+  identified are hidden (*privacy-safe start*), and a face stays hidden for 8
+  frames after the detector briefly loses it.
+* **Full-face coverage.** The anonymized region always contains the *entire*
+  detected face box. The ellipse is scaled by √2, because an inscribed ellipse
+  only reaches the box corners at that size. Margin is added for soft edges
+  and coverage, and the region extends upward over the forehead and hairline.
+  Faces cut by the frame border keep their full mask shape. A unit test checks
+  this pixel by pixel for every shape and edge setting.
+
 
 | Knob | Where | Effect |
 | --- | --- | --- |
 | Accelerator → TensorRT + FP16 | Settings | fastest on RTX (≈2× CUDA) |
 | Model pack `buffalo_s` | Settings | ~3× faster than `buffalo_l`, slightly less accurate |
-| Detector input 320/480 | Settings | big speed-up; misses very small faces |
+| Detector input 320/640 | Settings | big speed-up; misses very small / distant faces |
 | Max faces per frame | Settings → Recognition | caps recognition cost in crowds |
 | Retry / re-verify intervals | Settings → Recognition | fewer embeddings per second |
 | VRAM limit | Settings | leave memory for games/other apps; OOM still falls back gracefully |

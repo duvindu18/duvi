@@ -1,0 +1,39 @@
+VEIL - FACE ANONYMIZATION FOR WINDOWS
+=====================================
+
+Please read these notices before installing. By continuing you confirm that
+you will use face recognition lawfully.
+
+1. RESPONSIBLE USE
+   Face images and face embeddings are biometric personal data. In many
+   jurisdictions (for example the EU GDPR, Article 9, and the Illinois BIPA)
+   recognising identifiable people requires a legal basis or their explicit
+   consent. Veil processes everything locally: no images, videos or face data
+   are uploaded anywhere. Only the model and runtime files you select are
+   downloaded during setup.
+
+2. THIRD-PARTY COMPONENTS INSTALLED OR DOWNLOADED BY THIS SETUP
+   - Python 3.11 ........................ PSF License
+   - Qt 6 / PySide6 ..................... LGPL v3 (dynamically linked, unmodified)
+   - OpenCV 4.10 (+contrib) ............. Apache License 2.0
+   - NumPy, SciPy ....................... BSD 3-Clause
+   - ONNX Runtime ....................... MIT License
+   - OpenVINO (optional) ................ Apache License 2.0
+   - NVIDIA CUDA runtime, cuBLAS, cuFFT, cuRAND, cuDNN, TensorRT (optional)
+                                          NVIDIA Software License Agreement /
+                                          CUDA EULA - downloaded from PyPI or
+                                          NVIDIA when you select them
+   - Microsoft Visual C++ Redistributable  Microsoft Software License Terms
+   - OpenCV Zoo YuNet / SFace models .... MIT / Apache 2.0
+
+3. INSIGHTFACE MODELS (buffalo_l, buffalo_s)
+   The InsightFace pretrained models are provided by the InsightFace project
+   for NON-COMMERCIAL RESEARCH PURPOSES ONLY. Commercial use requires a licence
+   from InsightFace (https://github.com/deepinsight/insightface#license).
+   For commercial deployments untick the buffalo models and use YuNet + SFace,
+   or obtain a commercial licence.
+
+4. NO WARRANTY
+   This software is provided "as is", without warranty of any kind. Automatic
+   anonymization can miss faces (extreme angles, heavy occlusion, very small
+   or very dark faces). Review exported footage before publishing it.

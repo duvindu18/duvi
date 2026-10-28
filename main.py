@@ -52,6 +52,14 @@ def _register_windows_dll_dirs() -> None:
         if base:
             for sub in subdirs:
                 candidates.extend(glob.glob(os.path.join(base, sub)))
+    # CUDA / cuDNN shipped as pip wheels (nvidia-*-cu12) by the installer, and
+    # TensorRT unpacked next to the app.
+    import sysconfig
+
+    site = sysconfig.get_paths()["purelib"]
+    candidates.extend(glob.glob(os.path.join(site, "nvidia", "*", "bin")))
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates.extend(glob.glob(os.path.join(here, "..", "runtimes", "TensorRT*", "lib")))
     for d in candidates:
         if os.path.isdir(d):
             try:
@@ -62,6 +70,21 @@ def _register_windows_dll_dirs() -> None:
 
 
 _register_windows_dll_dirs()
+
+
+def _register_openvino() -> None:
+    """onnxruntime-openvino on Windows needs the OpenVINO runtime DLLs on the path."""
+    if sys.platform != "win32":
+        return
+    try:
+        import onnxruntime.tools.add_openvino_win_libs as ov_libs  # type: ignore[import-not-found]
+
+        ov_libs.add_openvino_libs_to_path()
+    except Exception:
+        pass
+
+
+_register_openvino()
 
 from app import __app_name__, __version__  # noqa: E402
 from app.utils.logging_setup import setup_logging  # noqa: E402
@@ -181,8 +204,20 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.headless:
         return run_headless(args)
-    from app.gui.app import run_gui
+    try:
+        from app.gui.app import run_gui
+    except Exception as exc:  # e.g. a missing DLL - pythonw.exe has no console to show it
+        logging.getLogger("veil").exception("GUI failed to start")
+        if sys.platform == "win32":
+            import ctypes
 
+            ctypes.windll.user32.MessageBoxW(
+                None,
+                f"Veil could not start:\n\n{exc}\n\nRun VeilSetup.exe again to repair the installation.",
+                "Veil",
+                0x10,
+            )
+        raise
     return run_gui(sys.argv[:1])
 
 

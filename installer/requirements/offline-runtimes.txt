@@ -1,0 +1,4 @@
+# Bundled ONNX Runtime flavours (one is installed, chosen on the components page)
+onnxruntime==1.19.2
+onnxruntime-directml==1.19.2
+pyreadline3==3.5.4  # humanfriendly dependency on Windows (marker not evaluated when cross-downloading)

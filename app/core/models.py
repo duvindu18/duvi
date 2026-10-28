@@ -7,12 +7,13 @@ import logging
 import time
 import urllib.error
 import urllib.request
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
 from app.utils.errors import ModelError
-from app.utils.paths import models_dir
+from app.utils.paths import model_search_dirs, models_dir
 
 log = logging.getLogger(__name__)
 
@@ -49,6 +50,10 @@ def _sha256(path: Path) -> str:
 
 def ensure_model(model: ModelFile, progress: ProgressFn | None = None, retries: int = 3) -> Path:
     """Return the local path of ``model``, downloading it if needed."""
+    for folder in model_search_dirs():
+        found = folder / model.name
+        if found.exists() and found.stat().st_size >= model.min_bytes:
+            return found
     target = models_dir() / model.name
     if target.exists() and target.stat().st_size >= model.min_bytes:
         if model.sha256 is None or _sha256(target) == model.sha256:
@@ -83,3 +88,57 @@ def ensure_model(model: ModelFile, progress: ProgressFn | None = None, retries: 
         f"Could not download {model.name}: {last_error}. "
         f"Download it manually from {model.url} and place it in {target.parent}."
     )
+
+
+# InsightFace model packs (released under the InsightFace non-commercial model
+# licence - see https://github.com/deepinsight/insightface#license).
+INSIGHTFACE_PACKS: dict[str, dict[str, str]] = {
+    "buffalo_l": {"det": "det_10g.onnx", "rec": "w600k_r50.onnx"},
+    "buffalo_s": {"det": "det_500m.onnx", "rec": "w600k_mbf.onnx"},
+}
+_PACK_URL = "https://github.com/deepinsight/insightface/releases/download/v0.7/{pack}.zip"
+
+
+def _pack_complete(folder: Path, pack: str) -> bool:
+    return all((folder / f).is_file() and (folder / f).stat().st_size > 1_000_000 for f in INSIGHTFACE_PACKS[pack].values())
+
+
+def pack_dir(pack: str) -> Path:
+    """First folder holding the complete pack (installer copy wins), else the download target."""
+    for base in model_search_dirs():
+        if _pack_complete(base / "insightface" / pack, pack):
+            return base / "insightface" / pack
+    return models_dir() / "insightface" / pack
+
+
+def pack_ready(pack: str) -> bool:
+    return _pack_complete(pack_dir(pack), pack)
+
+
+def ensure_pack(pack: str, progress: ProgressFn | None = None) -> tuple[Path, Path]:
+    """Return (detector, recognizer) paths for an InsightFace pack, downloading
+    and extracting only the two files the app uses."""
+    if pack not in INSIGHTFACE_PACKS:
+        raise ModelError(f"Unknown model pack '{pack}'.")
+    files = INSIGHTFACE_PACKS[pack]
+    target = pack_dir(pack)
+    if not pack_ready(pack):
+        target.mkdir(parents=True, exist_ok=True)
+        archive = ensure_model(
+            ModelFile(name=f"{pack}.zip", url=_PACK_URL.format(pack=pack), min_bytes=50_000_000), progress
+        )
+        try:
+            with zipfile.ZipFile(archive) as zf:
+                for member in zf.namelist():
+                    name = Path(member).name
+                    if name in files.values():
+                        with zf.open(member) as src, (target / name).open("wb") as dst:
+                            while chunk := src.read(1 << 20):
+                                dst.write(chunk)
+        except zipfile.BadZipFile as exc:
+            archive.unlink(missing_ok=True)
+            raise ModelError(f"{archive.name} is corrupted; it will be downloaded again next time.") from exc
+        archive.unlink(missing_ok=True)
+        if not pack_ready(pack):
+            raise ModelError(f"{pack}.zip does not contain {', '.join(files.values())}.")
+    return target / files["det"], target / files["rec"]

@@ -57,8 +57,27 @@ def cache_dir() -> Path:
     return _ensure(Path(override) if override else _local_base() / APP_DIR_NAME)
 
 
+def is_installed() -> bool:
+    """True when running from the Windows installer layout (Program Files)."""
+    return (PROJECT_ROOT / "installed.flag").exists()
+
+
+def bundled_models_dir() -> Path:
+    """Read-only models shipped/provisioned by the installer."""
+    return PROJECT_ROOT / "models"
+
+
 def models_dir() -> Path:
-    return _ensure(cache_dir() / "models")
+    """Writable model directory (downloads at runtime land here)."""
+    override = os.environ.get("VEIL_MODELS_DIR")
+    return _ensure(Path(override) if override else cache_dir() / "models")
+
+
+def model_search_dirs() -> list[Path]:
+    dirs = [models_dir()]
+    if bundled_models_dir().is_dir():
+        dirs.insert(0, bundled_models_dir())
+    return dirs
 
 
 def trt_cache_dir() -> Path:
@@ -66,6 +85,9 @@ def trt_cache_dir() -> Path:
 
 
 def default_faces_dir() -> Path:
+    if is_installed():
+        # Program Files is read-only for users; keep identities in Documents.
+        return _ensure(Path.home() / "Documents" / APP_DIR_NAME / "Faces")
     return _ensure(PROJECT_ROOT / "faces")
 
 

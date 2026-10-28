@@ -18,3 +18,5 @@ faces/*
 *.mkv
 *.onnx
 *.engine
+build/
+dist/
