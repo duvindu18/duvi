@@ -240,6 +240,31 @@ def verify(accel: str) -> None:
             warnings.append(f"{accel} acceleration could not be verified; the app will fall back automatically.")
 
 
+FIREWALL_RULE = "Veil phone receiver (MediaMTX)"
+
+
+def set_firewall(add: bool) -> None:
+    """Allow phones on private networks to reach the bundled MediaMTX receiver."""
+    exe = ROOT / "runtimes" / "mediamtx" / "mediamtx.exe"
+    subprocess.run(
+        ["netsh", "advfirewall", "firewall", "delete", "rule", f"name={FIREWALL_RULE}"],
+        capture_output=True,
+    )
+    if not add:
+        return
+    step("Firewall rule for the phone receiver")
+    res = subprocess.run(
+        ["netsh", "advfirewall", "firewall", "add", "rule", f"name={FIREWALL_RULE}", "dir=in", "action=allow",
+         f"program={exe}", "enable=yes", "profile=private,domain"],
+        capture_output=True, text=True,
+    )
+    if res.returncode == 0:
+        say("   allowed on private and domain networks (not public Wi-Fi)")
+    else:
+        warnings.append(f"Firewall rule could not be added ({res.stdout.strip() or res.stderr.strip()}). "
+                        "Windows will ask the first time a phone connects.")
+
+
 def set_path(add: bool) -> None:
     import ctypes
     import winreg
@@ -264,11 +289,16 @@ def main() -> int:
     ap.add_argument("--models", default="", help="comma list: buffalo_l,buffalo_s,yunet")
     ap.add_argument("--add-path", action="store_true")
     ap.add_argument("--remove-path", action="store_true")
+    ap.add_argument("--firewall", action="store_true", help="allow the MediaMTX phone receiver on private networks")
+    ap.add_argument("--remove-firewall", action="store_true")
     ap.add_argument("--keep-wheels", action="store_true")
     args = ap.parse_args()
 
-    if args.remove_path:
-        set_path(False)
+    if args.remove_path or args.remove_firewall:
+        if args.remove_path:
+            set_path(False)
+        if args.remove_firewall:
+            set_firewall(False)
         return 0
 
     global _log_file
@@ -290,6 +320,8 @@ def main() -> int:
         verify(accel)
         if args.add_path:
             set_path(True)
+        if args.firewall:
+            set_firewall(True)
     except Exception as exc:
         say(f"!! {exc}")
         return 1

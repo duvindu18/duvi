@@ -158,6 +158,12 @@ SectionGroup /e "Face models" SecGrpModels
   SectionEnd
 SectionGroupEnd
 
+Section "Phone & Blackmagic Camera receiver (MediaMTX)" SecPhone
+  SectionIn 1 2 3 4 5
+  SetOutPath "$INSTDIR\runtimes\mediamtx"
+  File /r "${STAGE}/mediamtx/*.*"
+SectionEnd
+
 Section "Microsoft Visual C++ Runtime (installed if missing)" SecVc
   SectionIn 1 2 3 4 5
 SectionEnd
@@ -199,6 +205,9 @@ Section "-Provision" SecProvision
   ${EndIf}
   ${If} ${SectionIsSelected} ${SecPath}
     StrCpy $1 "$1 --add-path"
+  ${EndIf}
+  ${If} ${SectionIsSelected} ${SecPhone}
+    StrCpy $1 "$1 --firewall"
   ${EndIf}
 
   StrCpy $2 ""
@@ -245,6 +254,7 @@ SectionEnd
   !insertmacro MUI_DESCRIPTION_TEXT ${SecBufL} "SCRFD-10G detector + ArcFace R50 recogniser. Highest accuracy (default)."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecBufS} "SCRFD-500M detector + ArcFace MobileFaceNet. Several times faster, for CPUs."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecYunet} "OpenCV YuNet + SFace. Tiny models used as an automatic fallback."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecPhone} "Receive live video from Blackmagic Camera (or any RTMP/SRT app) on a phone over Wi-Fi and anonymize it in real time. Bundled, no download. Adds a firewall rule for private networks only."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecVc} "Microsoft Visual C++ 2015-2022 x64 runtime required by ONNX Runtime and OpenCV."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecStart} "Veil entries in the Start menu."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecDesk} "A Veil icon on the desktop."
@@ -343,7 +353,7 @@ FunctionEnd
 Section "Uninstall"
   SetRegView 64
   IfFileExists "$INSTDIR\python\python.exe" 0 +2
-    nsExec::ExecToLog '"$INSTDIR\python\python.exe" -E -s "$INSTDIR\provision.py" --remove-path --keep-wheels'
+    nsExec::ExecToLog '"$INSTDIR\python\python.exe" -E -s "$INSTDIR\provision.py" --remove-path --remove-firewall --keep-wheels'
 
   SetShellVarContext all
   Delete "$SMPROGRAMS\Veil\Veil.lnk"

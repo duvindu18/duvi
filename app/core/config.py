@@ -104,7 +104,7 @@ class AnonymizeConfig:
     style: Style = Style.GAUSSIAN
     shape: Shape = Shape.ELLIPSE
     intensity: int = 70  # 1..100, maps to kernel size / block size
-    padding: float = 0.15  # extra margin beyond the full detected face (forehead, ears, chin)
+    padding: float = 0.2  # coverage: 0 = face oval only, larger values extend to hairline / ears
     feather: bool = True
     mask_path: str = ""
     box_color: tuple[int, int, int] = (0, 0, 0)
@@ -128,6 +128,11 @@ class AppConfig:
     recognition: RecognitionConfig = field(default_factory=RecognitionConfig)
     anonymize: AnonymizeConfig = field(default_factory=AnonymizeConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
+    display_name: str = ""  # greeting on the Live page; empty = Windows user name
+    preview_mode: str = "smooth"  # "smooth": every frame shown, async detection; "exact": every shown frame detected
+    volume: float = 1.0
+    muted: bool = False
+    loop: bool = False
     last_source_kind: str = "webcam"
     last_source_value: str = "0"
     window_geometry: str = ""

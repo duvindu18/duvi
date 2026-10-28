@@ -4,3 +4,13 @@ scipy==1.13.1
 opencv-contrib-python==4.10.0.84
 PySide6-Essentials==6.7.3
 shiboken6==6.7.3
+# Audio playback in the preview player
+av==12.3.0
+sounddevice==0.5.1
+cffi==1.17.1
+pycparser==2.22
+# QR code in the phone connection dialog
+qrcode==7.4.2
+pypng==0.20220715.0
+typing_extensions==4.12.2
+colorama==0.4.6  # qrcode dependency on Windows (marker not evaluated when cross-downloading)

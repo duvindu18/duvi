@@ -9,7 +9,7 @@ from pathlib import Path
 
 import cv2
 from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -27,13 +27,18 @@ from PySide6.QtWidgets import (
 from app.core.config import Policy, Shape, Style
 from app.core.pipeline import PipelineStats
 from app.core.sources import SourceInfo, SourceKind, SourceSpec, VIDEO_EXTENSIONS, probe_webcams
+from app.core import mediamtx
 from app.gui.bridge import PipelineController, RunState
+from app.gui.pages.phone import PhoneDialog, PhoneReceiver
+from app.gui.pages.phone import describe as phone_describe
 from app.gui.context import AppContext
 from app.gui.icons import make_icon
 from app.gui.tasks import run_task
 from app.gui.theme import P
 from app.gui.widgets import (
     Chip,
+    PlayerBar,
+    fmt_time,
     CircleButton,
     GlassCard,
     GlassSlider,
@@ -57,6 +62,7 @@ POLICY_TEXT = {
     Policy.NONE: "Anonymization off",
 }
 NARROW_WIDTH = 1180
+PHONE = "phone"  # source-picker value for the built-in phone receiver
 
 
 def _user_name() -> str:
@@ -68,7 +74,9 @@ def _user_name() -> str:
 
 
 class VideoStage(QWidget):
-    """Video surface with floating chips, title and transport (reference layout)."""
+    """Video surface with floating chips, caption and the media controls bar."""
+
+    MARGIN = 20
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -87,7 +95,7 @@ class VideoStage(QWidget):
         self.caption = QWidget(self)
         cap = QVBoxLayout(self.caption)
         cap.setContentsMargins(0, 0, 0, 0)
-        cap.setSpacing(6)
+        cap.setSpacing(4)
         self.policy_chip = Chip("Hiding everyone")
         cap.addWidget(self.policy_chip, 0, Qt.AlignmentFlag.AlignLeft)
         self.title = label("No source", "title")
@@ -95,42 +103,29 @@ class VideoStage(QWidget):
         self.metrics = label("–", "dim")
         cap.addWidget(self.metrics)
 
-        self.transport = QWidget(self)
-        tr = QHBoxLayout(self.transport)
-        tr.setContentsMargins(0, 0, 0, 0)
-        tr.setSpacing(14)
-        self.snapshot_btn = CircleButton("snapshot", 46, tooltip="Save anonymized snapshot (Ctrl+S)")
-        self.record_btn = CircleButton("record", 46, tooltip="Record anonymized video (Ctrl+R)", checkable=True)
-        self.record_btn.accent = QColor(P.danger)
-        self.play_btn = CircleButton("play", 64, solid=True, tooltip="Start / pause (Space)")
-        self.stop_btn = CircleButton("stop", 46, tooltip="Stop (Esc)")
-        self.enroll_btn = CircleButton("enroll", 46, tooltip="Enroll the largest face as a known identity")
-        for b in (self.snapshot_btn, self.record_btn, self.play_btn, self.stop_btn, self.enroll_btn):
-            tr.addWidget(b, 0, Qt.AlignmentFlag.AlignVCenter)
-        soft_shadow(self.play_btn, 30, 120, 8)
-
-        self.time_label = label("00:00", "dim")
-        self.time_label.setParent(self)
+        self.bar = PlayerBar(self)
+        b = self.bar
+        self.snapshot_btn, self.record_btn, self.enroll_btn = b.snapshot_btn, b.record_btn, b.enroll_btn
+        self.play_btn, self.stop_btn = b.play_btn, b.stop_btn
 
     def resizeEvent(self, e) -> None:  # noqa: N802
         super().resizeEvent(e)
         self.relayout()
 
     def relayout(self) -> None:
-        """Position the floating overlays (also after chip text changes)."""
-        w, h = self.width(), self.height()
+        """Position the floating overlays (also after chip / caption changes)."""
+        w, h, m = self.width(), self.height(), self.MARGIN
         self.view.setGeometry(0, 0, w, h)
-        m = 22
         self.top_left.adjustSize()
         self.top_left.move(m, m)
-        self.transport.adjustSize()
-        tw, th = self.transport.width(), self.transport.height()
-        self.transport.move((w - tw) // 2, h - th - m)
-        self.caption.setFixedWidth(max(200, min(560, w - 2 * m)))
+        bar_h = self.bar.sizeHint().height()
+        self.bar.setGeometry(m, h - bar_h - m, w - 2 * m, bar_h)
+        self.caption.setFixedWidth(max(200, min(620, w - 2 * m)))
         self.caption.adjustSize()
-        self.caption.move(m + 6, h - th - m - self.caption.height() - 18)
-        self.time_label.adjustSize()
-        self.time_label.move(w - self.time_label.width() - m - 8, h - th // 2 - m - self.time_label.height() // 2)
+        cap_y = h - bar_h - m - self.caption.height() - 12
+        # Hide the caption rather than letting it collide with the chips.
+        self.caption.setVisible(cap_y > self.top_left.geometry().bottom() + 16)
+        self.caption.move(m + 4, cap_y)
 
 
 class Inspector(QScrollArea):
@@ -166,7 +161,11 @@ class LivePage(QWidget):
 
         # ---- header ----------------------------------------------------------
         header = QHBoxLayout()
-        self.greeting = label(two_tone("Hi,", f"{_user_name()}!"), "title")
+        self.greeting = label("", "title")
+        self.greeting.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.greeting.setToolTip("Click to change your name")
+        self.greeting.mousePressEvent = lambda _e: self.edit_name()
+        self._refresh_greeting()
         header.addWidget(self.greeting)
         header.addStretch(1)
         self.db_chip = Chip("0 identities", dot=P.ok)
@@ -183,7 +182,12 @@ class LivePage(QWidget):
         src_row = QHBoxLayout()
         src_row.setSpacing(12)
         self.source_pills = PillGroup(
-            [(SourceKind.WEBCAM, "Webcam"), (SourceKind.STREAM, "RTSP stream"), (SourceKind.FILE, "Video file")]
+            [
+                (SourceKind.WEBCAM, "Webcam"),
+                (PHONE, "Phone / Blackmagic"),
+                (SourceKind.STREAM, "RTSP stream"),
+                (SourceKind.FILE, "Video file"),
+            ]
         )
         self.source_pills.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         src_row.addWidget(self.source_pills)
@@ -217,6 +221,20 @@ class LivePage(QWidget):
         fl.addWidget(self.file_edit, 1)
         fl.addWidget(button("Browse", icon=make_icon("folder", 16), on_click=self._browse_file))
         self.source_inputs.addWidget(file_w)
+
+        phone_w = QWidget()
+        pl = QHBoxLayout(phone_w)
+        pl.setContentsMargins(0, 0, 0, 0)
+        pl.setSpacing(10)
+        self.phone_chip = Chip("Receiver off", dot=P.text_faint)
+        pl.addWidget(self.phone_chip, 0, Qt.AlignmentFlag.AlignVCenter)
+        pl.addStretch(1)
+        pl.addWidget(button("Connect phone…", icon=make_icon("phone", 16), on_click=self.open_phone_dialog))
+        self.source_inputs.addWidget(phone_w)
+        self.phone = PhoneReceiver(self)
+        self.phone.statusChanged.connect(self._on_phone_status)
+        self.phone.started.connect(lambda: self._on_phone_status(self.phone.status))
+        self.phone.failed.connect(lambda m: self.ctx.notify.emit(f"Phone receiver: {m}", "error"))
         src_row.addWidget(self.source_inputs, 1)
         root.addLayout(src_row)
         self.source_pills.changed.connect(self._on_source_kind)
@@ -242,6 +260,33 @@ class LivePage(QWidget):
         st.snapshot_btn.clicked.connect(self._on_snapshot)
         st.enroll_btn.clicked.connect(self._on_enroll)
         st.view.resized.connect(lambda size: self.ctrl.set_target_size(size, st.view.devicePixelRatioF()))
+        bar = st.bar
+        self._pos_ms = 0.0
+        self._dur_ms = 0.0
+        self._media_mode_set = False
+        self._last_scrub = 0.0
+        bar.timeline.moved.connect(self._scrub)
+        bar.timeline.released.connect(lambda f: self.ctrl.seek(f * self._dur_ms))
+        bar.back10_btn.clicked.connect(lambda: self.skip(-10_000))
+        bar.fwd10_btn.clicked.connect(lambda: self.skip(10_000))
+        bar.step_back_btn.clicked.connect(lambda: self.step(-1))
+        bar.step_fwd_btn.clicked.connect(lambda: self.step(1))
+        bar.loop_btn.toggled.connect(self._on_loop)
+        bar.mute_btn.toggled.connect(self._on_mute)
+        bar.volume.moved.connect(self._on_volume)
+        bar.volume.released.connect(self._on_volume)
+        bar.loop_btn.setChecked(self.ctx.cfg.loop)
+        bar.mute_btn.setChecked(self.ctx.cfg.muted)
+        bar.volume.set_value(self.ctx.cfg.volume)
+        self.ctrl.position.connect(self._on_position)
+        self.ctrl.ended.connect(self._on_ended)
+        for keys, fn in (
+            ("J", lambda: self.skip(-10_000)), ("L", lambda: self.skip(10_000)),
+            ("Left", lambda: self.skip(-5_000)), ("Right", lambda: self.skip(5_000)),
+            (",", lambda: self.step(-1)), (".", lambda: self.step(1)),
+            ("M", lambda: bar.mute_btn.toggle()),
+        ):
+            QShortcut(QKeySequence(keys), self, activated=fn, context=Qt.ShortcutContext.WidgetWithChildrenShortcut)
         self.ctrl.frameReady.connect(self._on_frame)
         self.ctrl.stats.connect(self._on_stats)
         self.ctrl.status.connect(self._on_status)
@@ -249,6 +294,7 @@ class LivePage(QWidget):
         self.ctrl.sourceInfo.connect(self._on_source_info)
         self.ctrl.finished.connect(self._on_finished)
         self.ctx.facesChanged.connect(self._refresh_db_chip)
+        self.ctx.configChanged.connect(self._refresh_greeting)
         self._restore_source()
         self._load_from_config()
         self._on_state(RunState.IDLE.value)
@@ -456,7 +502,8 @@ class LivePage(QWidget):
     # Source handling
     # ======================================================================
     def _restore_source(self) -> None:
-        kind = SourceKind(self.ctx.cfg.last_source_kind) if self.ctx.cfg.last_source_kind in [k.value for k in SourceKind] else SourceKind.WEBCAM
+        saved = self.ctx.cfg.last_source_kind
+        kind = PHONE if saved == PHONE else SourceKind(saved) if saved in [k.value for k in SourceKind] else SourceKind.WEBCAM
         value = self.ctx.cfg.last_source_value
         self.source_pills.set_value(kind)
         self._on_source_kind(kind)
@@ -464,11 +511,16 @@ class LivePage(QWidget):
             self.cam_combo.setCurrentText(value)
         elif kind == SourceKind.STREAM:
             self.url_edit.setText(value)
-        else:
+        elif kind == SourceKind.FILE:
             self.file_edit.setText(value)
 
     def _on_source_kind(self, kind: SourceKind) -> None:
-        self.source_inputs.setCurrentIndex([SourceKind.WEBCAM, SourceKind.STREAM, SourceKind.FILE].index(kind))
+        self.source_inputs.setCurrentIndex([SourceKind.WEBCAM, SourceKind.STREAM, SourceKind.FILE, PHONE].index(kind))
+        if kind == PHONE and hasattr(self, "phone"):
+            if self.phone.available:
+                self.phone.start()
+            else:
+                self._on_phone_status(None)
 
     def _browse_file(self) -> None:
         exts = " ".join(f"*{e}" for e in sorted(VIDEO_EXTENSIONS))
@@ -498,6 +550,11 @@ class LivePage(QWidget):
 
     def _current_spec(self) -> SourceSpec | None:
         kind = self.source_pills.value()
+        if kind == PHONE:
+            if not self.phone.ready:
+                self.open_phone_dialog()
+                return None
+            return SourceSpec(SourceKind.STREAM, mediamtx.read_url())
         if kind == SourceKind.WEBCAM:
             text = self.cam_combo.currentText().strip() or "0"
             if not text.isdigit():
@@ -532,13 +589,13 @@ class LivePage(QWidget):
         spec = self._current_spec()
         if spec is None:
             return
-        self.ctx.cfg.last_source_kind = spec.kind.value
+        self.ctx.cfg.last_source_kind = PHONE if self.source_pills.value() == PHONE else spec.kind.value
         self.ctx.cfg.last_source_value = spec.value
         self.ctx.commit()
         self._source = spec
         self._paused = False
         self._started_at = time.monotonic()
-        self.stage.title.setText(spec.label())
+        self.stage.title.setText("Phone camera" if self.source_pills.value() == PHONE else spec.label())
         self.stage.view.headline = "Connecting…"
         self.stage.view.subline = spec.label()
         self.stage.view.clear()
@@ -616,12 +673,60 @@ class LivePage(QWidget):
         img = self.ctrl.take_frame()
         if img is not None:
             self.stage.view.set_image(img)
-            if self._started_at:
-                el = int(time.monotonic() - self._started_at)
-                text = f"{el // 60:02d}:{el % 60:02d}"
-                if text != self.stage.time_label.text():
-                    self.stage.time_label.setText(text)
-                    self.stage.relayout()
+
+    # ---- player ------------------------------------------------------------
+    def skip(self, delta_ms: float) -> None:
+        if self.ctrl.seekable:
+            self.ctrl.seek(max(0.0, min(self._dur_ms, self._pos_ms + delta_ms)))
+
+    def step(self, frames: int) -> None:
+        if self.ctrl.seekable:
+            self.ctrl.step(frames)
+            self._paused = True
+            self.stage.play_btn.set_icon("play")
+            self._set_state_chip("Paused", P.warn)
+
+    def _scrub(self, frac: float) -> None:
+        # Live preview while dragging, at most ~7 seeks per second.
+        now = time.monotonic()
+        self.stage.bar.time_cur.setText(fmt_time(frac * self._dur_ms))
+        if now - self._last_scrub > 0.15:
+            self._last_scrub = now
+            self.ctrl.seek(frac * self._dur_ms)
+
+    def _on_position(self, pos_ms: float, dur_ms: float) -> None:
+        if not self._media_mode_set:
+            self._media_mode_set = True
+            self.stage.bar.set_media_mode(self.ctrl.seekable, self.ctrl.has_audio)
+            self.stage.relayout()
+        self._pos_ms, self._dur_ms = pos_ms, dur_ms
+        bar = self.stage.bar
+        if not bar.timeline.dragging:
+            bar.timeline.set_value(pos_ms / dur_ms if dur_ms else 0.0)
+            bar.time_cur.setText(fmt_time(pos_ms))
+        bar.time_total.setText(fmt_time(dur_ms))
+        bar.timeline.duration_ms = dur_ms
+
+    def _on_ended(self) -> None:
+        self._paused = True
+        self.stage.play_btn.set_icon("play")
+        self._set_state_chip("Ended", P.text_faint)
+
+    def _on_loop(self, on: bool) -> None:
+        self.ctx.cfg.loop = on
+        self.ctx.commit()
+
+    def _on_mute(self, on: bool) -> None:
+        self.ctx.cfg.muted = on
+        self.ctrl.set_muted(on)
+        self.ctx.commit()
+
+    def _on_volume(self, v: float) -> None:
+        self.ctx.cfg.volume = round(v, 3)
+        self.ctrl.set_volume(v)
+        if v > 0 and self.stage.bar.mute_btn.isChecked():
+            self.stage.bar.mute_btn.setChecked(False)
+        self.ctx.commit()
 
     def _on_stats(self, s: PipelineStats) -> None:
         self.tiles["capture"].set(f"{s.capture_fps:.1f}")
@@ -659,6 +764,8 @@ class LivePage(QWidget):
     def _on_state(self, state: str) -> None:
         st = self.stage
         if state == RunState.RUNNING.value:
+            self._media_mode_set = False
+            st.bar.set_media_mode(False)
             st.play_btn.set_icon("pause")
             st.play_btn.setEnabled(True)
             st.stop_btn.setEnabled(True)
@@ -676,6 +783,7 @@ class LivePage(QWidget):
             st.record_btn.blockSignals(True)
             st.record_btn.setChecked(False)
             st.record_btn.blockSignals(False)
+            st.bar.set_media_mode(False)
             self._set_state_chip("Ready", P.text_faint)
             self.source_pills.setEnabled(True)
             self.source_inputs.setEnabled(True)
@@ -699,6 +807,38 @@ class LivePage(QWidget):
             view.headline = "Protect every face."
             view.subline = "Choose a source and press play"
         view.update()
+
+    # ---- phone receiver -----------------------------------------------------
+    def open_phone_dialog(self) -> None:
+        if not self.phone.available:
+            self.ctx.notify.emit(
+                "The phone receiver (MediaMTX) is not installed. Run VeilSetup.exe again and select "
+                "'Phone & Blackmagic Camera receiver'.", "warn", )
+        dlg = PhoneDialog(self.phone, self)
+        dlg.startPreview.connect(self._on_play)
+        dlg.exec()
+
+    def _on_phone_status(self, status) -> None:
+        text, dot = phone_describe(status, self.phone.running)
+        if not self.phone.available:
+            text, dot = "Receiver not installed", P.danger
+        self.phone_chip.setText(text)
+        self.phone_chip.set_dot(dot)
+        self.phone_chip.adjustSize()
+
+    def shutdown(self) -> None:
+        self.phone.stop()
+
+    def _refresh_greeting(self) -> None:
+        name = self.ctx.cfg.display_name.strip() or _user_name()
+        self.greeting.setText(two_tone("Hi,", f"{name}!"))
+
+    def edit_name(self) -> None:
+        current = self.ctx.cfg.display_name.strip() or _user_name()
+        name, ok = QInputDialog.getText(self, "Welcome message", "Your name:", text=current)
+        if ok:
+            self.ctx.cfg.display_name = name.strip()[:40]
+            self.ctx.commit()
 
     def _refresh_db_chip(self) -> None:
         persons = self.ctx.face_db.persons()

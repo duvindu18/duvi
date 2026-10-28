@@ -25,6 +25,10 @@ you will use face recognition lawfully.
                                           NVIDIA when you select them
    - Microsoft Visual C++ Redistributable  Microsoft Software License Terms
    - OpenCV Zoo YuNet / SFace models .... MIT / Apache 2.0
+   - MediaMTX (phone camera receiver) ... MIT License
+   - PyAV (audio playback; bundles FFmpeg libraries) .. BSD 3-Clause / LGPL v2.1+
+   - sounddevice + PortAudio ............ MIT License
+   - qrcode ............................. BSD License
 
 3. INSIGHTFACE MODELS (buffalo_l, buffalo_s)
    The InsightFace pretrained models are provided by the InsightFace project

@@ -17,3 +17,8 @@ scipy==1.13.1
 opencv-contrib-python==4.10.0.84
 onnxruntime-gpu==1.19.2
 PySide6-Essentials==6.7.3
+
+# Preview player audio and phone-connection QR code
+av==12.3.0
+sounddevice==0.5.1
+qrcode==7.4.2

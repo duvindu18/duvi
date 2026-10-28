@@ -90,6 +90,45 @@ artifact.
 | `installer/requirements/*.txt` | pinned package sets per component |
 | `installer/build_installer.py` | stages everything and runs `makensis` |
 
+### Preview player
+
+Video files play in a full media player:
+- **Timeline:** scrubbing shows a live, anonymized preview while you drag.
+- **Transport:** ±10 s, frame-by-frame stepping, loop, plus volume and mute.
+- **Audio:** decoded with PyAV, played through the sound card and used as the playback master clock, so picture and sound stay in sync.
+- **End of video:** playback holds on the last frame, so you can seek back.
+
+| Key | Action |
+| --- | --- |
+| `Space` | play / pause |
+| `J` / `L` | −10 s / +10 s |
+| `←` / `→` | −5 s / +5 s |
+| `,` / `.` | previous / next frame |
+| `M` | mute |
+| `Esc` | stop |
+| `Ctrl+S` / `Ctrl+R` | snapshot / record |
+
+**Smooth preview** (default) shows *every* frame at the source frame rate. Detection runs alongside as fast as the GPU allows, and each face is drawn at its predicted position between detections. After a start or a seek, the first frame waits for detection, so no face is shown before it is known. **Exact** mode (Settings → General) detects every displayed frame. Exports always process every frame exactly.
+
+### Phone / Blackmagic Camera over Wi-Fi
+
+Choose **Phone / Blackmagic** as the source and click **Connect phone…**. Veil starts its bundled MediaMTX receiver and shows:
+- the PC's address;
+- the **Server URL** and **Stream key** to paste into the Blackmagic Camera app's custom RTMP live-stream settings (or any RTMP/SRT app: Larix, OBS, …);
+- a QR code of the full URL;
+- live stream status.
+
+Once the phone is streaming, press **Start anonymized preview**. Typical delay is 0.5–1.5 s.
+
+| Port | Protocol | Reachable from |
+| --- | --- | --- |
+| 1935 | RTMP | the network |
+| 8890/udp | SRT | the network |
+| 8554 | RTSP (Veil reads here) | this PC only |
+| 9997 | status API | this PC only |
+
+Setup adds a firewall rule for private networks only.
+
 ---
 
 ## 1. System architecture
@@ -392,12 +431,12 @@ false positive only blurs a patch of background.
 * **Tracks start immediately** (`Confirm after 1 hit`). Faces that are not yet
   identified are hidden (*privacy-safe start*), and a face stays hidden for 8
   frames after the detector briefly loses it.
-* **Full-face coverage.** The anonymized region always contains the *entire*
-  detected face box. The ellipse is scaled by √2, because an inscribed ellipse
-  only reaches the box corners at that size. Margin is added for soft edges
-  and coverage, and the region extends upward over the forehead and hairline.
-  Faces cut by the frame border keep their full mask shape. A unit test checks
-  this pixel by pixel for every shape and edge setting.
+* **Precise, tilt-aware regions.** Each face is anonymized with an ellipse rotated with the head and sized from the face itself.
+  - **Coverage 0 %** is the face oval: brows, eyes, nose, mouth, cheeks and chin. Higher coverage grows toward the hairline and ears.
+  - **Rotated detections** keep their true orientation instead of being merged into an inflated box.
+  - **Duplicate regions** of one face are drawn once.
+  - **Briefly lost faces** keep their last size and only move with their motion.
+  - **One-frame false positives** are not held on screen.
 
 
 | Knob | Where | Effect |

@@ -25,7 +25,7 @@ import cv2
 import numpy as np
 
 from app.core import hardware
-from app.core.angles import COVERAGE_PRESETS, MultiAngleDetector
+from app.core.angles import COVERAGE_PRESETS, ROTATED_INPUT_SCALE, MultiAngleDetector
 from app.core.config import Backend, Device, EngineConfig
 from app.core.engine_types import Detection
 from app.core.models import SFACE, YUNET, ensure_model, ensure_pack
@@ -69,6 +69,21 @@ def _aligned_crops(frame: np.ndarray, detections: list[Detection]) -> tuple[list
         except (ValueError, cv2.error):
             continue
     return crops, slots
+
+
+def _trt_profile(providers: list[str], options: list[dict], min_s: str, opt_s: str, max_s: str) -> list[dict]:
+    """Explicit TensorRT shape profile for the model input (InsightFace models
+    all name it ``input.1``). Without it TensorRT rebuilds its engine whenever
+    the input shape changes, which shows up as multi-second stalls."""
+    out = [dict(o) for o in options]
+    for i, name in enumerate(providers):
+        if name == "TensorrtExecutionProvider":
+            out[i].update(
+                trt_profile_min_shapes=f"input.1:{min_s}",
+                trt_profile_opt_shapes=f"input.1:{opt_s}",
+                trt_profile_max_shapes=f"input.1:{max_s}",
+            )
+    return out
 
 
 def auto_det_size(cfg: EngineConfig, device: Device) -> int:
@@ -120,8 +135,16 @@ class InsightFaceBackend(BaseBackend):
         providers, options = hardware.providers_for(device, cfg)
         log.info("Loading %s on %s", cfg.insightface_pack, providers)
         try:
-            det_session = make_session(det_path, providers, options, cfg.cpu_threads)
-            rec_session = make_session(rec_path, providers, options, cfg.cpu_threads)
+            side = auto_det_size(cfg, device)
+            big = int(round(side * ROTATED_INPUT_SCALE / 32)) * 32
+            det_session = make_session(
+                det_path, providers, _trt_profile(providers, options, f"1x3x{side}x{side}", f"1x3x{side}x{side}", f"1x3x{big}x{big}"),
+                cfg.cpu_threads,
+            )
+            rec_session = make_session(
+                rec_path, providers, _trt_profile(providers, options, "1x3x112x112", "4x3x112x112", "32x3x112x112"),
+                cfg.cpu_threads,
+            )
             self._det = SCRFD(det_session, auto_det_size(cfg, device))
             self._rec = ArcFace(rec_session)
         except Exception as exc:
@@ -139,6 +162,7 @@ class InsightFaceBackend(BaseBackend):
     def detect(self, frame: np.ndarray, scale: float = 1.0) -> list[Detection]:
         size = None
         if scale > 1.01:
+            # Only ever one extra fixed shape, so TensorRT builds its engine once.
             side = int(round(self._det.input_size[0] * min(scale, 2.0) / 32)) * 32
             size = (side, side)
         bboxes, kpss = self._det.detect(frame, self.cfg.det_low_threshold, size)
@@ -242,7 +266,11 @@ class FaceEngine:
         self._backend: BaseBackend = self._build_from(0)
         angles = COVERAGE_PRESETS.get(cfg.rotation_coverage, COVERAGE_PRESETS["full"])
         self._multi = MultiAngleDetector(
-            lambda f, k=1.0: self._run("detect", f, k), angles, self._passes_per_frame(), cfg.det_threshold
+            lambda f, k=1.0: self._run("detect", f, k),
+            angles,
+            self._passes_per_frame(),
+            hot_threshold=cfg.det_threshold,
+            base_side=auto_det_size(cfg, self._backend.device),
         )
 
     # ---- construction ------------------------------------------------
@@ -307,6 +335,10 @@ class FaceEngine:
         if self.cfg.rotation_passes > 0:
             return self.cfg.rotation_passes
         return 2 if hardware.is_gpu(self._backend.device) else 1
+
+    def reset_scene(self) -> None:
+        """Call after a seek / scene change so every angle is swept again."""
+        self._multi.reset()
 
     def detect(self, frame: np.ndarray, exhaustive: bool = False) -> list[Detection]:
         """Upright pass plus scheduled rotated passes (``exhaustive``: all angles)."""

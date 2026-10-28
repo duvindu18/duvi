@@ -38,14 +38,22 @@ class Logo(QWidget):
 class NavRail(QWidget):
     """Vertical glass rail; the reference's bottom tab bar adapted for desktop."""
 
+    WIDTH = 92
+    INSET_X = 12
+    INSET_Y = 12
+
     def __init__(self) -> None:
         super().__init__()
-        self.setFixedWidth(92)
+        self.setFixedWidth(self.WIDTH)
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(20, 24, 20, 24)
+        # The rail is a capsule; its rounded ends are half circles of radius
+        # (WIDTH - 2*INSET_X) / 2. Logo and version sit at those circles' centres.
+        radius = (self.WIDTH - 2 * self.INSET_X) / 2
+        end_center = self.INSET_Y + radius
+        lay.setContentsMargins(0, int(end_center - 26), 0, int(end_center - 9))
         lay.setSpacing(14)
         lay.addWidget(Logo(), 0, Qt.AlignmentFlag.AlignHCenter)
-        lay.addSpacing(24)
+        lay.addSpacing(30)
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
         self.buttons: list[NavButton] = []
@@ -58,13 +66,14 @@ class NavRail(QWidget):
             lay.addWidget(b, 0, Qt.AlignmentFlag.AlignHCenter)
         lay.addStretch(1)
         self.version = label(f"v{__version__}", "faint")
-        self.version.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-        lay.addWidget(self.version)
+        self.version.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.version.setFixedHeight(18)
+        lay.addWidget(self.version, 0, Qt.AlignmentFlag.AlignHCenter)
 
     def paintEvent(self, _e) -> None:  # noqa: N802
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        r = QRectF(self.rect()).adjusted(12, 12, -8, -12)
+        r = QRectF(self.rect()).adjusted(self.INSET_X, self.INSET_Y, -self.INSET_X, -self.INSET_Y)
         p.setPen(QColor(255, 255, 255, 36))
         p.setBrush(QColor(20, 5, 3, 70))
         p.drawRoundedRect(r, r.width() / 2, r.width() / 2)
@@ -176,6 +185,7 @@ class MainWindow(QMainWindow):
         for c in busy:
             if c.pipeline is not None:
                 c.pipeline.wait(8.0)
+        self.live.shutdown()  # stops the phone receiver (MediaMTX)
         self.ctx.cfg.window_geometry = bytes(self.saveGeometry().toBase64()).decode("ascii")
         self.ctx.save_now()
         super().closeEvent(e)

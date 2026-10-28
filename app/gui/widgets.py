@@ -781,3 +781,207 @@ class VideoView(QWidget):
         p.setPen(QColor(255, 255, 255, 150))
         p.setFont(app_font(10))
         p.drawText(QRectF(r.left(), logo.bottom() + 58, r.width(), 30), Qt.AlignmentFlag.AlignHCenter, self.subline)
+
+
+def fmt_time(ms: float) -> str:
+    s = max(0, int(ms // 1000))
+    h, m, s = s // 3600, s % 3600 // 60, s % 60
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
+
+
+class TrackSlider(QWidget):
+    """Slim media slider (timeline / volume): thin glass track that thickens on
+    hover, white progress, a knob while hovering or dragging, and a time bubble
+    for the timeline. Values are 0..1."""
+
+    moved = Signal(float)  # while dragging (throttled by the caller if needed)
+    released = Signal(float)  # drag finished / click
+
+    def __init__(self, show_bubble: bool = False, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._value = 0.0
+        self._hover = False
+        self._hover_x = 0.0
+        self.dragging = False
+        self.show_bubble = show_bubble
+        self.duration_ms = 0.0
+        self.setMouseTracking(True)
+        self.setFixedHeight(22)
+        self.setMinimumWidth(60)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+    def value(self) -> float:
+        return self._value
+
+    def set_value(self, v: float) -> None:
+        if not self.dragging:
+            self._value = max(0.0, min(1.0, v))
+            self.update()
+
+    def _track(self) -> QRectF:
+        return QRectF(8, self.height() / 2 - 2, self.width() - 16, 4)
+
+    def _frac_at(self, x: float) -> float:
+        t = self._track()
+        return max(0.0, min(1.0, (x - t.left()) / max(1.0, t.width())))
+
+    def mousePressEvent(self, e) -> None:  # noqa: N802
+        if e.button() == Qt.MouseButton.LeftButton:
+            self.dragging = True
+            self._value = self._frac_at(e.position().x())
+            self.moved.emit(self._value)
+            self.update()
+
+    def mouseMoveEvent(self, e) -> None:  # noqa: N802
+        self._hover_x = e.position().x()
+        if self.dragging:
+            self._value = self._frac_at(self._hover_x)
+            self.moved.emit(self._value)
+        self.update()
+
+    def mouseReleaseEvent(self, e) -> None:  # noqa: N802
+        if self.dragging:
+            self.dragging = False
+            self._value = self._frac_at(e.position().x())
+            self.released.emit(self._value)
+            self.update()
+
+    def keyPressEvent(self, e) -> None:  # noqa: N802
+        step = {Qt.Key.Key_Left: -0.02, Qt.Key.Key_Right: 0.02}.get(Qt.Key(e.key()))
+        if step is None:
+            super().keyPressEvent(e)
+            return
+        self._value = max(0.0, min(1.0, self._value + step))
+        self.released.emit(self._value)
+        self.update()
+
+    def enterEvent(self, e) -> None:  # noqa: N802
+        self._hover = True
+        self.update()
+
+    def leaveEvent(self, e) -> None:  # noqa: N802
+        self._hover = False
+        self.update()
+
+    def paintEvent(self, _e) -> None:  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        t = self._track()
+        active = self._hover or self.dragging
+        if active:
+            t = t.adjusted(0, -1, 0, 1)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(255, 255, 255, 60))
+        p.drawRoundedRect(t, t.height() / 2, t.height() / 2)
+        done = QRectF(t.left(), t.top(), t.width() * self._value, t.height())
+        p.setBrush(QColor("white"))
+        p.drawRoundedRect(done, t.height() / 2, t.height() / 2)
+        if active:
+            if self._hover and not self.dragging:
+                hx = max(t.left(), min(t.right(), self._hover_x))
+                p.setBrush(QColor(255, 255, 255, 90))
+                p.drawRoundedRect(QRectF(t.left(), t.top(), hx - t.left(), t.height()), t.height() / 2, t.height() / 2)
+            x = t.left() + t.width() * self._value
+            p.setBrush(QColor("white"))
+            p.drawEllipse(QPointF(x, t.center().y()), 7, 7)
+
+
+class PlayerBar(QWidget):
+    """Media controls: timeline with times, transport centred exactly, tool and
+    volume groups of equal width on either side so nothing shifts."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(8)
+
+        self.timeline_row = QWidget()
+        tl = QHBoxLayout(self.timeline_row)
+        tl.setContentsMargins(4, 0, 4, 0)
+        tl.setSpacing(12)
+        self.time_cur = label("00:00", "dim")
+        self.time_total = label("00:00", "dim")
+        for lbl in (self.time_cur, self.time_total):
+            lbl.setFont(app_font(9, QFont.Weight.Medium))
+            lbl.setMinimumWidth(48)
+        self.time_total.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.timeline = TrackSlider(show_bubble=True)
+        tl.addWidget(self.time_cur)
+        tl.addWidget(self.timeline, 1)
+        tl.addWidget(self.time_total)
+        lay.addWidget(self.timeline_row)
+
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(0)
+        self.left = QWidget()
+        ll = QHBoxLayout(self.left)
+        ll.setContentsMargins(0, 0, 0, 0)
+        ll.setSpacing(10)
+        self.snapshot_btn = CircleButton("snapshot", 42, tooltip="Save anonymized snapshot (Ctrl+S)")
+        self.record_btn = CircleButton("record", 42, tooltip="Record anonymized video (Ctrl+R)", checkable=True)
+        self.record_btn.accent = qcolor(P.danger)
+        self.enroll_btn = CircleButton("enroll", 42, tooltip="Enroll the largest face as a known identity")
+        for b in (self.snapshot_btn, self.record_btn, self.enroll_btn):
+            ll.addWidget(b)
+        ll.addStretch(1)
+
+        self.center = QWidget()
+        cl = QHBoxLayout(self.center)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.setSpacing(12)
+        self.back10_btn = CircleButton("skip-back", 42, tooltip="Back 10 seconds (J)")
+        self.step_back_btn = CircleButton("step-back", 42, tooltip="Previous frame (,)")
+        self.play_btn = CircleButton("play", 60, solid=True, tooltip="Play / pause (Space)")
+        soft_shadow(self.play_btn, 30, 120, 8)
+        self.step_fwd_btn = CircleButton("step-fwd", 42, tooltip="Next frame (.)")
+        self.fwd10_btn = CircleButton("skip-fwd", 42, tooltip="Forward 10 seconds (L)")
+        self.stop_btn = CircleButton("stop", 42, tooltip="Stop (Esc)")
+        for b in (self.back10_btn, self.step_back_btn, self.play_btn, self.step_fwd_btn, self.fwd10_btn):
+            cl.addWidget(b, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        self.right = QWidget()
+        rl = QHBoxLayout(self.right)
+        rl.setContentsMargins(0, 0, 0, 0)
+        rl.setSpacing(10)
+        rl.addStretch(1)
+        self.loop_btn = CircleButton("loop", 42, tooltip="Loop playback", checkable=True)
+        self.loop_btn.accent = qcolor(P.accent)
+        self.mute_btn = CircleButton("volume", 42, tooltip="Mute / unmute (M)", checkable=True, checked_icon="mute")
+        self.mute_btn.accent = qcolor(P.accent)
+        self.volume = TrackSlider()
+        self.volume.setFixedWidth(96)
+        self.volume.setToolTip("Volume")
+        rl.addWidget(self.stop_btn)
+        rl.addWidget(self.loop_btn)
+        rl.addWidget(self.mute_btn)
+        rl.addWidget(self.volume)
+
+        row.addWidget(self.left, 1)
+        row.addWidget(self.center, 0)
+        row.addWidget(self.right, 1)
+        lay.addLayout(row)
+        self.set_media_mode(False)
+
+    def set_media_mode(self, seekable: bool, has_audio: bool = False) -> None:
+        """Files get the timeline and transport; live sources only play/stop."""
+        for w in (self.timeline_row, self.back10_btn, self.step_back_btn, self.step_fwd_btn, self.fwd10_btn, self.loop_btn):
+            w.setVisible(seekable)
+        for w in (self.mute_btn, self.volume):
+            w.setVisible(seekable and has_audio)
+        self._balance()
+
+    def resizeEvent(self, e) -> None:  # noqa: N802
+        super().resizeEvent(e)
+        self._balance()
+
+    def _balance(self) -> None:
+        # Equal side widths keep the play button exactly centred.
+        side = max(0, (self.width() - self.center.sizeHint().width()) // 2)
+        self.left.setFixedWidth(side)
+        self.right.setFixedWidth(side)
+        compact = side < 300
+        self.volume.setVisible(self.mute_btn.isVisible() and not compact)

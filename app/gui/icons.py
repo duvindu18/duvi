@@ -188,6 +188,65 @@ def draw_icon(p: QPainter, name: str, r: QRectF, color: QColor) -> None:
     elif name == "close":
         p.drawLine(pt(6, 6), pt(18, 18))
         p.drawLine(pt(18, 6), pt(6, 18))
+    elif name in ("skip-back", "skip-fwd"):
+        # Circular arrow with "10".
+        rect = QRectF(pt(4, 4), pt(20, 20))
+        if name == "skip-back":
+            p.drawArc(rect, 100 * 16, 280 * 16)
+            p.drawLine(pt(10.5, 2.5), pt(13, 4.2))
+            p.drawLine(pt(10.5, 6), pt(13, 4.2))
+        else:
+            p.drawArc(rect, 80 * 16, -280 * 16)
+            p.drawLine(pt(13.5, 2.5), pt(11, 4.2))
+            p.drawLine(pt(13.5, 6), pt(11, 4.2))
+        f = p.font()
+        f.setPixelSize(max(6, int(7.5 * u)))
+        f.setBold(True)
+        p.setFont(f)
+        p.drawText(QRectF(pt(4, 6), pt(20, 19)), Qt.AlignmentFlag.AlignCenter, "10")
+    elif name in ("step-back", "step-fwd"):
+        p.setBrush(color)
+        tri = QPainterPath()
+        if name == "step-fwd":
+            tri.moveTo(pt(6, 6))
+            tri.lineTo(pt(15, 12))
+            tri.lineTo(pt(6, 18))
+            p.drawPath(tri)
+            p.drawLine(pt(18, 6), pt(18, 18))
+        else:
+            tri.moveTo(pt(18, 6))
+            tri.lineTo(pt(9, 12))
+            tri.lineTo(pt(18, 18))
+            p.drawPath(tri)
+            p.drawLine(pt(6, 6), pt(6, 18))
+    elif name in ("volume", "mute"):
+        body = QPainterPath(pt(3.5, 9.5))
+        body.lineTo(pt(7.5, 9.5))
+        body.lineTo(pt(12.5, 5))
+        body.lineTo(pt(12.5, 19))
+        body.lineTo(pt(7.5, 14.5))
+        body.lineTo(pt(3.5, 14.5))
+        body.closeSubpath()
+        p.drawPath(body)
+        if name == "volume":
+            p.drawArc(QRectF(pt(10, 8.5), pt(17, 15.5)), -50 * 16, 100 * 16)
+            p.drawArc(QRectF(pt(9, 5), pt(21, 19)), -50 * 16, 100 * 16)
+        else:
+            p.drawLine(pt(15.5, 9), pt(21, 15))
+            p.drawLine(pt(21, 9), pt(15.5, 15))
+    elif name == "loop":
+        p.drawArc(QRectF(pt(4, 6), pt(20, 18)), 30 * 16, 300 * 16)
+        p.drawLine(pt(19.3, 7.2), pt(19.6, 11))
+        p.drawLine(pt(19.6, 11), pt(16, 10))
+    elif name == "phone":
+        p.drawRoundedRect(QRectF(pt(7, 2.5), pt(17, 21.5)), 2.5 * u, 2.5 * u)
+        p.drawLine(pt(10.5, 18.5), pt(13.5, 18.5))
+    elif name == "edit":
+        p.drawLine(pt(5, 19), pt(5.8, 15.2))
+        p.drawLine(pt(5.8, 15.2), pt(16, 5))
+        p.drawLine(pt(16, 5), pt(19, 8))
+        p.drawLine(pt(19, 8), pt(8.8, 18.2))
+        p.drawLine(pt(8.8, 18.2), pt(5, 19))
     elif name == "chip":
         p.drawRoundedRect(QRectF(pt(6, 6), pt(18, 18)), 2 * u, 2 * u)
         for v in (9, 12, 15):

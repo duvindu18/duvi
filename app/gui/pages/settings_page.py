@@ -65,6 +65,30 @@ class SettingsPage(QWidget):
             flow.addWidget(c)
             return c
 
+        # ---- general ---------------------------------------------------------
+        gen = card("General", "Welcome message and preview behaviour")
+        gen.body.addWidget(label("Your name (welcome message)", "caption"))
+        self.name_edit = QLineEdit(cfg.display_name)
+        self.name_edit.setPlaceholderText("Leave empty to use your Windows user name")
+        self.name_edit.setMaxLength(40)
+        self.name_edit.editingFinished.connect(lambda: self._set(cfg, "display_name", self.name_edit.text().strip()))
+        gen.body.addWidget(self.name_edit)
+        ctx.configChanged.connect(
+            lambda: None if self.name_edit.hasFocus() else self.name_edit.setText(ctx.cfg.display_name)
+        )
+        gen.body.addWidget(label("Preview mode", "caption"))
+        self.preview_mode = PillGroup(
+            [("smooth", "Smooth (recommended)"), ("exact", "Exact")],
+            tooltips={
+                "smooth": "Plays every frame at full frame rate; faces are tracked between detections",
+                "exact": "Every displayed frame is detected; can stutter on slower GPUs",
+            },
+        )
+        self.preview_mode.set_value(cfg.preview_mode)
+        self.preview_mode.changed.connect(lambda v: self._set(cfg, "preview_mode", v))
+        gen.body.addWidget(self.preview_mode)
+        gen.body.addWidget(label("Exports always detect every frame, whatever this setting.", "faint", wrap=True))
+
         # ---- engine ----------------------------------------------------------
         eng = card("Face engine", "Detector, recognizer and hardware acceleration")
         eng.body.addWidget(label("Backend", "caption"))

@@ -82,6 +82,14 @@ class FramePacket:
 
 
 @dataclass
+class SeekMarker:
+    """Put on the frame queue after a seek: downstream resets tracking state."""
+
+    index: int
+    pts_ms: float
+
+
+@dataclass
 class SourceInfo:
     width: int
     height: int
@@ -97,6 +105,15 @@ def _webcam_backends() -> list[int]:
     if sys.platform.startswith("linux"):
         return [cv2.CAP_V4L2, cv2.CAP_ANY]
     return [cv2.CAP_ANY]
+
+
+def _hw_params() -> list[int]:
+    """Ask FFmpeg for GPU video decoding (D3D11VA on Windows); OpenCV falls back to
+    software decoding silently when the codec or GPU does not support it. 4K
+    H.264/HEVC camera files decode several times faster this way."""
+    if os.environ.get("VEIL_NO_HW_DECODE") or not hasattr(cv2, "CAP_PROP_HW_ACCELERATION"):
+        return []
+    return [cv2.CAP_PROP_HW_ACCELERATION, cv2.VIDEO_ACCELERATION_ANY]
 
 
 def open_capture(spec: SourceSpec, width: int = 1280, height: int = 720) -> cv2.VideoCapture:
@@ -131,7 +148,7 @@ def open_capture(spec: SourceSpec, width: int = 1280, height: int = 720) -> cv2.
         params = []
         if hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC"):
             params = [cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 8000, cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000]
-        cap = cv2.VideoCapture(spec.value, cv2.CAP_FFMPEG, params)
+        cap = cv2.VideoCapture(spec.value, cv2.CAP_FFMPEG, params + _hw_params())
         if not cap.isOpened():
             cap.release()
             raise StreamError(f"Could not connect to {_redact(spec.value)}. Check the URL, credentials and network.")
@@ -143,7 +160,7 @@ def open_capture(spec: SourceSpec, width: int = 1280, height: int = 720) -> cv2.
         raise SourceError(f"Video file not found: {path}")
     if path.suffix.lower() not in VIDEO_EXTENSIONS:
         log.warning("Unusual video extension %s; attempting to open anyway.", path.suffix)
-    cap = cv2.VideoCapture(str(path), cv2.CAP_FFMPEG)
+    cap = cv2.VideoCapture(str(path), cv2.CAP_FFMPEG, _hw_params())
     if not cap.isOpened():
         cap.release()
         cap = cv2.VideoCapture(str(path))
@@ -224,6 +241,13 @@ class CaptureWorker(threading.Thread):
         self.on_warning = on_warning
         self.paused = threading.Event()
         self.ready = threading.Event()
+        self.ended = threading.Event()
+        self.clock = None  # MediaClock, set by the pipeline for file preview
+        self.hold_at_end = False
+        self.on_ended: Callable[[], None] = lambda: None
+        self.position_ms = 0.0
+        self._seek_lock = threading.Lock()
+        self._seek_ms: float | None = None
         self.info: SourceInfo | None = None
         self.open_error: Exception | None = None
         self.dropped = 0
@@ -279,18 +303,62 @@ class CaptureWorker(threading.Thread):
                 continue
         return False
 
+    # ---- file playback controls (any thread) -------------------------------
+    def request_seek(self, ms: float) -> None:
+        """Jump to ``ms``; while paused, the frame at the new position is still shown."""
+        with self._seek_lock:
+            self._seek_ms = max(0.0, ms)
+
+    def _take_seek(self) -> float | None:
+        with self._seek_lock:
+            ms, self._seek_ms = self._seek_ms, None
+        return ms
+
+    def _flush_queue(self) -> None:
+        while True:
+            try:
+                self.q.get_nowait()
+            except queue.Empty:
+                return
+
     def _run_file(self) -> None:
+        """Files: paced by ``self.clock`` in preview (frames are skipped when
+        decoding falls behind, so playback stays real-time and in sync with
+        audio); as fast as possible, every frame, in export mode."""
         assert self._cap is not None and self.info is not None
         cap, info = self._cap, self.info
-        frame_period = 1.0 / info.fps
+        period_ms = 1000.0 / info.fps
         index = 0
         corrupt = 0
-        next_due = time.perf_counter()
+        show_one = False
         while not self.stop_event.is_set():
-            if self.paused.is_set():
-                time.sleep(0.05)
-                next_due = time.perf_counter()
+            seek = self._take_seek()
+            if seek is not None:
+                if info.frame_count:
+                    seek = min(seek, (info.frame_count - 1) * period_ms)
+                target = int(round(seek / period_ms))
+                cap.set(cv2.CAP_PROP_POS_FRAMES, target)
+                index = target
+                self.ended.clear()
+                if self.realtime:
+                    self._flush_queue()
+                self._emit(SeekMarker(index, index * period_ms))
+                if self.clock is not None:
+                    self.clock.seek(index * period_ms)
+                show_one = True
+            if self.ended.is_set() or (self.paused.is_set() and not show_one):
+                time.sleep(0.01)
                 continue
+            if self.realtime and self.clock is not None and not show_one:
+                # Skip frames that are already late (decode without colour conversion).
+                now = self.clock.position_ms()
+                while index * period_ms < now - 1.5 * period_ms and cap.grab():
+                    index += 1
+                    self.dropped += 1
+                due = index * period_ms - self.clock.position_ms()
+                if due > 1.0:
+                    time.sleep(min(due, 50.0) / 1000.0)
+                    continue
             ok, frame = cap.read()
             if not ok or frame is None:
                 pos = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
@@ -300,19 +368,19 @@ class CaptureWorker(threading.Thread):
                     continue
                 if corrupt:
                     self.on_warning(f"Skipped {corrupt} undecodable frame(s) in {self.spec.label()}.")
+                    corrupt = 0
+                if self.realtime and self.hold_at_end:
+                    # Preview: stay on the last frame so the user can seek back.
+                    self.ended.set()
+                    self.on_ended()
+                    continue
                 return  # end of file
-            pts = cap.get(cv2.CAP_PROP_POS_MSEC)
-            if not self._emit(FramePacket(index, frame, time.time(), pts)):
+            show_one = False
+            if not self._emit(FramePacket(index, frame, time.time(), index * period_ms)):
                 return
             index += 1
             self.frames_read = index
-            if self.realtime:
-                next_due += frame_period
-                delay = next_due - time.perf_counter()
-                if delay > 0:
-                    time.sleep(delay)
-                elif delay < -1.0:
-                    next_due = time.perf_counter()  # fell far behind; resync instead of bursting
+            self.position_ms = index * period_ms
 
     def _reopen(self) -> bool:
         if self._cap is not None:

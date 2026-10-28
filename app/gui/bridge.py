@@ -69,7 +69,17 @@ class OverlayPainter:
                     pen.setStyle(Qt.PenStyle.DashLine)
                 p.setPen(pen)
                 p.setBrush(Qt.BrushStyle.NoBrush)
-                self._corners(p, rect, min(rect.width(), rect.height()) * 0.22)
+                if face.geom is not None:
+                    # Brackets follow the face's tilt.
+                    cx, cy, w, h, ang = (float(v) for v in face.geom[:5])
+                    p.save()
+                    p.translate(cx * scale, cy * scale)
+                    p.rotate(ang)
+                    face_rect = QRectF(-w * scale / 2, -h * scale / 2, w * scale, h * scale)
+                    self._corners(p, face_rect, min(face_rect.width(), face_rect.height()) * 0.22)
+                    p.restore()
+                else:
+                    self._corners(p, rect, min(rect.width(), rect.height()) * 0.22)
             if self.show_labels:
                 name = face.identity or ("Identifying…" if face.role == "pending" else "Unknown")
                 parts = [name]
@@ -118,6 +128,8 @@ class PipelineController(QObject):
     progress = Signal(int, int)
     sourceInfo = Signal(object)
     finished = Signal(str)
+    position = Signal(float, float)  # current ms, duration ms
+    ended = Signal()
     stateChanged = Signal(str)
 
     def __init__(self, face_db: FaceDatabase, display: bool = True, parent: QObject | None = None) -> None:
@@ -163,6 +175,8 @@ class PipelineController(QObject):
             on_progress=self.progress.emit,
             on_source_info=self.sourceInfo.emit,
             on_finished=self.finished.emit,
+            on_position=self.position.emit,
+            on_ended=self.ended.emit,
         )
         self._pipeline = Pipeline(
             cfg,
@@ -207,6 +221,35 @@ class PipelineController(QObject):
         if self._pipeline:
             self._pipeline.stop_recording()
 
+    # ---- player controls (file preview) ------------------------------------
+    @property
+    def seekable(self) -> bool:
+        return bool(self._pipeline and self._pipeline.seekable)
+
+    @property
+    def has_audio(self) -> bool:
+        return bool(self._pipeline and self._pipeline.has_audio)
+
+    @property
+    def paused(self) -> bool:
+        return bool(self._pipeline and self._pipeline.paused)
+
+    def seek(self, ms: float) -> None:
+        if self._pipeline:
+            self._pipeline.seek(ms)
+
+    def step(self, frames: int) -> None:
+        if self._pipeline:
+            self._pipeline.step(frames)
+
+    def set_volume(self, volume: float) -> None:
+        if self._pipeline:
+            self._pipeline.set_volume(volume)
+
+    def set_muted(self, muted: bool) -> None:
+        if self._pipeline:
+            self._pipeline.set_muted(muted)
+
     def reload_face_db(self) -> bool:
         if self._pipeline:
             self._pipeline.reload_face_db()
@@ -233,7 +276,8 @@ class PipelineController(QObject):
         tw, th = max(1, self._target.width()), max(1, self._target.height())
         scale = min(tw / w, th / h, 2.0)
         if abs(scale - 1.0) > 0.02:
-            interp = cv2.INTER_AREA if scale < 1 else cv2.INTER_LINEAR
+            # INTER_AREA is slow on 4K sources; linear is visually equivalent at preview size.
+            interp = cv2.INTER_AREA if 0.5 <= scale < 1 else cv2.INTER_LINEAR
             frame = cv2.resize(frame, (max(1, int(w * scale)), max(1, int(h * scale))), interpolation=interp)
         else:
             scale = 1.0

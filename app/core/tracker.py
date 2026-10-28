@@ -131,6 +131,7 @@ class FaceTrack:
     activated: bool = False
     detection: Detection | None = None  # detection matched in the current frame
     last_bbox: np.ndarray = field(default_factory=lambda: np.zeros(4, np.float32))
+    last_geom: np.ndarray = field(default_factory=lambda: np.zeros(5, np.float32))
     # Identity bookkeeping, owned by the recognition layer.
     identity: str | None = None  # None = unknown (or not yet recognised)
     identity_sim: float = 0.0
@@ -140,15 +141,30 @@ class FaceTrack:
 
     @property
     def bbox(self) -> np.ndarray:
-        """Matched detection box if available, otherwise prediction ∪ last box."""
+        """Matched detection box, else the last observed box moved by the predicted motion."""
         if self.detection is not None:
             return self.detection.bbox
-        # Not detected this frame: cover both the last observed box and the
-        # motion prediction, so a held face is never under-covered by drift.
+        dx, dy = self._drift()
+        return self.last_bbox + np.array([dx, dy, dx, dy], np.float32)
+
+    @property
+    def geom(self) -> np.ndarray:
+        """Oriented face geometry; held tracks keep their last size and tilt and
+        only move with the motion model (they never grow)."""
+        if self.detection is not None:
+            return self.detection.oriented
+        dx, dy = self._drift()
+        g = self.last_geom.copy()
+        g[0] += dx
+        g[1] += dy
+        return g
+
+    def _drift(self) -> tuple[float, float]:
         pred = _xyah_to_tlbr(self.mean)
         last = self.last_bbox
-        return np.array(
-            [min(pred[0], last[0]), min(pred[1], last[1]), max(pred[2], last[2]), max(pred[3], last[3])], np.float32
+        return (
+            float((pred[0] + pred[2] - last[0] - last[2]) / 2),
+            float((pred[1] + pred[3] - last[1] - last[3]) / 2),
         )
 
 
@@ -174,6 +190,7 @@ class ByteTracker:
         track = FaceTrack(
             track_id=self._next_id, mean=mean, cov=cov, score=det.score,
             start_frame=self.frame_id, frame_id=self.frame_id, detection=det, last_bbox=det.bbox.copy(),
+            last_geom=det.oriented.copy(),
         )
         self._next_id += 1
         track.state = TrackState.TRACKED
@@ -184,6 +201,7 @@ class ByteTracker:
         track.mean, track.cov = self.kf.update(track.mean, track.cov, _tlbr_to_xyah(det.bbox))
         track.detection = det
         track.last_bbox = det.bbox.copy()
+        track.last_geom = det.oriented.copy()
         track.score = det.score
         track.frame_id = self.frame_id
         track.hits += 1
@@ -273,6 +291,10 @@ class ByteTracker:
             keep.append(lt)
         self.lost = keep
 
-    def recently_lost(self, max_frames: int) -> list[FaceTrack]:
-        """Activated tracks that disappeared within ``max_frames`` (anti-flicker)."""
-        return [t for t in self.lost if t.activated and self.frame_id - t.frame_id <= max_frames]
+    def recently_lost(self, max_frames: int, min_hits: int = 2) -> list[FaceTrack]:
+        """Established tracks that disappeared within ``max_frames`` (anti-flicker).
+        One-frame detections (likely false positives) are not held."""
+        return [
+            t for t in self.lost
+            if t.activated and t.hits >= min_hits and self.frame_id - t.frame_id <= max_frames
+        ]

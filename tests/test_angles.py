@@ -36,13 +36,23 @@ def test_mapped_box_contains_rotated_face():
     assert mapped.kps.shape == (5, 2)
 
 
-def test_merge_takes_union():
+def test_merge_keeps_best_hit_per_face():
     a = Detection(np.array([0, 0, 10, 10], np.float32), 0.9)
-    b = Detection(np.array([2, 2, 14, 12], np.float32), 0.5)
+    b = Detection(np.array([1, 1, 11, 11], np.float32), 0.5)
     c = Detection(np.array([50, 50, 60, 60], np.float32), 0.4)
-    out = merge_detections([[a], [b, c]])
+    out = merge_detections([[b], [a, c]])
     assert len(out) == 2
-    np.testing.assert_array_equal(out[0].bbox, [0, 0, 14, 12])
+    np.testing.assert_array_equal(out[0].bbox, [0, 0, 10, 10])  # no union inflation
+
+
+def test_mapped_geometry_keeps_face_size_and_tilt():
+    frame = np.zeros((300, 400, 3), np.uint8)
+    rotated, inv = rotate_frame(frame, 30)
+    det = Detection(np.array([150, 120, 210, 200], np.float32), 0.9)
+    m = map_detection(det, inv, frame.shape[:2])
+    cx, cy, w, h, ang, _margin = m.geom
+    assert (w, h) == (60, 80)  # true face size, not an inflated box
+    assert abs(abs(ang) - 30) < 1e-3
 
 
 def test_scheduler_never_starves_the_sweep():
@@ -81,3 +91,43 @@ def test_tilted_face_found_on_first_frame():
     assert len(found) == 1
     x1, y1, x2, y2 = found[0].bbox
     assert (x2 - x1) > (y2 - y1)  # box follows the sideways face
+    assert abs(abs(found[0].geom[4]) - 90) < 1e-3  # and the geometry knows it is rotated
+
+
+@pytest.mark.parametrize("roll", [0, 20, -35, 90, 170])
+def test_landmark_roll(roll):
+    from app.core.angles import landmark_roll
+
+    base = np.array([[-15, -10], [15, -10], [0, 5], [-10, 20], [10, 20]], np.float64)
+    r = np.deg2rad(roll)
+    rot = np.array([[np.cos(r), -np.sin(r)], [np.sin(r), np.cos(r)]])
+    kps = (base @ rot.T + 100).astype(np.float32)
+    assert abs(((landmark_roll(kps) - roll) + 180) % 360 - 180) < 1e-3
+
+
+def test_refine_margin_grows_with_tilt():
+    from app.core.angles import refine_geometry
+
+    def kps_at(deg):
+        r = np.deg2rad(deg)
+        rot = np.array([[np.cos(r), -np.sin(r)], [np.sin(r), np.cos(r)]])
+        return (np.array([[-15, -10], [15, -10], [0, 5], [-10, 20], [10, 20]], float) @ rot.T + 200).astype(np.float32)
+
+    box = np.array([160, 140, 240, 260], np.float32)
+    margins = [refine_geometry(Detection(box, 0.9, kps_at(d))).geom[5] for d in (0, 10, 25)]
+    assert margins == sorted(margins) and 1.09 < margins[0] < 1.13 and margins[-1] > 1.19
+
+
+def test_refine_handles_sideways_face_in_upright_box():
+    """Upright pass detects a face lying at ~-80°: the geometry must turn with it."""
+    from app.core.angles import refine_geometry
+
+    r = np.deg2rad(-80)
+    rot = np.array([[np.cos(r), -np.sin(r)], [np.sin(r), np.cos(r)]])
+    kps = (np.array([[-15, -10], [15, -10], [0, 5], [-10, 20], [10, 20]], float) @ rot.T + 200).astype(np.float32)
+    c, s_ = abs(np.cos(r)), abs(np.sin(r))
+    hw, hh = np.hypot(30 * c, 45 * s_), np.hypot(30 * s_, 45 * c)  # 60x90 face, tilted -80°
+    box = np.array([200 - hw, 200 - hh, 200 + hw, 200 + hh], np.float32)
+    out = refine_geometry(Detection(box, 0.9, kps))
+    assert abs(((out.geom[4] + 90) + 180) % 360 - 180) < 1e-3  # box turned by a quarter
+    assert out.geom[5] > 1.12  # 10° residual still tilted inside the turned box

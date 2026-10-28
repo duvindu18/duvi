@@ -1,7 +1,7 @@
 """Selective anonymization: decides *who* to hide and renders *how*.
 
-Rendering works on a region guaranteed to contain the *entire* detected face
-(see :meth:`Anonymizer._region`). Effects are
+Rendering works on an oriented face ellipse (or rectangle) that follows the
+head's tilt and is sized from the face itself (see :meth:`Anonymizer.face_shape`). Effects are
 computed on a down-scaled copy of the ROI where possible (Gaussian blur cost
 grows with kernel area) and composited back through an elliptical, optionally
 feathered alpha mask so the result looks natural rather than boxy.
@@ -17,6 +17,7 @@ import cv2
 import numpy as np
 
 from app.core.config import AnonymizeConfig, Policy, RecognitionConfig, Shape, Style
+from app.core.engine_types import DEFAULT_MARGIN, geom_from_bbox
 from app.utils.imageio import imread
 
 log = logging.getLogger(__name__)
@@ -96,45 +97,66 @@ class Anonymizer:
 
     # ------------------------------------------------------------------
     @staticmethod
-    def _region(bbox: np.ndarray, cfg: AnonymizeConfig) -> tuple[float, float, float, float]:
-        """Unclipped effect region (x1, y1, x2, y2) that fully contains the face.
+    def face_shape(geom: np.ndarray, cfg: AnonymizeConfig) -> tuple[float, float, float, float, float]:
+        """Core anonymization shape ``(cx, cy, half_w, half_h, angle)`` in the face's own frame.
 
-        An ellipse inscribed in a rectangle reaches the rectangle's corners only
-        when its semi-axes are sqrt(2) x the half-sizes, so the ellipse shape
-        scales the region by sqrt(2) before padding. Feathered edges get extra
-        margin so the soft fall-off happens outside the face, never on it. The
-        region is biased upwards because detector boxes stop around the brows
-        and miss the forehead and hairline.
+        Coverage 0 % is the face oval itself: the ellipse inscribed in the
+        detector's face box, enlarged by the face's margin (about 11 % for an
+        aligned face, up to 26 % for a face tilted inside its box), so eyes,
+        brows, nose, mouth, cheeks and chin are always inside. Coverage grows it toward the
+        whole head (hairline, ears). The ellipse is rotated with the face, so a
+        tilted head gets a tilted ellipse instead of a large upright one.
         """
-        x1, y1, x2, y2 = (float(v) for v in bbox[:4])
-        bw, bh = max(1.0, x2 - x1), max(1.0, y2 - y1)
-        cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
-        k = 1.0 + max(0.0, cfg.padding)
+        cx, cy, w, h, ang = (float(v) for v in geom[:5])
+        margin = float(geom[5]) if len(geom) > 5 else DEFAULT_MARGIN
+        cov = min(1.0, max(0.0, cfg.padding))
         if cfg.shape == Shape.ELLIPSE:
-            k *= math.sqrt(2.0) * (1.2 if cfg.feather else 1.05)
-        elif cfg.feather:
-            k *= 1.35  # inset + blur fall-off of the feathered rectangle
-        half_w = bw / 2 * k
-        half_h = bh / 2 * k + bh * 0.08
-        cy -= bh * 0.08
-        return cx - half_w, cy - half_h, cx + half_w, cy + half_h
+            hw, hh = w / 2 * (margin + cov), h / 2 * (margin + cov)
+        else:
+            # A rectangle reaches the box corners; tilt inside the box needs less extra.
+            hw, hh = w / 2 * (1.0 + (margin - 1.0) * 0.6 + cov), h / 2 * (1.0 + (margin - 1.0) * 0.6 + cov)
+        # Detector boxes stop near the brows: bias toward the forehead, more so
+        # as coverage extends to the hairline.
+        shift = h * (0.03 + 0.08 * cov)
+        rad = math.radians(ang)
+        cx += math.sin(rad) * shift
+        cy -= math.cos(rad) * shift
+        return cx, cy, hw, hh, ang
 
     @staticmethod
-    def _alpha(w: int, h: int, cfg: AnonymizeConfig) -> np.ndarray | None:
-        if cfg.shape == Shape.RECTANGLE and not cfg.feather:
-            return None
-        alpha = np.zeros((h, w), np.float32)
-        if cfg.shape == Shape.ELLIPSE:
-            cv2.ellipse(alpha, (w // 2, h // 2), (max(1, w // 2 - 1), max(1, h // 2 - 1)), 0, 0, 360, 1.0, -1, cv2.LINE_AA)
+    def _draw(mask: np.ndarray, shape: tuple[float, float, float, float, float], ellipse: bool, value: float) -> None:
+        cx, cy, hw, hh, ang = shape
+        if ellipse:
+            cv2.ellipse(
+                mask, (int(round(cx * 16)), int(round(cy * 16))), (max(1, int(hw * 16)), max(1, int(hh * 16))),
+                ang, 0, 360, value, -1, cv2.LINE_AA, 4,
+            )
         else:
-            inset = max(1, min(w, h) // 14) if cfg.feather else 0
-            alpha[inset : h - inset, inset : w - inset] = 1.0
-        if cfg.feather:
-            k = max(3, (min(w, h) // 10) | 1)
-            alpha = cv2.GaussianBlur(alpha, (k, k), 0)
-            # Saturate the interior so it is fully opaque; only the rim fades.
-            alpha = np.clip(alpha * 2.0, 0, 1)
-        return alpha[..., None]
+            pts = cv2.boxPoints(((cx, cy), (2 * hw, 2 * hh), ang))
+            cv2.fillConvexPoly(mask, np.round(pts * 16).astype(np.int32), value, cv2.LINE_AA, 4)
+
+    @staticmethod
+    def as_geom(region: np.ndarray) -> np.ndarray:
+        region = np.asarray(region, np.float32)
+        return region if region.shape[0] >= 5 else geom_from_bbox(region)
+
+    @classmethod
+    def dedupe(cls, regions: list[np.ndarray]) -> list[np.ndarray]:
+        """Drop near-duplicate regions of the same face (held + re-detected,
+        upright + rotated pass), keeping the larger one, so one face is never
+        drawn as several overlapping blur patches."""
+        geoms = sorted((cls.as_geom(r) for r in regions), key=lambda g: -(g[2] * g[3]))
+        kept: list[np.ndarray] = []
+        for g in geoms:
+            dup = False
+            for k in kept:
+                dist = math.hypot(g[0] - k[0], g[1] - k[1])
+                if dist < 0.4 * min(k[2], k[3]) and g[2] * g[3] >= 0.25 * k[2] * k[3]:
+                    dup = True
+                    break
+            if not dup:
+                kept.append(g)
+        return kept
 
     def _effect(self, roi: np.ndarray, cfg: AnonymizeConfig) -> np.ndarray:
         h, w = roi.shape[:2]
@@ -167,28 +189,41 @@ class Anonymizer:
         a = m[..., 3:4].astype(np.float32) / 255.0
         return (m[..., :3].astype(np.float32) * a + base.astype(np.float32) * (1 - a)).astype(np.uint8)
 
-    def apply(self, frame: np.ndarray, boxes: list[np.ndarray]) -> None:
-        """Anonymize ``boxes`` in-place."""
+    def apply(self, frame: np.ndarray, regions: list[np.ndarray]) -> None:
+        """Anonymize ``regions`` in-place. Each region is an oriented face
+        geometry ``[cx, cy, w, h, angle]`` or an upright ``[x1, y1, x2, y2]`` box."""
         fh, fw = frame.shape[:2]
         with self._lock:
             cfg = self.cfg
-            for bbox in boxes:
-                rx1, ry1, rx2, ry2 = self._region(bbox, cfg)
-                # The mask is built for the full (possibly off-frame) region so
-                # its shape never shrinks when the frame border cuts a face.
-                gx1, gy1 = int(math.floor(rx1)), int(math.floor(ry1))
-                gw = max(2, int(math.ceil(rx2)) - gx1)
-                gh = max(2, int(math.ceil(ry2)) - gy1)
-                x1, y1 = max(0, gx1), max(0, gy1)
-                x2, y2 = min(fw, gx1 + gw), min(fh, gy1 + gh)
+            ellipse = cfg.shape == Shape.ELLIPSE
+            for geom in self.dedupe(regions):
+                core = self.face_shape(geom, cfg)
+                cx, cy, hw, hh, ang = core
+                band = 0.12 * min(hw, hh) if cfg.feather else 0.0
+                outer = (cx, cy, hw + band, hh + band, ang)
+                # Axis-aligned extent of the (rotated) outer shape, plus blur margin.
+                c, sn = abs(math.cos(math.radians(ang))), abs(math.sin(math.radians(ang)))
+                ex = (hw + band) * c + (hh + band) * sn if not ellipse else math.hypot((hw + band) * c, (hh + band) * sn)
+                ey = (hw + band) * sn + (hh + band) * c if not ellipse else math.hypot((hw + band) * sn, (hh + band) * c)
+                pad = int(band) + 2
+                gx1, gy1 = int(math.floor(cx - ex)) - pad, int(math.floor(cy - ey)) - pad
+                gx2, gy2 = int(math.ceil(cx + ex)) + pad, int(math.ceil(cy + ey)) + pad
+                x1, y1, x2, y2 = max(0, gx1), max(0, gy1), min(fw, gx2), min(fh, gy2)
                 if x2 - x1 < 1 or y2 - y1 < 1:
                     continue
+                # Mask in ROI coordinates; the full shape is drawn even when the
+                # frame border cuts the face, so its geometry never shrinks.
+                mask = np.zeros((y2 - y1, x2 - x1), np.float32)
+                shift = lambda sh: (sh[0] - x1, sh[1] - y1, sh[2], sh[3], sh[4])  # noqa: E731
+                if band > 0:
+                    self._draw(mask, shift(outer), ellipse, 1.0)
+                    k = max(3, int(band) | 1)
+                    mask = cv2.GaussianBlur(mask, (k, k), band / 3.0)
+                    core_mask = np.zeros_like(mask)
+                    self._draw(core_mask, shift(core), ellipse, 1.0)
+                    np.maximum(mask, core_mask, out=mask)
+                else:
+                    self._draw(mask, shift(core), ellipse, 1.0)
                 roi = frame[y1:y2, x1:x2]
                 effect = self._effect(roi, cfg)
-                alpha = self._alpha(gw, gh, cfg)
-                if alpha is None:
-                    roi[:] = effect
-                else:
-                    a = alpha[y1 - gy1 : y2 - gy1, x1 - gx1 : x2 - gx1]
-                    blended = effect.astype(np.float32) * a + roi.astype(np.float32) * (1.0 - a)
-                    roi[:] = blended.astype(np.uint8)
+                roi[:] = cv2.blendLinear(effect, roi, mask, 1.0 - mask)

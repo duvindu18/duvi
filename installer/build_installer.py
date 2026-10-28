@@ -16,6 +16,7 @@ What gets staged (build/installer/stage):
     payload/provision.py   component installer run by setup
     payload/Veil.exe       launcher (compiled from launcher.nsi)
     payload/veil.cmd       command-line entry point
+    mediamtx/              phone receiver (separate installer component)
     veil.ico, header.bmp, wizard.bmp, NOTICE.txt   installer artwork / licence page
 """
 
@@ -38,6 +39,11 @@ PYTHON_NUPKG = f"https://api.nuget.org/v3-flatcontainer/python/{PYTHON_VERSION}/
 PYTHON_NUPKG_SHA256 = None  # set to pin the exact archive once verified on your build machine
 
 APP_ITEMS = ["main.py", "app", "README.md", "requirements.txt"]
+MEDIAMTX_VERSION = "1.9.3"
+MEDIAMTX_URL = (
+    f"https://github.com/bluenviron/mediamtx/releases/download/v{MEDIAMTX_VERSION}/"
+    f"mediamtx_v{MEDIAMTX_VERSION}_windows_amd64.zip"
+)
 PRUNE_DIRS = {"__pycache__", "test", "tests", "idlelib", "tkinter", "turtledemo", "ensurepip"}
 
 
@@ -122,6 +128,18 @@ def stage_wheels(cache: Path, dest: Path) -> None:
     dest.mkdir(parents=True, exist_ok=True)
     for whl in wheel_cache.glob("*.whl"):
         shutil.copy2(whl, dest / whl.name)
+
+
+def stage_mediamtx(cache: Path, dest: Path) -> None:
+    """Phone receiver: only the executable and its licence (Veil writes its own
+    config at runtime)."""
+    log("staging MediaMTX phone receiver")
+    archive = fetch(MEDIAMTX_URL, cache / Path(MEDIAMTX_URL).name)
+    dest.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(archive) as zf:
+        for name in ("mediamtx.exe", "LICENSE"):
+            with zf.open(name) as src, (dest / name).open("wb") as out:
+                shutil.copyfileobj(src, out)
 
 
 def render_artwork(stage: Path) -> None:
@@ -230,6 +248,7 @@ def main() -> None:
     stage_python(cache, payload / "python")
     stage_app(payload / "app")
     stage_wheels(cache, payload / "wheels")
+    stage_mediamtx(cache, stage / "mediamtx")
     shutil.copytree(HERE / "requirements", payload / "requirements")
     shutil.copy2(HERE / "provision.py", payload / "provision.py")
     shutil.copy2(HERE / "NOTICE.txt", stage / "NOTICE.txt")
