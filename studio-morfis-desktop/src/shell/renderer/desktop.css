@@ -1,0 +1,103 @@
+/* Desktop build: the title bar and its window buttons, plus the look preferences from Settings > Desktop app.
+   Colours come from the dashboard's own tokens, so everything follows the theme and the accent. */
+
+/* ===== title bar ===== */
+html.has-wbar .wbar{height:42px;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);padding:0 8px 0 14px;gap:12px}
+.wbrand{grid-column:1;grid-row:1;display:flex;align-items:center;min-width:0}
+.wbrand-ic{width:20px;height:20px;border-radius:6px;overflow:hidden;display:grid;place-items:center;flex:none;
+  background:linear-gradient(150deg,var(--accent-fill),color-mix(in srgb,var(--accent-fill) 55%,#000));color:var(--on-accent);font:700 11px var(--f-display)}
+.wbrand-ic img{width:100%;height:100%;object-fit:cover;display:block}
+.wbrand-ic:empty{visibility:hidden}
+html.has-wbar .wtitle{grid-column:2;grid-row:1;font:600 12.5px var(--f-body);color:var(--ink-3)}
+html.no-wtitle .wtitle{visibility:hidden}
+.wctl{grid-column:3;grid-row:1;justify-self:end;display:flex;align-items:center;gap:2px;-webkit-app-region:no-drag}
+.wctl .wc{position:relative;display:grid;place-items:center;border:0;padding:0;background:none;color:var(--ink-2);cursor:default;
+  transition:background-color .14s,color .14s,transform .1s,box-shadow .14s}
+.wctl .wc svg{display:block;pointer-events:none}
+.wctl .wl-max .g-small{display:none}
+html.win-max .wctl .wl-max .g-small{display:block}
+html.win-max .wctl .wl-max .g-big{display:none}
+.wctl .wc:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+html.win-blur .wctl .wc{color:var(--ink-3)}
+html.win-blur .wtitle,html.win-blur .wbrand{opacity:.6}
+
+/* Studio (default): a small pill of soft buttons, like the sidebar rail. Hover tints with the accent; close turns red. */
+html.wc-fluent .wctl{padding:3px;border-radius:13px;background:var(--surface);border:1px solid var(--line);box-shadow:0 6px 18px -12px rgba(0,0,0,.6)}
+html.wc-fluent .wctl .wc{width:38px;height:28px;border-radius:9px}
+html.wc-fluent .wctl .wc:hover{background:var(--accent-soft);color:var(--accent)}
+html.wc-fluent .wctl .wc:active{transform:scale(.92)}
+html.wc-fluent .wctl .wc-close:hover{background:#E5484D;color:#fff;box-shadow:0 6px 16px -6px rgba(229,72,77,.8)}
+html.wc-fluent .wctl .wc-close:active{background:#C93A3F}
+
+/* Windows: the familiar flat buttons, flush with the top right corner */
+html.wc-classic.has-wbar .wbar{padding-right:0}
+html.wc-classic .wctl{align-self:stretch;gap:0}
+html.wc-classic .wctl .wc{width:46px;height:100%;border-radius:0}
+html.wc-classic .wctl .wc:hover{background:color-mix(in srgb,var(--ink) 9%,transparent);color:var(--ink)}
+html.wc-classic .wctl .wc:active{background:color-mix(in srgb,var(--ink) 5%,transparent)}
+html.wc-classic .wctl .wc-close:hover{background:#C42B1C;color:#fff}
+html.wc-classic .wctl .wc-close:active{background:#B22A1C;color:rgba(255,255,255,.8)}
+html.wc-classic .wctl .wc-close{border-top-right-radius:7px}
+html.win-max.wc-classic .wctl .wc-close{border-radius:0}
+
+/* Round, left: coloured dots on the left; the symbols show while the pointer is over them */
+html.wc-mac .wctl{grid-column:1;justify-self:start;gap:8px;padding:6px 0}
+html.wc-mac .wbrand{display:none}
+html.wc-mac .wctl .wc{width:13px;height:13px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.28)}
+html.wc-mac .wctl .wc svg{width:8px;height:8px;opacity:0;transition:opacity .12s}
+html.wc-mac .wctl:hover .wc svg,html.wc-mac .wctl .wc:focus-visible svg{opacity:1}
+html.wc-mac .wctl .wc-close{order:-2;background:#FF5F57;color:#4d0000}
+html.wc-mac .wctl .wc-min{order:-1;background:#FEBC2E;color:#5a3a00}
+html.wc-mac .wctl .wc-max{background:#28C840;color:#0b4d14}
+html.wc-mac.win-blur .wctl:not(:hover) .wc{background:var(--wl-off)}
+html.wc-mac .wctl .wc:active{filter:brightness(.82)}
+
+/* ===== look preferences ===== */
+html.font-segoe{--f-display:'Segoe UI Variable Display','Segoe UI',system-ui,sans-serif;--f-body:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif}
+html.font-technical{--f-display:'Bahnschrift','Segoe UI',system-ui,sans-serif;--f-body:'Bahnschrift','Segoe UI',system-ui,sans-serif;--f-mono:'Cascadia Mono','Consolas',ui-monospace,monospace}
+html.font-system{--f-display:system-ui,sans-serif;--f-body:system-ui,sans-serif;--f-mono:ui-monospace,'Consolas',monospace}
+
+html.no-pattern body{background-image:radial-gradient(900px 480px at 6% -6%,color-mix(in srgb,var(--accent-fill) 14%,transparent),transparent)}
+html.no-glow body{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96'%3E%3Cpath d='M48 43v10M43 48h10' stroke='%23808098' stroke-opacity='.38'/%3E%3C/svg%3E");background-repeat:repeat}
+html.no-pattern.no-glow body{background-image:none}
+html.no-pattern .tower{background-image:none}
+html.no-glow .gcard::before,html.no-glow .gcard::after,html.no-glow .card::before{display:none}
+html.no-glow .g-bar.cur,html.no-glow .g-now b,html.no-glow .g-now i{box-shadow:none}
+
+html.square .window{border-radius:12px}
+html.square :is(.card,.kpi,.stat,.tbl-wrap,.tower,.gcard,.hero,.col,.dialog,.unit,.empty,.pcard,.pcard-top,.pcard-body,.new-card,.fcard,.rm-item,.rm-form,.maker-opt,.note,.preview){border-radius:10px}
+html.square .pcard-top{border-radius:10px 10px 0 0}
+html.square .dialog.drawer{border-radius:10px 0 0 10px}
+html.square :is(.btn,.search,.sel,.tab,.chip,.ph,.fpill,.tpill,.rail-pill){border-radius:9px}
+html.square :is(.rail-btn,.icon-btn.lg,.rbtn,.fbtn){border-radius:10px}
+
+html.reduce-motion *,html.reduce-motion *::before,html.reduce-motion *::after{transition:none!important;animation:none!important}
+
+/* ===== Settings > Desktop app ===== */
+.dk-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.dk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.dk-sec{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:18px;background:var(--surface-2);border:1px solid var(--line);min-width:0}
+.dk-sec h3{font-size:15px}
+.dk-sec .seg-ctl{flex-wrap:wrap;background:var(--surface)}
+.dk-sec .seg-ctl button.on{background:var(--accent-fill);color:var(--on-accent)}
+.dk-sw{align-items:flex-start}
+.dk-sw input{margin-top:1px}
+.dk-sw>span{display:flex;flex-direction:column;gap:1px;min-width:0}
+.dk-s{line-height:1.35}
+/* a small picture of the title bar with the chosen buttons */
+.dk-prev{height:46px;border-radius:12px;border:1px dashed var(--line-2);background:var(--surface);padding:6px;overflow:hidden}
+.dk-prev-bar{height:100%;display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;padding:0 4px 0 10px}
+.dk-prev-t{display:block;width:64px;height:7px;border-radius:4px;background:var(--line-2)}
+.dk-prev-b{display:flex;gap:3px}
+.dk-prev-b b{width:22px;height:16px;border-radius:5px;background:var(--surface-2)}
+.dk-prev-b b:last-child{background:#E5484D}
+html.wc-classic .dk-prev-bar{padding-right:0}
+html.wc-classic .dk-prev-b{gap:0;align-self:stretch;margin:-6px -6px -6px 0}
+html.wc-classic .dk-prev-b b{width:26px;height:100%;border-radius:0;background:none;border-left:1px solid var(--line)}
+html.wc-classic .dk-prev-b b:last-child{background:#C42B1C}
+html.wc-mac .dk-prev-bar{grid-template-columns:auto 1fr}
+html.wc-mac .dk-prev-b{order:-1;gap:5px}
+html.wc-mac .dk-prev-b b{width:10px;height:10px;border-radius:50%;background:#28C840}
+html.wc-mac .dk-prev-b b:first-child{background:#FEBC2E}
+html.wc-mac .dk-prev-b b:last-child{background:#FF5F57;order:-1}
+html.wc-mac .dk-prev-t{justify-self:center}

@@ -1,0 +1,39 @@
+name: Build Studio Morfis for Windows
+
+on:
+  push:
+    tags: ["morfis-v*"]
+  pull_request:
+    paths: ["studio-morfis-desktop/**", ".github/workflows/studio-morfis-desktop.yml"]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: studio-morfis-desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: studio-morfis-desktop/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Check the dashboard patch and bridge
+        run: npm run check
+      - name: Smoke test (starts the app, clicks through, saves screenshots)
+        run: npx electron scripts/smoke.js smoke-out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: studio-morfis-screenshots
+          path: studio-morfis-desktop/smoke-out/*.png
+      - name: Build the installer
+        run: npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Studio-Morfis-Setup
+          path: studio-morfis-desktop/dist/Studio-Morfis-Setup-*.exe
