@@ -62,10 +62,11 @@ class SCRFD:
         self.output_names = [o.name for o in session.get_outputs()]
         shape = inp.shape
         # Fixed-shape exports dictate the input size; dynamic ones use the setting.
-        if isinstance(shape[2], int) and isinstance(shape[3], int):
-            self.input_size = (int(shape[3]), int(shape[2]))
-        else:
+        self.dynamic = not (isinstance(shape[2], int) and isinstance(shape[3], int))
+        if self.dynamic:
             self.input_size = (input_size, input_size)
+        else:
+            self.input_size = (int(shape[3]), int(shape[2]))
         outputs = session.get_outputs()
         self.batched = len(outputs[0].shape) == 3
         n = len(outputs)
@@ -93,9 +94,14 @@ class SCRFD:
                 self._centers[key] = centers
         return centers
 
-    def detect(self, img: np.ndarray, threshold: float) -> tuple[np.ndarray, np.ndarray | None]:
-        """Returns ``(N,5)`` boxes+scores and ``(N,5,2)`` landmarks in image pixels."""
-        in_w, in_h = self.input_size
+    def detect(
+        self, img: np.ndarray, threshold: float, input_size: tuple[int, int] | None = None
+    ) -> tuple[np.ndarray, np.ndarray | None]:
+        """Returns ``(N,5)`` boxes+scores and ``(N,5,2)`` landmarks in image pixels.
+
+        ``input_size`` overrides the network resolution (dynamic-shape models only).
+        """
+        in_w, in_h = input_size if (input_size and self.dynamic) else self.input_size
         im_ratio = img.shape[0] / img.shape[1]
         if im_ratio > in_h / in_w:
             new_h = in_h

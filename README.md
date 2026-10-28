@@ -127,6 +127,7 @@ app/
 │   ├── models.py           model download with retries / size checks
 │   ├── engine.py           SCRFD+ArcFace and YuNet+SFace backends; device fallback / OOM recovery
 │   ├── scrfd_arcface.py    native SCRFD / ArcFace inference on ONNX Runtime (no insightface package)
+│   ├── angles.py           rotated detection passes, angle scheduler, merge (tilted/sideways faces)
 │   ├── tracker.py          ByteTrack (Kalman + two-stage IoU association)
 │   ├── face_db.py          identity folder, embedding cache, cosine matching
 │   ├── anonymizer.py       policy decision + Gaussian / pixelate / box / mask rendering
@@ -376,6 +377,18 @@ false positive only blurs a patch of background.
 * **Detector input: Auto.** 960 px on GPUs (finds faces down to about 10 px
   in 1080p) and 640 px on CPU. Confidence is 0.35, low-score recovery 0.15 and
   the minimum face size 10 px.
+* **Any head angle.** Frontal, profile and 3/4 views come from the detector
+  itself at the low threshold. For in-plane tilt (head on a shoulder, lying
+  down, a sideways or upside-down camera), Veil also runs the detector on
+  rotated copies of the frame at ±40°, ±90°, ±135° and 180°, then maps the hits
+  back and merges them. To stay real-time these passes are scheduled: every
+  angle on the first frame, then 2 rotated passes per frame on a GPU (1 on a
+  CPU) in round robin. Any angle that just found a face is re-checked on every
+  frame. In a test that rotated two real faces through 360° in 15° steps,
+  coverage went from 20 of 48 face/angle cases to 48 of 48. Every face was
+  fully covered from its first frame, on both CPU and GPU budgets. Settings →
+  Detection → *Face angles* trades this for speed (about 2× detector cost on a
+  CPU).
 * **Tracks start immediately** (`Confirm after 1 hit`). Faces that are not yet
   identified are hidden (*privacy-safe start*), and a face stays hidden for 8
   frames after the detector briefly loses it.

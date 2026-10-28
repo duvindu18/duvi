@@ -19,14 +19,15 @@ from __future__ import annotations
 import logging
 import threading
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import Callable
 
 import cv2
 import numpy as np
 
 from app.core import hardware
+from app.core.angles import COVERAGE_PRESETS, MultiAngleDetector
 from app.core.config import Backend, Device, EngineConfig
+from app.core.engine_types import Detection
 from app.core.models import SFACE, YUNET, ensure_model, ensure_pack
 from app.core.scrfd_arcface import SCRFD, ArcFace, make_session
 from app.utils.errors import ModelError, is_gpu_oom
@@ -38,21 +39,6 @@ _ARCFACE_DST = np.array(
     [[38.2946, 51.6963], [73.5318, 51.5014], [56.0252, 71.7366], [41.5493, 92.3655], [70.7299, 92.2041]],
     dtype=np.float32,
 )
-
-
-@dataclass
-class Detection:
-    bbox: np.ndarray  # (4,) float32 x1, y1, x2, y2 in frame pixels
-    score: float
-    kps: np.ndarray | None = None  # (5, 2) eyes, nose, mouth corners
-
-    @property
-    def width(self) -> float:
-        return float(self.bbox[2] - self.bbox[0])
-
-    @property
-    def height(self) -> float:
-        return float(self.bbox[3] - self.bbox[1])
 
 
 def l2_normalize(v: np.ndarray) -> np.ndarray:
@@ -103,7 +89,9 @@ class BaseBackend(ABC):
         self.device = device
 
     @abstractmethod
-    def detect(self, frame: np.ndarray) -> list[Detection]: ...
+    def detect(self, frame: np.ndarray, scale: float = 1.0) -> list[Detection]:
+        """``scale`` > 1 enlarges the detector input proportionally (used for the
+        larger canvases of rotated passes so small faces keep their resolution)."""
 
     @abstractmethod
     def embed(self, frame: np.ndarray, detections: list[Detection]) -> np.ndarray: ...
@@ -148,8 +136,12 @@ class InsightFaceBackend(BaseBackend):
     def tag(self) -> str:
         return f"insightface-{self.cfg.insightface_pack}"
 
-    def detect(self, frame: np.ndarray) -> list[Detection]:
-        bboxes, kpss = self._det.detect(frame, self.cfg.det_low_threshold)
+    def detect(self, frame: np.ndarray, scale: float = 1.0) -> list[Detection]:
+        size = None
+        if scale > 1.01:
+            side = int(round(self._det.input_size[0] * min(scale, 2.0) / 32)) * 32
+            size = (side, side)
+        bboxes, kpss = self._det.detect(frame, self.cfg.det_low_threshold, size)
         out: list[Detection] = []
         min_px = self.cfg.min_face_px
         for i, row in enumerate(bboxes):
@@ -195,9 +187,9 @@ class YuNetBackend(BaseBackend):
             raise ModelError(f"Failed to load YuNet/SFace: {exc}") from exc
         self._input_size: tuple[int, int] | None = None
 
-    def detect(self, frame: np.ndarray) -> list[Detection]:
+    def detect(self, frame: np.ndarray, scale: float = 1.0) -> list[Detection]:
         h, w = frame.shape[:2]
-        scale = min(1.0, max(320, self.cfg.det_size or 960) / max(h, w))
+        scale = min(1.0, max(320, self.cfg.det_size or 960) * min(scale, 2.0) / max(h, w))
         img = cv2.resize(frame, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA) if scale < 1 else frame
         size = (img.shape[1], img.shape[0])
         if size != self._input_size:
@@ -248,6 +240,10 @@ class FaceEngine:
         hardware.configure_cpu_threads(cfg)
         self._chain = hardware.resolve_chain(cfg)
         self._backend: BaseBackend = self._build_from(0)
+        angles = COVERAGE_PRESETS.get(cfg.rotation_coverage, COVERAGE_PRESETS["full"])
+        self._multi = MultiAngleDetector(
+            lambda f, k=1.0: self._run("detect", f, k), angles, self._passes_per_frame(), cfg.det_threshold
+        )
 
     # ---- construction ------------------------------------------------
     def _build_from(self, start: int) -> BaseBackend:
@@ -307,8 +303,15 @@ class FaceEngine:
             raise ModelError("Exhausted all devices")
 
     # ---- public API --------------------------------------------------
-    def detect(self, frame: np.ndarray) -> list[Detection]:
-        return self._run("detect", frame)
+    def _passes_per_frame(self) -> int:
+        if self.cfg.rotation_passes > 0:
+            return self.cfg.rotation_passes
+        return 2 if hardware.is_gpu(self._backend.device) else 1
+
+    def detect(self, frame: np.ndarray, exhaustive: bool = False) -> list[Detection]:
+        """Upright pass plus scheduled rotated passes (``exhaustive``: all angles)."""
+        self._multi.scheduler.per_frame = self._passes_per_frame()  # device may have changed
+        return self._multi.detect(frame, exhaustive)
 
     def embed(self, frame: np.ndarray, detections: list[Detection]) -> np.ndarray:
         if not detections:

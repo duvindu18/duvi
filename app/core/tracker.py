@@ -140,10 +140,16 @@ class FaceTrack:
 
     @property
     def bbox(self) -> np.ndarray:
-        """Matched detection box if available, otherwise the Kalman prediction."""
+        """Matched detection box if available, otherwise prediction ∪ last box."""
         if self.detection is not None:
             return self.detection.bbox
-        return _xyah_to_tlbr(self.mean)
+        # Not detected this frame: cover both the last observed box and the
+        # motion prediction, so a held face is never under-covered by drift.
+        pred = _xyah_to_tlbr(self.mean)
+        last = self.last_bbox
+        return np.array(
+            [min(pred[0], last[0]), min(pred[1], last[1]), max(pred[2], last[2]), max(pred[3], last[3])], np.float32
+        )
 
 
 class ByteTracker:

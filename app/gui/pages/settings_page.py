@@ -118,6 +118,25 @@ class SettingsPage(QWidget):
         self.det_size.set_value(cfg.engine.det_size)
         self.det_size.changed.connect(lambda v: self._set(cfg.engine, "det_size", v))
         det.body.addWidget(self.det_size)
+        det.body.addWidget(label("Face angles", "caption"))
+        self.rot = PillGroup(
+            [("full", "Any angle"), ("tilt", "Tilted ±75°"), ("off", "Upright only")],
+            tooltips={
+                "full": "Also detects heads lying sideways or upside down (recommended)",
+                "tilt": "Upright and tilted heads; cheaper",
+                "off": "Fastest; misses faces tilted more than ~35°",
+            },
+        )
+        self.rot.set_value(cfg.engine.rotation_coverage)
+        self.rot.changed.connect(lambda v: self._set(cfg.engine, "rotation_coverage", v))
+        det.body.addWidget(self.rot)
+        self.rot_passes = GlassSlider(
+            "Rotated passes / frame", 0, 6, cfg.engine.rotation_passes,
+            fmt=lambda v: "auto" if v == 0 else f"{v:.0f}",
+        )
+        self.rot_passes.setToolTip("More passes find newly appearing tilted faces sooner (auto: 2 on GPU, 1 on CPU)")
+        self.rot_passes.valueChanged.connect(lambda v: self._set(cfg.engine, "rotation_passes", int(v)))
+        det.body.addWidget(self.rot_passes)
         self.det_thr = GlassSlider("Confidence", 0.2, 0.9, cfg.engine.det_threshold, 0.01, fmt=lambda v: f"{v:.2f}")
         self.det_thr.valueChanged.connect(self._det_thr_changed)
         det.body.addWidget(self.det_thr)

@@ -68,6 +68,10 @@ class EngineConfig:
     det_threshold: float = 0.35
     det_low_threshold: float = 0.15  # second-stage ByteTrack association
     min_face_px: int = 10
+    # Extra rotated detection passes for tilted / sideways / upside-down faces:
+    # "off", "tilt" (±40°) or "full" (any in-plane rotation).
+    rotation_coverage: str = "full"
+    rotation_passes: int = 0  # rotated passes per frame; 0 = auto (2 on GPU, 1 on CPU)
     cpu_threads: int = 0  # 0 = let the runtime decide
 
 
