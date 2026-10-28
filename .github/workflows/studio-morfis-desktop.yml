@@ -3,6 +3,8 @@ name: Build Studio Morfis for Windows
 on:
   push:
     tags: ["morfis-v*"]
+    branches: ["claude/studio-morfis-*"]
+    paths: ["studio-morfis-desktop/**", ".github/workflows/studio-morfis-desktop.yml"]
   pull_request:
     paths: ["studio-morfis-desktop/**", ".github/workflows/studio-morfis-desktop.yml"]
   workflow_dispatch:
