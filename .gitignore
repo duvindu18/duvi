@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+build/
+dist/
+*.spec
+
+# Identity photos are biometric data - never commit them.
+faces/*
+!faces/README.md
+
+# Media produced while testing
+*.mp4
+*.avi
+*.mkv
+*.onnx
+*.engine
