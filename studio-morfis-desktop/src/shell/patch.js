@@ -14,6 +14,7 @@ const ICON = {
 
 const WBAR =
   '<div class="wbar" id="wbar" hidden>' +
+  '<button type="button" class="wside" id="wbarSide" tabindex="-1" aria-label="Collapse the sidebar" title="Collapse the sidebar (Ctrl+B)"></button>' +
   '<div class="wbrand"><span class="wbrand-ic" id="wbarIcon" aria-hidden="true"></span><span class="wbrand-name" id="wbarName"></span><span class="wcrumb" id="wbarCrumb"></span></div>' +
   '<div class="wtitle" id="wbarTitle"></div>' +
   '<div class="wctl" role="group" aria-label="Window controls">' +

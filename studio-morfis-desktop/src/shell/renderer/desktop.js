@@ -176,7 +176,6 @@
       (list.length ? '' : '<div class="dk-it dk-more"><span>No active projects</span></div>');
     var n = function (v, cls) { return v ? '<span class="dk-n' + (cls ? ' ' + cls : '') + '">' + v + '</span>' : ''; };
     var html =
-      '<div class="dk-top"><button type="button" class="dk-collapse" data-side-act="collapse" aria-label="Collapse the sidebar" title="Collapse the sidebar (Ctrl+B)">' + ic('collapse', 18) + '</button></div>' +
       '<div class="dk-scroll">' +
       grp('ws', 'Workspace', item('home', 'Home', 'home') + item('projects', 'Projects', 'projects') + item('timeline', 'Timeline', 'timeline') + item('payments', 'Payments', 'payments', n(od, 'bad'), 'Payments' + (od ? ', ' + od + ' overdue' : ''))) +
       grp('studio', 'Studio', item('files', 'Files', 'files') + item('documents', 'Invoices & quotes', 'documents', n(drafts)) + item('automations', 'Automations', 'automations', n(auto))) +
@@ -207,6 +206,8 @@
     else if (a === 'allProjects') { SHUT.allProjects = !SHUT.allProjects; saveSide(); sideSig = ''; drawSide(); }
   });
   function saveSide() { try { localStorage.setItem('morfis:side', JSON.stringify(SHUT)); } catch (e) { /* ignore */ } }
+  /* the sidebar button lives in the window bar, left of the app name */
+  document.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('#wbarSide')) toggleCollapse(); });
   function toggleCollapse() { var v = !root.classList.contains('side-collapsed'); root.classList.toggle('side-collapsed', v); if (P) { P.sideCollapsed = v; H.setPref('sideCollapsed', v).catch(function () {}); } }
   function focusSearch() { var q = $('#q'); if (q) { q.focus(); q.select(); } }
   document.addEventListener('keydown', function (e) {
@@ -503,6 +504,7 @@
     var v = $('#view'); if (v) mo.observe(v, { childList: true });
     var bell = $('#bellBtn'); if (bell) new MutationObserver(function () { drawSide(); }).observe(bell, { childList: true, subtree: true, characterData: true, attributes: true });
     new MutationObserver(syncAccent).observe(root, { attributes: true, attributeFilter: ['style', 'data-theme'] });
+    var sb = $('#wbarSide'); if (sb) sb.innerHTML = ic('collapse', 16);
     syncAccent(); drawSide(); crumb(); background();
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();

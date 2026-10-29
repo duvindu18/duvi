@@ -66,8 +66,8 @@ app.whenReady().then(async () => {
   await wait(2500);
   await shot(w, '1-home');
   const go = async (view, name) => { await js(w, "(function(){var b=document.querySelector('#dkSide [data-go=" + view + "]');if(b){b.click();return true}return false})()").then((ok) => { if (!ok) console.log('no nav button for', view); }); await wait(900); await shot(w, name); };
-  await js(w, "document.querySelector('#dkSide [data-side-act=collapse]').click()"); await wait(500); await shot(w, '1b-side-collapsed');
-  await js(w, "document.querySelector('#dkSide [data-side-act=collapse]').click()"); await wait(400);
+  await js(w, "document.querySelector('#wbarSide').click()"); await wait(500); await shot(w, '1b-side-collapsed');
+  await js(w, "document.querySelector('#wbarSide').click()"); await wait(400);
   await go('projects', '2-projects');
   await go('timeline', '3-timeline');
   await go('payments', '4-payments');
