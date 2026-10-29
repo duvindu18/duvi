@@ -67,43 +67,53 @@
       '<text x="' + (3 + Math.max(16, k.label.length * 5.4 + 6) / 2) + '" y="22.7" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="6.4" font-weight="700" fill="#fff">' + k.label + '</text></svg>';
   }
 
-  /* ----- folder illustration for the Files view (follows the theme through CSS variables) ----- */
+  /* ----- the folder artwork: one drawing for the app and for File Explorer, so both always match -----
+     o: { status (project folders), num ('01'..'06' for the standard folders), full (has files), kind ('PDF', 'DWG'…) } */
+  var PAL = { back: '#3D3F48', front: '#5A5E69', front2: '#464954', hi: 'rgba(255,255,255,.2)', sheet: '#F2F2F5', sheet2: '#CFD1D8', ink: '#C4C6CE', ring: '#FFFFFF' };
   var uid = 0;
-  function folder(o) {
+  function art(o) {
     o = o || {};
-    var id = 'fd' + (++uid), kinds = (o.kinds || []).slice(0, 2), full = (o.count || 0) > 0;
-    var sheets = '';
-    if (full) {
-      sheets += '<g transform="rotate(-5 60 40)"><rect x="34" y="16" width="46" height="52" rx="4" fill="var(--fd-sheet2)"/>' + (kinds[1] ? tag(kinds[1], 40, 22) : '') + '</g>';
-      sheets += '<g transform="rotate(4 80 40)"><rect x="54" y="12" width="46" height="56" rx="4" fill="var(--fd-sheet)"/>' + (kinds[0] ? tag(kinds[0], 60, 18) : '') +
-        '<rect x="60" y="34" width="28" height="3" rx="1.5" fill="var(--fd-sheet-ink)"/><rect x="60" y="41" width="20" height="3" rx="1.5" fill="var(--fd-sheet-ink)"/></g>';
+    var id = 'fa' + (++uid), sheets = '';
+    if (o.full) {
+      sheets = '<g transform="rotate(-5 60 40)"><rect x="32" y="15" width="48" height="54" rx="4" fill="' + PAL.sheet2 + '"/></g>' +
+        '<g transform="rotate(4 80 40)"><rect x="52" y="11" width="48" height="58" rx="4" fill="' + PAL.sheet + '"/>' + (o.kind ? tag(o.kind, 58, 17) : '<rect x="58" y="19" width="26" height="4" rx="2" fill="' + PAL.ink + '"/>') +
+        '<rect x="58" y="32" width="30" height="3.4" rx="1.7" fill="' + PAL.ink + '"/><rect x="58" y="39" width="22" height="3.4" rx="1.7" fill="' + PAL.ink + '"/></g>';
     }
-    var badge = o.status ? '<g transform="translate(14 76)"><circle cx="9" cy="9" r="10" fill="var(--fd-front2)"/><svg x="0" y="0" width="18" height="18" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="' + (STATUS[o.status] || STATUS.not_started).color + '"/>' + glyph(o.status) + '</svg></g>' : '';
-    return '<svg class="fd-art" viewBox="0 0 132 104" aria-hidden="true"><defs>' +
-      '<linearGradient id="' + id + 'f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--fd-front)"/><stop offset="1" stop-color="var(--fd-front2)"/></linearGradient></defs>' +
-      '<path d="M10 14a6 6 0 0 1 6-6h28a6 6 0 0 1 4.6 2.2l4.8 5.8H116a6 6 0 0 1 6 6v62a6 6 0 0 1-6 6H16a6 6 0 0 1-6-6z" fill="var(--fd-back)"/>' +
-      sheets +
-      '<path d="M8 38a6 6 0 0 1 6-6h104a6 6 0 0 1 6 6v52a6 6 0 0 1-6 6H14a6 6 0 0 1-6-6z" fill="url(#' + id + 'f)"/>' +
-      '<path d="M14 32.5h104a5.5 5.5 0 0 1 5.5 5.5" fill="none" stroke="var(--fd-hi)" stroke-width="1"/>' + badge + '</svg>';
+    var badge = '';
+    if (o.status) {
+      var c = (STATUS[o.status] || STATUS.not_started).color;
+      badge = '<circle cx="104" cy="78" r="23" fill="' + PAL.ring + '"/><circle cx="104" cy="78" r="19" fill="' + c + '"/><g transform="translate(89.6 63.6) scale(1.2)">' + glyph(o.status) + '</g>';
+    } else if (o.num) {
+      badge = '<rect x="15" y="65" width="42" height="23" rx="6" fill="rgba(255,255,255,.2)"/><text x="36" y="81.8" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="15.5" font-weight="700" fill="#fff">' + o.num + '</text>';
+    }
+    return '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + PAL.front + '"/><stop offset="1" stop-color="' + PAL.front2 + '"/></linearGradient></defs>' +
+      '<path d="M10 14a6 6 0 0 1 6-6h28a6 6 0 0 1 4.6 2.2l4.8 5.8H116a6 6 0 0 1 6 6v62a6 6 0 0 1-6 6H16a6 6 0 0 1-6-6z" fill="' + PAL.back + '"/>' + sheets +
+      '<path d="M8 38a6 6 0 0 1 6-6h104a6 6 0 0 1 6 6v52a6 6 0 0 1-6 6H14a6 6 0 0 1-6-6z" fill="url(#' + id + ')"/>' +
+      '<path d="M14 32.6h104a5.4 5.4 0 0 1 5.4 5.4" fill="none" stroke="' + PAL.hi + '" stroke-width="1.2"/>' + badge;
   }
+  /* the variant a folder is drawn as, from what is in it; the same key names its Explorer icon */
+  function variant(o) {
+    o = o || {};
+    var kind = (o.kinds || [])[0] || '', full = (o.count || 0) > 0;
+    return { status: o.status || '', num: o.num || '', full: full, kind: full ? kind : '',
+      key: (o.status ? 'st-' + o.status : 'f-' + (o.num || 'x')) + '-' + (full ? (kind ? kind.toLowerCase() : 'files') : 'empty') };
+  }
+  /* the main file kinds in a list of files ({ name }), most common first */
+  function kindsOf(files) {
+    var n = {};
+    (files || []).forEach(function (f) { var k = kindOf(f.name).label; if (k !== 'FILE') n[k] = (n[k] || 0) + 1; });
+    return Object.keys(n).sort(function (a, b) { return n[b] - n[a]; }).slice(0, 2);
+  }
+  /* in the app: o = { status | num, count, kinds } */
+  function folder(o) { return '<svg class="fd-art" viewBox="0 0 132 104" aria-hidden="true">' + art(variant(o)) + '</svg>'; }
   function tag(label, x, y) {
     var k = kindOf('a.' + label.toLowerCase()), w = Math.max(18, label.length * 5.6 + 6);
     return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="9" rx="2" fill="' + k.color + '"/><text x="' + (x + w / 2) + '" y="' + (y + 6.7) + '" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="6.2" font-weight="700" fill="#fff">' + k.label + '</text>';
   }
-
-  /* ----- Explorer icon: a folder with the status badge, fixed colours, 256 px ----- */
-  function explorerIcon(st) {
-    var s = STATUS[st] || STATUS.not_started;
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><defs>' +
-      '<linearGradient id="f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8A8F9C"/><stop offset="1" stop-color="#666B78"/></linearGradient>' +
-      '<linearGradient id="b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5A5E6A"/><stop offset="1" stop-color="#4A4E59"/></linearGradient></defs>' +
-      '<path d="M16 46a12 12 0 0 1 12-12h62a12 12 0 0 1 9 4l11 12h118a12 12 0 0 1 12 12v134a12 12 0 0 1-12 12H28a12 12 0 0 1-12-12z" fill="url(#b)"/>' +
-      '<rect x="44" y="52" width="150" height="110" rx="8" fill="#F2F2F5" transform="rotate(-3 120 100)"/>' +
-      '<rect x="62" y="70" width="90" height="7" rx="3.5" fill="#C9CBD3" transform="rotate(-3 120 100)"/><rect x="62" y="86" width="64" height="7" rx="3.5" fill="#C9CBD3" transform="rotate(-3 120 100)"/>' +
-      '<path d="M12 104a12 12 0 0 1 12-12h208a12 12 0 0 1 12 12v102a12 12 0 0 1-12 12H24a12 12 0 0 1-12-12z" fill="url(#f)"/>' +
-      '<path d="M24 93h208a11 11 0 0 1 11 11" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width="2"/>' +
-      '<circle cx="196" cy="190" r="54" fill="#fff"/><circle cx="196" cy="190" r="46" fill="' + s.color + '"/>' +
-      '<g transform="translate(160 154) scale(3)">' + glyph(st) + '</g></svg>';
+  /* for File Explorer: the same drawing, square, 256 px */
+  function explorerIcon(o) {
+    if (typeof o === 'string') o = { status: o, count: 1 };
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><g transform="translate(0 27) scale(1.9394)">' + art(variant(o)) + '</g></svg>';
   }
 
   /* SVG text -> PNG data URL, drawn at size x size */
@@ -122,5 +132,5 @@
   }
 
   window.MorfisArt = { STATUS: STATUS, ORDER: ORDER, statusOf: statusOf, statusDot: statusDot, statusTag: statusTag, glyph: glyph,
-    kindOf: kindOf, fileIcon: fileIcon, folder: folder, explorerIcon: explorerIcon, toPng: toPng, ICON_VERSION: 'v1' };
+    kindOf: kindOf, fileIcon: fileIcon, folder: folder, variant: variant, kindsOf: kindsOf, explorerIcon: explorerIcon, toPng: toPng, ICON_VERSION: 'v3' };
 })();

@@ -72,7 +72,7 @@ function build(html, o) {
 }
 
 const STYLES = ['vendor/leaflet/leaflet.css', 'theme.css', 'desktop.css', 'views.css'];
-const SCRIPTS = ['vendor/leaflet/leaflet.js', 'folder-art.js', 'desktop.js', 'files.js', 'docs.js', 'automations.js'];
+const SCRIPTS = ['vendor/leaflet/leaflet.js', 'folder-art.js', 'desktop.js', 'preview.js', 'files.js', 'docs.js', 'automations.js'];
 function tail(base) {
   return STYLES.map((s) => '<link rel="stylesheet" href="' + base + s + '">').join('') +
     SCRIPTS.map((s) => '<script src="' + base + s + '"></script>').join('') + '\n';

@@ -1,7 +1,7 @@
 {
   "name": "studio-morfis-desktop",
   "productName": "Studio Morfis",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Studio Morfis practice dashboard as a Windows desktop app: projects, stages, tasks, invoices, payments and real project folders on disk.",
   "main": "src/shell/main.js",
   "author": "Studio Morfis",
@@ -17,7 +17,8 @@
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.2.8",
-    "leaflet": "1.9.4"
+    "leaflet": "1.9.4",
+    "mammoth": "1.13.0"
   },
   "devDependencies": {
     "electron": "42.11.18",
@@ -37,6 +38,7 @@
       "build/icon.ico",
       "node_modules/leaflet/dist/**/*",
       "node_modules/@fontsource-variable/inter/files/**/*",
+      "node_modules/mammoth/mammoth.browser.min.js",
       "package.json"
     ],
     "win": {

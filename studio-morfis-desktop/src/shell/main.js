@@ -5,7 +5,7 @@
    app name and icon, and the desktop settings. */
 const fs = require('fs');
 const path = require('path');
-const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net, nativeTheme, Tray, Menu, globalShortcut, session, screen, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net, nativeTheme, nativeImage, Tray, Menu, globalShortcut, session, screen, Notification } = require('electron');
 const { Prefs } = require('./prefs');
 const { Store } = require('./store');
 const { Branding, APP_ID } = require('./branding');
@@ -19,12 +19,13 @@ const DASHBOARD = path.join(ROOT, 'src', 'dashboard', 'dashboard.html');
 const RENDERER = path.join(__dirname, 'renderer');
 const DEFAULT_ICON = path.join(ROOT, 'build', 'icon.png');
 const LEAFLET = path.dirname(require.resolve('leaflet/dist/leaflet.js'));
+const MAMMOTH = path.dirname(require.resolve('mammoth/mammoth.browser.min.js'));
 const INTER = path.join(path.dirname(require.resolve('@fontsource-variable/inter/package.json')), 'files');
 const UA = 'StudioMorfisDesktop/' + app.getVersion() + ' (Windows desktop app; architecture practice dashboard)';
 const HOTKEY = 'CommandOrControl+Alt+M';
 
 /* ----- before the app is ready ----- */
-protocol.registerSchemesAsPrivileged([{ scheme: 'morfis', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
+protocol.registerSchemesAsPrivileged([{ scheme: 'morfis', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }]);
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 app.setAppUserModelId(APP_ID);
 
@@ -52,15 +53,42 @@ function pageHtml() {
   if (r.missing.length) console.warn('[morfis] dashboard patch anchors missing:', r.missing);
   return r.html.replace(/<head>/, '<head><script src="bridge.js"></script>');
 }
+/* ----- file preview: the page gets a link to one file at a time, never a general file server ----- */
+const PREVIEW = new Map();
+const PMIME = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml', avif: 'image/avif', ico: 'image/x-icon',
+  pdf: 'application/pdf', mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', mov: 'video/mp4', ogv: 'video/ogg', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', oga: 'audio/ogg', m4a: 'audio/mp4', aac: 'audio/aac', flac: 'audio/flac', opus: 'audio/ogg' };
+function previewLink(file) {
+  const st = fs.statSync(file);
+  if (!st.isFile()) throw new Error('That is a folder.');
+  for (const [k, v] of PREVIEW) if (v === file) return k;
+  const token = require('crypto').randomBytes(12).toString('hex');
+  PREVIEW.set(token, file);
+  if (PREVIEW.size > 400) PREVIEW.delete(PREVIEW.keys().next().value);
+  return token;
+}
+function serveFile(req, file) {
+  let st;
+  try { st = fs.statSync(file); } catch (e) { return new Response('Not found', { status: 404 }); }
+  const ext = path.extname(file).slice(1).toLowerCase(), mime = PMIME[ext] || 'application/octet-stream';
+  const { Readable } = require('stream');
+  const m = /bytes=(\d*)-(\d*)/.exec(req.headers.get('range') || '');
+  if (m && st.size) {
+    const start = m[1] ? Math.min(+m[1], st.size - 1) : Math.max(0, st.size - (+m[2] || 0)), end = m[1] && m[2] ? Math.min(+m[2], st.size - 1) : st.size - 1;
+    return new Response(Readable.toWeb(fs.createReadStream(file, { start: start, end: end })), { status: 206, headers: { 'content-type': mime, 'content-range': 'bytes ' + start + '-' + end + '/' + st.size, 'accept-ranges': 'bytes', 'content-length': String(end - start + 1) } });
+  }
+  return new Response(Readable.toWeb(fs.createReadStream(file)), { headers: { 'content-type': mime, 'content-length': String(st.size), 'accept-ranges': 'bytes', 'cache-control': 'no-store' } });
+}
 function serve(req) {
   const u = new URL(req.url);
   let file;
+  if (u.pathname.indexOf('/__file/') === 0) { const tok = u.pathname.split('/')[2], f = PREVIEW.get(tok); return f ? serveFile(req, f) : new Response('Not found', { status: 404 }); }
   if (u.pathname === '/' || u.pathname === '/index.html') return new Response(pageHtml(), { headers: { 'content-type': MIME['.html'], 'cache-control': 'no-store' } });
   if (u.pathname === '/app-icon.png') return new Response(fs.readFileSync(branding.iconPng()), { headers: { 'content-type': 'image/png', 'cache-control': 'no-store' } });
   if (u.pathname.indexOf('/vendor/leaflet/') === 0) file = path.join(LEAFLET, decodeURIComponent(u.pathname.slice('/vendor/leaflet/'.length)));
+  else if (u.pathname.indexOf('/vendor/mammoth/') === 0) file = path.join(MAMMOTH, decodeURIComponent(u.pathname.slice('/vendor/mammoth/'.length)));
   else if (u.pathname.indexOf('/vendor/inter/') === 0) file = path.join(INTER, decodeURIComponent(u.pathname.slice('/vendor/inter/'.length)));
   else file = path.join(RENDERER, decodeURIComponent(u.pathname.slice(1)));
-  const okRoot = [LEAFLET, INTER, RENDERER].some((r) => path.resolve(file).startsWith(path.resolve(r) + path.sep));
+  const okRoot = [LEAFLET, INTER, MAMMOTH, RENDERER].some((r) => path.resolve(file).startsWith(path.resolve(r) + path.sep));
   if (!okRoot || !fs.existsSync(file)) return new Response('Not found', { status: 404 });
   return new Response(fs.readFileSync(file), { headers: { 'content-type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream' } });
 }
@@ -107,7 +135,7 @@ function createWindow() {
   win = new BrowserWindow(Object.assign({ width: 1440, height: 900, center: !b }, b || {}, {
     minWidth: 960, minHeight: 620, frame: false, show: false, backgroundColor: bg(), title: branding.name(), icon: branding.image(),
     alwaysOnTop: prefs.get('alwaysOnTop'), roundedCorners: true,
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: prefs.get('spellcheck'), backgroundThrottling: false }
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, plugins: true, spellcheck: prefs.get('spellcheck'), backgroundThrottling: false }
   }));
   if (b && prefs.get('window').maximized) win.maximize();
   win.setMenuBarVisibility(false);
@@ -337,9 +365,33 @@ const API = {
     return ai.pull(prefs, name, (p) => { if (win && !win.isDestroyed()) win.webContents.send('ai:pull', p); });
   },
 
-  /* project status on Windows folder icons */
+  /* built-in preview */
+  preview(file) {
+    const st = fs.statSync(file);
+    return { url: 'morfis://app/__file/' + previewLink(file) + '/' + encodeURIComponent(path.basename(file)), name: path.basename(file), dir: path.dirname(file), size: st.size, mtimeMs: st.mtimeMs, ext: path.extname(file).slice(1).toLowerCase() };
+  },
+  readText(file, max) {
+    const lim = Math.min(+max || 1048576, 4194304), st = fs.statSync(file), fd = fs.openSync(file, 'r');
+    try {
+      const buf = Buffer.alloc(Math.min(lim, st.size));
+      fs.readSync(fd, buf, 0, buf.length, 0);
+      let text = buf[0] === 0xFF && buf[1] === 0xFE ? buf.slice(2).toString('utf16le') : buf.toString('utf8').replace(/^\uFEFF/, '');
+      return { text: text, cut: st.size > lim, size: st.size };
+    } finally { fs.closeSync(fd); }
+  },
+  /* the picture Windows shows for a file in File Explorer (any type with a thumbnail handler) */
+  async thumb(file, size) {
+    if (process.platform !== 'win32' && process.platform !== 'darwin') return '';
+    try {
+      const img = await nativeImage.createThumbnailFromPath(file, { width: size || 256, height: size || 256 });
+      return img.isEmpty() ? '' : img.toDataURL();
+    } catch (e) { return ''; }
+  },
+
+  /* the app's folder icons on the real folders in File Explorer */
   folderIcon: (o) => folderIcons.apply(o || {}),
-  folderIconClear: (dir) => folderIcons.clear(dir)
+  folderIconClear: (dir) => folderIcons.clear(dir),
+  folderIconRefresh: (dirs) => folderIcons.refresh(dirs)
 };
 
 /* A4 PDF from a complete HTML document, rendered off screen with scripts off */

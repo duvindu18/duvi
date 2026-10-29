@@ -16,7 +16,7 @@
     { key: 'draftInvoices', kind: 'Rule', icon: 'documents', title: 'Draft the invoice when a stage is reached', text: 'When a project reaches the stage a milestone is billed at, a draft invoice is prepared in Invoices & quotes for you to check and issue.' },
     { key: 'followUps', kind: 'AI', icon: 'mail', title: 'Payment follow-ups for overdue invoices', text: 'For each overdue invoice, a short, polite reminder email is written for you to review, copy or open in your email program. Once a week per invoice.' },
     { key: 'digest', kind: 'AI', icon: 'sparkle', title: 'Monday studio summary', text: 'Every Monday, a short summary of what needs attention: overdue money, tasks due this week, quotes waiting for an answer.' },
-    { key: 'folderIcons', kind: 'Rule', icon: 'files', title: 'Project status on Windows folder icons', text: 'Each project folder in File Explorer shows its status: In progress, On hold, Completed and so on, with the status as its tooltip.', pref: true },
+    { key: 'folderIcons', kind: 'Rule', icon: 'files', title: 'Same folder icons in File Explorer', text: 'Project folders and their six standard folders get the icons you see in Files: the status badge, the folder number and the main file type. They follow every change within seconds.', pref: true },
     { key: 'aiSort', kind: 'AI', icon: 'sort', title: 'Sort files the rules cannot place', text: 'In Files, “Sort with AI” reads the names of loose files and suggests one of the six standard folders. You check before anything moves, and it can be undone.', manual: 'Files' },
     { key: 'quote', kind: 'AI', icon: 'documents', title: 'Quotation assistant', text: 'In a quotation, describe the job and the lines, quantities and rates are drafted from your studio’s past projects.', manual: 'Invoices & quotes' }
   ];
@@ -180,30 +180,58 @@
     });
   }
 
-  /* ===== rule: status on Windows folder icons ===== */
-  var iconBusy = false;
+  /* ===== rule: the app's folder icons on the real folders in File Explorer ===== */
+  /* every project folder (status badge) and its six standard folders (number tab), drawn exactly as in Files */
+  function iconJobs(onlyPid) {
+    var today = pg().today(), jobs = [];
+    Object.values(pg().S.projects).forEach(function (p) {
+      if (!p.foldersCreated || p.dirMissing || (onlyPid && p.id !== onlyPid)) return;
+      var all = [], total = 0;
+      pg().FOLDER_TEMPLATES.forEach(function (t) {
+        var f = (p.folders || {})[t.id] || {}, files = f.files || [], count = f.count != null ? f.count : files.length;
+        all = all.concat(files); total += count;
+        if (f.exists) jobs.push({ dir: pg().subDir(p, t.id), v: A.variant({ num: t.id, count: count, kinds: A.kindsOf(files) }), tip: t.label + ' · ' + p.code + ' · ' + count + ' file' + (count === 1 ? '' : 's') });
+      });
+      var st = A.statusOf(p, today);
+      jobs.push({ dir: pg().projDir(p), v: A.variant({ status: st, count: total, kinds: A.kindsOf(all) }), tip: A.STATUS[st].label + ' · ' + p.code + ' · Stage ' + p.currentStage + ' ' + pg().STAGES[Math.min(7, p.currentStage) - 1].short });
+    });
+    return jobs;
+  }
+  var iconBusy = false, iconAgain = false;
   function runFolderIcons(onlyPid) {
     var P = M.prefs();
-    if (!P || !P.folderIcons || iconBusy) return Promise.resolve(0);
+    if (!P || !P.folderIcons) return Promise.resolve(0);
+    if (iconBusy) { iconAgain = true; return Promise.resolve(0); }
     iconBusy = true;
-    var today = pg().today(), list = Object.values(pg().S.projects).filter(function (p) { return p.foldersCreated && !p.dirMissing && (!onlyPid || p.id === onlyPid); });
-    var done = 0, pngs = {};
-    return list.reduce(function (chain, p) {
+    var jobs = iconJobs(onlyPid), pngs = {}, changed = [];
+    return jobs.reduce(function (chain, j) {
       return chain.then(function () {
-        var st = A.statusOf(p, today), dir = pg().projDir(p), sig = st + '|' + dir + '|' + A.ICON_VERSION;
-        if (ST.icons[p.id] === sig) return;
-        var png = pngs[st] ? Promise.resolve(pngs[st]) : A.toPng(A.explorerIcon(st), 256).then(function (u) { pngs[st] = u; return u; });
-        return png.then(function (u) { return H.folderIcon({ dir: dir, status: st, version: A.ICON_VERSION, png: u, note: p.code + ' · Stage ' + p.currentStage }); }).then(function (r) {
-          if (r && r.ok) { ST.icons[p.id] = sig; done++; }
+        var sig = j.v.key + '|' + A.ICON_VERSION + '|' + j.tip;
+        if (ST.icons[j.dir] === sig) return;
+        var png = pngs[j.v.key] ? Promise.resolve(pngs[j.v.key]) : A.toPng(A.explorerIcon(j.v), 256).then(function (u) { pngs[j.v.key] = u; return u; });
+        return png.then(function (u) { return H.folderIcon({ dir: j.dir, key: j.v.key, version: A.ICON_VERSION, png: u, tip: j.tip }); }).then(function (r) {
+          if (r && r.ok) { ST.icons[j.dir] = sig; changed.push(j.dir); }
         }, function () {});
       });
     }, Promise.resolve()).then(function () {
       iconBusy = false;
-      if (done) { put('icons'); log('files', 'Updated the status icon on ' + done + ' project folder' + (done === 1 ? '' : 's') + ' in File Explorer.'); }
-      return done;
+      if (changed.length) { put('icons'); H.folderIconRefresh(changed).catch(function () {}); log('files', 'Updated ' + changed.length + ' folder icon' + (changed.length === 1 ? '' : 's') + ' in File Explorer.'); }
+      if (iconAgain) { iconAgain = false; setTimeout(runFolderIcons, 50); }
+      return changed.length;
     }, function () { iconBusy = false; return 0; });
   }
-  window.addEventListener('morfis:status', function (e) { if (e.detail && e.detail.pid) { delete ST.icons[e.detail.pid]; runFolderIcons(e.detail.pid); } });
+  /* turned off: take the icons away again */
+  function clearFolderIcons() {
+    var dirs = Object.keys(ST.icons);
+    return dirs.reduce(function (c, d) { return c.then(function () { return H.folderIconClear(d).catch(function () {}); }); }, Promise.resolve()).then(function () {
+      if (dirs.length) H.folderIconRefresh(dirs).catch(function () {});
+      ST.icons = {}; put('icons'); return dirs.length;
+    });
+  }
+  window.addEventListener('morfis:status', function (e) { if (e.detail && e.detail.pid) runFolderIcons(e.detail.pid); });
+  /* folders change as files are added, sorted or created: follow along, a few seconds behind */
+  var iconT = 0;
+  window.addEventListener('morfis:render', function () { clearTimeout(iconT); iconT = setTimeout(function () { if (ready && pg() && pg().S.ready) runFolderIcons(); }, 2500); });
 
   /* ===== AI: sort loose files ===== */
   function aiSort(pid) {
@@ -339,7 +367,7 @@
     if (key === 'draftInvoices') { var n = runDraftInvoices(); M.toast(n ? 'Drafted ' + n + ' invoice' + (n === 1 ? '' : 's') + '.' : 'No milestones are waiting for an invoice.'); redraw(); }
     else if (key === 'followUps') { ST.followed = {}; runFollowUps().then(function (n) { M.toast(n ? 'Wrote ' + n + ' follow-up' + (n === 1 ? '' : 's') + '.' : 'No invoices are overdue.'); redraw(); }); }
     else if (key === 'digest') { M.toast('Writing the summary…'); runDigest(true).then(function () { redraw(); }); }
-    else if (key === 'folderIcons') { ST.icons = {}; runFolderIcons().then(function (n) { M.toast(n ? 'Updated ' + n + ' folder icon' + (n === 1 ? '' : 's') + '. Press F5 in File Explorer to see them.' : 'No project folders to update (Windows only).'); redraw(); }); }
+    else if (key === 'folderIcons') { ST.icons = {}; runFolderIcons().then(function (n) { M.toast(n ? 'Updated ' + n + ' folder icon' + (n === 1 ? '' : 's') + ' in File Explorer.' : 'No project folders to update (Windows only).'); redraw(); }); }
   }
   function bind(el) {
     if (el.dataset.auBound) return;
@@ -368,7 +396,7 @@
       if (t.dataset.auPref) { M.setPref(t.dataset.auPref, t.checked).then(function () { AI.status && (AI.status.enabled = t.checked); redraw(); }); return; }
       if (t.dataset.auRule) {
         var r = RULES.find(function (x) { return x.key === t.dataset.auRule; });
-        if (r.pref) M.setPref(r.key, t.checked).then(function () { if (t.checked) runFolderIcons(); redraw(); });
+        if (r.pref) M.setPref(r.key, t.checked).then(function () { if (t.checked) runFolderIcons(); else clearFolderIcons().then(function (n) { if (n) M.toast('Removed the icons from ' + n + ' folder' + (n === 1 ? '' : 's') + '.'); }); redraw(); });
         else { ST.settings[r.key] = t.checked; put('settings'); if (t.checked) runRule(r.key); }
       }
     });
@@ -388,7 +416,7 @@
     runFolderIcons();
   }
   window.addEventListener('morfis:render', function () { if (Date.now() - lastDraft > 60000 && ready && pg() && pg().S.ready) { lastDraft = Date.now(); runDraftInvoices(); } });
-  loadState().then(function () { checkAi(true); setTimeout(tick, 8000); setInterval(tick, 30 * 60 * 1000); });
+  loadState().then(function () { checkAi(true); setTimeout(function () { runFolderIcons(); }, 2500); setTimeout(tick, 8000); setInterval(tick, 30 * 60 * 1000); });
 
   window.MorfisAuto = { attention: attention, aiSort: aiSort, draftQuote: draftQuote, coverNote: coverNote, run: runRule, status: function () { return AI.status; } };
 })();

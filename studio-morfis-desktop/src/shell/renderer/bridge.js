@@ -19,7 +19,7 @@
     'renameItem', 'makeDir', 'moveItems', 'trashItems', 'geocode', 'reverse',
     'getPrefs', 'setPref', 'resetPrefs', 'relaunch', 'openBackups', 'backupNow', 'refreshShortcuts',
     'docsList', 'docSave', 'docDelete', 'kvGet', 'kvSet', 'savePdf', 'printHtml', 'notify', 'openExternal',
-    'aiStatus', 'aiChat', 'aiPull', 'folderIcon', 'folderIconClear'].forEach(function (m) { api[m] = call(m); });
+    'aiStatus', 'aiChat', 'aiPull', 'folderIcon', 'folderIconClear', 'folderIconRefresh', 'preview', 'readText', 'thumb'].forEach(function (m) { api[m] = call(m); });
   /* the page sends Uint8Array bytes for saved files; that crosses to the main process as is */
   api.onWin = function (fn) { B.on('win:state', fn); };
   api.onFocus = function (fn) { B.on('app:focus', fn); };

@@ -44,6 +44,32 @@ You change it from a project's tag in Files, on the project page, or from a fold
 - **Inside a folder:** subfolders as cards, then the files.
 - **Working with files:** open, show in Explorer, copy the path, or move to the Recycle Bin. Drop files from Explorer onto any folder to copy them in.
 
+## Folder icons in File Explorer
+
+The folders you see in Files are the icons the real folders get in File Explorer, drawn by the same code:
+
+- **Project folders:** the status badge.
+- **The six standard folders:** their number tab (01 to 06).
+- **Folders with files:** paper sheets marked with the main file type (PDF, DWG…).
+
+The tooltip shows the status, project code and stage, or the folder name and file count. Icons follow every change within a few seconds. Explorer is told straight away, so open windows refresh without pressing F5. Turning the automation off removes the icons again. Folders that already had their own `desktop.ini` icon are left alone.
+
+## Built-in preview
+
+Click a file in Files (or press Space) to look at it without leaving the app. Arrow keys move through the files on screen, Enter opens the file in its own program, and Esc closes the preview.
+
+| Kind | Preview |
+|---|---|
+| Images (JPG, PNG, GIF, WebP, BMP, SVG, AVIF, ICO) | Zoom with the wheel, drag to pan, double-click for 100 %, R to rotate |
+| PDF | Chromium's viewer: pages, zoom, rotate, search, print |
+| Video (MP4, MOV, WebM, M4V) and audio (MP3, WAV, M4A, OGG, FLAC) | Plays in place, with seeking |
+| Word (DOCX) | Rendered as a page (mammoth, BSD licence) |
+| CSV, TSV | A table |
+| Text and code (TXT, MD, JSON, XML, LOG, INI, LSP, SCR, …) | With line numbers; JSON is tidied |
+| Everything else (DWG, SKP, RVT, PSD, HEIC, TIF, XLSX, PPTX, …) | The large thumbnail Windows itself makes for the file, plus an Open button |
+
+The grid layout of a folder shows the same thumbnails File Explorer does. Files opened from the dashboard's own project folder lists use the preview too.
+
 ## Invoices & quotes
 
 - **List:** every quotation and invoice. Milestone invoices issued from Payments appear automatically.

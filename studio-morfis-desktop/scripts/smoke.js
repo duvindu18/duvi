@@ -150,6 +150,45 @@ app.whenReady().then(async () => {
   }
   fake.close();
 
+  /* built-in preview: one sample file of each kind, in a real project folder shown in Files */
+  const pv = path.join(base, 'MRF I 26 I 017 I Ratnayake Dental Clinic'), pv02 = path.join(pv, '02_Schematics_and_3D');
+  fs.mkdirSync(pv02, { recursive: true });
+  ['01_Brief_and_Site_Data', '03_Working_Drawings', '04_Schedules_BOQ', '05_Financials_and_Contracts', '06_Site_Photos_and_Minutes'].forEach((n) => fs.mkdirSync(path.join(pv, n), { recursive: true }));
+  fs.writeFileSync(path.join(pv02, 'Reception_render.png'), require('electron').nativeImage.createFromPath(path.join(__dirname, '..', 'build', 'icon.png')).resize({ width: 1200, height: 1200 }).toPNG());
+  fs.copyFileSync(path.join(out, 'quotation.pdf'), path.join(pv02, 'Quotation_QT-2026-002.pdf'));
+  fs.writeFileSync(path.join(pv02, 'Finishes_schedule.csv'), 'Room,Floor,Walls,Ceiling\nReception,Terrazzo,Lime plaster,Gypsum\n"Treatment 1",Vinyl,"Washable paint, white",Gypsum\nLab,Vinyl,Tile,Mineral fibre\n');
+  fs.writeFileSync(path.join(pv02, 'model_settings.json'), '{"units":"mm","levels":[0,3200],"north":12}');
+  fs.writeFileSync(path.join(pv02, 'Meeting_notes.md'), '# Site meeting 12 Oct\n- Client wants a second sink in Treatment 1\n- Confirm the lab extract route\n');
+  fs.copyFileSync(path.join(__dirname, 'fixtures', 'sample-brief.docx'), path.join(pv02, 'Client_brief.docx'));
+  fs.writeFileSync(path.join(pv02, 'Ground_floor.dwg'), 'AC1032 not a real drawing');
+  const pid = await js(w, "(function(){var pg=window.__morfisPage,p=Object.values(pg.S.projects).find(function(x){return /Ratnayake/.test(x.name)});p.folderPath=" + JSON.stringify(pv) + ";p.foldersCreated=pg.today();pg.commit(p);return p.id})()");
+  await js(w, "MorfisFiles.open(" + JSON.stringify(pid) + ")"); await wait(1500);
+  await js(w, "(function(){var b=document.querySelector('#dkView [data-go-node$=\"|02\"]');b.click();})()"); await wait(1200);
+  await js(w, "(function(){var b=document.querySelector('#dkView [data-layout=grid]');if(b)b.click();})()"); await wait(1500);
+  await shot(w, '16-files-thumbnails');
+  const kinds = {};
+  const look = async (name, probe, shotName) => {
+    await js(w, "MorfisPreview.open(" + JSON.stringify(path.join(pv02, name)) + ", Array.from(document.querySelectorAll('#dkView .fx-main [data-file]')).map(function(r){return r.dataset.file}))");
+    await wait(1800);
+    kinds[name] = await js(w, probe);
+    if (shotName) await shot(w, shotName);
+  };
+  await look('Reception_render.png', "(function(){var i=document.querySelector('.pv .pv-img');return !!(i&&i.naturalWidth===1200)})()", '17-preview-image');
+  await look('Quotation_QT-2026-002.pdf', "!!document.querySelector('.pv iframe.pv-frame')", '18-preview-pdf');
+  await look('Finishes_schedule.csv', "document.querySelectorAll('.pv .pv-table tbody tr').length===3&&/Washable paint, white/.test(document.querySelector('.pv .pv-table').textContent)", '19-preview-csv');
+  await look('model_settings.json', "/\"units\": \"mm\"/.test(document.querySelector('.pv .pv-pre').textContent)");
+  await look('Meeting_notes.md', "/second sink/.test(document.querySelector('.pv .pv-pre').textContent)");
+  await look('Client_brief.docx', "(function(){var f=document.querySelector('.pv iframe.pv-frame');return !!(f&&/Two treatment rooms/.test(f.srcdoc||''))})()", '20-preview-docx');
+  await look('Ground_floor.dwg', "!!document.querySelector('.pv .pv-none .btn')", '21-preview-other');
+  await js(w, "document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}))"); await wait(900);
+  kinds.arrows = await js(w, "/Client_brief/.test(document.querySelector('.pv .pv-file b').textContent)");
+  await js(w, "MorfisPreview.close()");
+  console.log('preview:', JSON.stringify(kinds));
+  for (const v of [{ status: 'in_progress', count: 3, kinds: ['PDF'] }, { status: 'completed', count: 0 }, { num: '03', count: 5, kinds: ['DWG'] }, { num: '06', count: 0 }]) {
+    const u = await js(w, "MorfisArt.toPng(MorfisArt.explorerIcon(" + JSON.stringify(v) + "),256)");
+    fs.writeFileSync(path.join(out, 'xicon-' + (v.status || v.num) + '.png'), Buffer.from(u.split(',')[1], 'base64'));
+  }
+
   console.log('page errors:', errors.length ? errors : 'none');
   const pdir = path.join(profile, 'data', 'projects');
   console.log('saved files:', fs.existsSync(pdir) ? fs.readdirSync(pdir).length : 0, 'projects,', fs.existsSync(path.join(profile, 'data', 'settings.json')) ? 'settings ok' : 'no settings');
@@ -163,6 +202,7 @@ app.whenReady().then(async () => {
   expect(o.renamed === 'Renamed House' && o.renameBack === 1, 'renaming a project folder and undoing it');
   expect(o.movedNotes === 1 && o.listed === 'notes.txt', 'new folder and moving a file into it');
   expect(o.enoent === 'ENOENT' && !!o.badName && o.rows === 1, 'error codes, name checks and reading the root');
+  expect(Object.keys(kinds).length === 8 && Object.values(kinds).every(Boolean), 'built-in preview of image, PDF, CSV, JSON, Markdown, Word, other, and arrows: ' + JSON.stringify(kinds));
   expect(quote.done && quote.lines === 2 && quote.total === 590000, 'AI quotation assistant');
   expect(/overdue/.test(digest || ''), 'AI Monday summary');
   expect(pdf.length > 5000, 'quotation PDF');

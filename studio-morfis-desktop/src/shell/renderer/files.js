@@ -61,11 +61,7 @@
   }
   function fstat(p, fid) { var f = (p.folders || {})[fid] || {}; return { count: f.count != null ? f.count : (f.files || []).length, files: f.files || [], exists: !!f.exists }; }
   function totalFiles(p) { return pg().FOLDER_TEMPLATES.reduce(function (a, t) { return a + fstat(p, t.id).count; }, 0) + (p.looseCount || 0); }
-  function kindsOf(files) {
-    var seen = [];
-    files.forEach(function (f) { var k = A.kindOf(f.name).label; if (seen.indexOf(k) === -1 && k !== 'FILE') seen.push(k); });
-    return seen.slice(0, 2);
-  }
+  var kindsOf = A.kindsOf;
   function tmpl(fid) { return pg().FOLDER_TEMPLATES.find(function (t) { return t.id === fid; }); }
   function onDisk(p) { return !!(p.foldersCreated && !p.dirMissing); }
 
@@ -121,7 +117,7 @@
   function folderCard(p, t) {
     var s = fstat(p, t.id);
     return '<div class="fx-card" role="button" tabindex="0" data-go-node="' + p.id + '|' + t.id + '" data-dropzone data-pid="' + p.id + '" data-fid="' + t.id + '" title="Open ' + esc(t.label) + '. Drop files here to copy them in.">' +
-      '<div class="fx-art">' + A.folder({ count: s.count, kinds: kindsOf(s.files) }) + '</div>' +
+      '<div class="fx-art">' + A.folder({ num: t.id, count: s.count, kinds: kindsOf(s.files) }) + '</div>' +
       '<div class="fx-name">' + esc(t.label) + '</div>' +
       '<div class="fx-meta"><span class="mono">' + t.id + '</span> · ' + (s.exists ? s.count + ' file' + (s.count === 1 ? '' : 's') : 'Not created') + '</div></div>';
   }
@@ -135,9 +131,9 @@
     if (!rows.length) return '<div class="fx-empty">' + empty + '</div>';
     return '<div class="fx-table" role="table"><div class="fx-tr fx-th" role="row"><span>Name</span><span>Folder</span><span>Size</span><span>Modified</span><span></span></div>' +
       rows.map(function (r) {
-        return '<div class="fx-tr" role="row" data-file="' + esc(r.abs) + '"><span class="fx-fn">' + A.fileIcon(r.name, 28) + '<span><b title="' + esc(r.name) + '">' + esc(r.name) + '</b>' + (r.sub ? '<em>' + esc(r.sub) + '</em>' : '') + '</span></span>' +
+        return '<div class="fx-tr" role="row" tabindex="0" data-file="' + esc(r.abs) + '" title="Click to preview, double-click to open"><span class="fx-fn">' + A.fileIcon(r.name, 28) + '<span><b title="' + esc(r.name) + '">' + esc(r.name) + '</b>' + (r.sub ? '<em>' + esc(r.sub) + '</em>' : '') + '</span></span>' +
           '<span class="muted">' + esc(r.folder) + '</span><span class="muted mono">' + esc(r.size) + '</span><span class="muted">' + esc(r.date) + '</span>' +
-          '<span class="fx-acts"><button type="button" class="icon-btn" data-file-act="open" title="Open">' + ic('ext', 15) + '</button><button type="button" class="icon-btn" data-file-act="menu" title="More">' + ic('dots', 15) + '</button></span></div>';
+          '<span class="fx-acts"><button type="button" class="icon-btn" data-file-act="open" title="Open in its own program">' + ic('ext', 15) + '</button><button type="button" class="icon-btn" data-file-act="menu" title="More">' + ic('dots', 15) + '</button></span></div>';
       }).join('') + '</div>';
   }
 
@@ -163,7 +159,7 @@
     return '<div class="fx-table fx-ptable" role="table"><div class="fx-tr fx-th" role="row"><span>Project</span><span>Status</span><span>Stage</span><span>Files</span><span></span></div>' +
       list.map(function (p) {
         var st = A.statusOf(p, pg().today());
-        return '<div class="fx-tr" role="row" data-go-node="' + p.id + '"><span class="fx-fn"><span class="fx-mini">' + A.folder({ count: totalFiles(p) }) + '</span><span><b>' + esc(p.name) + '</b><em class="mono">' + esc(p.code) + '</em></span></span>' +
+        return '<div class="fx-tr" role="row" data-go-node="' + p.id + '"><span class="fx-fn"><span class="fx-mini">' + A.folder({ status: st, count: totalFiles(p) }) + '</span><span><b>' + esc(p.name) + '</b><em class="mono">' + esc(p.code) + '</em></span></span>' +
           '<span>' + A.statusTag(st) + '</span><span>' + stageTag(p) + '</span><span class="muted mono">' + totalFiles(p) + '</span>' +
           '<span class="fx-acts"><button type="button" class="icon-btn" data-card-menu="' + p.id + '" title="More">' + ic('dots', 15) + '</button></span></div>';
       }).join('') + '</div>';
@@ -175,7 +171,7 @@
     var recent = [];
     pg().FOLDER_TEMPLATES.forEach(function (t) { fstat(p, t.id).files.slice(0, 20).forEach(function (f) { var parts = String(f.name).split('/'); recent.push({ name: parts.pop(), sub: parts.join(' / '), folder: t.label, size: f.size || '', date: M.fdate(f.added), added: f.added, abs: jn(pg().subDir(p, t.id), f.name) }); }); });
     recent.sort(function (a, b) { return String(b.added).localeCompare(String(a.added)); });
-    return '<div class="fx-head"><div class="fx-ptitle"><div class="fx-ptitle-art">' + A.folder({ count: totalFiles(p), status: st }) + '</div><div style="min-width:0"><h1>' + esc(p.name) + '</h1>' +
+    return '<div class="fx-head"><div class="fx-ptitle"><div class="fx-ptitle-art">' + A.folder({ count: totalFiles(p), status: st, kinds: kindsOf(pg().FOLDER_TEMPLATES.reduce(function (acc, t) { return acc.concat(fstat(p, t.id).files); }, [])) }) + '</div><div style="min-width:0"><h1>' + esc(p.name) + '</h1>' +
       '<div class="fx-pmeta"><span class="mono">' + esc(p.code) + '</span><button type="button" class="st-pick" data-status-menu="' + p.id + '" title="Change the status">' + A.statusTag(st, ic('chev', 12)) + '</button>' + stageTag(p) +
       (p.client && p.client.name ? '<span class="muted">' + esc(p.client.name) + '</span>' : '') + '</div>' +
       '<div class="fx-path mono" title="' + esc(dir) + '">' + esc(dir) + '</div></div></div>' +
@@ -192,7 +188,7 @@
     return '<div class="fx-table" role="table"><div class="fx-tr fx-th" role="row"><span>Folder</span><span>Name on disk</span><span>Files</span><span></span><span></span></div>' +
       pg().FOLDER_TEMPLATES.map(function (t) {
         var s = fstat(p, t.id);
-        return '<div class="fx-tr" role="row" data-go-node="' + p.id + '|' + t.id + '" data-dropzone data-pid="' + p.id + '" data-fid="' + t.id + '"><span class="fx-fn"><span class="fx-mini">' + A.folder({ count: s.count }) + '</span><b>' + esc(t.label) + '</b></span>' +
+        return '<div class="fx-tr" role="row" data-go-node="' + p.id + '|' + t.id + '" data-dropzone data-pid="' + p.id + '" data-fid="' + t.id + '"><span class="fx-fn"><span class="fx-mini">' + A.folder({ num: t.id, count: s.count, kinds: kindsOf(s.files) }) + '</span><b>' + esc(t.label) + '</b></span>' +
           '<span class="muted mono">' + esc(t.name) + '</span><span class="muted mono">' + (s.exists ? s.count : '–') + '</span><span></span><span></span></div>';
       }).join('') + '</div>';
   }
@@ -210,9 +206,41 @@
       '<div class="toolbar">' + viewToggle() + '<button type="button" class="btn" data-fx-act="newDir">' + ic('plus', 15) + 'New folder</button><button type="button" class="btn" data-fx-act="addFiles">' + ic('upload', 15) + 'Add files</button><button type="button" class="btn" data-fx-act="openHere">' + ic('ext', 15) + 'Open in Explorer</button></div></div>' +
       (F.list === null ? '<div class="fx-empty"><i class="spin"></i> Reading the folder…</div>' : F.list.err ? '<div class="fx-empty">' + esc(F.list.err) + '</div>' :
         (dirs.length ? '<section><div class="fx-sec-h"><h2>Folders</h2><span class="count">' + dirs.length + '</span></div><div class="fx-grid">' + dirs.map(function (e) { return subCard(p, e); }).join('') + '</div></section>' : '') +
-        '<section data-dropzone data-pid="' + p.id + '" data-fid="' + F.fid + '" data-sub="' + esc(F.sub) + '"><div class="fx-sec-h"><h2>Files</h2><span class="count">' + files.length + '</span></div>' + fileRows(rows, 'Empty. Drop files here or use Add files.') + '</section>');
+        '<section data-dropzone data-pid="' + p.id + '" data-fid="' + F.fid + '" data-sub="' + esc(F.sub) + '"><div class="fx-sec-h"><h2>Files</h2><span class="count">' + files.length + '</span></div>' + (F.view === 'grid' && rows.length ? fileCards(rows) : fileRows(rows, 'Empty. Drop files here or use Add files.')) + '</section>');
   }
   function ymdOf(ms) { return M.ymd(new Date(ms)); }
+  /* files as cards with the thumbnail Windows makes for them, loaded as they scroll into view */
+  function fileCards(rows) {
+    return '<div class="fx-files">' + rows.map(function (r) {
+      return '<div class="fx-fcard" role="button" tabindex="0" data-file="' + esc(r.abs) + '" title="' + esc(r.name) + '"><div class="fx-thumb" data-thumb="' + esc(r.abs) + '">' + A.fileIcon(r.name, 46) + '</div>' +
+        '<div class="fx-fname">' + esc(r.name) + '</div><div class="fx-meta">' + esc(r.size) + ' · ' + esc(r.date) + '</div>' +
+        '<button type="button" class="fx-more" data-file-act="menu" aria-label="More">' + ic('dots', 16) + '</button></div>';
+    }).join('') + '</div>';
+  }
+  var THUMBS = {}, thumbIO = null;
+  function loadThumbs(scope) {
+    if (thumbIO) thumbIO.disconnect();
+    thumbIO = new IntersectionObserver(function (list) {
+      list.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        var box = en.target, abs = box.dataset.thumb;
+        thumbIO.unobserve(box);
+        var got = THUMBS[abs] ? Promise.resolve(THUMBS[abs]) : H.thumb(abs, 256).then(function (u) {
+          if (u) return u;
+          return window.MorfisPreview && window.MorfisPreview.kindOf(abs) === 'image' ? H.preview(abs).then(function (r) { return r.url; }) : '';
+        });
+        got.then(function (u) { if (!u) return; THUMBS[abs] = u; box.innerHTML = '<img src="' + esc(u) + '" alt="" draggable="false">'; box.classList.add('has-img'); }, function () {});
+      });
+    }, { root: scope.querySelector('.fx-main'), rootMargin: '200px' });
+    scope.querySelectorAll('[data-thumb]').forEach(function (b) { if (THUMBS[b.dataset.thumb]) { b.innerHTML = '<img src="' + esc(THUMBS[b.dataset.thumb]) + '" alt="" draggable="false">'; b.classList.add('has-img'); } else thumbIO.observe(b); });
+  }
+  /* look at a file in the built-in preview; the arrows move through the files on screen */
+  function preview(abs) {
+    var list = [];
+    EL.querySelectorAll('.fx-main [data-file]').forEach(function (r) { if (list.indexOf(r.dataset.file) === -1) list.push(r.dataset.file); });
+    if (window.MorfisPreview) window.MorfisPreview.open(abs, list); else openApp(abs);
+  }
+  function openApp(abs) { (H.openPathDirect || H.openPath)(abs).catch(function () { M.toast('That file is no longer there, or Windows has no program for it.'); }); }
   function load(p) {
     var key = F.listKey;
     H.listDir(pg().projDir(p), tmpl(F.fid).name + (F.sub ? '/' + F.sub : '')).then(function (r) {
@@ -232,6 +260,7 @@
     EL.innerHTML = '<div class="fx">' + tree() + '<div class="fx-main">' + crumbs() + (p ? (F.fid ? folderView(p) : projectView(p)) : rootView()) + '</div></div>';
     var m = EL.querySelector('.fx-main'); if (m) m.scrollTop = y;
     var n = EL.querySelector('.fx-nodes'); if (n) n.scrollTop = ty;
+    loadThumbs(EL);
     M.crumb();
   }
   function open(node) {
@@ -249,7 +278,8 @@
   function fileMenu(btn) {
     var row = btn.closest('[data-file]'), abs = row.dataset.file, name = abs.split(/[\\/]/).pop();
     menu(btn, [
-      { label: 'Open', icon: 'ext', fn: function () { H.openPath(abs).catch(function () { M.toast('That file is no longer there.'); }); } },
+      { label: 'Preview', icon: 'search', fn: function () { preview(abs); } },
+      { label: 'Open in its own program', icon: 'ext', fn: function () { openApp(abs); } },
       { label: 'Show in Explorer', icon: 'files', fn: function () { H.reveal(abs).catch(function () { M.toast('That file is no longer there.'); }); } },
       { label: 'Copy path', icon: 'copy', fn: function () { navigator.clipboard.writeText(abs).then(function () { M.toast('Path copied.'); }); } },
       { sep: true },
@@ -316,14 +346,19 @@
       var tw = t.closest('[data-twist]'); if (tw) { e.stopPropagation(); F.open[tw.dataset.twist] = !F.open[tw.dataset.twist]; draw(); return; }
       var sm = t.closest('[data-status-menu]'); if (sm) { statusMenu(sm, sm.dataset.statusMenu); return; }
       var cm = t.closest('[data-card-menu]'); if (cm) { e.stopPropagation(); cardMenu(cm); return; }
-      var fa = t.closest('[data-file-act]'); if (fa) { e.stopPropagation(); if (fa.dataset.fileAct === 'menu') fileMenu(fa); else { var abs = fa.closest('[data-file]').dataset.file; H.openPath(abs).catch(function () { M.toast('That file is no longer there.'); }); } return; }
+      var fa = t.closest('[data-file-act]'); if (fa) { e.stopPropagation(); if (fa.dataset.fileAct === 'menu') fileMenu(fa); else openApp(fa.closest('[data-file]').dataset.file); return; }
       var ff = t.closest('[data-filter]'); if (ff) { F.filter = ff.dataset.filter; keep(); draw(); return; }
       var ly = t.closest('[data-layout]'); if (ly) { F.view = ly.dataset.layout; keep(); draw(); return; }
       var ac = t.closest('[data-fx-act]'); if (ac) { ACT[ac.dataset.fxAct](); return; }
       var nd = t.closest('[data-go-node]'); if (nd) { open(nd.dataset.goNode); return; }
+      var fr = t.closest('[data-file]'); if (fr && !t.closest('button')) { preview(fr.dataset.file); return; }
     });
-    el.addEventListener('dblclick', function (e) { var r = e.target.closest('[data-file]'); if (r && M.current() === 'files') H.openPath(r.dataset.file).catch(function () { M.toast('That file is no longer there.'); }); });
-    el.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.fx-card[data-go-node]')) { e.preventDefault(); open(e.target.dataset.goNode); } });
+    el.addEventListener('dblclick', function (e) { var r = e.target.closest('[data-file]'); if (r && M.current() === 'files') { if (window.MorfisPreview) window.MorfisPreview.close(); openApp(r.dataset.file); } });
+    el.addEventListener('keydown', function (e) {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.fx-card[data-go-node]')) { e.preventDefault(); open(e.target.dataset.goNode); return; }
+      var f = e.target.closest && e.target.closest('[data-file]');
+      if (f && e.key === ' ') { e.preventDefault(); preview(f.dataset.file); } else if (f && e.key === 'Enter') { e.preventDefault(); openApp(f.dataset.file); }
+    });
   }
 
   M.register('files', {
