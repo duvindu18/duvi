@@ -63,6 +63,8 @@ function rules(o) {
 
 function build(html, o) {
   const missing = [];
+  /* a Windows checkout may have turned line ends into CRLF; the anchors are written with LF */
+  html = html.replace(/\r\n/g, '\n');
   rules(o).forEach((r) => {
     const hit = typeof r[0] === 'string' ? html.indexOf(r[0]) !== -1 : r[0].test(html);
     if (!hit) { if (r[2]) missing.push(String(r[0]).slice(0, 80)); return; }

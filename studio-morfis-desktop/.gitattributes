@@ -1,0 +1,5 @@
+# Keep line endings as written, so the dashboard patch anchors match on every platform
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.docx binary
