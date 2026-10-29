@@ -7,8 +7,10 @@
   var M = window.Morfis, A = window.MorfisArt;
   if (!M || !A) return;
   var H = M.H, esc = M.esc, ic = M.ic, pg = M.page;
-  var KV = { settings: 'auto:settings', log: 'auto:log', drafted: 'auto:drafted', outbox: 'auto:outbox', followed: 'auto:followed', digest: 'auto:digest', icons: 'auto:icons' };
-  var ST = { settings: { draftInvoices: true, followUps: true, digest: true }, log: [], drafted: {}, outbox: [], followed: {}, digest: null, icons: {} };
+  var KV = { settings: 'auto:settings', log: 'auto:log', drafted: 'auto:drafted', outbox: 'auto:outbox', followed: 'auto:followed', digest: 'auto:digest', icons: 'auto:icons',
+    custom: 'auto:custom', fired: 'auto:fired', seen: 'auto:seen', notes: 'auto:notes' };
+  var DEF_SETTINGS = { draftInvoices: true, followUps: true, digest: true, quoteExpiry: true, lateTasks: true, holdNudge: true, freshFolders: true };
+  var ST = { settings: Object.assign({}, DEF_SETTINGS), log: [], drafted: {}, outbox: [], followed: {}, digest: null, icons: {}, custom: [], fired: {}, seen: null, notes: [] };
   var AI = { status: null, checking: false, pull: null };
   var ready = false;
 
@@ -16,6 +18,10 @@
     { key: 'draftInvoices', kind: 'Rule', icon: 'documents', title: 'Draft the invoice when a stage is reached', text: 'When a project reaches the stage a milestone is billed at, a draft invoice is prepared in Invoices & quotes for you to check and issue.' },
     { key: 'followUps', kind: 'AI', icon: 'mail', title: 'Payment follow-ups for overdue invoices', text: 'For each overdue invoice, a short, polite reminder email is written for you to review, copy or open in your email program. Once a week per invoice.' },
     { key: 'digest', kind: 'AI', icon: 'sparkle', title: 'Monday studio summary', text: 'Every Monday, a short summary of what needs attention: overdue money, tasks due this week, quotes waiting for an answer.' },
+    { key: 'quoteExpiry', kind: 'Rule', icon: 'documents', title: 'Quotations about to expire', text: 'Three days before a sent quotation runs out, and again when it has expired, you get a notification and a note to follow it up with the client.' },
+    { key: 'lateTasks', kind: 'Rule', icon: 'bell', title: 'Morning task check', text: 'Once a day, a notification lists the tasks that are past due or due today, so nothing slips while you are on other projects.' },
+    { key: 'holdNudge', kind: 'Rule', icon: 'refresh', title: 'Projects on hold for a month', text: 'When a project has been On hold for 30 days, a note asks whether to restart, keep waiting or close it. Again every 30 days.' },
+    { key: 'freshFolders', kind: 'Rule', icon: 'files', title: 'Keep folder counts up to date', text: 'Every 15 minutes the folders of active projects are read again, so Files, the folder icons and the counts match what is on the disk.' },
     { key: 'folderIcons', kind: 'Rule', icon: 'files', title: 'Same folder icons in File Explorer', text: 'Project folders and their six standard folders get the icons you see in Files: the status badge, the folder number and the main file type. They follow every change within seconds.', pref: true },
     { key: 'aiSort', kind: 'AI', icon: 'sort', title: 'Sort files the rules cannot place', text: 'In Files, “Sort with AI” reads the names of loose files and suggests one of the six standard folders. You check before anything moves, and it can be undone.', manual: 'Files' },
     { key: 'quote', kind: 'AI', icon: 'documents', title: 'Quotation assistant', text: 'In a quotation, describe the job and the lines, quantities and rates are drafted from your studio’s past projects.', manual: 'Invoices & quotes' }
@@ -24,7 +30,13 @@
   /* ----- state on disk ----- */
   function loadState() {
     return Promise.all(Object.keys(KV).map(function (k) { return H.kvGet(KV[k]).then(function (v) { if (v != null) ST[k] = v; }, function () {}); }))
-      .then(function () { ST.settings = Object.assign({ draftInvoices: true, followUps: true, digest: true }, ST.settings); ready = true; });
+      .then(function () {
+        ST.settings = Object.assign({}, DEF_SETTINGS, ST.settings);
+        if (!Array.isArray(ST.custom)) ST.custom = [];
+        if (!Array.isArray(ST.notes)) ST.notes = [];
+        if (!ST.fired || typeof ST.fired !== 'object') ST.fired = {};
+        ready = true;
+      });
   }
   function put(k) { return H.kvSet(KV[k], ST[k]).catch(function () {}); }
   function log(icon, text, link) {
@@ -317,6 +329,304 @@
     var dn = document.getElementById('auDone'); if (dn) dn.addEventListener('click', function () { pg().closeModal(); onDone(); });
   }
 
+  /* ===== notes: small to-dos the automations leave under Waiting for you ===== */
+  function note(icon, title, sub, link) {
+    ST.notes.unshift({ id: M.uid('n'), icon: icon, title: title, sub: sub || '', link: link || null, at: pg().today() });
+    ST.notes = ST.notes.slice(0, 40); put('notes');
+  }
+  /* once per key, or once per key every `every` days */
+  function onceFor(key, every) {
+    var last = ST.fired[key], today = pg().today();
+    if (last && (!every || M.addDays(last, every) > today)) return false;
+    ST.fired[key] = today; return true;
+  }
+  function pruneFired() {
+    var cut = M.addDays(pg().today(), -400);
+    Object.keys(ST.fired).forEach(function (k) { if (ST.fired[k] < cut) delete ST.fired[k]; });
+  }
+
+  /* ===== rule: quotations about to expire ===== */
+  function runQuoteExpiry() {
+    if (!ST.settings.quoteExpiry || !window.MorfisDocs) return 0;
+    var today = pg().today(), n = 0;
+    window.MorfisDocs.all().forEach(function (d) {
+      if (d.type !== 'quote' || d.status !== 'sent' || !d.validUntil) return;
+      var soon = d.validUntil >= today && d.validUntil <= M.addDays(today, 3), gone = d.validUntil < today;
+      if (!soon && !gone) return;
+      if (!onceFor('qx|' + d.id + '|' + (gone ? 'gone' : 'soon'))) return;
+      var t = (gone ? 'Quotation ' + d.no + ' has expired' : 'Quotation ' + d.no + ' expires ' + M.fdate(d.validUntil));
+      note('documents', t, (d.clientName || 'Client') + (d.projectName ? ' · ' + d.projectName : '') + ' · ask whether to go ahead, or extend it', { doc: d.id });
+      H.notify(t, 'Follow it up with ' + (d.clientName || 'the client') + '.');
+      n++;
+    });
+    if (n) { put('fired'); log('documents', n + ' quotation' + (n === 1 ? ' needs' : 's need') + ' a follow-up.'); M.redrawSide(); }
+    return n;
+  }
+  /* ===== rule: the morning task check ===== */
+  function runLateTasks(force) {
+    var today = pg().today(), late = [], due = [];
+    if (!force && (!ST.settings.lateTasks || new Date().getHours() < 7 || ST.fired['tasks|' + today])) return 0;
+    Object.values(pg().S.projects).forEach(function (p) {
+      if (p.status === 'closed') return;
+      p.tasks.forEach(function (t) { if (t.status === 'done' || !t.due) return; if (t.due < today) late.push({ p: p, t: t }); else if (t.due === today) due.push({ p: p, t: t }); });
+    });
+    ST.fired['tasks|' + today] = today; put('fired');
+    if (!late.length && !due.length) return 0;
+    var title = (late.length ? late.length + ' task' + (late.length === 1 ? ' is' : 's are') + ' past due' : '') + (late.length && due.length ? ', ' : '') + (due.length ? due.length + ' due today' : '');
+    var first = (late[0] || due[0]);
+    H.notify(title.charAt(0).toUpperCase() + title.slice(1), '“' + first.t.title + '” · ' + first.p.name);
+    log('bell', 'Morning check: ' + title + '.');
+    return late.length + due.length;
+  }
+  /* ===== rule: projects on hold for a month ===== */
+  function runHoldNudge() {
+    if (!ST.settings.holdNudge) return 0;
+    var today = pg().today(), n = 0;
+    Object.values(pg().S.projects).forEach(function (p) {
+      if (A.statusOf(p, today) !== 'on_hold') return;
+      var since = p.workStatusAt || (p.updatedAt ? String(p.updatedAt).slice(0, 10) : '') || today;
+      if (M.addDays(since, 30) > today) return;
+      if (!onceFor('hold|' + p.id, 30)) return;
+      note('refresh', p.name + ' has been on hold since ' + M.fdate(since), p.code + ' · restart it, keep waiting, or close it', { pid: p.id });
+      n++;
+    });
+    if (n) { put('fired'); log('refresh', n + ' project' + (n === 1 ? ' has' : 's have') + ' been on hold for a month.'); M.redrawSide(); }
+    return n;
+  }
+  /* ===== rule: read the active project folders again ===== */
+  var freshAt = 0;
+  function runFreshFolders(force) {
+    if (!ST.settings.freshFolders && !force) return Promise.resolve(0);
+    if (!force && Date.now() - freshAt < 15 * 60 * 1000) return Promise.resolve(0);
+    freshAt = Date.now();
+    var today = pg().today(), list = Object.values(pg().S.projects).filter(function (p) { var st = A.statusOf(p, today); return p.foldersCreated && !p.dirMissing && st !== 'completed' && st !== 'cancelled'; });
+    var changed = 0;
+    return list.reduce(function (c, p) { return c.then(function () { return pg().rescanProject(p, { quiet: true }).then(function (ch) { if (ch) changed++; }, function () {}); }); }, Promise.resolve()).then(function () { return changed; });
+  }
+
+  /* ===== your own automations: when something happens, do something ===== */
+  var STATUS_OPTS = function () { return A.ORDER.map(function (k) { return [k, A.STATUS[k].label]; }); };
+  var STAGE_OPTS = function () { return pg().STAGES.map(function (s) { return [String(s.n), s.n + ' · ' + s.name]; }); };
+  var DOW = [['1', 'Monday'], ['2', 'Tuesday'], ['3', 'Wednesday'], ['4', 'Thursday'], ['5', 'Friday'], ['6', 'Saturday'], ['0', 'Sunday']];
+  var TRIGGERS = {
+    status: { label: 'A project’s status changes to', param: 'status', scope: 'project' },
+    stage: { label: 'A project reaches stage', param: 'stage', scope: 'project' },
+    invoiceReady: { label: 'A milestone is ready to invoice', scope: 'invoice' },
+    invoiceOverdue: { label: 'An invoice is overdue by at least', param: 'days', unit: 'days', def: 7, scope: 'invoice' },
+    taskDue: { label: 'A task is due within', param: 'days', unit: 'days', def: 2, scope: 'task' },
+    quoteExpiring: { label: 'A sent quotation expires within', param: 'days', unit: 'days', def: 3, scope: 'quote' },
+    weekly: { label: 'Every week on', param: 'dow', scope: 'time' },
+    daily: { label: 'Every day', scope: 'time' }
+  };
+  var ACTIONS = {
+    notify: { label: 'Show a Windows notification', text: true },
+    reminder: { label: 'Add a reminder under the bell', text: true, days: true },
+    note: { label: 'Add a to-do under Waiting for you', text: true },
+    email: { label: 'Draft an email to the client', text: true, ai: true },
+    status: { label: 'Set the project’s status to', status: true, needs: 'project' },
+    ai: { label: 'Ask the AI assistant', text: true }
+  };
+  var TOKENS = ['{project}', '{code}', '{client}', '{stage}', '{status}', '{invoice}', '{amount}', '{due}', '{days}', '{task}', '{quote}', '{studio}', '{date}'];
+  var PRESETS = [
+    { name: 'Close-out checklist', trigger: { type: 'status', status: 'completed' }, action: { type: 'reminder', days: 0, text: 'Close out {project}: invoice the retention, archive the drawings, ask {client} for feedback' } },
+    { name: 'Firm reminder after 14 days overdue', trigger: { type: 'invoiceOverdue', days: 14 }, action: { type: 'email', ai: true, text: 'Dear {client},\n\nInvoice {invoice} for {project} ({amount}) was due on {due} and is now {days} days overdue. Could you let us know when we can expect payment?\n\nKind regards,\n{studio}' } },
+    { name: 'Heads-up two days before a task is due', trigger: { type: 'taskDue', days: 2 }, action: { type: 'notify', text: '“{task}” is due {due} · {project}' } },
+    { name: 'Chase a quotation before it expires', trigger: { type: 'quoteExpiring', days: 5 }, action: { type: 'reminder', days: 0, text: 'Call {client} about quotation {quote} before {due}' } },
+    { name: 'Friday wrap-up', trigger: { type: 'weekly', dow: '5' }, action: { type: 'notify', text: 'Friday wrap-up: update the stages and tasks, file this week’s drawings' } },
+    { name: 'Schematic design kick-off', trigger: { type: 'stage', stage: '2' }, action: { type: 'note', text: 'Send the schematic design programme to {client} for {project}' } },
+    { name: 'Pause invoicing when a project goes on hold', trigger: { type: 'status', status: 'on_hold' }, action: { type: 'note', text: '{project} is on hold: check open invoices and tell the team' } }
+  ];
+
+  /* the things a trigger is about right now, each with a key (so it fires once) and the words its message can use */
+  function words(base) { return Object.assign({ studio: pg().S.settings.studio || '', date: M.fdate(pg().today()) }, base); }
+  function pWords(p) { var st = A.statusOf(p, pg().today()); return { project: p.name, code: p.code, client: (p.client && p.client.name) || 'the client', contact: (p.client && p.client.contact) || '', stage: p.currentStage + ' ' + pg().STAGES[Math.min(7, p.currentStage) - 1].name, status: A.STATUS[st].label, pid: p.id }; }
+  function matches(r, transitions) {
+    var t = r.trigger || {}, today = pg().today(), out = [];
+    var keep = function (p) { return !r.only || A.statusOf(p, today) === r.only; };
+    if (t.type === 'status' || t.type === 'stage') {
+      (transitions || []).forEach(function (x) {
+        var p = pg().P(x.pid); if (!p || !keep(p)) return;
+        if (t.type === 'status' && x.st === t.status && x.prevSt !== t.status) out.push({ key: p.id + '|' + x.st + '|' + today, w: words(pWords(p)), p: p });
+        if (t.type === 'stage' && x.stage === +t.stage && x.prevStage < +t.stage) out.push({ key: p.id + '|s' + x.stage, w: words(pWords(p)), p: p });
+      });
+    } else if (t.type === 'invoiceReady' || t.type === 'invoiceOverdue') {
+      Object.values(pg().S.projects).forEach(function (p) {
+        if (!keep(p)) return;
+        p.milestones.forEach(function (m, i) {
+          var inf = pg().invoiceInfo(p, i, today);
+          if (t.type === 'invoiceReady' && inf.status === 'ready' && p.status !== 'closed') out.push({ key: p.id + '|' + m.id, p: p, w: words(Object.assign(pWords(p), { invoice: m.label, amount: M.money(inf.amount), due: '', days: '0' })) });
+          if (t.type === 'invoiceOverdue' && inf.status === 'overdue') {
+            var days = Math.round((new Date(today) - new Date(m.invoice.due)) / 864e5);
+            if (days >= (+t.days || 0)) out.push({ key: p.id + '|' + m.id, p: p, w: words(Object.assign(pWords(p), { invoice: m.invoice.no, amount: M.money(inf.balance), due: M.fdate(m.invoice.due), days: String(days) })) });
+          }
+        });
+      });
+    } else if (t.type === 'taskDue') {
+      var end = M.addDays(today, +t.days || 0);
+      Object.values(pg().S.projects).forEach(function (p) {
+        if (p.status === 'closed' || !keep(p)) return;
+        p.tasks.forEach(function (k) { if (k.status !== 'done' && k.due && k.due >= today && k.due <= end) out.push({ key: p.id + '|' + k.id + '|' + k.due, p: p, w: words(Object.assign(pWords(p), { task: k.title, due: M.fdate(k.due), days: String(Math.round((new Date(k.due) - new Date(today)) / 864e5)) })) }); });
+      });
+    } else if (t.type === 'quoteExpiring' && window.MorfisDocs) {
+      var qend = M.addDays(today, +t.days || 0);
+      window.MorfisDocs.all().forEach(function (d) {
+        if (d.type !== 'quote' || d.status !== 'sent' || !d.validUntil || d.validUntil < today || d.validUntil > qend) return;
+        var p = d.pid && pg().P(d.pid);
+        if (r.only && !(p && keep(p))) return;
+        out.push({ key: d.id + '|' + d.validUntil, p: p || null, doc: d.id, w: words(Object.assign(p ? pWords(p) : { project: d.projectName || '', client: d.clientName || 'the client', contact: d.clientContact || '' }, { quote: d.no, due: M.fdate(d.validUntil), amount: window.MorfisDocs.fmt(window.MorfisDocs.totals(d).total, d.currency), client: d.clientName || 'the client' })) });
+      });
+    } else if (t.type === 'weekly') {
+      if (String(new Date(today + 'T00:00:00').getDay()) === String(t.dow)) out.push({ key: 'w|' + today, p: null, w: words({}) });
+    } else if (t.type === 'daily') out.push({ key: 'd|' + today, p: null, w: words({}) });
+    return out;
+  }
+  function fill(text, w) { return String(text || '').replace(/\{(\w+)\}/g, function (m, k) { return w[k] != null ? w[k] : m; }); }
+  function act(r, hit) {
+    var a = r.action || {}, text = fill(a.text, hit.w), p = hit.p;
+    if (a.type === 'notify') { H.notify(r.name || 'Automation', text); return Promise.resolve(); }
+    if (a.type === 'note') { note('automations', text, r.name, p ? { pid: p.id } : hit.doc ? { doc: hit.doc } : null); return Promise.resolve(); }
+    if (a.type === 'reminder') {
+      var S = pg().S;
+      S.settings.reminders = (S.settings.reminders || []).concat([{ id: M.uid('rm'), title: text.slice(0, 200), date: M.addDays(pg().today(), +a.days || 0), time: '', pid: p ? p.id : '', done: false, created: pg().today() }]);
+      pg().commitSettings(); return Promise.resolve();
+    }
+    if (a.type === 'status') { if (p && a.status && A.statusOf(p, pg().today()) !== a.status) M.setWorkStatus(p.id, a.status); return Promise.resolve(); }
+    if (a.type === 'email') {
+      var write = a.ai && aiUsable() ? ask('You polish short professional emails for an architecture and interior design studio. Keep the facts exactly, plain text, no subject line, under 140 words.', 'Polish this email:\n\n' + text).then(function (x) { return { text: x.text || text, ai: true }; }, function () { return { text: text, ai: false }; }) : Promise.resolve({ text: text, ai: false });
+      return write.then(function (wr) {
+        ST.outbox.unshift({ id: M.uid('m'), key: 'c|' + hit.key, to: /@/.test(hit.w.contact || '') ? hit.w.contact : '', client: hit.w.client || '', subject: (r.name || 'Message') + (hit.w.project ? ' · ' + hit.w.project : ''), body: wr.text, ai: wr.ai, created: pg().today() });
+        ST.outbox = ST.outbox.slice(0, 30); put('outbox');
+      });
+    }
+    if (a.type === 'ai') {
+      if (!aiUsable()) { note('sparkle', text, (r.name || 'Automation') + ' · the AI assistant was not available, so here is the question', p ? { pid: p.id } : null); return Promise.resolve(); }
+      return ask('You are the studio manager of an architecture and interior design practice. Answer briefly and practically, plain text, under 120 words.', text).then(function (x) {
+        note('sparkle', r.name || 'The assistant', x.text, p ? { pid: p.id } : null);
+      }, function () { note('sparkle', text, r.name || 'Automation', p ? { pid: p.id } : null); });
+    }
+    return Promise.resolve();
+  }
+  /* projects whose status or stage moved since last time; the first look only remembers */
+  function transitions() {
+    var today = pg().today(), now = {}, out = [], first = !ST.seen;
+    Object.values(pg().S.projects).forEach(function (p) { now[p.id] = { st: A.statusOf(p, today), stage: p.currentStage }; });
+    if (!first) Object.keys(now).forEach(function (id) {
+      var a = ST.seen[id], b = now[id];
+      if (!a) return;
+      if (a.st !== b.st || a.stage !== b.stage) out.push({ pid: id, st: b.st, prevSt: a.st, stage: b.stage, prevStage: a.stage });
+    });
+    var changed = first || out.length || Object.keys(now).length !== Object.keys(ST.seen || {}).length;
+    ST.seen = now; if (changed) put('seen');
+    return out;
+  }
+  var customBusy = false;
+  function runCustom(onlyId, force) {
+    if (!ready || customBusy || !pg() || !pg().S.ready) return Promise.resolve(0);
+    customBusy = true;
+    var tr = transitions(), n = 0;
+    var jobs = [];
+    ST.custom.forEach(function (r) {
+      if ((onlyId && r.id !== onlyId) || (!r.on && !force)) return;
+      matches(r, tr).forEach(function (hit) {
+        var key = 'c|' + r.id + '|' + hit.key;
+        if (ST.fired[key] && !force) return;
+        ST.fired[key] = pg().today();
+        jobs.push(function () { return act(r, hit).then(function () { n++; r.last = new Date().toISOString(); r.runs = (r.runs || 0) + 1; }, function () {}); });
+      });
+    });
+    return jobs.reduce(function (c, j) { return c.then(j); }, Promise.resolve()).then(function () {
+      customBusy = false;
+      if (jobs.length) { put('fired'); put('custom'); log('automations', 'Your automations ran ' + n + ' time' + (n === 1 ? '' : 's') + '.'); M.redrawSide(); redraw(); }
+      return n;
+    }, function () { customBusy = false; return n; });
+  }
+  window.addEventListener('morfis:status', function () { setTimeout(function () { runCustom(); }, 300); });
+  var customT = 0;
+  window.addEventListener('morfis:render', function () { clearTimeout(customT); customT = setTimeout(function () { runCustom(); }, 1500); });
+
+  /* the editor for one automation */
+  function optHtml(list, v) { return list.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (String(v) === String(o[0]) ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join(''); }
+  function describe(r) {
+    var t = r.trigger || {}, a = r.action || {}, T = TRIGGERS[t.type] || { label: '?' }, X = ACTIONS[a.type] || { label: '?' };
+    var when = T.label + (T.param === 'status' ? ' ' + (A.STATUS[t.status] || {}).label : T.param === 'stage' ? ' ' + t.stage : T.param === 'days' ? ' ' + (+t.days || 0) + ' days' : T.param === 'dow' ? ' ' + ((DOW.find(function (d) { return d[0] === String(t.dow); }) || [])[1] || '') : '');
+    var then = X.label + (a.type === 'status' ? ' ' + (A.STATUS[a.status] || {}).label : '');
+    return { when: when, then: then };
+  }
+  function editRule(id, preset) {
+    var r = id ? ST.custom.find(function (x) { return x.id === id; }) : null;
+    var d = JSON.parse(JSON.stringify(r || preset || { name: '', trigger: { type: 'status', status: 'completed' }, action: { type: 'notify', text: '' } }));
+    d.trigger = d.trigger || {}; d.action = d.action || {};
+    var body = '<div class="au-ed">' +
+      (r || preset ? '' : '<div class="field"><span class="fl">Start from an example</span><div class="au-presets">' + PRESETS.map(function (pr, i) { return '<button type="button" class="chip-btn" data-preset="' + i + '">' + esc(pr.name) + '</button>'; }).join('') + '</div></div>') +
+      '<div class="field"><label for="auName">Name</label><input class="in" id="auName" maxlength="80" value="' + esc(d.name) + '" placeholder="Close-out checklist"></div>' +
+      '<div class="au-ed-blk"><span class="au-ed-k">When</span><div class="au-ed-row"><select class="in" id="auTr">' + optHtml(Object.keys(TRIGGERS).map(function (k) { return [k, TRIGGERS[k].label]; }), d.trigger.type) + '</select><span id="auTrP"></span></div></div>' +
+      '<div class="au-ed-blk"><span class="au-ed-k">Only for</span><div class="au-ed-row"><select class="in" id="auOnly"><option value="">Any project</option>' + optHtml(STATUS_OPTS().map(function (o) { return [o[0], 'Projects that are ' + o[1]]; }), d.only || '') + '</select></div></div>' +
+      '<div class="au-ed-blk"><span class="au-ed-k">Then</span><div class="au-ed-row"><select class="in" id="auAc">' + optHtml(Object.keys(ACTIONS).map(function (k) { return [k, ACTIONS[k].label]; }), d.action.type) + '</select><span id="auAcP"></span></div>' +
+      '<div class="field" id="auTxtF"><label for="auTxt">Message</label><textarea class="in" id="auTxt" rows="4" maxlength="1200">' + esc(d.action.text || '') + '</textarea><span class="hint small muted">You can use ' + TOKENS.map(function (t) { return '<button type="button" class="au-tok" data-tok="' + t + '">' + t + '</button>'; }).join(' ') + '</span></div>' +
+      '<label class="switch dk-sw" id="auAiF"><input type="checkbox" id="auAi"' + (d.action.ai ? ' checked' : '') + '><span>Let the AI assistant polish the wording, when it is available</span></label></div>' +
+      '<p class="err" id="auErr"></p></div>' +
+      '<div class="dlg-foot">' + (r ? '<button type="button" class="btn danger ghost" id="auDel" style="margin-right:auto">Delete</button>' : '') + '<button type="button" class="btn" data-act="close">Cancel</button><button type="button" class="btn primary" id="auSave">' + (r ? 'Save' : 'Create automation') + '</button></div>';
+    M.modal(r ? 'Edit automation' : 'New automation', body, { wide: true });
+    var $ = function (x) { return document.getElementById(x); };
+    function params() {
+      var T = TRIGGERS[$('auTr').value], X = ACTIONS[$('auAc').value];
+      var tp = '';
+      if (T.param === 'status') tp = '<select class="in" id="auTrV">' + optHtml(STATUS_OPTS(), d.trigger.status || 'completed') + '</select>';
+      else if (T.param === 'stage') tp = '<select class="in" id="auTrV">' + optHtml(STAGE_OPTS(), d.trigger.stage || '2') + '</select>';
+      else if (T.param === 'days') tp = '<span class="au-num"><input class="in" id="auTrV" type="number" min="0" max="365" value="' + esc(d.trigger.days != null ? d.trigger.days : T.def) + '"><em>days</em></span>';
+      else if (T.param === 'dow') tp = '<select class="in" id="auTrV">' + optHtml(DOW, d.trigger.dow || '1') + '</select>';
+      $('auTrP').innerHTML = tp;
+      var ap = '';
+      if (X.status) ap = '<select class="in" id="auAcV">' + optHtml(STATUS_OPTS(), d.action.status || 'in_progress') + '</select>';
+      else if (X.days) ap = '<span class="au-num"><em>in</em><input class="in" id="auAcV" type="number" min="0" max="365" value="' + esc(d.action.days || 0) + '"><em>days</em></span>';
+      $('auAcP').innerHTML = ap;
+      $('auTxtF').hidden = !X.text; $('auAiF').hidden = !X.ai;
+      $('auErr').textContent = X.needs === 'project' && ['status', 'stage', 'invoiceReady', 'invoiceOverdue', 'taskDue'].indexOf($('auTr').value) === -1 ? 'Setting a status needs a trigger about a project.' : '';
+    }
+    function read() {
+      var tv = $('auTrV'), av = $('auAcV'), tt = $('auTr').value, at = $('auAc').value, T = TRIGGERS[tt];
+      d.trigger = { type: tt }; if (tv) d.trigger[T.param] = T.param === 'days' ? Math.max(0, Math.min(365, +tv.value || 0)) : tv.value;
+      d.action = { type: at, text: $('auTxt').value.trim(), ai: $('auAi').checked }; if (av) { if (ACTIONS[at].status) d.action.status = av.value; else d.action.days = Math.max(0, +av.value || 0); }
+      d.only = $('auOnly').value; d.name = $('auName').value.trim();
+    }
+    $('auTr').addEventListener('change', function () { read(); params(); });
+    $('auAc').addEventListener('change', function () { read(); params(); });
+    params();
+    var ov = document.getElementById('overlay');
+    ov.querySelectorAll('[data-preset]').forEach(function (b) { b.addEventListener('click', function () { var pr = PRESETS[+b.dataset.preset]; pg().closeModal(); editRule(null, JSON.parse(JSON.stringify(pr))); }); });
+    ov.querySelectorAll('[data-tok]').forEach(function (b) { b.addEventListener('click', function () { var ta = $('auTxt'), at = ta.selectionStart || ta.value.length; ta.value = ta.value.slice(0, at) + b.dataset.tok + ta.value.slice(ta.selectionEnd || at); ta.focus(); ta.selectionStart = ta.selectionEnd = at + b.dataset.tok.length; }); });
+    if ($('auDel')) $('auDel').addEventListener('click', function () {
+      if (!window.confirm('Delete the automation “' + (r.name || 'Untitled') + '”?')) return;
+      ST.custom = ST.custom.filter(function (x) { return x !== r; }); put('custom'); pg().closeModal(); redraw(); M.toast('Automation deleted.');
+    });
+    $('auSave').addEventListener('click', function () {
+      read();
+      var X = ACTIONS[d.action.type];
+      if (X.needs === 'project' && ['status', 'stage', 'invoiceReady', 'invoiceOverdue', 'taskDue'].indexOf(d.trigger.type) === -1) { $('auErr').textContent = 'Setting a status needs a trigger about a project.'; return; }
+      if (X.text && !d.action.text) { $('auErr').textContent = 'Write the message.'; $('auTxt').focus(); return; }
+      if (!d.name) d.name = describe(d).then;
+      if (r) Object.assign(r, d); else { d.id = M.uid('ar'); d.on = true; d.created = pg().today(); ST.custom.push(d); }
+      put('custom'); pg().closeModal(); redraw();
+      M.toast(r ? 'Automation saved.' : 'Automation created. It runs by itself from now on.');
+      /* what is already true when it is made counts as seen, so a new rule does not fire for every old item at once */
+      if (!r) { var tr = transitions(); matches(d, tr).forEach(function (hit) { ST.fired['c|' + d.id + '|' + hit.key] = pg().today(); }); put('fired'); }
+    });
+  }
+  function customCard(r) {
+    var ds = describe(r);
+    return '<div class="au-rule au-own' + (r.on ? '' : ' off') + '"><div class="au-rule-h"><span class="au-rule-ic">' + ic('automations', 17) + '</span><span class="au-kind">Yours</span>' +
+      '<label class="switch" style="margin-left:auto" title="' + (r.on ? 'On' : 'Off') + '"><input type="checkbox" data-au-own="' + esc(r.id) + '"' + (r.on ? ' checked' : '') + ' aria-label="' + esc(r.name) + '"></label></div>' +
+      '<b>' + esc(r.name || 'Untitled') + '</b><p class="small muted"><span class="au-w">When</span> ' + esc(ds.when) + (r.only ? ' (' + esc(A.STATUS[r.only].label) + ' projects)' : '') + '<br><span class="au-w">Then</span> ' + esc(ds.then) + '</p>' +
+      '<div class="au-rule-f"><button type="button" class="btn sm" data-au-edit="' + esc(r.id) + '">Edit</button><button type="button" class="btn sm" data-au-own-run="' + esc(r.id) + '">' + ic('play', 13) + 'Run now</button>' +
+      (r.runs ? '<span class="small muted" style="margin-left:auto">' + r.runs + ' run' + (r.runs === 1 ? '' : 's') + '</span>' : '') + '</div></div>';
+  }
+  function customSection() {
+    return '<section><div class="fx-sec-h"><h2>Your automations</h2><span class="count">' + ST.custom.length + '</span><button type="button" class="btn sm primary" data-au-new style="margin-left:auto">' + ic('plus', 14) + 'New automation</button></div>' +
+      (ST.custom.length ? '<div class="au-rules">' + ST.custom.map(customCard).join('') + '</div>' :
+        '<div class="fx-empty fx-empty-col"><b>Make your own</b><span>Pick what should happen when a project changes status, reaches a stage, an invoice runs late, a task or quotation comes due, or on a schedule.</span><span class="au-presets">' +
+        PRESETS.slice(0, 4).map(function (pr) { return '<button type="button" class="chip-btn" data-au-preset="' + PRESETS.indexOf(pr) + '">' + ic('plus', 12) + esc(pr.name) + '</button>'; }).join('') + '</span></div>') + '</section>';
+  }
+
   /* ===== the view ===== */
   function engineCard() {
     var s = AI.status, P = M.prefs() || {};
@@ -346,6 +656,7 @@
     var docs = window.MorfisDocs ? window.MorfisDocs.all().filter(function (d) { return d.status === 'draft' && d.mid; }) : [];
     var parts = [];
     docs.slice(0, 8).forEach(function (d) { parts.push('<div class="au-item"><span class="au-item-ic">' + ic('documents', 16) + '</span><div><b>Invoice ' + esc(d.no) + '</b><span class="small muted">' + esc(d.projectName) + ' · ' + esc(window.MorfisDocs.fmt(window.MorfisDocs.totals(d).total, d.currency)) + '</span></div><button type="button" class="btn sm" data-au-doc="' + esc(d.id) + '">Review</button></div>'); });
+    ST.notes.slice(0, 10).forEach(function (n) { parts.push('<div class="au-item"><span class="au-item-ic">' + ic(n.icon || 'check', 16) + '</span><div><b title="' + esc(n.title) + '">' + esc(n.title) + '</b><span class="small muted au-sub">' + esc(n.sub || '') + '</span></div>' + (n.link ? '<button type="button" class="btn sm" data-au-note="' + esc(n.id) + '">Open</button>' : '') + '<button type="button" class="icon-btn" data-au-note-x="' + esc(n.id) + '" title="Done" aria-label="Done">' + ic('check', 15) + '</button></div>'); });
     ST.outbox.slice(0, 8).forEach(function (m) { parts.push('<div class="au-item"><span class="au-item-ic">' + ic('mail', 16) + '</span><div><b>' + esc(m.subject) + '</b><span class="small muted">Reminder to ' + esc(m.client || 'the client') + (m.ai ? ' · written by the assistant' : '') + '</span></div><button type="button" class="btn sm" data-au-mail="' + esc(m.id) + '">Review</button></div>'); });
     return parts.length ? parts.join('') : '<p class="muted small" style="padding:6px 2px">Nothing waiting. Drafts and reminders the automations prepare show up here.</p>';
   }
@@ -353,20 +664,25 @@
     var dg = ST.digest;
     return '<div class="fx-head"><div><h1>Automations</h1><p class="muted">Rules and a private AI assistant that look after the routine work. You stay in control: everything they make waits for your review.</p></div></div>' +
       engineCard() +
-      '<div class="au-cols"><section><div class="fx-sec-h"><h2>Automations</h2></div><div class="au-rules">' + RULES.map(ruleCard).join('') + '</div></section>' +
+      '<div class="au-cols"><div class="au-left">' + customSection() + '<section><div class="fx-sec-h"><h2>Built in</h2><span class="count">' + RULES.length + '</span></div><div class="au-rules">' + RULES.map(ruleCard).join('') + '</div></section></div>' +
       '<section class="au-right"><div class="fx-sec-h"><h2>Waiting for you</h2><span class="count">' + attention() + '</span></div><div class="card au-review">' + reviewHtml() + '</div>' +
       '<div class="fx-sec-h"><h2>This week</h2>' + (dg ? '<span class="small muted">' + esc(M.fdate(dg.date)) + (dg.ai ? ' · by the assistant' : '') + '</span>' : '') + '<button type="button" class="btn sm" data-au-run="digest" style="margin-left:auto">' + ic('refresh', 13) + 'Write now</button></div>' +
       '<div class="card au-digest">' + (dg ? esc(dg.text).replace(/\n/g, '<br>') : '<span class="muted small">The Monday summary appears here.</span>') + '</div>' +
       '<div class="fx-sec-h"><h2>Activity</h2></div><div class="card au-log">' + (ST.log.length ? ST.log.slice(0, 14).map(function (l) { return '<div class="au-log-r">' + ic(l.icon || 'check', 14) + '<span>' + esc(l.text) + '</span><em>' + esc(new Date(l.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })) + '</em></div>'; }).join('') : '<span class="muted small">Nothing has run yet.</span>') + '</div></section></div>';
   }
   var EL = null;
-  function redraw() { if (EL && M.current() === 'automations') { var y = EL.scrollTop; EL.innerHTML = view(); EL.scrollTop = y; } }
-  function attention() { var docs = window.MorfisDocs ? window.MorfisDocs.all().filter(function (d) { return d.status === 'draft' && d.mid; }).length : 0; return docs + ST.outbox.length; }
+  var lastView = '';
+  function redraw() { if (EL && M.current() === 'automations') { var h = view(); if (h === lastView) return; lastView = h; var y = EL.scrollTop; EL.innerHTML = h; EL.scrollTop = y; } }
+  function attention() { var docs = window.MorfisDocs ? window.MorfisDocs.all().filter(function (d) { return d.status === 'draft' && d.mid; }).length : 0; return docs + ST.outbox.length + ST.notes.length; }
 
   function runRule(key) {
     if (key === 'draftInvoices') { var n = runDraftInvoices(); M.toast(n ? 'Drafted ' + n + ' invoice' + (n === 1 ? '' : 's') + '.' : 'No milestones are waiting for an invoice.'); redraw(); }
     else if (key === 'followUps') { ST.followed = {}; runFollowUps().then(function (n) { M.toast(n ? 'Wrote ' + n + ' follow-up' + (n === 1 ? '' : 's') + '.' : 'No invoices are overdue.'); redraw(); }); }
     else if (key === 'digest') { M.toast('Writing the summary…'); runDigest(true).then(function () { redraw(); }); }
+    else if (key === 'quoteExpiry') { var q = runQuoteExpiry(); M.toast(q ? q + ' quotation' + (q === 1 ? ' needs' : 's need') + ' a follow-up.' : 'No sent quotations are about to expire.'); redraw(); }
+    else if (key === 'lateTasks') { var lt = runLateTasks(true); M.toast(lt ? 'Sent the task check: ' + lt + ' task' + (lt === 1 ? '' : 's') + '.' : 'No tasks are late or due today.'); }
+    else if (key === 'holdNudge') { var h = runHoldNudge(); M.toast(h ? h + ' project' + (h === 1 ? ' has' : 's have') + ' been on hold for a month.' : 'No project has been on hold for 30 days.'); redraw(); }
+    else if (key === 'freshFolders') { M.toast('Reading the project folders…'); runFreshFolders(true).then(function (n) { M.toast(n ? 'Updated ' + n + ' project folder' + (n === 1 ? '' : 's') + '.' : 'The folders are up to date.'); }); }
     else if (key === 'folderIcons') { ST.icons = {}; runFolderIcons().then(function (n) { M.toast(n ? 'Updated ' + n + ' folder icon' + (n === 1 ? '' : 's') + ' in File Explorer.' : 'No project folders to update (Windows only).'); redraw(); }); }
   }
   function bind(el) {
@@ -384,6 +700,16 @@
         return;
       }
       if ((b = t.closest('[data-au-run]'))) { runRule(b.dataset.auRun); return; }
+      if ((b = t.closest('[data-au-new]'))) { editRule(null); return; }
+      if ((b = t.closest('[data-au-preset]'))) { editRule(null, JSON.parse(JSON.stringify(PRESETS[+b.dataset.auPreset]))); return; }
+      if ((b = t.closest('[data-au-edit]'))) { editRule(b.dataset.auEdit); return; }
+      if ((b = t.closest('[data-au-own-run]'))) { var rid = b.dataset.auOwnRun; runCustom(rid, true).then(function (n) { M.toast(n ? 'Ran ' + n + ' time' + (n === 1 ? '' : 's') + '.' : 'Nothing matches it right now.'); }); return; }
+      if ((b = t.closest('[data-au-note-x]'))) { ST.notes = ST.notes.filter(function (x) { return x.id !== b.dataset.auNoteX; }); put('notes'); redraw(); M.redrawSide(); return; }
+      if ((b = t.closest('[data-au-note]'))) {
+        var nn = ST.notes.find(function (x) { return x.id === b.dataset.auNote; }); if (!nn || !nn.link) return;
+        if (nn.link.doc && window.MorfisDocs) window.MorfisDocs.open(nn.link.doc); else if (nn.link.pid) M.go('project', { id: nn.link.pid });
+        return;
+      }
       if ((b = t.closest('[data-au-doc]'))) { window.MorfisDocs.open(b.dataset.auDoc); return; }
       if ((b = t.closest('[data-au-mail]'))) {
         var m = ST.outbox.find(function (x) { return x.id === b.dataset.auMail; });
@@ -393,6 +719,7 @@
     el.addEventListener('change', function (e) {
       var t = e.target;
       if (t.id === 'auModel') { M.setPref('aiModel', t.value).then(function () { checkAi(true); }); return; }
+      if (t.dataset.auOwn) { var cr = ST.custom.find(function (x) { return x.id === t.dataset.auOwn; }); if (cr) { cr.on = t.checked; put('custom'); redraw(); } return; }
       if (t.dataset.auPref) { M.setPref(t.dataset.auPref, t.checked).then(function () { AI.status && (AI.status.enabled = t.checked); redraw(); }); return; }
       if (t.dataset.auRule) {
         var r = RULES.find(function (x) { return x.key === t.dataset.auRule; });
@@ -403,7 +730,7 @@
   }
   M.register('automations', {
     title: 'Automations', placeholder: 'Search',
-    render: function (el) { EL = el; bind(el); el.innerHTML = view(); checkAi(true); },
+    render: function (el) { EL = el; bind(el); lastView = view(); el.innerHTML = lastView; checkAi(true); },
     refresh: function () { redraw(); }
   });
 
@@ -411,12 +738,12 @@
   var lastDraft = 0;
   function tick() {
     if (!ready || !pg() || !pg().S.ready) return;
-    runDraftInvoices();
-    checkAi().then(function () { runFollowUps().then(function () { runDigest(false); }); });
-    runFolderIcons();
+    runDraftInvoices(); runQuoteExpiry(); runLateTasks(); runHoldNudge(); pruneFired();
+    checkAi().then(function () { runFollowUps().then(function () { runDigest(false); }).then(function () { return runCustom(); }); });
+    runFreshFolders().then(function () { runFolderIcons(); });
   }
   window.addEventListener('morfis:render', function () { if (Date.now() - lastDraft > 60000 && ready && pg() && pg().S.ready) { lastDraft = Date.now(); runDraftInvoices(); } });
-  loadState().then(function () { checkAi(true); setTimeout(function () { runFolderIcons(); }, 2500); setTimeout(tick, 8000); setInterval(tick, 30 * 60 * 1000); });
+  loadState().then(function () { checkAi(true); setTimeout(function () { runFolderIcons(); }, 2500); setTimeout(tick, 8000); setInterval(tick, 10 * 60 * 1000); });
 
   /* redraw one project's folder icons now, even if nothing seems to have changed */
   function refreshIcons(pid) {

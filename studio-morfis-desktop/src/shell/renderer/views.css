@@ -340,3 +340,32 @@ html.has-wbar .pv{top:40px}
 .fs-move .icon-btn[disabled]{opacity:.3}
 .fs-std{font:600 10px var(--f-mono);color:var(--ink-3);padding:0 6px;letter-spacing:.04em;width:28px;text-align:center}
 .fs-opts{display:flex;flex-direction:column;gap:10px;padding-top:6px;border-top:1px solid var(--line)}
+
+/* ===== empty states with a way forward ===== */
+.fx-empty-col{flex-direction:column;gap:8px;text-align:center;padding:30px 20px}
+.fx-empty-col b{color:var(--ink);font-size:14px;font-weight:600}
+.fx-empty-col>span{max-width:56ch;line-height:1.5}
+.fx-empty-col .toolbar{justify-content:center;margin-top:6px}
+
+/* ===== your own automations ===== */
+.au-left{display:flex;flex-direction:column;gap:24px;min-width:0}
+.au-own.off{opacity:.62}
+.au-own .au-rule-f{display:flex;align-items:center;gap:6px}
+.au-w{font:600 10px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-right:4px}
+.au-presets{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:4px}
+.chip-btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:7px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);font:500 12.5px var(--f-body)}
+.chip-btn:hover{border-color:color-mix(in srgb,var(--accent-fill) 55%,transparent);color:var(--ink);background:color-mix(in srgb,var(--accent-fill) 8%,transparent)}
+.au-ed{display:flex;flex-direction:column;gap:14px}
+.au-ed .au-presets{justify-content:flex-start}
+.au-ed-blk{display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface-2)}
+.au-ed-k{font:600 10.5px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.au-ed-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.au-ed-row>select{flex:1 1 260px;min-width:0}
+.au-ed-row>span{display:contents}
+.au-ed-row>span>select{flex:0 1 220px}
+.au-num{display:inline-flex!important;align-items:center;gap:8px}
+.au-num .in{width:84px}
+.au-num em{font-style:normal;color:var(--ink-3);font-size:12.5px}
+.au-tok{border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);font:500 11px var(--f-mono);padding:1px 5px;border-radius:5px;margin:2px 1px;cursor:pointer}
+.au-tok:hover{border-color:var(--accent-fill);color:var(--ink)}
+.au-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

@@ -144,7 +144,7 @@
   }
   function item(key, label, icon, extra, tip) {
     var on = activeKey() === key || (key === 'projects' && /^project:/.test(activeKey()) && !SIDE_PROJECT_SHOWN);
-    return '<button type="button" class="dk-it' + (on ? ' on' : '') + '" data-go="' + key + '" data-tip="' + esc(tip || label) + '"' + (on ? ' aria-current="page"' : '') + '>' + ic(icon) + '<span>' + esc(label) + '</span>' + (extra || '') + '</button>';
+    return '<button type="button" class="dk-it' + (on ? ' on' : '') + '" data-go="' + key + '" data-tip="' + esc(tip || label) + '"' + (on ? ' aria-current="page"' : '') + '>' + ic(icon, 18) + '<span>' + esc(label) + '</span>' + (extra || '') + '</button>';
   }
   var SIDE_PROJECT_SHOWN = false;
   function grp(id, label, body, add) {
@@ -176,17 +176,16 @@
       (list.length ? '' : '<div class="dk-it dk-more"><span>No active projects</span></div>');
     var n = function (v, cls) { return v ? '<span class="dk-n' + (cls ? ' ' + cls : '') + '">' + v + '</span>' : ''; };
     var html =
-      '<div class="dk-top"><button type="button" class="dk-find" data-side-act="find" title="Search (Ctrl+K)">' + ic('search', 15) + '<span>Search</span><kbd>Ctrl K</kbd></button>' +
-      '<button type="button" class="dk-collapse" data-side-act="collapse" aria-label="Collapse the sidebar" title="Collapse the sidebar (Ctrl+B)">' + ic('collapse', 16) + '</button></div>' +
+      '<div class="dk-top"><button type="button" class="dk-collapse" data-side-act="collapse" aria-label="Collapse the sidebar" title="Collapse the sidebar (Ctrl+B)">' + ic('collapse', 18) + '</button></div>' +
       '<div class="dk-scroll">' +
       grp('ws', 'Workspace', item('home', 'Home', 'home') + item('projects', 'Projects', 'projects') + item('timeline', 'Timeline', 'timeline') + item('payments', 'Payments', 'payments', n(od, 'bad'), 'Payments' + (od ? ', ' + od + ' overdue' : ''))) +
       grp('studio', 'Studio', item('files', 'Files', 'files') + item('documents', 'Invoices & quotes', 'documents', n(drafts)) + item('automations', 'Automations', 'automations', n(auto))) +
       '<div class="dk-grp-p">' + grp('proj', 'Active projects', projItems, 'newProject') + '</div>' +
       '</div>' +
       '<div class="dk-foot">' +
-      '<button type="button" class="dk-it" data-side-act="reminders" data-tip="Reminders">' + ic('bell') + '<span>Reminders</span>' + n(rem) + '</button>' +
+      '<button type="button" class="dk-it" data-side-act="reminders" data-tip="Reminders">' + ic('bell', 18) + '<span>Reminders</span>' + n(rem) + '</button>' +
       item('settings', 'Settings', 'settings') +
-      '<button type="button" class="dk-it" data-side-act="help" data-tip="Help and shortcuts">' + ic('help') + '<span>Help</span></button>' +
+      '<button type="button" class="dk-it" data-side-act="help" data-tip="Help and shortcuts">' + ic('help', 18) + '<span>Help</span></button>' +
       '<div class="dk-save"><i></i><span>Saved on this computer</span></div></div>';
     if (html === sideSig) return;
     sideSig = html;
@@ -202,7 +201,6 @@
     if (b.dataset.go) { go(b.dataset.go, { id: b.dataset.id }); return; }
     var a = b.dataset.sideAct;
     if (a === 'collapse') toggleCollapse();
-    else if (a === 'find') focusSearch();
     else if (a === 'newProject' && pg) pg.newProject();
     else if (a === 'reminders' && pg) pg.openReminders();
     else if (a === 'help') { var h = $('#side [data-act=openHelp]'); if (h) h.click(); }
@@ -228,6 +226,7 @@
     else if (pageView() === 'project') { var p = pg.P(pg.S.ui.pid); t = 'Projects / ' + (p ? p.name : ''); }
     else t = PAGE_VIEWS[pageView()] || '';
     el.textContent = t;
+    root.setAttribute('data-dk-view', R.cur || pageView());
     var tt = $('#wbarTitle'); if (tt) tt.textContent = '';
   }
 
@@ -240,6 +239,7 @@
     reduceMotion: function (v) { root.classList.toggle('reduce-motion', !!v); },
     pattern: function (v) { root.classList.toggle('no-pattern', !v); },
     glow: function (v) { root.classList.toggle('no-glow', !v); },
+    followGlow: function (v) { root.classList.toggle('no-follow', !v); },
     roundCorners: function (v) { root.classList.toggle('square', !v); },
     sideCollapsed: function (v) { root.classList.toggle('side-collapsed', !!v); }
   };
@@ -272,7 +272,7 @@
       '<span class="chip">Version ' + esc(P.version) + '</span></div>' +
       '<div class="dk-grid">' +
       '<div class="dk-sec"><h3>Window</h3>' +
-        field('Window buttons', seg('controls', [['windows', 'Windows'], ['pill', 'Soft pill'], ['mac', 'Round, left']])) +
+        field('Window buttons', seg('controls', [['windows', 'Windows'], ['pill', 'Soft pill'], ['mac', 'Round']])) +
         '<div class="dk-prev" aria-hidden="true"><span class="dk-prev-bar"><i class="dk-prev-t"></i><span class="dk-prev-b"><b></b><b></b><b></b></span></span></div>' +
         field('Title bar', seg('titleBar', [['name', 'Show where you are'], ['none', 'Clean']])) +
         sw('sideCollapsed', 'Narrow sidebar', 'Icons only. Ctrl+B switches it') +
@@ -282,8 +282,9 @@
       '<div class="dk-sec"><h3>Look</h3>' +
         field('Font', seg('font', [['inter', 'Inter'], ['segoe', 'Segoe UI'], ['technical', 'Technical'], ['system', 'System'], ['studio', 'Studio classic']])) +
         field('Spacing', seg('density', [['comfortable', 'Comfortable'], ['compact', 'Compact']])) +
-        sw('glow', 'Accent glow', 'A faint wash of the accent colour at the top of the page') +
-        sw('pattern', 'Dot grid background') +
+        sw('pattern', 'Dot grid background', 'Fine dots behind the content') +
+        sw('followGlow', 'Light follows the pointer', 'A soft accent glow under the pointer that lights up the dots') +
+        sw('glow', 'Accent wash', 'A faint wash of the accent colour at the top of the page') +
         sw('roundCorners', 'Rounded corners') +
         sw('reduceMotion', 'Reduce motion', 'Turns off animations everywhere') +
       '</div>' +
@@ -377,6 +378,7 @@
   function setWorkStatus(pid, st) {
     var pg = page(), p = pg && pg.P(pid);
     if (!p || !window.MorfisArt.STATUS[st]) return;
+    if (p.workStatus !== st) p.workStatusAt = pg.today();
     p.workStatus = st;
     p.status = st === 'completed' || st === 'cancelled' ? 'closed' : 'active';
     pg.commit(p);
@@ -389,6 +391,111 @@
     register: function (name, v) { VIEWS[name] = v; }, go: go, current: function () { return R.cur; }, redrawSide: function () { sideSig = ''; drawSide(); }, crumb: crumb
   };
 
+  /* ===== background: a dot grid, and a soft accent light that eases after the pointer =====
+     Only transforms change while the pointer moves, so it costs the compositor, not a repaint. */
+  function background() {
+    var w = win(); if (!w || w.querySelector('.dk-bg')) return;
+    w.insertAdjacentHTML('afterbegin', '<div class="dk-bg" aria-hidden="true"><i class="dk-bg-grid"></i><i class="dk-bg-glow"></i><span class="dk-bg-spot"><i class="dk-bg-grid dk-bg-hi"></i></span></div>');
+    var bg = w.querySelector('.dk-bg'), glow = bg.querySelector('.dk-bg-glow'), spot = bg.querySelector('.dk-bg-spot'), hi = bg.querySelector('.dk-bg-hi');
+    var tx = 0, ty = 0, x = 0, y = 0, raf = 0, box = null, on = false;
+    var R2 = 260;
+    function frame() {
+      x += (tx - x) * 0.18; y += (ty - y) * 0.18;
+      glow.style.transform = 'translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px,0)';
+      spot.style.transform = 'translate3d(' + (x - R2).toFixed(1) + 'px,' + (y - R2).toFixed(1) + 'px,0)';
+      hi.style.transform = 'translate3d(' + (R2 - x).toFixed(1) + 'px,' + (R2 - y).toFixed(1) + 'px,0)';
+      raf = Math.abs(tx - x) + Math.abs(ty - y) > 0.4 ? requestAnimationFrame(frame) : 0;
+    }
+    w.addEventListener('pointermove', function (e) {
+      if (root.classList.contains('no-follow') || root.classList.contains('reduce-motion')) return;
+      if (!box) box = w.getBoundingClientRect();
+      tx = e.clientX - box.left; ty = e.clientY - box.top;
+      if (!on) { on = true; x = tx; y = ty; bg.classList.add('lit'); }
+      if (!raf) raf = requestAnimationFrame(frame);
+    }, { passive: true });
+    w.addEventListener('pointerleave', function () { on = false; bg.classList.remove('lit'); });
+    window.addEventListener('resize', function () { box = null; hi.style.width = w.clientWidth + 'px'; hi.style.height = w.clientHeight + 'px'; });
+    hi.style.width = w.clientWidth + 'px'; hi.style.height = w.clientHeight + 'px';
+  }
+
+  /* ===== accent colour picker =====
+     The page's colour field opens this in-app picker (the system dialog did not always hand the colour back).
+     It drives the same field, so the page previews while dragging and saves when the picker closes. */
+  var CP = null;
+  function hexToHsv(h) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(h || ''); if (!m) return { h: 250, s: 0.55, v: 0.94 };
+    var n = parseInt(m[1], 16), r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, hh = 0;
+    if (d) hh = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    hh = Math.round(hh * 60); if (hh < 0) hh += 360;
+    return { h: hh, s: mx ? d / mx : 0, v: mx };
+  }
+  function hsvToHex(o) {
+    var c = o.v * o.s, xx = c * (1 - Math.abs((o.h / 60) % 2 - 1)), m = o.v - c, rgb = [0, 0, 0], i = Math.floor(o.h / 60) % 6;
+    rgb = [[c, xx, 0], [xx, c, 0], [0, c, xx], [0, xx, c], [xx, 0, c], [c, 0, xx]][i];
+    return '#' + rgb.map(function (k) { var v = Math.round((k + m) * 255).toString(16); return v.length < 2 ? '0' + v : v; }).join('').toUpperCase();
+  }
+  function closePicker(save) {
+    if (!CP) return;
+    var cp = CP; CP = null;
+    cp.el.remove();
+    document.removeEventListener('pointerdown', cp.outside, true);
+    document.removeEventListener('keydown', cp.key, true);
+    var f = document.getElementById('lk-pick') || cp.input;
+    if (save) { f.value = cp.hex.toLowerCase(); f.dispatchEvent(new Event('change', { bubbles: true })); }
+    else { f.value = cp.start.toLowerCase(); f.dispatchEvent(new Event('input', { bubbles: true })); }
+  }
+  function openPicker(input) {
+    closePicker(true);
+    var start = String(input.value || '#7C6CF0').toUpperCase(), hsv = hexToHsv(start);
+    var el = document.createElement('div');
+    el.className = 'dk-cp'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Accent colour');
+    el.innerHTML = '<div class="dk-cp-sv"><i class="dk-cp-dot"></i></div>' +
+      '<input type="range" class="dk-cp-hue" min="0" max="359" step="1" aria-label="Hue">' +
+      '<div class="dk-cp-row"><span class="dk-cp-sw"></span><input class="in mono dk-cp-hex" maxlength="7" spellcheck="false" aria-label="Hex code"><button type="button" class="btn sm" data-cp="cancel">Cancel</button><button type="button" class="btn sm primary" data-cp="ok">Use colour</button></div>';
+    document.body.appendChild(el);
+    var sv = el.querySelector('.dk-cp-sv'), dot = el.querySelector('.dk-cp-dot'), hue = el.querySelector('.dk-cp-hue'), hex = el.querySelector('.dk-cp-hex'), swc = el.querySelector('.dk-cp-sw');
+    var cp = CP = { el: el, input: input, start: start, hex: start };
+    var pend = 0;
+    function paint(fromHex) {
+      cp.hex = hsvToHex(hsv);
+      sv.style.setProperty('--h', hsv.h);
+      dot.style.left = (hsv.s * 100) + '%'; dot.style.top = ((1 - hsv.v) * 100) + '%';
+      hue.value = hsv.h; swc.style.background = cp.hex;
+      if (!fromHex && document.activeElement !== hex) hex.value = cp.hex;
+      if (!pend) pend = requestAnimationFrame(function () { pend = 0; var f = document.getElementById('lk-pick') || input; f.value = cp.hex.toLowerCase(); f.dispatchEvent(new Event('input', { bubbles: true })); });
+    }
+    function fromPoint(e) {
+      var r = sv.getBoundingClientRect();
+      hsv.s = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+      hsv.v = Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height));
+      paint();
+    }
+    sv.addEventListener('pointerdown', function (e) { sv.setPointerCapture(e.pointerId); fromPoint(e); });
+    sv.addEventListener('pointermove', function (e) { if (sv.hasPointerCapture(e.pointerId)) fromPoint(e); });
+    hue.addEventListener('input', function () { hsv.h = +hue.value; paint(); });
+    hex.addEventListener('input', function () { var v = hex.value.trim(); if (v[0] !== '#') v = '#' + v; if (/^#[0-9a-f]{6}$/i.test(v)) { hsv = hexToHsv(v); paint(true); } });
+    hex.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); closePicker(true); } });
+    el.addEventListener('click', function (e) { var b = e.target.closest('[data-cp]'); if (b) closePicker(b.dataset.cp === 'ok'); });
+    cp.outside = function (e) { if (!el.contains(e.target) && e.target !== input) closePicker(true); };
+    cp.key = function (e) { if (e.key === 'Escape') { e.stopPropagation(); closePicker(false); } };
+    document.addEventListener('pointerdown', cp.outside, true);
+    document.addEventListener('keydown', cp.key, true);
+    var r = input.getBoundingClientRect(), w = el.offsetWidth, h = el.offsetHeight;
+    var left = Math.min(window.innerWidth - w - 12, Math.max(12, r.left)), top = r.bottom + 8;
+    if (top + h > window.innerHeight - 12) top = Math.max(52, r.top - h - 8);
+    el.style.left = left + 'px'; el.style.top = top + 'px';
+    paint();
+    hex.value = cp.hex;
+  }
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (t && t.id === 'lk-pick') { e.preventDefault(); if (CP && CP.input === t) closePicker(true); else openPicker(t); }
+  }, true);
+  document.addEventListener('keydown', function (e) {
+    if (e.target && e.target.id === 'lk-pick' && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openPicker(e.target); }
+  }, true);
+
   /* ===== start ===== */
   H.getPrefs().then(function (p) { P = p; applyLook(); placeCard(); window.dispatchEvent(new CustomEvent('morfis:prefs', { detail: p })); });
   var mo = new MutationObserver(function () { placeCard(); });
@@ -396,7 +503,7 @@
     var v = $('#view'); if (v) mo.observe(v, { childList: true });
     var bell = $('#bellBtn'); if (bell) new MutationObserver(function () { drawSide(); }).observe(bell, { childList: true, subtree: true, characterData: true, attributes: true });
     new MutationObserver(syncAccent).observe(root, { attributes: true, attributeFilter: ['style', 'data-theme'] });
-    syncAccent(); drawSide(); crumb();
+    syncAccent(); drawSide(); crumb(); background();
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
   /* dropping a file anywhere outside a drop zone must never navigate the window away */

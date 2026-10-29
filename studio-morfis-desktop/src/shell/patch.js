@@ -40,6 +40,18 @@ const HOOK = [
   '  renderAll = function () { var r = ra.apply(this, arguments); ping(); return r; };',
   '  renderView = function () { var r = rv.apply(this, arguments); ping(); return r; };',
   '})();',
+  /* Reminder settings in the reminders panel: close the panel, then open Settings at the Reminders card */
+  'A.remSettings = function () {',
+  '  closeModal(); setView("settings");',
+  '  setTimeout(function () { var c = document.getElementById("remCard"); if (!c) return; c.scrollIntoView({ block: "start", behavior: "smooth" }); c.classList.add("dk-flash"); setTimeout(function () { c.classList.remove("dk-flash"); }, 1600); }, 60);',
+  '};',
+  /* an empty Projects page explains where the projects are when they are all closed (imported folders come in as completed) */
+  'function dkNoProjects() {',
+  '  var closed = Object.values(S.projects).filter(function (p) { return p.status === "closed"; }).length;',
+  '  if (S.ui.status !== "active" || S.ui.q.trim() || S.ui.phase || !closed) return noMatch();',
+  '  return \'<div class="empty"><h2>No active projects</h2><p>\' + closed + (closed === 1 ? " project is" : " projects are") + " completed or closed, so " + (closed === 1 ? "it is" : "they are") + " hidden here. Imported folders are added as completed unless you choose another status.</p>" +',
+  '    \'<div class="toolbar" style="justify-content:center"><button type="button" class="btn primary" data-act="setStatus" data-v="all">Show all projects</button><button type="button" class="btn" data-act="newProject">New project</button></div></div>\';',
+  '}',
   ''
 ].join('\n');
 
@@ -56,6 +68,9 @@ function rules(o) {
     ['var ft0 = FOLDER_TEMPLATES.filter(function (f) { return f.id === t0; })[0];', 'var ft0 = FOLDER_TEMPLATES.filter(function (f) { return f.id === t0; })[0]; if (!ft0) { plan.loose.push(e.rel); return; }', true],
     ['var ft = FOLDER_TEMPLATES.filter(function (f) { return f.id === cat; })[0];', 'var ft = FOLDER_TEMPLATES.filter(function (f) { return f.id === cat; })[0]; if (!ft) { plan.loose.push(e.rel); return; }', true],
     ['const ft = FOLDER_TEMPLATES.find((f) => f.id === DELIVERABLES[type]);', "const ft = FOLDER_TEMPLATES.find((f) => f.id === DELIVERABLES[type]) || { id: '', label: 'No folder' };", true],
+    ["data-act=\"go\" data-v=\"settings\">' + icon('gear', 15) + 'Reminder settings", "data-act=\"remSettings\">' + icon('gear', 15) + 'Reminder settings", true],
+    ["'<section class=\"card stack\"><div><h2>Reminders</h2>", "'<section class=\"card stack\" id=\"remCard\"><div><h2>Reminders</h2>", true],
+    ["(S.ui.status !== 'closed' ? newCard() : '') + '</div>' : noMatch());", "(S.ui.status !== 'closed' ? newCard() : '') + '</div>' : dkNoProjects());", true],
     ['/* ----- start ----- */\n(function boot() {', '/* ----- start ----- */\n' + HOOK + '(function boot() {', true],
     ["(HOST ? ' The installed program file and its desktop shortcut keep the original icon.' : '')",
       "(HOST ? ' The Start menu entry, desktop and taskbar shortcuts and the Apps list follow it too.' : '')", false],
@@ -87,7 +102,7 @@ function tail(base) {
 /* html classes the desktop stylesheet reads, set before first paint so nothing jumps */
 function htmlClass(p) {
   return ['wc-' + p.controls, 'font-' + p.font, 'density-' + p.density, p.titleBar === 'none' ? 'no-wtitle' : '', p.reduceMotion ? 'reduce-motion' : '',
-    p.pattern ? '' : 'no-pattern', p.glow ? '' : 'no-glow', p.roundCorners ? '' : 'square', p.sideCollapsed ? 'side-collapsed' : ''].filter(Boolean).join(' ');
+    p.pattern ? '' : 'no-pattern', p.glow ? '' : 'no-glow', p.followGlow ? '' : 'no-follow', p.roundCorners ? '' : 'square', p.sideCollapsed ? 'side-collapsed' : ''].filter(Boolean).join(' ');
 }
 
 module.exports = { build, tail, htmlClass, STYLES, SCRIPTS };

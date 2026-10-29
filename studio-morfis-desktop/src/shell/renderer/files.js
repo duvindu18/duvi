@@ -6,7 +6,7 @@
   var M = window.Morfis, A = window.MorfisArt;
   if (!M || !A) return;
   var H = M.H, esc = M.esc, ic = M.ic;
-  var F = { pid: null, fid: null, sub: '', filter: 'active', view: 'grid', q: '', open: {}, list: null, listKey: '', busy: false };
+  var F = { pid: null, fid: null, sub: '', filter: 'all', view: 'grid', q: '', open: {}, list: null, listKey: '', busy: false };
   try { var saved = JSON.parse(localStorage.getItem('morfis:files') || '{}'); if (saved.view) F.view = saved.view; if (saved.filter) F.filter = saved.filter; } catch (e) { /* ignore */ }
   var keep = function () { try { localStorage.setItem('morfis:files', JSON.stringify({ view: F.view, filter: F.filter })); } catch (e) { /* ignore */ } };
   var pg = M.page;
@@ -154,8 +154,15 @@
     return '<div class="fx-head"><div><h1>Files</h1><p class="muted">Project folders in <span class="mono">' + esc(pg().S.settings.root || '') + '</span>. Drop files onto a folder to copy them in.</p></div>' +
       '<div class="toolbar">' + viewToggle() + '<button type="button" class="btn" data-fx-act="setup">' + ic('settings', 15) + 'Folder setup</button><button type="button" class="btn" data-fx-act="import">' + ic('upload', 15) + 'Import folders</button><button type="button" class="btn" data-fx-act="openRoot">' + ic('ext', 15) + 'Open in Explorer</button></div></div>' +
       '<section><div class="fx-sec-h"><h2>Project folders</h2><span class="count">' + list.length + '</span></div>' +
-      (list.length ? (F.view === 'grid' ? '<div class="fx-grid">' + list.map(projectCard).join('') + '</div>' : projectTable(list)) : '<div class="fx-empty">No projects in this filter.</div>') + '</section>' +
+      (list.length ? (F.view === 'grid' ? '<div class="fx-grid">' + list.map(projectCard).join('') + '</div>' : projectTable(list)) : emptyRoot()) + '</section>' +
       '<section><div class="fx-sec-h"><h2>Recently changed files</h2></div>' + fileRows(rows, 'Files you add to project folders show up here.') + '</section>';
+  }
+  /* nothing in this filter: say why, and offer the way to the projects that are there */
+  function emptyRoot() {
+    var n = Object.keys(pg().S.projects).length;
+    if (!n) return '<div class="fx-empty fx-empty-col"><b>No projects yet</b><span>Import the project folders you already have, or create a project. Its folders appear here.</span><span class="toolbar"><button type="button" class="btn primary" data-fx-act="import">' + ic('upload', 15) + 'Import folders</button><button type="button" class="btn" data-fx-act="newProject">' + ic('plus', 15) + 'New project</button></span></div>';
+    if (F.q.trim()) return '<div class="fx-empty">No project matches “' + esc(F.q.trim()) + '”.</div>';
+    return '<div class="fx-empty fx-empty-col"><b>No projects in this filter</b><span>' + n + ' project' + (n === 1 ? ' is' : 's are') + ' under other statuses. Imported folders come in as Completed unless you pick another status.</span><span class="toolbar"><button type="button" class="btn primary" data-filter="all">Show all ' + n + '</button></span></div>';
   }
   function projectTable(list) {
     return '<div class="fx-table fx-ptable" role="table"><div class="fx-tr fx-th" role="row"><span>Project</span><span>Status</span><span>Stage</span><span>Files</span><span></span></div>' +
@@ -253,13 +260,17 @@
   }
 
   /* ----- drawing ----- */
-  var EL = null;
+  var EL = null, lastHtml = '';
   function draw() {
     if (!EL || M.current() !== 'files') return;
     var p = F.pid && pg().P(F.pid);
     if (F.pid && !p) { F.pid = null; F.fid = null; F.sub = ''; }
+    var html = '<div class="fx">' + tree() + '<div class="fx-main">' + crumbs() + (p ? (F.fid ? folderView(p) : projectView(p)) : rootView()) + '</div></div>';
+    /* the page redraws often (every save); when nothing here changed, leave the DOM, its scroll and its thumbnails alone */
+    if (html === lastHtml && EL.querySelector('.fx')) { M.crumb(); return; }
+    lastHtml = html;
     var y = EL.querySelector('.fx-main') ? EL.querySelector('.fx-main').scrollTop : 0, ty = EL.querySelector('.fx-nodes') ? EL.querySelector('.fx-nodes').scrollTop : 0;
-    EL.innerHTML = '<div class="fx">' + tree() + '<div class="fx-main">' + crumbs() + (p ? (F.fid ? folderView(p) : projectView(p)) : rootView()) + '</div></div>';
+    EL.innerHTML = html;
     var m = EL.querySelector('.fx-main'); if (m) m.scrollTop = y;
     var n = EL.querySelector('.fx-nodes'); if (n) n.scrollTop = ty;
     loadThumbs(EL);
@@ -375,7 +386,8 @@
   }
   var ACT = {
     setup: function () { if (window.MorfisFolders) window.MorfisFolders.openSetup().then(function (r) { if (r) draw(); }); },
-    import: function () { pg().setView('settings'); setTimeout(function () { var x = document.querySelector('[data-act=openImport]'); if (x) x.click(); }, 50); },
+    import: function () { var b = document.createElement('button'); b.dataset.act = 'openImport'; b.hidden = true; document.body.appendChild(b); b.click(); b.remove(); },
+    newProject: function () { var pgx = pg(); if (pgx) pgx.newProject(); },
     openRoot: function () { H.openPath(pg().S.settings.root).catch(function () { M.toast('That folder is not there yet.'); }); },
     openDir: function () { var p = pg().P(F.pid); H.openPath(pg().projDir(p)).catch(function () { M.toast('The folder is not there yet.'); }); },
     openHere: function () { var p = pg().P(F.pid); H.openPath(jn(pg().subDir(p, F.fid), F.sub)).catch(function () { M.toast('The folder is not there yet.'); }); },
@@ -437,7 +449,7 @@
   M.register('files', {
     title: 'Files', placeholder: 'Search projects and files',
     crumb: function () { var p = F.pid && pg().P(F.pid); return 'Files' + (p ? ' / ' + p.name : '') + (p && F.fid ? ' / ' + tmpl(F.fid).label : ''); },
-    render: function (el, o) { EL = el; el.classList.add('dk-fill'); bind(el); if (o && o.pid) open(o.pid); else draw(); },
+    render: function (el, o) { EL = el; lastHtml = ''; el.classList.add('dk-fill'); bind(el); if (o && o.pid) open(o.pid); else draw(); },
     refresh: function () { draw(); },
     search: function (q) { F.q = q; draw(); }
   });

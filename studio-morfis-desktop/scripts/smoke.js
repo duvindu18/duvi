@@ -226,6 +226,40 @@ app.whenReady().then(async () => {
     fs.writeFileSync(path.join(out, 'xicon-' + (v.status || v.num) + '.png'), Buffer.from(u.split(',')[1], 'base64'));
   }
 
+  /* version 1.3: New project only on Home and Projects, Reminder settings, the accent picker, custom automations, empty Files filters */
+  await go('settings', '25-settings-newproj');
+  const extra = JSON.parse(await js(w, '(async function(){' +
+    'var o={},nb=document.querySelector(".top>[data-act=newProject]"),wait=function(ms){return new Promise(function(r){setTimeout(r,ms)})};' +
+    'o.newOnSettings=getComputedStyle(nb).display!=="none";' +
+    'document.querySelector("#dkSide [data-go=projects]").click();await wait(300);o.newOnProjects=getComputedStyle(nb).display!=="none";' +
+    'window.__morfisPage.openReminders();await wait(300);var ov=document.getElementById("overlay");o.overlayTop=ov.getBoundingClientRect().top;' +
+    'var rb=ov.querySelector("[data-act=remSettings]");o.remBtn=!!rb;if(rb)rb.click();await wait(500);' +
+    'o.remClosed=ov.hidden;o.remView=window.__morfisPage.S.ui.view;o.remCard=!!document.getElementById("remCard");' +
+    'var pick=document.getElementById("lk-pick");pick.click();await wait(150);var cp=document.querySelector(".dk-cp");o.picker=!!cp;' +
+    'if(cp){var hex=cp.querySelector(".dk-cp-hex");hex.value="#2E9E6A";hex.dispatchEvent(new Event("input",{bubbles:true}));await wait(100);cp.querySelector("[data-cp=ok]").click();await wait(400);}' +
+    'o.accent=window.__morfisPage.S.settings.accent;o.accentVar=getComputedStyle(document.documentElement).getPropertyValue("--accent-fill").trim();' +
+    'return JSON.stringify(o)})().catch(function(e){return JSON.stringify({err:String(e&&e.stack||e)})})'));
+  await shot(w, '26-accent-picked');
+  await go('automations', '27-automations-own');
+  const own = JSON.parse(await js(w, '(async function(){' +
+    'var o={},wait=function(ms){return new Promise(function(r){setTimeout(r,ms)})},pg=window.__morfisPage;' +
+    'document.querySelector("#dkView [data-au-new]").click();await wait(300);' +
+    'document.querySelector("#overlay [data-preset]").click();await wait(300);' +
+    'o.editor=!!document.getElementById("auSave");document.getElementById("auSave").click();await wait(400);' +
+    'o.cards=document.querySelectorAll("#dkView .au-own").length;' +
+    'var p=Object.values(pg.S.projects).filter(function(x){return MorfisArt.statusOf(x,pg.today())!=="completed"})[0];o.pname=p.name;' +
+    'var before=(pg.S.settings.reminders||[]).length;Morfis.setWorkStatus(p.id,"completed");await wait(2500);' +
+    'var rem=(pg.S.settings.reminders||[]).slice(before);o.added=rem.length;o.text=rem[0]?rem[0].title:"";' +
+    'Morfis.setWorkStatus(p.id,"in_progress");await wait(600);' +
+    'return JSON.stringify(o)})().catch(function(e){return JSON.stringify({err:String(e&&e.stack||e)})})'));
+  await wait(400); await shot(w, '28-automation-made');
+  await js(w, "document.querySelector('#dkView [data-au-edit]').click()"); await wait(400); await shot(w, '29-automation-editor');
+  await js(w, "window.__morfisPage.closeModal()");
+  await go('files', '30-files-all');
+  const filesEmpty = await js(w, '(async function(){var b=document.querySelector("#dkView [data-filter=completed]");b.click();await new Promise(function(r){setTimeout(r,300)});var e=document.querySelector("#dkView .fx-main .fx-empty-col, #dkView .fx-main .fx-card");return e?e.className:"none"})()');
+  await shot(w, '31-files-filter');
+  console.log('v1.3 checks:', JSON.stringify(extra), JSON.stringify(own), filesEmpty);
+
   console.log('page errors:', errors.length ? errors : 'none');
   const pdir = path.join(profile, 'data', 'projects');
   console.log('saved files:', fs.existsSync(pdir) ? fs.readdirSync(pdir).length : 0, 'projects,', fs.existsSync(path.join(profile, 'data', 'settings.json')) ? 'settings ok' : 'no settings');
@@ -247,6 +281,10 @@ app.whenReady().then(async () => {
   expect(pdf.length > 5000, 'quotation PDF');
   expect(edOk === 'LKR 250,000', 'editor totals while typing');
   expect(w.getTitle() === 'Morfis Atelier' && fs.existsSync(path.join(profile, 'branding', dp.branding.iconFile + '.ico')), 'app name and icon');
+  expect(!extra.newOnSettings && extra.newOnProjects, 'New project shows on Projects only, not on Settings');
+  expect(extra.overlayTop >= 40 && extra.remBtn && extra.remClosed && extra.remView === 'settings' && extra.remCard, 'Reminder settings opens Settings, and panels open below the window bar: ' + JSON.stringify(extra));
+  expect(extra.picker && extra.accent === '#2E9E6A' && extra.accentVar.toUpperCase() === '#2E9E6A', 'custom accent colour picker');
+  expect(own.editor && own.cards === 1 && own.added === 1 && own.text.indexOf(own.pname) !== -1, 'custom automation: status Completed adds the close-out reminder: ' + JSON.stringify(own));
   console.log(fails.length ? 'SMOKE FAILED: ' + fails.join('; ') : 'SMOKE PASSED');
   app.exit(fails.length ? 1 : 0);
 });

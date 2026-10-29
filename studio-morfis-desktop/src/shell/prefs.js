@@ -28,8 +28,10 @@ const DEFAULTS = {
   aiEndpoint: 'http://127.0.0.1:11434',
   aiModel: 'qwen2.5:3b',
   reduceMotion: false,
-  pattern: false,
+  pattern: true,               // a dot grid behind the content
   glow: true,
+  followGlow: true,            // a soft accent light that follows the pointer
+  lookV: 2,
   roundCorners: true,
   backupKeep: 14,
   devTools: false,
@@ -57,6 +59,8 @@ class Prefs {
         if (DEFAULTS[k] && typeof DEFAULTS[k] === 'object') this.data[k] = Object.assign({}, DEFAULTS[k], raw[k]);
         else this.data[k] = raw[k];
       });
+      /* version 1.3 brought the dot grid with the pointer light: switch it on once */
+      if (!(raw.lookV >= 2)) { this.data.pattern = true; this.data.followGlow = true; this.data.lookV = 2; }
     } catch (e) { /* first start, or an unreadable file: defaults */ }
     this.clean();
   }
