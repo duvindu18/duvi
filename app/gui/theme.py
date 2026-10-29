@@ -106,9 +106,10 @@ QLabel[role="value"] {{ font-size: 15pt; font-weight: 500; }}
 QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
     background: {P.glass};
     border: 1px solid {P.glass_border};
-    border-radius: 18px;
+    border-radius: 20px;
     padding: 0 16px;
-    min-height: 36px;
+    min-height: 38px;  /* + 1px border top/bottom = 40px, the standard control height */
+    max-height: 38px;
     selection-background-color: {P.accent};
 }}
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
@@ -132,9 +133,10 @@ QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{ width: 0; border: none
 QPushButton {{
     background: {P.glass};
     border: 1px solid {P.glass_border};
-    border-radius: 18px;
+    border-radius: 20px;
     padding: 0 18px;
-    min-height: 36px;
+    min-height: 38px;
+    max-height: 38px;
     font-weight: 500;
 }}
 QPushButton:hover {{ background: {P.glass_hover}; }}
@@ -143,7 +145,7 @@ QPushButton:disabled {{ color: {P.text_faint}; border-color: rgba(255,255,255,0.
 QPushButton[variant="primary"] {{
     background: #FFFFFF;
     color: {P.text_on_light};
-    border: none;
+    border: 1px solid #FFFFFF;  /* keeps the same 40px outer height as other buttons */
     font-weight: 600;
 }}
 QPushButton[variant="primary"]:hover {{ background: #FFF1EC; }}
@@ -152,11 +154,19 @@ QPushButton[variant="primary"]:disabled {{ background: rgba(255,255,255,0.35); c
 QPushButton[variant="danger"] {{ background: rgba(255, 77, 77, 0.22); border-color: rgba(255,77,77,0.55); }}
 QPushButton[variant="pill"] {{
     min-height: 30px;
-    border-radius: 15px;
+    max-height: 30px;
+    border-radius: 16px;
     padding: 0 14px;
     font-size: 9pt;
     font-weight: 500;
     color: {P.text_dim};
+}}
+QPushButton[variant="pill"][scale="large"] {{
+    min-height: 38px;  /* source picker: same 40px as the inputs beside it */
+    max-height: 38px;
+    border-radius: 20px;
+    padding: 0 18px;
+    font-size: 9.5pt;
 }}
 QPushButton[variant="pill"]:checked {{
     background: #FFFFFF;

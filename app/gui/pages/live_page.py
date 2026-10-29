@@ -168,7 +168,7 @@ class LivePage(QWidget):
         self._refresh_greeting()
         header.addWidget(self.greeting)
         header.addStretch(1)
-        self.db_chip = Chip("0 identities", dot=P.ok)
+        self.db_chip = Chip("0 identities", dot=P.ok, height=44)  # same height as the round buttons
         header.addWidget(self.db_chip)
         self.inspector_btn = CircleButton("more", 44, tooltip="Show / hide controls panel")
         self.inspector_btn.clicked.connect(self._toggle_inspector)
@@ -187,7 +187,8 @@ class LivePage(QWidget):
                 (PHONE, "Phone / Blackmagic"),
                 (SourceKind.STREAM, "RTSP stream"),
                 (SourceKind.FILE, "Video file"),
-            ]
+            ],
+            large=True,
         )
         self.source_pills.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         src_row.addWidget(self.source_pills)
@@ -204,7 +205,7 @@ class LivePage(QWidget):
         for i in range(4):
             self.cam_combo.addItem(f"{i}")
         cl.addWidget(self.cam_combo, 1)
-        self.cam_refresh = CircleButton("refresh", 38, tooltip="Detect connected webcams")
+        self.cam_refresh = CircleButton("refresh", 40, tooltip="Detect connected webcams")
         self.cam_refresh.clicked.connect(self._probe_cams)
         cl.addWidget(self.cam_refresh)
         self.source_inputs.addWidget(cam)
@@ -226,7 +227,7 @@ class LivePage(QWidget):
         pl = QHBoxLayout(phone_w)
         pl.setContentsMargins(0, 0, 0, 0)
         pl.setSpacing(10)
-        self.phone_chip = Chip("Receiver off", dot=P.text_faint)
+        self.phone_chip = Chip("Receiver off", dot=P.text_faint, height=40)
         pl.addWidget(self.phone_chip, 0, Qt.AlignmentFlag.AlignVCenter)
         pl.addStretch(1)
         pl.addWidget(button("Connect phone…", icon=make_icon("phone", 16), on_click=self.open_phone_dialog))

@@ -364,7 +364,13 @@ class PillGroup(QWidget):
 
     changed = Signal(object)
 
-    def __init__(self, options: Iterable[tuple[object, str]], parent: QWidget | None = None, tooltips: dict | None = None) -> None:
+    def __init__(
+        self,
+        options: Iterable[tuple[object, str]],
+        parent: QWidget | None = None,
+        tooltips: dict | None = None,
+        large: bool = False,
+    ) -> None:
         super().__init__(parent)
         self._flow = FlowLayout(self, 6, 6)
         self._group = QButtonGroup(self)
@@ -373,6 +379,8 @@ class PillGroup(QWidget):
         for i, (value, text) in enumerate(options):
             btn = QPushButton(text)
             btn.setProperty("variant", "pill")
+            if large:
+                btn.setProperty("scale", "large")
             btn.setCheckable(True)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             if tooltips and value in tooltips:
@@ -504,7 +512,7 @@ class GlassSlider(QWidget):
         self.setMinimumHeight(48)
         self.setMaximumHeight(48)
         self.setMinimumWidth(180)
-        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setAccessibleName(text)
@@ -552,6 +560,11 @@ class GlassSlider(QWidget):
         self._dragging = False
 
     def wheelEvent(self, e) -> None:  # noqa: N802
+        # Only a slider the user clicked reacts to the wheel; otherwise scrolling
+        # the page over it would silently change settings.
+        if not self.hasFocus():
+            e.ignore()
+            return
         steps = e.angleDelta().y() / 120
         self.setValue(self._value + steps * self._step, emit=True)
         e.accept()
@@ -628,15 +641,16 @@ class Chip(QLabel):
     half the widget height, which would turn the pill into a rectangle.
     """
 
-    def __init__(self, text: str = "", parent: QWidget | None = None, dot: str | None = None) -> None:
+    def __init__(self, text: str = "", parent: QWidget | None = None, dot: str | None = None, height: int = 28) -> None:
         super().__init__(text, parent)
         self._dot = qcolor(dot) if dot else None
-        self.setFont(app_font(8.5, QFont.Weight.Medium))
-        self.setFixedHeight(28)
+        self.setFont(app_font(8.5 if height < 36 else 9.5, QFont.Weight.Medium))
+        self.setFixedHeight(height)
         self._apply_margins()
 
     def _apply_margins(self) -> None:
-        self.setContentsMargins(28 if self._dot is not None else 13, 0, 13, 0)
+        pad = max(13, self.height() // 2)
+        self.setContentsMargins(pad + 14 if self._dot is not None else pad, 0, pad, 0)
 
     def set_dot(self, css: str | None) -> None:
         self._dot = qcolor(css) if css else None
@@ -653,7 +667,7 @@ class Chip(QLabel):
         if self._dot is not None:
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(self._dot)
-            p.drawEllipse(QPointF(15, r.center().y()), 4, 4)
+            p.drawEllipse(QPointF(max(13, self.height() // 2) + 2, r.center().y()), 4, 4)
         p.setPen(QColor("white"))
         p.setFont(self.font())
         p.drawText(self.contentsRect(), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self.text())
@@ -985,3 +999,68 @@ class PlayerBar(QWidget):
         self.right.setFixedWidth(side)
         compact = side < 300
         self.volume.setVisible(self.mute_btn.isVisible() and not compact)
+
+
+class MasonryLayout(QLayout):
+    """Fixed-width cards packed into columns, each card going to the shortest
+    column, so short cards never leave an empty gap under them."""
+
+    def __init__(self, parent: QWidget | None = None, column_width: int = 420, spacing: int = 18) -> None:
+        super().__init__(parent)
+        self._items: list[QLayoutItem] = []
+        self._cw = column_width
+        self._sp = spacing
+        self.setContentsMargins(0, 0, 0, 0)
+
+    def addItem(self, item: QLayoutItem) -> None:  # noqa: N802
+        self._items.append(item)
+
+    def addWidget(self, w: QWidget) -> None:  # noqa: N802
+        self.addChildWidget(w)
+        self.addItem(QWidgetItem(w))
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def itemAt(self, index: int) -> QLayoutItem | None:  # noqa: N802
+        return self._items[index] if 0 <= index < len(self._items) else None
+
+    def takeAt(self, index: int) -> QLayoutItem | None:  # noqa: N802
+        return self._items.pop(index) if 0 <= index < len(self._items) else None
+
+    def expandingDirections(self) -> Qt.Orientation:  # noqa: N802
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self) -> bool:  # noqa: N802
+        return True
+
+    def heightForWidth(self, width: int) -> int:  # noqa: N802
+        return self._do_layout(QRect(0, 0, width, 0), dry=True)
+
+    def setGeometry(self, rect: QRect) -> None:  # noqa: N802
+        super().setGeometry(rect)
+        self._do_layout(rect, dry=False)
+
+    def sizeHint(self) -> QSize:  # noqa: N802
+        return QSize(self._cw, self.heightForWidth(self._cw))
+
+    def minimumSize(self) -> QSize:  # noqa: N802
+        return QSize(self._cw, 0)
+
+    def _item_height(self, item: QLayoutItem) -> int:
+        if item.hasHeightForWidth():
+            return item.heightForWidth(self._cw)
+        return item.sizeHint().height()
+
+    def _do_layout(self, rect: QRect, dry: bool) -> int:
+        cols = max(1, (rect.width() + self._sp) // (self._cw + self._sp))
+        heights = [0] * cols
+        for item in self._items:
+            if item.widget() is not None and item.widget().isHidden():
+                continue
+            col = heights.index(min(heights))
+            h = self._item_height(item)
+            if not dry:
+                item.setGeometry(QRect(rect.x() + col * (self._cw + self._sp), rect.y() + heights[col], self._cw, h))
+            heights[col] += h + self._sp
+        return max(heights) - self._sp if any(heights) else 0

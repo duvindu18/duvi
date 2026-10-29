@@ -19,7 +19,7 @@ from app.core.engine import InsightFaceBackend, YuNetBackend
 from app.gui.context import AppContext
 from app.gui.icons import make_icon
 from app.gui.tasks import run_task
-from app.gui.widgets import FlowLayout, GlassCard, GlassSlider, PillGroup, ToggleRow, button, label, two_tone
+from app.gui.widgets import GlassCard, MasonryLayout, GlassSlider, PillGroup, ToggleRow, button, label, two_tone
 
 DEVICE_TEXT = {
     Device.AUTO: "Automatic (fastest available)",
@@ -55,13 +55,13 @@ class SettingsPage(QWidget):
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         inner = QWidget()
-        flow = FlowLayout(inner, 18, 18)
+        flow = MasonryLayout(inner, 420, 18)
         scroll.setWidget(inner)
         outer.addWidget(scroll, 1)
 
         def card(title: str, subtitle: str = "") -> GlassCard:
             c = GlassCard(title, subtitle)
-            c.setFixedWidth(420)
+            c.setFixedWidth(420)  # the masonry column width
             flow.addWidget(c)
             return c
 
