@@ -5,18 +5,21 @@
    app name and icon, and the desktop settings. */
 const fs = require('fs');
 const path = require('path');
-const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net, nativeTheme, Tray, Menu, globalShortcut, session, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net, nativeTheme, Tray, Menu, globalShortcut, session, screen, Notification } = require('electron');
 const { Prefs } = require('./prefs');
 const { Store } = require('./store');
 const { Branding, APP_ID } = require('./branding');
 const fsops = require('./fsops');
 const patch = require('./patch');
+const ai = require('./ai');
+const { FolderIcons } = require('./folder-icons');
 
 const ROOT = path.join(__dirname, '..', '..');
 const DASHBOARD = path.join(ROOT, 'src', 'dashboard', 'dashboard.html');
 const RENDERER = path.join(__dirname, 'renderer');
 const DEFAULT_ICON = path.join(ROOT, 'build', 'icon.png');
 const LEAFLET = path.dirname(require.resolve('leaflet/dist/leaflet.js'));
+const INTER = path.join(path.dirname(require.resolve('@fontsource-variable/inter/package.json')), 'files');
 const UA = 'StudioMorfisDesktop/' + app.getVersion() + ' (Windows desktop app; architecture practice dashboard)';
 const HOTKEY = 'CommandOrControl+Alt+M';
 
@@ -31,6 +34,7 @@ const store = new Store(path.join(USER, 'data'));
 const journals = new fsops.Journals(path.join(USER, 'journals'));
 const ops = fsops.makeOps(journals);
 const branding = new Branding(prefs, USER, DEFAULT_ICON);
+const folderIcons = new FolderIcons(USER);
 if (!prefs.get('hwAccel')) app.disableHardwareAcceleration();
 
 let win = null, splash = null, tray = null, quitting = false, lastSaveDir = '';
@@ -42,7 +46,7 @@ const winState = () => (win && !win.isDestroyed() ? { focus: win.isFocused(), ma
 const sendWin = () => { if (win && !win.isDestroyed()) win.webContents.send('win:state', winState()); };
 
 /* ----- the page, served from morfis://app/ ----- */
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
+const MIME = { '.woff2': 'font/woff2', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
 function pageHtml() {
   const r = patch.build(fs.readFileSync(DASHBOARD, 'utf8'), { htmlClass: patch.htmlClass(prefs.public()), tail: patch.tail('') });
   if (r.missing.length) console.warn('[morfis] dashboard patch anchors missing:', r.missing);
@@ -54,8 +58,9 @@ function serve(req) {
   if (u.pathname === '/' || u.pathname === '/index.html') return new Response(pageHtml(), { headers: { 'content-type': MIME['.html'], 'cache-control': 'no-store' } });
   if (u.pathname === '/app-icon.png') return new Response(fs.readFileSync(branding.iconPng()), { headers: { 'content-type': 'image/png', 'cache-control': 'no-store' } });
   if (u.pathname.indexOf('/vendor/leaflet/') === 0) file = path.join(LEAFLET, decodeURIComponent(u.pathname.slice('/vendor/leaflet/'.length)));
+  else if (u.pathname.indexOf('/vendor/inter/') === 0) file = path.join(INTER, decodeURIComponent(u.pathname.slice('/vendor/inter/'.length)));
   else file = path.join(RENDERER, decodeURIComponent(u.pathname.slice(1)));
-  const okRoot = [LEAFLET, RENDERER].some((r) => path.resolve(file).startsWith(path.resolve(r) + path.sep));
+  const okRoot = [LEAFLET, INTER, RENDERER].some((r) => path.resolve(file).startsWith(path.resolve(r) + path.sep));
   if (!okRoot || !fs.existsSync(file)) return new Response('Not found', { status: 404 });
   return new Response(fs.readFileSync(file), { headers: { 'content-type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream' } });
 }
@@ -293,8 +298,58 @@ const API = {
   relaunch() { quitting = true; app.relaunch(); app.exit(0); },
   async openBackups() { fs.mkdirSync(store.backupDir, { recursive: true }); const r = await shell.openPath(store.backupDir); if (r) throw new Error(r); return true; },
   backupNow() { const f = path.join(store.backupDir, 'studio-morfis-backup-' + require('./util').ymd() + '.json'); try { fs.unlinkSync(f); } catch (e) { /* none yet */ } store.backup(prefs.get('backupKeep')); return fs.existsSync(f) ? f : ''; },
-  refreshShortcuts: () => branding.updateShortcuts()
+  refreshShortcuts: () => branding.updateShortcuts(),
+
+  /* document editor */
+  docsList: () => store.docsList(),
+  docSave: (d) => store.docSave(d),
+  docDelete: (id) => store.docDelete(id),
+  kvGet: (k) => store.kvGet(k),
+  kvSet: (k, v) => store.kvSet(k, v),
+  async savePdf(html, filename) {
+    const pdf = await renderPdf(html);
+    const r = await dialog.showSaveDialog(win, { defaultPath: path.join(lastSaveDir || app.getPath('documents'), filename), filters: [{ name: 'PDF document', extensions: ['pdf'] }] });
+    if (r.canceled || !r.filePath) return null;
+    fs.writeFileSync(r.filePath, pdf);
+    lastSaveDir = path.dirname(r.filePath);
+    return r.filePath;
+  },
+  printHtml(html) {
+    return new Promise((resolve) => {
+      const w = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false } });
+      w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+      w.webContents.once('did-finish-load', () => w.webContents.print({ printBackground: true }, (ok, why) => { w.destroy(); resolve({ ok: ok, reason: why || '' }); }));
+    });
+  },
+  notify(title, body) {
+    if (!Notification.isSupported()) return false;
+    const n = new Notification({ title: String(title || branding.name()), body: String(body || ''), icon: branding.image() });
+    n.on('click', showWindow);
+    n.show();
+    return true;
+  },
+  openExternal(url) { if (/^https:\/\//i.test(url) || /^mailto:/i.test(url)) return shell.openExternal(url); throw new Error('Only web and email links open from here.'); },
+
+  /* automation agent on this computer (Ollama) */
+  aiStatus: () => ai.status(prefs),
+  aiChat: (o) => ai.chat(prefs, o || {}),
+  aiPull(name) {
+    return ai.pull(prefs, name, (p) => { if (win && !win.isDestroyed()) win.webContents.send('ai:pull', p); });
+  },
+
+  /* project status on Windows folder icons */
+  folderIcon: (o) => folderIcons.apply(o || {}),
+  folderIconClear: (dir) => folderIcons.clear(dir)
 };
+
+/* A4 PDF from a complete HTML document, rendered off screen with scripts off */
+async function renderPdf(html) {
+  const w = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false } });
+  try {
+    await w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    return await w.webContents.printToPDF({ pageSize: 'A4', printBackground: true, margins: { marginType: 'none' }, preferCSSPageSize: true });
+  } finally { w.destroy(); }
+}
 
 ipcMain.handle('host', async (e, method, args) => {
   if (!win || e.sender !== win.webContents) return { e: { message: 'Not allowed' } };

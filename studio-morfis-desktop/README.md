@@ -5,29 +5,75 @@ This is the Studio Morfis practice dashboard as an installable Windows program. 
 - projects and their seven stages
 - the task board and Gantt chart
 - the all-projects timeline and the week ahead
-- milestones, invoices (with PDF export), receipts and retainage
+- milestones, invoices, receipts and retainage
 - reminders, the team list, project codes and invoice details
-- the Folder Hub
 
-The desktop version also works on real folders on your computer:
+On top of that, the desktop app adds:
 
-- It creates the six standard folders for each project.
-- It reads what's inside them and imports folders you already have.
-- It sorts loose files into the right folder (and can undo the sort).
-- It can rename, move and recycle files from inside the app.
-- It can pin a project's site on a map.
+- **Files:** real project folders on this computer, with status on every folder.
+- **Invoices & quotes:** a document editor for quotations and invoices.
+- **Automations:** rules and a private AI assistant that runs on this computer.
 
 All data stays on the computer.
 
-## What the desktop shell adds
+## Design
 
-| | |
+- **Colours and type:** a graphite dark theme (and a matching light theme), Inter type bundled with the app, and one accent colour you choose. Borders are 1 px and corners use four radii: 6, 8, 12 and 14 px.
+- **Sidebar:** a workspace header, search (Ctrl+K), Workspace and Studio groups, and the active projects. Each project has a coloured square showing its status and current stage. Ctrl+B narrows the sidebar to icons.
+- **Window bar:** the app icon, its name and where you are. Minimize, maximize/restore and close sit on the right in the Windows style; *Soft pill* and *Round, left* are other styles in Settings.
+- **Motion:** short fades of about 0.2 s, with no bounce, spin or wobble. *Reduce motion* turns it all off.
+
+## Project status
+
+Every project has one work status:
+
+| Status | Meaning |
 |---|---|
-| **App name and icon** | Change them under Settings → *App name and icon*. The window title, title bar, taskbar button and tray icon change immediately. The Start menu entry, desktop shortcut, pinned taskbar shortcut and the entry in *Settings → Apps* are renamed and re-iconed too. A `.ico` is generated from your picture. |
-| **Window buttons** | Custom minimize, maximize/restore and close buttons on the right that follow the theme and accent colour. There are three styles: *Studio* (a soft pill; hover tints with the accent, close turns red), *Windows* (flat, flush with the corner) and *Round, left* (coloured dots). Double-click the title bar to maximize. |
-| **Loading animation** | While the dashboard opens, a short splash card shows your icon inside a drawn ring, your app name, and the seven stage marks filling in. It uses your theme and accent and can be turned off. |
-| **Settings → Desktop app** | Window: button style, title bar, always on top, remember size and position. Starting and closing: loading animation, open when Windows starts, start minimised, close to the notification area, ask before quitting. Look: four font choices, drawing-grid background, accent glow, rounded or tight corners, reduce motion. System: spell check, a show/hide hotkey (Ctrl+Alt+M), graphics acceleration, developer tools. Backups: how many daily backups to keep, back up now, open the backups folder. Program: refresh shortcuts, restart, reset. |
-| **Keys** | F11 full screen, Ctrl + / Ctrl − / Ctrl 0 to zoom. The dashboard's own shortcuts work too (press `/` to search). |
+| **Not started** | Signed or planned, work has not begun |
+| **In progress** | Work is under way |
+| **On hold** | Paused: waiting on the client, approvals or funds |
+| **Completed** | Handed over and closed |
+| **Cancelled** | Stopped and will not continue |
+
+You change it from a project's tag in Files, on the project page, or from a folder card's menu. The status shows as a tag beside the stage, as a badge on the folder artwork, and on the sidebar square. If the folder-icon automation is on, it also shows on the project folder's own icon in File Explorer, with the status as the folder's tooltip.
+
+## Files
+
+- **Left:** the folder structure. Projects (filtered by status) open into their six standard folders.
+- **Right:** large folder cards. Each project card shows its status badge, the kinds of files inside (PDF, DWG, JPG…), and status and stage tags. Below them is a table of recent files with coloured file-type icons.
+- **Inside a folder:** subfolders as cards, then the files.
+- **Working with files:** open, show in Explorer, copy the path, or move to the Recycle Bin. Drop files from Explorer onto any folder to copy them in.
+
+## Invoices & quotes
+
+- **List:** every quotation and invoice. Milestone invoices issued from Payments appear automatically.
+- **Editor:** the document is the A4 page it prints as. You type directly on the page: client, project, lines (description, details, quantity, unit, rate), notes and terms. The side panel sets status, project, currency, discount, tax (none, included or added) and retention, and whether bank details show.
+- **Numbering:** follows the project code (`MRF I 26 I 014 I QT 01`, `… I INV 03`). Without a project it is `QT-2026-001` or `INV-2026-001`.
+- **Quotations:** *Mark as sent*, then *Accepted*, then *Make the invoice* copies the lines into a new invoice. A sent quotation shows as Expired once its valid-until date passes.
+- **Invoices:** *Issue invoice* on a milestone invoice adds it to Payments, so receipts and overdue tracking keep working. The Payments preview has an *Edit invoice* button that opens the same invoice here.
+- **Output:** *Export PDF* (A4, Inter embedded) and *Print*. Both use the same page you edit.
+
+## Automations and the AI assistant
+
+The assistant runs on this computer with **[Ollama](https://ollama.com)**, which is free and open source (MIT licence), and an open model. The default is **Qwen 2.5 3B** (Apache 2.0, about 1.9 GB). There is no account and no fee, and nothing is sent online. The app only talks to `127.0.0.1`.
+
+Setup is done once:
+
+1. Install Ollama from ollama.com.
+2. In Automations, press **Download qwen2.5:3b**.
+
+The automations:
+
+| Automation | Kind | What it does |
+|---|---|---|
+| Draft the invoice when a stage is reached | Rule | When a project reaches a billed stage, it prepares a draft invoice and sends a Windows notification |
+| Payment follow-ups | AI | Writes a reminder email for each overdue invoice, at most once a week each. You review it, then copy it or open it in your email program |
+| Monday studio summary | AI | Overdue money, late and upcoming tasks, quotes waiting for an answer, and on-hold projects, as a notification and on the Automations page |
+| Status on Windows folder icons | Rule | Keeps each project folder's Explorer icon and tooltip matched to its status |
+| Sort files the rules cannot place | AI | In Files, *Sort with AI* suggests a standard folder for odd file names. You untick anything that should stay, and the move can be undone |
+| Quotation assistant | AI | In a quotation, describe the job and get lines, quantities and rates based on your past fees |
+
+Everything an automation makes waits for your review under *Waiting for you*. When the assistant is not available, the follow-ups and the summary use plain templates instead.
 
 ## Run and build
 
@@ -37,42 +83,46 @@ You need Node.js 22.
 cd studio-morfis-desktop
 npm install
 npm start            :: run it
-npm run dist         :: build dist\Studio-Morfis-Setup-1.0.0.exe (run this on Windows)
-npm run dist:portable
+npm run check        :: confirm the dashboard still matches the desktop patch
+npm run dist         :: build dist\Studio-Morfis-Setup-<version>.exe (on Windows)
 ```
 
-The installer is per-user, needs no admin rights, lets you choose the install folder, and creates Start menu and desktop shortcuts.
-
-The GitHub Actions workflow *Build Studio Morfis for Windows* (`.github/workflows/studio-morfis-desktop.yml`) builds the same installer on a Windows runner. It runs when you push a `morfis-v*` tag, on pull requests that touch this folder, or when you start it from the Actions tab. It first runs the checks and the smoke test, then uploads screenshots and the installer as artifacts.
+The GitHub Actions workflow *Build Studio Morfis for Windows* runs on every push to the `claude/studio-morfis-*` branches that touches this folder, and on pull requests. It runs the checks and the smoke test on Windows, then uploads the installer and screenshots.
 
 ## Where things are kept
 
 Everything is under `%APPDATA%\Studio Morfis\`:
 
-- `data\settings.json`: the studio settings.
-- `data\projects\<id>.json`: one file per project.
-- `backups\`: a dated copy of everything, once a day.
-- `journals\`: records of sorts, renames and moves, so they can be undone (kept for 90 days).
-- `branding\`: your custom icon as `.png` and `.ico`.
-- `desktop.json`: the Desktop app settings.
-
-To bring in data from the web dashboard, use **Settings → Data → Restore a backup** and pick a backup JSON file. A file with `settings` and `projects` keys works.
+| Path | What |
+|---|---|
+| `data\settings.json` | Studio settings |
+| `data\projects\` | One file per project |
+| `data\documents\` | One file per quotation or invoice |
+| `data\automations.json` | Automation state: drafts made, follow-ups, the latest summary |
+| `backups\` | A dated copy of everything, once a day |
+| `journals\` | Records of sorts, renames and moves, so they can be undone |
+| `branding\` | Your custom app icon (`.png`, `.ico`) |
+| `folder-icons\` | The status icons that project folders point to |
+| `desktop.json` | Desktop settings |
 
 ## How it is put together
 
 ```
 src/dashboard/dashboard.html   the web dashboard, unchanged
-src/shell/main.js              window, splash, tray, settings, and the API the page calls
-src/shell/patch.js             turns the web page into the desktop page when it is served (title bar, wording)
+src/shell/main.js              window, splash, tray, and the API the page calls
+src/shell/patch.js             turns the web page into the desktop page (window bar, sidebar slot, hook, assets)
+src/shell/ai.js                the local AI engine (Ollama on this computer)
+src/shell/folder-icons.js      status icons on project folders (desktop.ini)
 src/shell/fsops.js             folder reading, sorting, moves, undo journals, Recycle Bin
-src/shell/branding.js          app name and icon: window, shortcuts, Apps list, .ico generation
-src/shell/store.js             data files and daily backups
-src/shell/prefs.js             Desktop app settings
-src/shell/preload.js           the only bridge between the page and Node
-src/shell/renderer/            bridge.js, desktop.js and desktop.css (in-page extras), splash.html
-build/icon.svg                 the default icon; `npm run icons` redraws icon.png and icon.ico
-scripts/check.js               confirms the dashboard still matches the desktop patch
-scripts/smoke.js               starts the app, clicks through, tests folder operations and branding
+src/shell/branding.js          app name and icon in Windows
+src/shell/store.js             projects, documents, automation state, daily backups
+src/shell/renderer/theme.css   the design system over the dashboard's tokens
+src/shell/renderer/desktop.*   sidebar, router, window bar, Settings > Desktop app
+src/shell/renderer/files.js    Files
+src/shell/renderer/docs.js     Invoices & quotes and the A4 editor
+src/shell/renderer/automations.js  Automations
+src/shell/renderer/folder-art.js   status, folder artwork, file-type and Explorer icons
+scripts/smoke.js               starts the app and tests views, folders, editor, AI paths, PDF and branding
 ```
 
-The dashboard is served from `morfis://app/`. It finds `window.morfisDesktop` and switches to its desktop mode, which is built into the dashboard. To update the dashboard, replace `src/dashboard/dashboard.html` with the new version and run `npm run check`. That confirms the title bar patch still applies and that every desktop call the page makes is still provided.
+The page reaches the dashboard's own data and functions through a small hook that `patch.js` adds. That's why Files, the editor and the automations always show the same projects and invoices as the rest of the app. To update the dashboard, replace `dashboard.html` and run `npm run check`.

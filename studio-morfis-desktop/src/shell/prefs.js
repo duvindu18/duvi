@@ -10,7 +10,7 @@ const DEFAULTS = {
   window: { bounds: null, maximized: false },
   rememberWindow: true,
   splash: true,
-  controls: 'fluent',          // fluent | classic | mac
+  controls: 'windows',         // windows | pill | mac
   titleBar: 'name',            // name | none
   closeToTray: false,
   startMinimized: false,
@@ -20,9 +20,15 @@ const DEFAULTS = {
   spellcheck: true,
   globalHotkey: false,
   confirmQuit: false,
-  font: 'default',             // default | segoe | technical | system
+  font: 'inter',               // inter | segoe | technical | system | studio
+  density: 'comfortable',      // comfortable | compact
+  sideCollapsed: false,
+  folderIcons: true,           // show project status on the Windows folder icons
+  aiEnabled: true,
+  aiEndpoint: 'http://127.0.0.1:11434',
+  aiModel: 'qwen2.5:3b',
   reduceMotion: false,
-  pattern: true,
+  pattern: false,
   glow: true,
   roundCorners: true,
   backupKeep: 14,
@@ -33,9 +39,10 @@ const DEFAULTS = {
 };
 
 const CHOICES = {
-  controls: ['fluent', 'classic', 'mac'],
+  controls: ['windows', 'pill', 'mac'],
+  density: ['comfortable', 'compact'],
   titleBar: ['name', 'none'],
-  font: ['default', 'segoe', 'technical', 'system'],
+  font: ['inter', 'segoe', 'technical', 'system', 'studio'],
   backupKeep: [3, 7, 14, 30, 90]
 };
 
@@ -55,6 +62,12 @@ class Prefs {
   }
   clean() {
     const d = this.data;
+    /* names used by the first version */
+    if (d.controls === 'fluent') d.controls = 'pill';
+    if (d.controls === 'classic') d.controls = 'windows';
+    if (d.font === 'default') d.font = 'inter';
+    if (!/^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?\/?$/.test(String(d.aiEndpoint || ''))) d.aiEndpoint = DEFAULTS.aiEndpoint;
+    d.aiModel = String(d.aiModel || DEFAULTS.aiModel).trim().slice(0, 80) || DEFAULTS.aiModel;
     Object.keys(CHOICES).forEach((k) => { if (CHOICES[k].indexOf(d[k]) === -1) d[k] = DEFAULTS[k]; });
     d.zoom = Math.min(1.5, Math.max(0.75, +d.zoom || 1));
     if (!/^#[0-9A-Fa-f]{6}$/.test(d.accent || '')) d.accent = DEFAULTS.accent;

@@ -8,7 +8,7 @@ contextBridge.exposeInMainWorld('__morfisBridge', {
      because an Error's extra fields (code) do not survive the trip across contextBridge */
   call(method, args) { return ipcRenderer.invoke('host', method, args); },
   on(channel, fn) {
-    if (['win:state', 'app:focus', 'app:zoom'].indexOf(channel) === -1) return;
+    if (['win:state', 'app:focus', 'app:zoom', 'ai:pull'].indexOf(channel) === -1) return;
     ipcRenderer.on(channel, (e, v) => fn(v));
   },
   pathOf(file) { try { return webUtils.getPathForFile(file) || ''; } catch (e) { return ''; } }

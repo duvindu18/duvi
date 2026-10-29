@@ -17,11 +17,14 @@
     'openPath', 'reveal', 'openDataDir', 'trashPath', 'pickFiles', 'pickFolder', 'readFile', 'isDir',
     'scanProject', 'scanRoot', 'scanDir', 'listTree', 'listDir', 'mkdirs', 'copyInto', 'applyOps', 'undo',
     'renameItem', 'makeDir', 'moveItems', 'trashItems', 'geocode', 'reverse',
-    'getPrefs', 'setPref', 'resetPrefs', 'relaunch', 'openBackups', 'backupNow', 'refreshShortcuts'].forEach(function (m) { api[m] = call(m); });
+    'getPrefs', 'setPref', 'resetPrefs', 'relaunch', 'openBackups', 'backupNow', 'refreshShortcuts',
+    'docsList', 'docSave', 'docDelete', 'kvGet', 'kvSet', 'savePdf', 'printHtml', 'notify', 'openExternal',
+    'aiStatus', 'aiChat', 'aiPull', 'folderIcon', 'folderIconClear'].forEach(function (m) { api[m] = call(m); });
   /* the page sends Uint8Array bytes for saved files; that crosses to the main process as is */
   api.onWin = function (fn) { B.on('win:state', fn); };
   api.onFocus = function (fn) { B.on('app:focus', fn); };
   api.onZoom = function (fn) { B.on('app:zoom', fn); };
+  api.onAiPull = function (fn) { B.on('ai:pull', fn); };
   api.pathsOf = function (files) {
     var out = [];
     for (var i = 0; files && i < files.length; i++) { var p = B.pathOf(files[i]); if (p) out.push(p); }

@@ -27,6 +27,27 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 async function shot(w, name) { const img = await w.webContents.capturePage(); fs.writeFileSync(path.join(out, name + '.png'), img.toPNG()); console.log('shot', name); }
 const js = (w, code) => w.webContents.executeJavaScript(code);
 
+/* a stand-in for Ollama on its usual port, so the AI paths run without downloading a model */
+const fake = require('http').createServer((req, res) => {
+  let body = '';
+  req.on('data', (c) => { body += c; });
+  req.on('end', () => {
+    res.setHeader('content-type', 'application/json');
+    if (req.url === '/api/tags') return res.end(JSON.stringify({ models: [{ name: 'qwen2.5:3b', size: 1 }] }));
+    if (req.url === '/api/version') return res.end(JSON.stringify({ version: 'smoke' }));
+    if (req.url === '/api/chat') {
+      const j = JSON.parse(body || '{}');
+      const content = j.format === 'json'
+        ? JSON.stringify({ items: [{ desc: 'Concept design', detail: 'Two options with sketches', qty: 1, unit: 'lump sum', rate: 450000 }, { desc: '3D renders', detail: 'Four interior views', qty: 4, unit: 'item', rate: 35000 }], notes: 'Assumes two rounds of changes.' })
+        : '• Two invoices are overdue: call both clients this week.\n• Ratnayake Dental Clinic has three late tasks.';
+      return res.end(JSON.stringify({ message: { content: content } }));
+    }
+    res.statusCode = 404; res.end('{}');
+  });
+});
+fake.on('error', () => console.log('fake AI engine not started (port in use)'));
+fake.listen(11434, '127.0.0.1');
+
 require('../src/shell/main.js');
 app.whenReady().then(async () => {
   await wait(300);
@@ -39,20 +60,29 @@ app.whenReady().then(async () => {
   w.setSize(1440, 900);
   await wait(2500);
   await shot(w, '1-home');
-  const go = async (view, name) => { await js(w, "(function(){var b=document.querySelector('#side [data-act=go][data-v=" + view + "]');if(b){b.click();return true}return false})()").then((ok) => { if (!ok) console.log('no nav button for', view); }); await wait(900); await shot(w, name); };
+  const go = async (view, name) => { await js(w, "(function(){var b=document.querySelector('#dkSide [data-go=" + view + "]');if(b){b.click();return true}return false})()").then((ok) => { if (!ok) console.log('no nav button for', view); }); await wait(900); await shot(w, name); };
   await go('projects', '2-projects');
   await go('timeline', '3-timeline');
   await go('payments', '4-payments');
-  await go('folders', '5-folders');
+  await go('files', '5-files');
+  const firstPid = await js(w, "(function(){var b=document.querySelector('#dkView .fx-card[data-go-node]');if(b){b.click();return b.dataset.goNode}return ''})()");
+  await wait(900); await shot(w, '5b-files-project');
+  await go('documents', '5c-documents');
+  await js(w, "(function(){var b=document.querySelector('#dkView [data-doc-new=quote]');b.click();})()"); await wait(300);
+  await js(w, "(function(){var b=document.querySelector('.dk-menu button[data-i]');b.click();})()"); await wait(900);
+  const edOk = await js(w, "(function(){var d=document.querySelector('#dkView .pp-edit .pp-desc');if(!d)return 'no editor';d.value='Concept design and 3D views';d.dispatchEvent(new Event('input',{bubbles:true}));var r=document.querySelector('#dkView .pp-edit [data-l=rate]');r.value='250000';r.dispatchEvent(new Event('input',{bubbles:true}));return document.querySelector('#dkView .pp-grand b').textContent})()");
+  console.log('editor total after typing:', edOk);
+  await wait(800); await shot(w, '5d-editor');
+  await go('automations', '5e-automations');
   await go('settings', '6-settings');
   const card = await js(w, "(function(){var c=document.getElementById('dkCard');if(!c)return 'missing';c.scrollIntoView();return 'ok'})()");
   console.log('desktop card:', card);
   await wait(500); await shot(w, '7-desktop-card');
-  await js(w, "document.querySelector('#dkCard [data-dk=controls][data-v=classic]').click()"); await wait(500);
+  await js(w, "document.querySelector('#dkCard [data-dk=controls][data-v=windows]').click()"); await wait(500);
   await js(w, "document.getElementById('view').scrollTop=0"); await wait(300); await shot(w, '8-classic-controls');
   await js(w, "document.querySelector('#dkCard [data-dk=controls][data-v=mac]').click()"); await wait(500);
   await js(w, "document.getElementById('view').scrollTop=0"); await wait(300); await shot(w, '9-mac-controls');
-  await js(w, "document.querySelector('#dkCard [data-dk=controls][data-v=fluent]').click()"); await wait(300);
+  await js(w, "document.querySelector('#dkCard [data-dk=controls][data-v=pill]').click()"); await wait(300);
   await js(w, "document.querySelector('[data-act=toggleTheme]').click()"); await wait(700);
   await go('home', '10-home-light');
   const bar = await js(w, "JSON.stringify({wbar:!document.getElementById('wbar').hidden,title:document.getElementById('wbarTitle').textContent,cls:document.documentElement.className,mode:document.querySelector('.rail-logo')?'ok':'no-rail'})");
@@ -93,6 +123,33 @@ app.whenReady().then(async () => {
   const dp = JSON.parse(fs.readFileSync(path.join(profile, 'desktop.json'), 'utf8'));
   console.log('branding:', JSON.stringify({ windowTitle: w.getTitle(), docTitle: await js(w, 'document.title'), bar: await js(w, "document.getElementById('wbarTitle').textContent"), saved: dp.branding, icoWritten: fs.existsSync(path.join(profile, 'branding', dp.branding.iconFile + '.ico')), setResult: br }));
   await js(w, "document.getElementById('view').scrollTop=0"); await wait(300); await shot(w, '12-renamed');
+  /* AI: quotation lines, Monday summary; PDF of the quotation; Explorer status icons */
+  await go('automations', '13-automations');
+  await wait(1200);
+  const qid = await js(w, "(function(){var d=MorfisDocs.blank('quote',null);MorfisDocs.save(d,true);window.__q=d;MorfisAuto.draftQuote(d,function(){window.__qdone=true});return d.id})()");
+  await wait(400);
+  await js(w, "document.getElementById('auQ').value='Interior design for a clinic';document.getElementById('auQGo').click()");
+  await wait(2500);
+  const quote = JSON.parse(await js(w, "JSON.stringify({done:!!window.__qdone,lines:window.__q.items.length,total:MorfisDocs.totals(window.__q).total,notes:window.__q.notes})"));
+  console.log('AI quotation:', JSON.stringify(quote));
+  await js(w, "MorfisAuto.run('digest')"); await wait(2500);
+  const digest = await js(w, "morfisDesktop.kvGet('auto:digest').then(function(d){return d?d.text:''})");
+  console.log('AI digest:', JSON.stringify(digest));
+  await go('automations', '14-automations-ai');
+  const html = await js(w, "MorfisDocs.printHtml(window.__q)");
+  const pw = new BrowserWindow({ show: false, width: 794, height: 1123, webPreferences: { javascript: false } });
+  await pw.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+  const pdf = await pw.webContents.printToPDF({ pageSize: 'A4', printBackground: true, margins: { marginType: 'none' }, preferCSSPageSize: true });
+  fs.writeFileSync(path.join(out, 'quotation.pdf'), pdf);
+  fs.writeFileSync(path.join(out, '15-quotation-print.png'), (await pw.webContents.capturePage()).toPNG());
+  pw.destroy();
+  console.log('PDF bytes:', pdf.length);
+  for (const st of ['in_progress', 'on_hold', 'completed']) {
+    const u = await js(w, "MorfisArt.toPng(MorfisArt.explorerIcon('" + st + "'),256)");
+    fs.writeFileSync(path.join(out, 'icon-' + st + '.png'), Buffer.from(u.split(',')[1], 'base64'));
+  }
+  fake.close();
+
   console.log('page errors:', errors.length ? errors : 'none');
   const pdir = path.join(profile, 'data', 'projects');
   console.log('saved files:', fs.existsSync(pdir) ? fs.readdirSync(pdir).length : 0, 'projects,', fs.existsSync(path.join(profile, 'data', 'settings.json')) ? 'settings ok' : 'no settings');
@@ -106,6 +163,10 @@ app.whenReady().then(async () => {
   expect(o.renamed === 'Renamed House' && o.renameBack === 1, 'renaming a project folder and undoing it');
   expect(o.movedNotes === 1 && o.listed === 'notes.txt', 'new folder and moving a file into it');
   expect(o.enoent === 'ENOENT' && !!o.badName && o.rows === 1, 'error codes, name checks and reading the root');
+  expect(quote.done && quote.lines === 2 && quote.total === 590000, 'AI quotation assistant');
+  expect(/overdue/.test(digest || ''), 'AI Monday summary');
+  expect(pdf.length > 5000, 'quotation PDF');
+  expect(edOk === 'LKR 250,000', 'editor totals while typing');
   expect(w.getTitle() === 'Morfis Atelier' && fs.existsSync(path.join(profile, 'branding', dp.branding.iconFile + '.ico')), 'app name and icon');
   console.log(fails.length ? 'SMOKE FAILED: ' + fails.join('; ') : 'SMOKE PASSED');
   app.exit(fails.length ? 1 : 0);

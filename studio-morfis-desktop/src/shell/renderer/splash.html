@@ -5,43 +5,34 @@
 <title>Loading</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src file: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
 <style>
-/* A quick loading card: the icon pops in inside a drawing ring, the name rises, and the seven stage marks fill in turn. */
-:root{--bg:#13131B;--ink:#EDEDF7;--ink-2:#8686A2;--line:#2A2A3B;--accent:#7C6CF0;--shadow:rgba(0,0,0,.55)}
-:root.light{--bg:#FAFAFC;--ink:#1A1A2E;--ink-2:#6E6E88;--line:#E1E1EC;--shadow:rgba(26,26,46,.22)}
+/* A short, quiet loading card: the icon and name fade in, a thin line runs underneath until the dashboard is ready. */
+:root{--bg:#0F0F12;--ink:#EDEDF0;--ink-2:#72727D;--line:#222228;--track:#1D1D22;--accent:#7C6CF0;--shadow:rgba(0,0,0,.6)}
+:root.light{--bg:#FFFFFF;--ink:#17171C;--ink-2:#7E7E89;--line:#E4E4EA;--track:#EEEEF2;--shadow:rgba(23,23,28,.2)}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:transparent;overflow:hidden;font-family:'Segoe UI Variable Display','Segoe UI',system-ui,sans-serif;-webkit-user-select:none;user-select:none;cursor:default}
 body{display:grid;place-items:center}
-.card{position:relative;width:320px;height:260px;border-radius:28px;background:var(--bg);border:1px solid var(--line);box-shadow:0 24px 50px -18px var(--shadow);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;overflow:hidden;animation:in .32s cubic-bezier(.2,.9,.3,1.2) both}
-.card::before{content:"";position:absolute;inset:auto -30% -60% -30%;height:80%;background:radial-gradient(closest-side,var(--accent),transparent);opacity:.22;filter:blur(10px)}
-.mark{position:relative;width:96px;height:96px;display:grid;place-items:center}
-.mark svg{position:absolute;inset:0;transform:rotate(-90deg)}
-.mark circle{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linecap:round;stroke-dasharray:283;stroke-dashoffset:283;animation:draw .7s .08s cubic-bezier(.6,.1,.3,1) forwards}
-.icon{width:70px;height:70px;border-radius:20px;overflow:hidden;display:grid;place-items:center;background:linear-gradient(150deg,var(--accent),color-mix(in srgb,var(--accent) 55%,#000));
-  color:#fff;font:700 32px/1 'Segoe UI',sans-serif;animation:pop .42s .12s cubic-bezier(.2,.9,.3,1.35) both;box-shadow:0 10px 26px -8px var(--accent)}
+.card{width:300px;height:220px;border-radius:14px;background:var(--bg);border:1px solid var(--line);box-shadow:0 20px 44px -16px var(--shadow);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;animation:in .22s cubic-bezier(.2,0,0,1) both}
+.icon{width:56px;height:56px;border-radius:14px;overflow:hidden;display:grid;place-items:center;background:var(--accent);color:#fff;font:600 24px/1 'Segoe UI',sans-serif;animation:icon .32s .04s cubic-bezier(.2,0,0,1) both}
 .icon img{width:100%;height:100%;object-fit:cover;display:block}
-.name{position:relative;font-weight:600;font-size:19px;letter-spacing:-.01em;color:var(--ink);max-width:270px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;animation:rise .4s .22s ease-out both}
-.scale{position:relative;display:grid;grid-template-columns:repeat(7,22px);gap:4px;animation:rise .4s .3s ease-out both}
-.scale i{height:5px;border-radius:3px;background:var(--line);overflow:hidden;position:relative}
-.scale i::after{content:"";position:absolute;inset:0;background:var(--accent);transform:scaleX(0);transform-origin:left;animation:fill 1.4s cubic-bezier(.5,0,.3,1) infinite}
-.scale i:nth-child(2)::after{animation-delay:.08s}.scale i:nth-child(3)::after{animation-delay:.16s}.scale i:nth-child(4)::after{animation-delay:.24s}
-.scale i:nth-child(5)::after{animation-delay:.32s}.scale i:nth-child(6)::after{animation-delay:.4s}.scale i:nth-child(7)::after{animation-delay:.48s}
-.cap{position:relative;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);animation:rise .4s .36s ease-out both}
-.out .card{animation:out .24s ease-in forwards}
-@keyframes in{from{opacity:0;transform:scale(.94) translateY(6px)}to{opacity:1;transform:none}}
-@keyframes out{to{opacity:0;transform:scale(1.04)}}
-@keyframes pop{from{opacity:0;transform:scale(.6) rotate(-8deg)}to{opacity:1;transform:none}}
-@keyframes draw{to{stroke-dashoffset:0}}
-@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-@keyframes fill{0%{transform:scaleX(0)}45%,70%{transform:scaleX(1);transform-origin:left}71%{transform-origin:right}100%{transform:scaleX(0);transform-origin:right}}
-.still *{animation:none!important}.still .mark circle{stroke-dashoffset:0}.still .scale i::after{transform:scaleX(1)}
+.name{font-weight:600;font-size:15px;letter-spacing:-.01em;color:var(--ink);max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;animation:fade .3s .1s ease-out both}
+.track{width:120px;height:2px;border-radius:2px;background:var(--track);overflow:hidden;animation:fade .3s .16s ease-out both}
+.track i{display:block;width:40%;height:100%;border-radius:2px;background:var(--accent);animation:run 1.1s cubic-bezier(.4,0,.2,1) infinite}
+.cap{font-size:11px;color:var(--ink-2);letter-spacing:.02em;animation:fade .3s .2s ease-out both}
+.out .card{animation:out .18s ease-in forwards}
+@keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes icon{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes run{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+@keyframes out{to{opacity:0}}
+.still *{animation:none!important}.still .track i{width:100%}
 </style>
 </head>
 <body>
 <div class="card" role="status" aria-label="Loading">
-  <div class="mark"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="45"/></svg><div class="icon" id="icon"></div></div>
+  <div class="icon" id="icon"></div>
   <div class="name" id="name">Studio Morfis</div>
-  <div class="scale" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="track" aria-hidden="true"><i></i></div>
   <div class="cap">Opening your studio</div>
 </div>
 <script>
@@ -54,7 +45,7 @@ body{display:grid;place-items:center}
   document.getElementById('name').textContent = name;
   var box = document.getElementById('icon'), src = q.get('icon');
   var letter = function () { box.textContent = name.charAt(0).toUpperCase(); };
-  if (src) { var img = new Image(); img.alt = ''; img.onload = function () { box.appendChild(img); }; img.onerror = letter; img.src = src; } else letter();
+  if (src) { var img = new Image(); img.alt = ''; img.onload = function () { box.style.background = 'none'; box.appendChild(img); }; img.onerror = letter; img.src = src; } else letter();
   if (window.splash) window.splash.onDone(function () { root.classList.add('out'); });
 })();
 </script>
