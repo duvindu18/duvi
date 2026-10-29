@@ -61,6 +61,8 @@ app.whenReady().then(async () => {
   await wait(2500);
   await shot(w, '1-home');
   const go = async (view, name) => { await js(w, "(function(){var b=document.querySelector('#dkSide [data-go=" + view + "]');if(b){b.click();return true}return false})()").then((ok) => { if (!ok) console.log('no nav button for', view); }); await wait(900); await shot(w, name); };
+  await js(w, "document.querySelector('#dkSide [data-side-act=collapse]').click()"); await wait(500); await shot(w, '1b-side-collapsed');
+  await js(w, "document.querySelector('#dkSide [data-side-act=collapse]').click()"); await wait(400);
   await go('projects', '2-projects');
   await go('timeline', '3-timeline');
   await go('payments', '4-payments');
@@ -166,6 +168,17 @@ app.whenReady().then(async () => {
   await js(w, "(function(){var b=document.querySelector('#dkView [data-go-node$=\"|02\"]');b.click();})()"); await wait(1200);
   await js(w, "(function(){var b=document.querySelector('#dkView [data-layout=grid]');if(b)b.click();})()"); await wait(1500);
   await shot(w, '16-files-thumbnails');
+  /* three dots on folder cards: project folder menu, then New folder inside a standard folder through the dialog */
+  await js(w, "MorfisFiles.open(" + JSON.stringify(pid) + ")"); await wait(1200);
+  const dotsCount = await js(w, "document.querySelectorAll('#dkView .fx-card .fx-more').length");
+  await js(w, "document.querySelector('#dkView .fx-card .fx-more[data-card-menu^=\"f:\"][data-card-menu$=\"|02\"]').click()"); await wait(400);
+  await shot(w, '16b-folder-menu');
+  const menuItems = await js(w, "Array.from(document.querySelectorAll('.dk-menu button')).map(function(b){return b.textContent.trim()}).join(' | ')");
+  await js(w, "Array.from(document.querySelectorAll('.dk-menu button')).find(function(b){return /New folder inside/.test(b.textContent)}).click()"); await wait(400);
+  await js(w, "(function(){var i=document.getElementById('fxAsk');i.value='Concept options';document.getElementById('fxAskOk').click();})()"); await wait(1200);
+  const madeDir = fs.existsSync(path.join(pv02, 'Concept options'));
+  console.log('folder menu:', JSON.stringify({ dots: dotsCount, items: menuItems, madeDir: madeDir }));
+  await js(w, "(function(){var b=document.querySelector('#dkView [data-go-node$=\"|02\"]');b.click();})()"); await wait(1200);
   const kinds = {};
   const look = async (name, probe, shotName) => {
     await js(w, "MorfisPreview.open(" + JSON.stringify(path.join(pv02, name)) + ", Array.from(document.querySelectorAll('#dkView .fx-main [data-file]')).map(function(r){return r.dataset.file}))");
@@ -184,6 +197,7 @@ app.whenReady().then(async () => {
   kinds.arrows = await js(w, "/Client_brief/.test(document.querySelector('.pv .pv-file b').textContent)");
   await js(w, "MorfisPreview.close()");
   console.log('preview:', JSON.stringify(kinds));
+  const menuOk = madeDir;
   for (const v of [{ status: 'in_progress', count: 3, kinds: ['PDF'] }, { status: 'completed', count: 0 }, { num: '03', count: 5, kinds: ['DWG'] }, { num: '06', count: 0 }]) {
     const u = await js(w, "MorfisArt.toPng(MorfisArt.explorerIcon(" + JSON.stringify(v) + "),256)");
     fs.writeFileSync(path.join(out, 'xicon-' + (v.status || v.num) + '.png'), Buffer.from(u.split(',')[1], 'base64'));
@@ -203,6 +217,7 @@ app.whenReady().then(async () => {
   expect(o.movedNotes === 1 && o.listed === 'notes.txt', 'new folder and moving a file into it');
   expect(o.enoent === 'ENOENT' && !!o.badName && o.rows === 1, 'error codes, name checks and reading the root');
   expect(Object.keys(kinds).length === 8 && Object.values(kinds).every(Boolean), 'built-in preview of image, PDF, CSV, JSON, Markdown, Word, other, and arrows: ' + JSON.stringify(kinds));
+  expect(/Open in File Explorer/.test(menuItems) && /New folder inside/.test(menuItems) && madeDir, 'folder card menu and New folder dialog');
   expect(quote.done && quote.lines === 2 && quote.total === 590000, 'AI quotation assistant');
   expect(/overdue/.test(digest || ''), 'AI Monday summary');
   expect(pdf.length > 5000, 'quotation PDF');

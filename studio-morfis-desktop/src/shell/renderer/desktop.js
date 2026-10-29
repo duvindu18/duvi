@@ -175,11 +175,9 @@
     }).join('') + (list.length > 7 ? '<button type="button" class="dk-it dk-more" data-side-act="allProjects"><span>' + (SHUT.allProjects ? 'Show fewer' : 'Show all ' + list.length) + '</span></button>' : '') +
       (list.length ? '' : '<div class="dk-it dk-more"><span>No active projects</span></div>');
     var n = function (v, cls) { return v ? '<span class="dk-n' + (cls ? ' ' + cls : '') + '">' + v + '</span>' : ''; };
-    var studio = (S.settings && S.settings.studio) || 'Studio', tagline = (S.settings && S.settings.business && S.settings.business.tagline) || 'Practice dashboard';
     var html =
-      '<div style="display:flex;align-items:center;gap:4px"><button type="button" class="dk-ws" data-go="settings" title="' + esc(studio) + '"><span class="dk-ws-logo">' + logoHtml() + '</span><span class="dk-ws-t"><b>' + esc(pg.brandName ? pg.brandName() : studio) + '</b><span>' + esc(tagline) + '</span></span></button>' +
+      '<div class="dk-top"><button type="button" class="dk-find" data-side-act="find" title="Search (Ctrl+K)">' + ic('search', 15) + '<span>Search</span><kbd>Ctrl K</kbd></button>' +
       '<button type="button" class="dk-collapse" data-side-act="collapse" aria-label="Collapse the sidebar" title="Collapse the sidebar (Ctrl+B)">' + ic('collapse', 16) + '</button></div>' +
-      '<button type="button" class="dk-find" data-side-act="find" title="Search (Ctrl+K)">' + ic('search', 15) + '<span>Search</span><kbd>Ctrl K</kbd></button>' +
       '<div class="dk-scroll">' +
       grp('ws', 'Workspace', item('home', 'Home', 'home') + item('projects', 'Projects', 'projects') + item('timeline', 'Timeline', 'timeline') + item('payments', 'Payments', 'payments', n(od, 'bad'), 'Payments' + (od ? ', ' + od + ' overdue' : ''))) +
       grp('studio', 'Studio', item('files', 'Files', 'files') + item('documents', 'Invoices & quotes', 'documents', n(drafts)) + item('automations', 'Automations', 'automations', n(auto))) +

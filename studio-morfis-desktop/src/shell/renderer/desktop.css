@@ -44,7 +44,11 @@ html.wc-mac .wctl .wc-max{background:#28C840;color:#0b4d14}
 html.wc-mac.win-blur .wctl:not(:hover) .wc{background:var(--wl-off)}
 
 /* ===== sidebar ===== */
-.dk-side{position:relative;min-width:0;min-height:0;display:flex;flex-direction:column;gap:14px;padding:6px 12px 10px 10px;overflow:hidden}
+.dk-side{position:relative;min-width:0;min-height:0;display:flex;flex-direction:column;gap:14px;padding:0 12px 10px 10px;overflow:hidden}
+.dk-top{display:flex;align-items:center;gap:6px}
+.dk-top .dk-find{flex:1;min-width:0}
+.dk-top .dk-collapse{width:32px;height:32px;border-radius:var(--r-sm);border:1px solid var(--line);background:var(--surface)}
+.dk-top .dk-collapse:hover{border-color:var(--line-2)}
 .dk-ws{display:flex;align-items:center;gap:10px;padding:6px 6px;border-radius:10px;border:0;background:none;text-align:left;width:100%;min-width:0}
 .dk-ws:hover{background:var(--hover)}
 .dk-ws-logo{width:30px;height:30px;border-radius:8px;flex:none;overflow:hidden;display:grid;place-items:center;background:var(--surface-2)}
@@ -81,7 +85,10 @@ html.wc-mac.win-blur .wctl:not(:hover) .wc{background:var(--wl-off)}
 .dk-save{display:flex;align-items:center;gap:7px;padding:6px 8px 0;font-size:11.5px;color:var(--ink-3)}
 .dk-save i{width:6px;height:6px;border-radius:50%;background:var(--good)}
 [data-tip]{position:relative}
-html.side-collapsed .dk-side{padding:6px 8px 10px 10px;align-items:center}
+html.side-collapsed .dk-side{padding:0 8px 10px 10px;align-items:center}
+html.side-collapsed .dk-top{flex-direction:column;gap:6px}
+html.side-collapsed .dk-top .dk-collapse{width:40px}
+html.side-collapsed .dk-top .dk-find{flex:none;height:32px}
 html.side-collapsed .dk-ws-t,html.side-collapsed .dk-find span,html.side-collapsed .dk-find kbd,html.side-collapsed .dk-gh,html.side-collapsed .dk-it>span:not(.dk-sq),html.side-collapsed .dk-save span,html.side-collapsed .dk-grp-p{display:none}
 html.side-collapsed .dk-it{width:40px;justify-content:center;padding:0}
 html.side-collapsed .dk-it .dk-n{position:absolute;top:2px;right:2px;min-width:14px;height:14px;font-size:9px;padding:0 3px}

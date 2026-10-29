@@ -112,19 +112,21 @@
       '<div class="fx-name" title="' + esc(p.name) + '">' + esc(p.name) + '</div>' +
       '<div class="fx-meta"><span class="mono">' + esc(p.code) + '</span> · ' + (onDisk(p) ? n + ' file' + (n === 1 ? '' : 's') : 'No folder yet') + '</div>' +
       '<div class="fx-tags">' + A.statusTag(st) + stageTag(p) + '</div>' +
-      '<button type="button" class="fx-more" data-card-menu="' + p.id + '" aria-label="More for ' + esc(p.name) + '">' + ic('dots', 16) + '</button></div>';
+      '<button type="button" class="fx-more" data-card-menu="' + 'p:' + p.id + '" aria-label="Folder options for ' + esc(p.name) + '" title="Folder options">' + ic('dots', 16) + '</button>' + '</div>';
   }
   function folderCard(p, t) {
     var s = fstat(p, t.id);
     return '<div class="fx-card" role="button" tabindex="0" data-go-node="' + p.id + '|' + t.id + '" data-dropzone data-pid="' + p.id + '" data-fid="' + t.id + '" title="Open ' + esc(t.label) + '. Drop files here to copy them in.">' +
       '<div class="fx-art">' + A.folder({ num: t.id, count: s.count, kinds: kindsOf(s.files) }) + '</div>' +
       '<div class="fx-name">' + esc(t.label) + '</div>' +
-      '<div class="fx-meta"><span class="mono">' + t.id + '</span> · ' + (s.exists ? s.count + ' file' + (s.count === 1 ? '' : 's') : 'Not created') + '</div></div>';
+      '<div class="fx-meta"><span class="mono">' + t.id + '</span> · ' + (s.exists ? s.count + ' file' + (s.count === 1 ? '' : 's') : 'Not created') + '</div>' +
+      '<button type="button" class="fx-more" data-card-menu="' + 'f:' + p.id + '|' + t.id + '" aria-label="Folder options for ' + esc(t.label) + '" title="Folder options">' + ic('dots', 16) + '</button>' + '</div>';
   }
   function subCard(p, e) {
     var sub = (F.sub ? F.sub + '/' : '') + e.name;
     return '<div class="fx-card" role="button" tabindex="0" data-go-node="' + p.id + '|' + F.fid + '|' + esc(sub) + '" data-dropzone data-pid="' + p.id + '" data-fid="' + F.fid + '" data-sub="' + esc(sub) + '">' +
-      '<div class="fx-art">' + A.folder({ count: e.count }) + '</div><div class="fx-name" title="' + esc(e.name) + '">' + esc(e.name) + '</div><div class="fx-meta">' + e.count + ' item' + (e.count === 1 ? '' : 's') + '</div></div>';
+      '<div class="fx-art">' + A.folder({ count: e.count }) + '</div><div class="fx-name" title="' + esc(e.name) + '">' + esc(e.name) + '</div><div class="fx-meta">' + e.count + ' item' + (e.count === 1 ? '' : 's') + '</div>' +
+      '<button type="button" class="fx-more" data-card-menu="' + 's:' + p.id + '|' + F.fid + '|' + esc(sub) + '" aria-label="Folder options for ' + esc(e.name) + '" title="Folder options">' + ic('dots', 16) + '</button>' + '</div>';
   }
   function fmtBytes(n) { n = +n || 0; if (n < 1024) return n + ' B'; if (n < 1048576) return (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB'; if (n < 1073741824) return (n / 1048576).toFixed(1) + ' MB'; return (n / 1073741824).toFixed(1) + ' GB'; }
   function fileRows(rows, empty) {
@@ -161,7 +163,7 @@
         var st = A.statusOf(p, pg().today());
         return '<div class="fx-tr" role="row" data-go-node="' + p.id + '"><span class="fx-fn"><span class="fx-mini">' + A.folder({ status: st, count: totalFiles(p) }) + '</span><span><b>' + esc(p.name) + '</b><em class="mono">' + esc(p.code) + '</em></span></span>' +
           '<span>' + A.statusTag(st) + '</span><span>' + stageTag(p) + '</span><span class="muted mono">' + totalFiles(p) + '</span>' +
-          '<span class="fx-acts"><button type="button" class="icon-btn" data-card-menu="' + p.id + '" title="More">' + ic('dots', 15) + '</button></span></div>';
+          '<span class="fx-acts"><button type="button" class="icon-btn" data-card-menu="p:' + p.id + '" title="Folder options">' + ic('dots', 15) + '</button></span></div>';
       }).join('') + '</div>';
   }
 
@@ -289,14 +291,76 @@
       } }
     ]);
   }
+  /* a name typed into a small dialog (Electron has no prompt box) */
+  function ask(title, label, value, okLabel) {
+    return new Promise(function (resolve) {
+      var done = false, finish = function (v) { if (done) return; done = true; pg().closeModal(); resolve(v); };
+      M.modal(title, '<div class="field"><label for="fxAsk">' + esc(label) + '</label><input class="in" id="fxAsk" value="' + esc(value || '') + '" maxlength="150" autocomplete="off" spellcheck="false"></div>' +
+        '<p class="err" id="fxAskErr"></p><div class="dlg-foot"><button type="button" class="btn" id="fxAskNo">Cancel</button><button type="button" class="btn primary" id="fxAskOk">' + esc(okLabel || 'OK') + '</button></div>');
+      var inp = document.getElementById('fxAsk'), ok = function () { var v = inp.value.trim(); if (!v) { document.getElementById('fxAskErr').textContent = 'Type a name.'; return; } finish(v); };
+      document.getElementById('fxAskOk').addEventListener('click', ok);
+      document.getElementById('fxAskNo').addEventListener('click', function () { finish(null); });
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); ok(); } });
+      new MutationObserver(function (m, o) { var ov = document.getElementById('overlay'); if (!ov || ov.hidden) { o.disconnect(); if (!done) { done = true; resolve(null); } } }).observe(document.getElementById('overlay'), { attributes: true, attributeFilter: ['hidden'] });
+      setTimeout(function () { inp.focus(); var dot = inp.value.lastIndexOf('.'); inp.setSelectionRange(0, dot > 0 ? dot : inp.value.length); }, 30);
+    });
+  }
+  M.ask = ask;
+  var openDir = function (dir) { H.openPath(dir).catch(function () { M.toast('The folder is not there yet.'); }); };
+  var copyPath = function (dir) { navigator.clipboard.writeText(dir).then(function () { M.toast('Path copied.'); }); };
+  var refreshIcons = function (pid) { if (window.MorfisAuto && window.MorfisAuto.refreshIcons) window.MorfisAuto.refreshIcons(pid).then(function (n) { M.toast(n ? 'Folder icons redrawn in File Explorer.' : 'Folder icons are a Windows feature, turned on in Automations.'); }); };
+  function pageAct(act, data) { var b = document.createElement('button'); b.dataset.act = act; Object.keys(data).forEach(function (k) { b.dataset[k] = data[k]; }); b.hidden = true; document.body.appendChild(b); b.click(); b.remove(); }
+  /* the three dots on a folder card: what can be done with that folder */
   function cardMenu(btn) {
-    var p = pg().P(btn.dataset.cardMenu); if (!p) return;
-    menu(btn, [
-      { label: 'Open', icon: 'files', fn: function () { open(p.id); } },
-      { label: 'Change status…', icon: 'check', fn: function () { statusMenu(btn, p.id); } },
-      { label: 'Open in Explorer', icon: 'ext', fn: function () { H.openPath(pg().projDir(p)).catch(function () { M.toast('The folder is not there yet.'); }); } },
-      { label: 'Project page', icon: 'projects', fn: function () { M.go('project', { id: p.id }); } }
-    ]);
+    var key = btn.dataset.cardMenu, kind = key.slice(0, 1), parts = key.slice(2).split('|'), p = pg().P(parts[0]);
+    if (!p) return;
+    var disk = onDisk(p), items;
+    if (kind === 'p') {
+      var dir = pg().projDir(p);
+      items = [{ head: p.code + ' · ' + p.name },
+        { label: 'Open', icon: 'files', fn: function () { open(p.id); } },
+        { label: 'Change status…', icon: 'check', fn: function () { statusMenu(btn, p.id); } }];
+      if (disk) items.push(
+        { label: 'Open in File Explorer', icon: 'ext', fn: function () { openDir(dir); } },
+        { label: 'Rename folder on disk…', icon: 'documents', fn: function () { pageAct('renameProjDir', { pid: p.id }); } },
+        { label: 'Copy folder path', icon: 'copy', fn: function () { copyPath(dir); } },
+        { label: 'Read the folder again', icon: 'refresh', fn: function () { pg().rescanProject(p, { force: true, quiet: true }).then(function () { draw(); M.toast('Folder read again.'); }); } },
+        { label: 'Redraw folder icons', icon: 'grid', fn: function () { refreshIcons(p.id); } });
+      else items.push({ label: 'Create the folders', icon: 'plus', fn: function () { F.pid = p.id; ACT.create(); } });
+      if ((p.looseCount || 0) && disk) items.push({ label: 'Sort ' + p.looseCount + ' loose file' + (p.looseCount === 1 ? '' : 's') + '…', icon: 'sort', fn: function () { pageAct('arrangeProject', { pid: p.id }); } });
+      items.push({ sep: true }, { label: 'Project page', icon: 'projects', fn: function () { M.go('project', { id: p.id }); } });
+    } else if (kind === 'f') {
+      var t = tmpl(parts[1]), fdir = pg().subDir(p, t.id), exists = fstat(p, t.id).exists;
+      items = [{ head: t.id + ' · ' + t.label },
+        { label: 'Open', icon: 'files', fn: function () { open(p.id + '|' + t.id); } }];
+      if (exists) items.push(
+        { label: 'Open in File Explorer', icon: 'ext', fn: function () { openDir(fdir); } },
+        { label: 'Add files…', icon: 'upload', fn: function () { F.pid = p.id; F.fid = t.id; F.sub = ''; ACT.addFiles(); } },
+        { label: 'New folder inside…', icon: 'plus', fn: function () { F.pid = p.id; F.fid = t.id; F.sub = ''; ACT.newDir(); } },
+        { label: 'Copy folder path', icon: 'copy', fn: function () { copyPath(fdir); } },
+        { label: 'Redraw folder icon', icon: 'grid', fn: function () { refreshIcons(p.id); } });
+      else items.push({ label: 'Create the folders', icon: 'plus', fn: function () { F.pid = p.id; ACT.create(); } });
+    } else {
+      var fid = parts[1], sub = parts.slice(2).join('|'), sdir = jn(pg().subDir(p, fid), sub), name = sub.split('/').pop();
+      items = [{ head: name },
+        { label: 'Open', icon: 'files', fn: function () { open(p.id + '|' + fid + '|' + sub); } },
+        { label: 'Open in File Explorer', icon: 'ext', fn: function () { openDir(sdir); } },
+        { label: 'Rename…', icon: 'documents', fn: function () {
+          ask('Rename folder', 'New name', name, 'Rename').then(function (nm) {
+            if (!nm || nm === name) return;
+            H.renameItem(pg().projDir(p), tmpl(fid).name + '/' + sub, nm).then(function (r) {
+              M.toast('Renamed to ' + nm + '.', r.id ? { label: 'Undo', fn: function () { H.undo(r.id).then(afterChange); } } : undefined); afterChange();
+            }, function (e) { M.toast(e && e.message ? e.message : 'Could not rename it.'); });
+          });
+        } },
+        { label: 'Copy folder path', icon: 'copy', fn: function () { copyPath(sdir); } },
+        { sep: true },
+        { label: 'Move to the Recycle Bin', icon: 'trash', danger: true, fn: function () {
+          if (!window.confirm('Move the folder ' + name + ' and everything in it to the Recycle Bin?')) return;
+          H.trashPath(sdir).then(function () { M.toast(name + ' is in the Recycle Bin.'); afterChange(); }, function (e) { M.toast('Could not remove it: ' + (e && e.message ? e.message : 'unknown error')); });
+        } }];
+    }
+    menu(btn, items);
   }
   function afterChange() {
     var p = F.pid && pg().P(F.pid);
@@ -330,10 +394,12 @@
       });
     },
     newDir: function () {
-      var name = window.prompt('Name of the new folder');
+      var p = pg().P(F.pid), fid = F.fid, sub = F.sub;
+      ask('New folder', 'Name of the new folder', 'New folder', 'Create').then(function (name) {
       if (!name) return;
-      var p = pg().P(F.pid);
+      F.pid = p.id; F.fid = fid; F.sub = sub;
       H.makeDir(pg().projDir(p), tmpl(F.fid).name + (F.sub ? '/' + F.sub : ''), name.trim()).then(function () { M.toast('Folder created.'); afterChange(); }, function (e) { M.toast(e && e.message ? e.message : 'Could not create it.'); });
+      });
     }
   };
 

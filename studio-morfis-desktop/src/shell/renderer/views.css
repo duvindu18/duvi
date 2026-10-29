@@ -86,7 +86,7 @@ i.fx-tw{display:none}
 .fx-name{font-weight:600;font-size:13.5px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fx-meta{font-size:12px;color:var(--ink-3);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fx-tags{display:flex;gap:5px;justify-content:center;flex-wrap:wrap;margin-top:8px}
-.fx-more{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:7px;border:0;background:none;color:var(--ink-3);display:grid;place-items:center;opacity:0;transition:opacity .12s}
+.fx-more{position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:7px;border:0;background:none;color:var(--ink-3);display:grid;place-items:center;opacity:.7;transition:opacity .12s,background-color .12s,color .12s}
 .fx-card:hover .fx-more,.fx-more:focus-visible{opacity:1}
 .fx-more:hover{background:var(--hover);color:var(--ink)}
 .fx-table{border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);overflow:hidden}
@@ -272,6 +272,7 @@ section[data-dropzone].drop-on{outline:2px dashed var(--accent-fill);outline-off
 .fx-thumb img{max-width:100%;max-height:100%;object-fit:contain;display:block}
 .fx-fname{font-size:12.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px}
 .fx-fcard .fx-meta{text-align:left;padding:0 2px;font-size:11.5px}
+.fx-fcard .fx-more{opacity:0}
 .fx-fcard:hover .fx-more,.fx-fcard .fx-more:focus-visible{opacity:1}
 .fx-tr[data-file]{cursor:default}
 .fx-tr[data-file]:focus-visible{outline:2px solid color-mix(in srgb,var(--accent-fill) 70%,transparent);outline-offset:-2px}

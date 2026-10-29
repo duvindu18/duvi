@@ -418,5 +418,12 @@
   window.addEventListener('morfis:render', function () { if (Date.now() - lastDraft > 60000 && ready && pg() && pg().S.ready) { lastDraft = Date.now(); runDraftInvoices(); } });
   loadState().then(function () { checkAi(true); setTimeout(function () { runFolderIcons(); }, 2500); setTimeout(tick, 8000); setInterval(tick, 30 * 60 * 1000); });
 
-  window.MorfisAuto = { attention: attention, aiSort: aiSort, draftQuote: draftQuote, coverNote: coverNote, run: runRule, status: function () { return AI.status; } };
+  /* redraw one project's folder icons now, even if nothing seems to have changed */
+  function refreshIcons(pid) {
+    var p = pg().P(pid); if (!p) return Promise.resolve(0);
+    var base = pg().projDir(p);
+    Object.keys(ST.icons).forEach(function (d) { if (d === base || d.indexOf(base) === 0) delete ST.icons[d]; });
+    return runFolderIcons(pid);
+  }
+  window.MorfisAuto = { refreshIcons: refreshIcons, attention: attention, aiSort: aiSort, draftQuote: draftQuote, coverNote: coverNote, run: runRule, status: function () { return AI.status; } };
 })();
