@@ -69,29 +69,30 @@
 
   /* ----- the folder artwork: one drawing for the app and for File Explorer, so both always match -----
      o: { status (project folders), num ('01'..'06' for the standard folders), full (has files), kind ('PDF', 'DWG'…) } */
-  var PAL = { back: '#3D3F48', front: '#5A5E69', front2: '#464954', hi: 'rgba(255,255,255,.2)', sheet: '#F2F2F5', sheet2: '#CFD1D8', ink: '#C4C6CE', ring: '#FFFFFF' };
-  var uid = 0;
+  /* one grey, outlines throughout: a back layer, a sheet when the folder has files, and a front panel whose top edge
+     steps up at the tab. Labels, file type and number are written in the same grey. */
+  var PAL = { back: '#33353D', front: '#3C3E47', sheet: '#474A54', line: '#7B7F8C', soft: '#5C606C', ink: '#C9CCD5', ink2: '#9599A6' };
   function art(o) {
     o = o || {};
-    var id = 'fa' + (++uid), sheets = '';
+    var sw = 1.5, out = '';
+    /* back layer */
+    out += '<rect x="13" y="9" width="106" height="80" rx="9" fill="' + PAL.back + '" stroke="' + PAL.soft + '" stroke-width="' + sw + '"/>';
+    /* a sheet peeking out when there are files; its type written on it */
     if (o.full) {
-      sheets = '<g transform="rotate(-5 60 40)"><rect x="32" y="15" width="48" height="54" rx="4" fill="' + PAL.sheet2 + '"/></g>' +
-        '<g transform="rotate(4 80 40)"><rect x="52" y="11" width="48" height="58" rx="4" fill="' + PAL.sheet + '"/>' + (o.kind ? tag(o.kind, 58, 17) : '<rect x="58" y="19" width="26" height="4" rx="2" fill="' + PAL.ink + '"/>') +
-        '<rect x="58" y="32" width="30" height="3.4" rx="1.7" fill="' + PAL.ink + '"/><rect x="58" y="39" width="22" height="3.4" rx="1.7" fill="' + PAL.ink + '"/></g>';
+      out += '<rect x="24" y="14" width="84" height="40" rx="5" fill="' + PAL.sheet + '" stroke="' + PAL.line + '" stroke-width="1.2"/>';
+      out += o.kind ? '<text x="32" y="25.6" font-family="Segoe UI,Arial,sans-serif" font-size="8.6" font-weight="700" letter-spacing=".5" fill="' + PAL.ink + '">' + o.kind + '</text>'
+        : '<rect x="32" y="20" width="26" height="3.2" rx="1.6" fill="' + PAL.ink2 + '"/>';
     }
-    var badge = '';
+    /* front panel: lower on the left, stepping up after the tab */
+    out += '<path d="M8 38a8 8 0 0 1 8-8h40c4.6 0 7-1.6 9.6-4.6l2.4-2.8c2.6-3 5-4.6 9.6-4.6H116a8 8 0 0 1 8 8v60a8 8 0 0 1-8 8H16a8 8 0 0 1-8-8z" fill="' + PAL.front + '" stroke="' + PAL.line + '" stroke-width="' + sw + '" stroke-linejoin="round"/>';
     if (o.status) {
-      /* project root folders: the status written out, in the folder's own grey tones */
-      var txt = (STATUS[o.status] || STATUS.not_started).label.toUpperCase(), fs = 10.6, w = Math.round(txt.length * fs * 0.68 + 18);
-      badge = '<rect x="' + (66 - w / 2) + '" y="64" width="' + w + '" height="20" rx="5" fill="rgba(255,255,255,.14)"/>' +
-        '<text x="66" y="77.6" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="' + fs + '" font-weight="700" letter-spacing=".6" fill="#E4E5EA">' + txt + '</text>';
+      var txt = (STATUS[o.status] || STATUS.not_started).label.toUpperCase(), fs = 10.2, w = Math.round(txt.length * fs * 0.68 + 16);
+      out += '<rect x="' + (66 - w / 2) + '" y="57" width="' + w + '" height="19" rx="5" fill="none" stroke="' + PAL.soft + '" stroke-width="1.2"/>' +
+        '<text x="66" y="69.9" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="' + fs + '" font-weight="700" letter-spacing=".6" fill="' + PAL.ink + '">' + txt + '</text>';
     } else if (o.num) {
-      badge = '<rect x="15" y="65" width="42" height="23" rx="6" fill="rgba(255,255,255,.2)"/><text x="36" y="81.8" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="15.5" font-weight="700" fill="#fff">' + o.num + '</text>';
+      out += '<text x="20" y="86" font-family="Segoe UI,Arial,sans-serif" font-size="15" font-weight="700" fill="' + PAL.ink + '">' + o.num + '</text>';
     }
-    return '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + PAL.front + '"/><stop offset="1" stop-color="' + PAL.front2 + '"/></linearGradient></defs>' +
-      '<path d="M10 14a6 6 0 0 1 6-6h28a6 6 0 0 1 4.6 2.2l4.8 5.8H116a6 6 0 0 1 6 6v62a6 6 0 0 1-6 6H16a6 6 0 0 1-6-6z" fill="' + PAL.back + '"/>' + sheets +
-      '<path d="M8 38a6 6 0 0 1 6-6h104a6 6 0 0 1 6 6v52a6 6 0 0 1-6 6H14a6 6 0 0 1-6-6z" fill="url(#' + id + ')"/>' +
-      '<path d="M14 32.6h104a5.4 5.4 0 0 1 5.4 5.4" fill="none" stroke="' + PAL.hi + '" stroke-width="1.2"/>' + badge;
+    return out;
   }
   /* the variant a folder is drawn as, from what is in it; the same key names its Explorer icon */
   function variant(o) {
@@ -108,10 +109,7 @@
   }
   /* in the app: o = { status | num, count, kinds } */
   function folder(o) { return '<svg class="fd-art" viewBox="0 0 132 104" aria-hidden="true">' + art(variant(o)) + '</svg>'; }
-  function tag(label, x, y) {
-    var k = kindOf('a.' + label.toLowerCase()), w = Math.max(18, label.length * 5.6 + 6);
-    return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="9" rx="2" fill="' + k.color + '"/><text x="' + (x + w / 2) + '" y="' + (y + 6.7) + '" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="6.2" font-weight="700" fill="#fff">' + k.label + '</text>';
-  }
+
   /* for File Explorer: the same drawing, square, 256 px */
   function explorerIcon(o) {
     if (typeof o === 'string') o = { status: o, count: 1 };
@@ -134,5 +132,5 @@
   }
 
   window.MorfisArt = { STATUS: STATUS, ORDER: ORDER, statusOf: statusOf, statusDot: statusDot, statusTag: statusTag, glyph: glyph,
-    kindOf: kindOf, fileIcon: fileIcon, folder: folder, variant: variant, kindsOf: kindsOf, explorerIcon: explorerIcon, toPng: toPng, ICON_VERSION: 'v5' };
+    kindOf: kindOf, fileIcon: fileIcon, folder: folder, variant: variant, kindsOf: kindsOf, explorerIcon: explorerIcon, toPng: toPng, ICON_VERSION: 'v6' };
 })();
