@@ -6,3 +6,7 @@ data/uploads/*
 data/.first_update_started
 data/settings.json
 !CeylonBuildex.spec
+desktop/node_modules/
+vendor/
+shots/
+!desktop/build/

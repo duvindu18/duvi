@@ -8,7 +8,12 @@ Double-click and a window opens: there is no console, no .bat file and no browse
   5. when that window is closed, stops everything it started.
 Errors are written to <data folder>/logs/launcher.log and, on Windows, shown in a message box.
 
+`launcher.py --desktop` is the back end of the installed desktop program (desktop/, an Electron window with its own title bar):
+it serves on the port it is given and runs until that window asks it to quit (POST /api/desktop/quit with the token it was given)
+or the window's process goes away. The window owns the "one copy" rule there, so no browser is opened and no lock port is held.
+
 Settings by environment variable (all optional):  LRP_HOME (where the user's data lives)  PORT  LRP_BROWSER (path of a browser, or "none")
+Desktop back end:  LRP_PARENT_PID (quit when this process ends)  LRP_DESKTOP_TOKEN (the secret the quit request must carry)
 """
 from __future__ import annotations
 
@@ -184,10 +189,12 @@ def open_window(url: str, home: Path) -> subprocess.Popen | None:
 
 
 # ------------------------------------------------------------------ run
-def serve(home: Path):
-    """Start the portal on a free port. Returns (server, url, server module)."""
+def serve(home: Path, heartbeat: bool = True, fixed_port: bool = False, before_start=None):
+    """Start the portal on a free port. Returns (server, url, server module).
+    fixed_port: use exactly PORT (the desktop window chose it and will connect to it), never another one.
+    before_start(portal): called before the first request can arrive (routes can only be added until then)."""
     data = seed_data(home)
-    os.environ.update(LRP_DATA=str(data), LRP_HEARTBEAT="1", HOST="127.0.0.1")
+    os.environ.update(LRP_DATA=str(data), LRP_HEARTBEAT="1" if heartbeat else "0", HOST="127.0.0.1")
     os.environ.setdefault("UPDATE_ON_START", "first")
     add_tool_paths()
     from app import winquiet
@@ -195,8 +202,11 @@ def serve(home: Path):
     from app import server as portal                  # imported only now: the data folder and PATH must be set first
     from werkzeug.serving import make_server
     portal.prepare()
+    if before_start:
+        before_start(portal)
     srv = None
-    for port in ([int(os.environ["PORT"])] if os.environ.get("PORT") else [8080]) + [0]:
+    ports = [int(os.environ["PORT"])] if os.environ.get("PORT") else [8080]
+    for port in ports + ([] if fixed_port else [0]):
         try:
             srv = make_server("127.0.0.1", port, portal.app, threaded=True)
             break
@@ -245,7 +255,100 @@ def watch(proc: subprocess.Popen | None, beat: dict, poll: float = 0.5, bye_grac
         time.sleep(poll)
 
 
+# ------------------------------------------------------------------ back end of the desktop window
+def parent_gone(pid: int, stop: threading.Event, poll: float = 1.0) -> None:
+    """Set `stop` when process `pid` ends (the desktop window crashed or was killed), so no server is left running invisibly."""
+    if os.name == "nt":
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        h = k32.OpenProcess(0x00100000, False, pid)                  # SYNCHRONIZE
+        if h:
+            k32.WaitForSingleObject(h, 0xFFFFFFFF)                    # INFINITE: returns when the process ends
+            k32.CloseHandle(h)
+            stop.set()
+            return
+    while not stop.is_set():
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            break
+        except OSError:
+            pass                                                      # exists but belongs to someone else (cannot happen for our parent)
+        stop.wait(poll)
+    stop.set()
+
+
+def add_quit_route(portal, token: str, stop: threading.Event) -> None:
+    """POST /api/desktop/quit, for the desktop window only: it must carry the token the window gave us.
+    A web page cannot send that header to another origin without a CORS pre-flight, which this server never grants."""
+    from flask import request
+
+    @portal.app.post("/api/desktop/quit")
+    def desktop_quit():
+        if not token or request.headers.get("X-Desktop-Token") != token:
+            return ("", 403)
+        stop.set()
+        return ("", 204)
+
+
+def shutdown(srv) -> None:
+    try:
+        from app import ollama_boot
+        ollama_boot.stop_own_server()                 # only an Ollama this program started itself
+    except Exception:
+        pass
+    try:
+        srv.shutdown()
+    except Exception:
+        pass
+
+
+def main_desktop() -> int:
+    home = user_home()
+    home.mkdir(parents=True, exist_ok=True)
+    setup_logging(home)
+    log(f"start {APP_NAME} {read_version()} (desktop back end) frozen={getattr(sys, 'frozen', False)} home={home}")
+    stop = threading.Event()
+    try:
+        srv, url, _ = serve(home, heartbeat=False, fixed_port=True,
+                            before_start=lambda portal: add_quit_route(portal, os.environ.get("LRP_DESKTOP_TOKEN", ""), stop))
+        if not wait_ready(url):
+            raise RuntimeError("The portal did not start in time.")
+    except Exception:
+        log("FATAL " + traceback.format_exc())
+        return 1
+    log("serving on " + url)
+    parent = int(os.environ.get("LRP_PARENT_PID") or 0)
+    if parent:
+        threading.Thread(target=parent_gone, args=(parent, stop), name="parent", daemon=True).start()
+    stop.wait()
+    log("quitting: " + ("asked by the window" if not parent or _alive(parent) else "the window's process ended"))
+    shutdown(srv)
+    return 0
+
+
+def _alive(pid: int) -> bool:
+    if os.name == "nt":
+        import ctypes
+        h = ctypes.windll.kernel32.OpenProcess(0x00100000, False, pid)
+        if not h:
+            return False
+        try:
+            return ctypes.windll.kernel32.WaitForSingleObject(h, 0) == 0x102     # WAIT_TIMEOUT: still running
+        finally:
+            ctypes.windll.kernel32.CloseHandle(h)
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+
+
 def main() -> int:
+    if "--desktop" in sys.argv[1:]:
+        return main_desktop()
     home = user_home()
     home.mkdir(parents=True, exist_ok=True)
     setup_logging(home)
@@ -276,15 +379,7 @@ def main() -> int:
             (home / "running.json").unlink(missing_ok=True)
         except OSError:
             pass
-    try:
-        from app import ollama_boot
-        ollama_boot.stop_own_server()                 # only an Ollama this program started itself
-    except Exception:
-        pass
-    try:
-        srv.shutdown()
-    except Exception:
-        pass
+    shutdown(srv)
     guard.close()
     return 0
 

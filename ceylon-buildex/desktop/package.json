@@ -1,0 +1,55 @@
+{
+  "name": "ceylon-buildex",
+  "productName": "Ceylon Buildex",
+  "version": "1.2.0",
+  "description": "Sri Lankan building regulations, gazettes and bidding documents - searchable, with a floor area calculator.",
+  "author": "Ceylon Buildex",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "44.7.1",
+    "electron-builder": "26.17.0"
+  },
+  "build": {
+    "appId": "lk.ceylonbuildex.desktop",
+    "productName": "Ceylon Buildex",
+    "copyright": "Ceylon Buildex",
+    "directories": {
+      "output": "../dist/installer",
+      "buildResources": "build"
+    },
+    "files": ["main.js", "preload.js", "loading.html", "fonts/**", "package.json"],
+    "extraResources": [
+      {"from": "../dist/CeylonBuildexServer", "to": "server", "filter": ["**/*"]}
+    ],
+    "asar": true,
+    "electronLanguages": ["en-US", "en-GB"],
+    "win": {
+      "target": [{"target": "nsis", "arch": ["x64"]}],
+      "icon": "../assets/ceylon-buildex.ico",
+      "executableName": "CeylonBuildex",
+      "artifactName": "CeylonBuildex-Setup-${version}.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Ceylon Buildex",
+      "uninstallDisplayName": "Ceylon Buildex",
+      "installerIcon": "../assets/ceylon-buildex.ico",
+      "uninstallerIcon": "../assets/ceylon-buildex.ico",
+      "installerHeaderIcon": "../assets/ceylon-buildex.ico",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh"
+    }
+  }
+}

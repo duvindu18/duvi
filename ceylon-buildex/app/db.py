@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from . import config
 
 _lock = threading.RLock()
+_ready: set[str] = set()          # database files whose schema and journal mode are already set up in this process
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS documents(
@@ -36,11 +37,16 @@ def now() -> str:
 
 
 def connect() -> sqlite3.Connection:
+    key = str(config.DB_PATH)
+    if key in _ready and not config.DB_PATH.exists():  # the file was removed: set it up again
+        _ready.discard(key)
     con = sqlite3.connect(config.DB_PATH, timeout=60, check_same_thread=False)
     con.row_factory = sqlite3.Row
-    con.execute("PRAGMA journal_mode=WAL")
     con.execute("PRAGMA synchronous=NORMAL")
-    con.executescript(SCHEMA)
+    if key not in _ready:
+        con.execute("PRAGMA journal_mode=WAL")       # stored in the file: once is enough
+        con.executescript(SCHEMA)
+        _ready.add(key)
     return con
 
 

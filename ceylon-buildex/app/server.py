@@ -471,7 +471,7 @@ def _auto_update_loop():
 def create_app():
     with db.db():
         pass
-    ingest.init_seeds(progress=None)
+    ingest.init_seeds(progress=None, skip_unchanged=True)
     if config.AUTO_UPDATE_HOURS > 0:
         threading.Thread(target=_auto_update_loop, daemon=True).start()
     return app

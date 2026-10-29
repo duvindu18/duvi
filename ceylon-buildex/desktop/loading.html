@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src file:">
+<title>Ceylon Buildex</title>
+<style>
+/* The start-up screen: the same title bar, type and colours as the portal (web/css/app.css), shown while the back end starts. */
+@font-face{font-family:"Anton";src:url("fonts/anton-latin.woff") format("woff");font-display:block}
+@font-face{font-family:"Inter";src:url("fonts/inter-Regular.woff") format("woff");font-weight:400}
+@font-face{font-family:"Inter";src:url("fonts/inter-Medium.woff") format("woff");font-weight:500}
+:root{--bg:#f6eee3;--ink:#15162a;--muted:#625c70;--line:#e4d9c8;--line-2:#cdbfaa;--orange:#f4481f;--on-orange:#15162a;
+  --tint:color-mix(in srgb,var(--orange) 10%,transparent);--s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--wc:36px;
+  --f-body:"Inter","Segoe UI",system-ui,sans-serif;--f-display:"Anton","Impact","Arial Narrow Bold",sans-serif;--edge:clamp(16px,3vw,40px)}
+:root.dark{--bg:#0e0e11;--ink:#f1e9dc;--muted:#a39dab;--line:#26262d;--line-2:#3d3d47;--orange:#ff5a2d;--on-orange:#0e0e11;
+  --tint:color-mix(in srgb,var(--orange) 14%,transparent);color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden}
+body{display:grid;grid-template-rows:auto 1fr;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--f-body);-webkit-font-smoothing:antialiased;user-select:none}
+.bar{position:relative;display:flex;align-items:center;min-height:64px;padding:var(--s4) calc(3 * var(--wc) + 2 * var(--s1) + 2 * var(--s3) + var(--s5) + 1px) var(--s3) var(--edge);-webkit-app-region:drag}
+.brand{font:400 24px/36px var(--f-display);text-transform:uppercase;letter-spacing:.012em}
+.winctl{position:absolute;top:var(--s4);bottom:var(--s3);right:var(--s3);display:flex;align-items:center;gap:var(--s1);padding-left:var(--s3);border-left:1px solid var(--line);-webkit-app-region:no-drag}
+.wc{width:var(--wc);height:var(--wc);display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:none;color:var(--ink);cursor:pointer;transition:background 140ms,color 140ms,transform 140ms}
+.wc:hover{background:var(--tint)}
+.wc.close:hover{background:var(--orange);color:var(--on-orange)}
+.wc:active{transform:scale(.92)}
+.wc:focus-visible,.btn:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.blur .wc:not(:hover){color:var(--muted)}
+svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+main{display:grid;place-items:center;padding:var(--s5) var(--edge) 15vh}
+.box{display:grid;justify-items:center;gap:var(--s4);text-align:center;max-width:620px}
+h1{margin:0;font:400 clamp(44px,7vw,88px)/.98 var(--f-display);text-transform:uppercase;color:var(--orange);letter-spacing:.008em}
+h1 i{font-style:normal;animation:blink 1.2s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+p{margin:0;color:var(--muted);font-size:14px}
+.track{width:220px;height:3px;border-radius:3px;background:var(--line);overflow:hidden}
+.track b{display:block;width:40%;height:100%;border-radius:3px;background:var(--orange);animation:slide 1.1s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+.err{display:none}
+.failed .err{display:grid}.failed .ok{display:none}
+.err p{color:var(--ink);font-size:15px;max-width:52ch}
+.err small{color:var(--muted);font-size:13px;word-break:break-all}
+.row{display:flex;flex-wrap:wrap;justify-content:center;gap:var(--s3)}
+.btn{display:inline-flex;align-items:center;min-height:40px;padding:0 var(--s5);border-radius:999px;border:1px solid var(--ink);background:var(--ink);color:var(--bg);font:500 14px/1 var(--f-body);cursor:pointer;transition:background 140ms,color 140ms,border-color 140ms}
+.btn:hover{background:var(--orange);border-color:var(--orange);color:var(--on-orange)}
+.btn.quiet{background:transparent;color:var(--ink);border-color:var(--line-2)}
+.btn.quiet:hover{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+@media (prefers-reduced-motion:reduce){h1 i,.track b{animation:none}}
+</style>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search), r = document.documentElement;
+  if (q.get("dark") === "1") r.classList.add("dark");
+  var a = q.get("accent");
+  if (/^#[0-9a-f]{6}$/i.test(a || "")) r.style.setProperty("--orange", a);
+})();
+</script>
+</head>
+<body>
+<header class="bar">
+  <span class="brand">Ceylon Buildex</span>
+  <div class="winctl" role="group" aria-label="Window">
+    <button type="button" class="wc" data-win="minimize" aria-label="Minimize" title="Minimize"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button>
+    <button type="button" class="wc" data-win="maximize" aria-label="Maximize" title="Maximize"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5"/></svg></button>
+    <button type="button" class="wc close" data-win="close" aria-label="Close" title="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+</header>
+<main>
+  <div class="box ok" role="status" aria-live="polite">
+    <h1>Opening<i>...</i></h1>
+    <div class="track" aria-hidden="true"><b></b></div>
+    <p>Loading the regulations dataset</p>
+  </div>
+  <div class="box err" role="alert">
+    <h1>Could not start</h1>
+    <p id="msg"></p>
+    <small id="log"></small>
+    <div class="row">
+      <button type="button" class="btn" id="retry">Try again</button>
+      <button type="button" class="btn quiet" id="logs">Open the log folder</button>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  var w = window.cbDesktop;
+  if (!w) return;
+  document.querySelector(".winctl").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-win]"); if (b) w[b.dataset.win]();
+  });
+  function paint(s) {
+    if (!s) return;
+    document.body.classList.toggle("blur", !s.focused);
+    var m = document.querySelector('[data-win="maximize"]'), label = s.maximized ? "Restore" : "Maximize";
+    m.title = label; m.setAttribute("aria-label", label);
+  }
+  w.onState(paint); w.state().then(paint);
+  w.onBoot(function (s) {
+    if (!s.error) return;
+    document.getElementById("msg").textContent = s.error;
+    document.getElementById("log").textContent = "Details: " + s.log;
+    document.body.classList.add("failed");
+    document.getElementById("retry").focus();
+  });
+  document.getElementById("retry").addEventListener("click", function () { document.body.classList.remove("failed"); w.retry(); });
+  document.getElementById("logs").addEventListener("click", function () { w.openLogs(); });
+})();
+</script>
+</body>
+</html>

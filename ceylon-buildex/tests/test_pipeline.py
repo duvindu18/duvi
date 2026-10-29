@@ -153,6 +153,26 @@ class DatasetTests(unittest.TestCase):
                 misses.append((q, want, top))
         self.assertEqual(misses, [])
 
+    def test_start_up_skips_reloading_unchanged_seeds_but_restores_missing_ones(self):
+        ingest.init_seeds(progress=None)                                        # loads them and remembers this seed file
+        self.assertEqual(ingest.init_seeds(progress=None, skip_unchanged=True), 0)
+        seeds = json.loads((config.SEED / "seed_documents.json").read_text())
+        victim = next(s["id"] for s in seeds)
+        with db.db() as con:
+            if con.execute("SELECT origin FROM documents WHERE id=?", (victim,)).fetchone()["origin"] != "seed-extract":
+                self.skipTest("this seed was replaced by full text in an earlier test")
+            db.delete_document(con, victim)
+        self.assertGreater(ingest.init_seeds(progress=None, skip_unchanged=True), 0)
+        with db.db() as con:
+            self.assertIsNotNone(con.execute("SELECT id FROM documents WHERE id=?", (victim,)).fetchone())
+
+    def test_ocr_language_list_is_asked_once(self):
+        from unittest import mock
+        ocr._langs_cache.clear()
+        first = ocr.installed_langs()
+        with mock.patch.object(ocr.subprocess, "run", side_effect=AssertionError("tesseract started again")):
+            self.assertEqual(ocr.installed_langs(), first)
+
     def test_nonsense_query_is_filtered_by_relevance_gate(self):
         hits = retrieval.relevant(retrieval.search("quantum chromodynamics lattice gauge theory", limit=8))
         self.assertEqual(hits, [])

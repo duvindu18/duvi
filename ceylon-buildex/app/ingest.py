@@ -135,13 +135,21 @@ def ingest_file(path: Path, meta: dict, origin: str = "full-text", force_ocr: bo
 
 
 # ------------------------------------------------------------------ seeds
-def init_seeds(progress=print) -> int:
+def init_seeds(progress=print, skip_unchanged: bool = False) -> int:
+    """Load the shipped seed extracts into the dataset. skip_unchanged (used at start-up): do nothing when exactly this seed file
+    was already loaded and every seed document is still there, instead of rebuilding the same rows and index on every start."""
     seed_file = config.SEED / "seed_documents.json"
     if not seed_file.exists():
         return 0
     n = 0
-    seeds = json.loads(seed_file.read_text())
+    raw = seed_file.read_bytes()
+    sig = hashlib.sha256(raw).hexdigest()
+    seeds = json.loads(raw)
     with db.db() as con:
+        if skip_unchanged and db.get_meta(con, "seed_sha256") == sig:
+            have = {r["id"] for r in con.execute("SELECT id FROM documents")}
+            if all(s["id"] in have for s in seeds):
+                return 0
         for s in seeds:
             row = con.execute("SELECT origin FROM documents WHERE id=?", (s["id"],)).fetchone()
             if row and row["origin"] != "seed-extract":
@@ -160,6 +168,7 @@ def init_seeds(progress=print) -> int:
             db.upsert_document(con, doc)
             db.replace_chunks(con, s["id"], s["title"], chunks)
             n += 1
+        db.set_meta(con, "seed_sha256", sig)
     if progress:
         progress(f"seed extracts loaded: {n}")
     return n

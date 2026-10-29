@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import time
 
 import requests
@@ -41,9 +42,21 @@ def forget_ollama() -> None:
 
 
 def detect_ollama() -> dict | None:
-    """A running Ollama (default http://127.0.0.1:11434) is used automatically: written answers without any API key."""
-    if time.time() - _ollama_cache["t"] < 20:
+    """A running Ollama (default http://127.0.0.1:11434) is used automatically: written answers without any API key.
+    The answer is kept for 20 s; after that the last answer is returned at once and refreshed in the background, so a page
+    never waits for the probe (on Windows a refused local connection can take the whole timeout)."""
+    age = time.time() - _ollama_cache["t"]
+    if age < 20:
         return _ollama_cache["val"]
+    if _ollama_cache["t"] and age < 300:
+        if not _ollama_cache.get("busy"):
+            _ollama_cache["busy"] = True
+            threading.Thread(target=_probe_ollama, name="ollama-probe", daemon=True).start()
+        return _ollama_cache["val"]
+    return _probe_ollama()
+
+
+def _probe_ollama() -> dict | None:
     val = None
     try:
         r = requests.get(config.OLLAMA_URL.rstrip("/") + "/api/tags", timeout=0.6)
@@ -58,7 +71,7 @@ def detect_ollama() -> dict | None:
                 val = {"base": config.OLLAMA_URL.rstrip("/") + "/v1", "model": pick}
     except Exception:
         val = None
-    _ollama_cache.update(t=time.time(), val=val)
+    _ollama_cache.update(t=time.time(), val=val, busy=False)
     return val
 
 

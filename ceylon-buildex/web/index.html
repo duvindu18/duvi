@@ -10,7 +10,8 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4481f'/%3E%3Cpath d='M9 24V8h13v4H14v3h7v4h-7v5z' fill='%2315162a'/%3E%3C/svg%3E">
 <link rel="preload" href="/static/fonts/inter-Regular.woff" as="font" type="font/woff" crossorigin>
 <link rel="preload" href="/static/fonts/anton-latin.woff" as="font" type="font/woff" crossorigin>
-<script>try{var t=localStorage.getItem("ceylon-buildex-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+<script>try{var t=localStorage.getItem("ceylon-buildex-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}
+if(window.cbDesktop)document.documentElement.classList.add("desktop","desktop-"+window.cbDesktop.platform)</script>
 <script src="/static/js/accent.js"></script>
 <link rel="stylesheet" href="/static/css/app.css">
 <link rel="stylesheet" href="/static/css/matrix.css">
@@ -36,6 +37,9 @@
   <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v12M6 10l6 6 6-6M4 20h16"/></symbol>
   <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="i-win-min" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
+  <symbol id="i-win-max" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2.5"/></symbol>
+  <symbol id="i-win-restore" viewBox="0 0 24 24"><rect x="5" y="9" width="10" height="10" rx="2.5"/><path d="M9 6.5A1.5 1.5 0 0 1 10.5 5H17a2 2 0 0 1 2 2v6.5a1.5 1.5 0 0 1-1.5 1.5"/></symbol>
 </defs></svg>
 
 <header class="bar">
@@ -47,6 +51,11 @@
     <button type="button" data-view="update">Update<i class="live" id="updLive" hidden title="An update is running"></i></button>
     <button type="button" id="settingsBtn">Settings<i class="dot off" id="setDot" title="Written answers are off"></i></button>
   </nav>
+  <div class="winctl" id="winctl" role="group" aria-label="Window" hidden>
+    <button type="button" class="wc" data-win="minimize" aria-label="Minimize" title="Minimize"><svg class="i" aria-hidden="true"><use href="#i-win-min"/></svg></button>
+    <button type="button" class="wc" data-win="maximize" aria-label="Maximize" title="Maximize"><svg class="i" aria-hidden="true"><use id="winMaxUse" href="#i-win-max"/></svg></button>
+    <button type="button" class="wc close" data-win="close" aria-label="Close" title="Close"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
+  </div>
 </header>
 
 <main id="main">

@@ -120,6 +120,65 @@ class Run(unittest.TestCase):
             urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=3)
         self.assertEqual(cm.exception.code, 403)
 
+    # ---- the back end of the desktop window (launcher.py --desktop)
+    def start_desktop(self, **env) -> tuple[subprocess.Popen, str]:
+        port = free_port()
+        p = subprocess.Popen([sys.executable, str(ROOT / "launcher.py"), "--desktop"], env=dict(self.env, PORT=str(port), **env), cwd=ROOT,
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        self.procs.append(p)
+        url, end = f"http://127.0.0.1:{port}", time.time() + 40
+        while time.time() < end:
+            try:
+                get(url + "/api/status"); return p, url
+            except Exception:
+                if p.poll() is not None:
+                    break
+                time.sleep(0.2)
+        self.fail("the desktop back end never served: " + ((self.home / "logs" / "launcher.log").read_text() if (self.home / "logs" / "launcher.log").exists() else "no log"))
+
+    def quit_request(self, url, token):
+        req = urllib.request.Request(url + "/api/desktop/quit", method="POST", data=b"", headers={"X-Desktop-Token": token})
+        return urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=3).status
+
+    def test_desktop_back_end_serves_on_the_given_port_without_heartbeat_or_browser_and_quits_on_the_token(self):
+        p, url = self.start_desktop(LRP_DESKTOP_TOKEN="s3cret")
+        st = json.loads(get(url + "/api/status"))
+        self.assertFalse(st["heartbeat"])                                                      # the window owns its life: the page does not ping
+        self.assertFalse(self.log.exists())                                                    # and no browser was opened
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            self.quit_request(url, "wrong")
+        self.assertEqual(cm.exception.code, 403)
+        self.assertIsNone(p.poll())
+        self.assertEqual(self.quit_request(url, "s3cret"), 204)
+        self.assertEqual(p.wait(timeout=30), 0)
+        self.assertIn("asked by the window", (self.home / "logs" / "launcher.log").read_text())
+
+    def test_desktop_back_end_without_a_token_cannot_be_told_to_quit(self):
+        p, url = self.start_desktop(LRP_DESKTOP_TOKEN="")
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            self.quit_request(url, "")
+        self.assertEqual(cm.exception.code, 403)
+        self.assertIsNone(p.poll())
+
+    def test_desktop_back_end_quits_when_the_window_process_is_gone(self):
+        parent = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"]); self.procs.append(parent)
+        p, url = self.start_desktop(LRP_PARENT_PID=str(parent.pid), LRP_DESKTOP_TOKEN="t")
+        time.sleep(1.2)
+        self.assertIsNone(p.poll())
+        parent.kill(); parent.wait()
+        self.assertEqual(p.wait(timeout=30), 0)
+        self.assertIn("the window's process ended", (self.home / "logs" / "launcher.log").read_text())
+
+    def test_desktop_back_end_does_not_take_another_port_when_its_port_is_busy(self):
+        s = socket.socket(); s.bind(("127.0.0.1", 0)); s.listen(1); port = s.getsockname()[1]
+        try:
+            p = subprocess.Popen([sys.executable, str(ROOT / "launcher.py"), "--desktop"], env=dict(self.env, PORT=str(port)), cwd=ROOT,
+                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            self.procs.append(p)
+            self.assertEqual(p.wait(timeout=40), 1)                                           # the window chose that port: fail, so it can pick another
+        finally:
+            s.close()
+
 
 class Pieces(unittest.TestCase):
     def test_no_console_flag_is_added_on_windows_only(self):

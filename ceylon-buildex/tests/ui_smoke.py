@@ -692,6 +692,77 @@ def dark_mode(br, base):
         ctx.close()
 
 
+FAKE_DESKTOP = """(() => { const s = {maximized: false, fullscreen: false, focused: true}; let fn = null; window.__wc = [];
+  window.cbDesktop = {platform: "win32", minimize() { __wc.push("minimize"); }, close() { __wc.push("close"); },
+    maximize() { __wc.push("maximize"); s.maximized = !s.maximized; fn && fn({...s}); }, state: () => Promise.resolve({...s}),
+    onState(f) { fn = f; }, theme(d, a) { window.__theme = [d, a]; }, __set(x) { Object.assign(s, x); fn && fn({...s}); }}; })()"""
+
+BAR_JS = """() => { const r = e => e.getBoundingClientRect(), $ = s => document.querySelector(s), b = [...document.querySelectorAll('#winctl .wc')].map(r),
+  ctl = r($('#winctl')), tabs = r($('.tabs')), brand = r($('.brand')), bar = r($('.bar')), cs = e => getComputedStyle(e),
+  region = e => cs(e).getPropertyValue('app-region') || cs(e).getPropertyValue('-webkit-app-region');
+  return {desktop: document.documentElement.classList.contains('desktop'), shown: cs($('#winctl')).display !== 'none', n: b.length,
+    sizes: b.map(x => [Math.round(x.width), Math.round(x.height)]), gaps: b.slice(1).map((x, i) => Math.round(x.left - b[i].right)),
+    rightGap: Math.round(innerWidth - b[2].right), dyTabs: Math.round((b[0].top + b[0].bottom) / 2 - (tabs.top + tabs.bottom) / 2),
+    dyBrand: Math.round((b[0].top + b[0].bottom) / 2 - (brand.top + brand.bottom) / 2), tabsToCtl: Math.round(ctl.left - tabs.right),
+    inBar: ctl.top >= bar.top && ctl.bottom <= bar.bottom, barH: Math.round(bar.height),
+    drag: region($('.bar')), noDrag: [region($('.brand')), region($('.tabs button')), region($('#winctl .wc'))]}; }"""
+
+
+def desktop_window(br, base):
+    """The page as the desktop program shows it: its top bar is the window's title bar, with minimize / maximize / close in the page's own style."""
+    for label, vp, scheme in (("window", {"width": 1280, "height": 860}, "light"), ("window-min", {"width": 820, "height": 560}, "light"),
+                              ("window-dark", {"width": 1280, "height": 860}, "dark")):
+        ctx = br.new_context(viewport=vp, color_scheme=scheme)
+        ctx.add_init_script(FAKE_DESKTOP)
+        page = ctx.new_page(); errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.goto(base + "/#ask", wait_until="domcontentloaded")
+        page.wait_for_function("document.documentElement.dataset.ready === '1'", timeout=15000)
+        page.evaluate("document.fonts.ready.then(() => true)")
+        try:
+            g = page.evaluate(BAR_JS)
+            check(f"[{label}] the window buttons show in the title bar", g["desktop"] and g["shown"] and g["n"] == 3 and g["inBar"], str(g))
+            check(f"[{label}] the buttons are 36 px circles, 4 px apart, 12 px from the window edge",
+                  all(x == [36, 36] for x in g["sizes"]) and g["gaps"] == [4, 4] and g["rightGap"] == 12, str(g))
+            check(f"[{label}] they line up with the links and the wordmark", abs(g["dyTabs"]) <= 1 and abs(g["dyBrand"]) <= 2, str(g))
+            check(f"[{label}] the links keep clear of them (at least 24 px)", g["tabsToCtl"] >= 24, str(g))
+            check(f"[{label}] the bar drags the window; the wordmark, links and buttons stay clickable",
+                  g["drag"] == "drag" and g["noDrag"] == ["no-drag"] * 3, str(g))
+            box = page.locator('#winctl .close').bounding_box()
+            page.mouse.move(box["x"] + 18, box["y"] + 18); page.wait_for_timeout(250)
+            hov = page.evaluate("""() => [getComputedStyle(document.querySelector('#winctl .close')).backgroundColor,
+              getComputedStyle(document.documentElement).getPropertyValue('--orange').trim()]""")
+            rgb = tuple(int(hov[1][i:i + 2], 16) for i in (1, 3, 5)) if hov[1].startswith("#") else None
+            check(f"[{label}] close turns the accent colour on hover", rgb is not None and hov[0] == f"rgb({rgb[0]}, {rgb[1]}, {rgb[2]})", str(hov))
+            page.screenshot(path=str(SHOTS / f"{label}-titlebar.png"), clip={"x": 0, "y": 0, "width": vp["width"], "height": 90})
+            page.screenshot(path=str(SHOTS / f"{label}.png"))
+            page.click('#winctl [data-win="minimize"]'); page.click('#winctl [data-win="maximize"]')
+            st = page.evaluate("""() => [document.querySelector('#winMaxUse').getAttribute('href'), document.querySelector('[data-win="maximize"]').getAttribute('aria-label'),
+              document.documentElement.classList.contains('win-max')]""")
+            check(f"[{label}] minimize and maximize reach the window; maximized shows Restore", page.evaluate("__wc") == ["minimize", "maximize"] and st == ["#i-win-restore", "Restore", True], str(st))
+            page.click('#winctl [data-win="maximize"]')
+            check(f"[{label}] and restoring swaps it back", page.evaluate("document.querySelector('#winMaxUse').getAttribute('href')") == "#i-win-max")
+            page.evaluate("cbDesktop.__set({focused: false})")
+            check(f"[{label}] an inactive window dims its buttons", page.evaluate("document.documentElement.classList.contains('win-blur')"))
+            page.evaluate("cbDesktop.__set({focused: true})")
+            th = page.evaluate("window.__theme")
+            check(f"[{label}] the page tells the window its theme and accent", th and th[0] == (scheme == "dark") and re.match(r"^#[0-9a-f]{6}$", th[1] or "", re.I), str(th))
+            open_settings(page)
+            check(f"[{label}] with a dialog open the bar stops dragging (the dialog gets its clicks)",
+                  page.evaluate("(e => getComputedStyle(e).getPropertyValue('app-region') || getComputedStyle(e).getPropertyValue('-webkit-app-region'))(document.querySelector('.bar'))") == "no-drag")
+            close_settings(page)
+            page.click('#winctl [data-win="close"]')
+            check(f"[{label}] close reaches the window", page.evaluate("__wc").count("close") == 1)
+            check(f"[{label}] no JavaScript errors", not errors, "; ".join(errors[:3]))
+        finally:
+            ctx.close()
+    ctx, page, errors = new_page(br, base, {"width": 1280, "height": 860})
+    try:
+        check("[browser] in a plain browser there are no window buttons", not page.evaluate("document.documentElement.classList.contains('desktop')") and not page.locator("#winctl").is_visible())
+    finally:
+        ctx.close()
+
+
 # ---------------------------------------------------------------- run
 BASE_URL = BASE or start_server()
 try:
@@ -720,6 +791,7 @@ try:
             check(f"[{label}] no JavaScript errors", not errors, "; ".join(errors[:3]))
             ctx.close()
         stream_sync(br, "desktop")
+        desktop_window(br, BASE_URL)
         reduced_motion(br, BASE_URL)
         dark_mode(br, BASE_URL)
         wide_screen(br, BASE_URL)

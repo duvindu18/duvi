@@ -5,7 +5,7 @@ Standard Bidding Documents (SBDs)** from a single searchable dataset - with cita
 driven by zone functions and the Colombo Municipal Council (CMC) / UDA rules, fast OCR, and a one-click updater.
 
 ```
-CeylonBuildex.exe   # Windows: double-click. One file, one window, no console (see "The desktop program")
+CeylonBuildex-Setup-1.2.0.exe   # Windows: install, then start Ceylon Buildex from the Start menu (see "The desktop program")
 ./run.sh            # Linux / macOS / WSL -> http://127.0.0.1:8080
 ./run.sh update     # download / refresh every registered source
 ```
@@ -80,29 +80,50 @@ The Floor area page recalculates as you type (no button); on a phone a floating 
 `prefers-reduced-motion` cuts animation to nothing without changing content. The front end is plain ES modules - no build step, no dependencies. Both typefaces are bundled
 and served from this server, so no page ever asks another site for a font: **Anton** and **Inter** (SIL Open Font License 1.1; licences in `web/fonts/OFL-Anton.txt` and `OFL-Inter.txt`).
 
-## The desktop program (Windows, one file)
+## The desktop program (Windows, with an installer)
 
-`CeylonBuildex.exe` is one file. Double-click it and a window opens - there is no console, no `.bat` file and no browser tab or address bar to find.
-It keeps its own data in `%LOCALAPPDATA%\CeylonBuildex` (first start copies the shipped reference data in; later versions never overwrite what you added or downloaded;
-set `LRP_HOME` to move it). A second double-click opens another window on the copy that is already running. Close the window and everything it started stops. Problems are written to
-`logs\launcher.log` in that folder and shown in a message box - never to a console.
+**Install:** run `CeylonBuildex-Setup-1.2.0.exe`. It asks where to install (per user by default, no administrator rights needed; it can install for all users),
+adds Start menu and desktop shortcuts and an uninstaller (Settings > Apps), and starts the program when it is done. **Everything the program needs is inside it:**
+Python and the portal, Tesseract OCR with English, Sinhala and Tamil, and Poppler for PDFs - nothing else is downloaded or installed. Only the optional local
+model (Ollama, see below) is separate. Reinstalling or upgrading keeps your data; the uninstaller asks whether to delete it too.
 
-How: `launcher.py` starts the portal on a free local port, opens it in Microsoft Edge (or Google Chrome) in its own `--app` window with a private profile, and quits when that
-window closes (the page also pings the program every 15 s, which covers a browser that hands its window to another process). Everything it launches (Ollama, Tesseract, Poppler)
-is started without a console window. The exe carries Tesseract and Poppler, so OCR needs nothing else installed. Without Edge or Chrome it falls back to the default browser.
+**The window.** Ceylon Buildex opens in its own window with no system title bar: the portal's top bar *is* the title bar. The wordmark and the links sit where they
+always do, and **minimize, maximize/restore and close** sit at the right edge as round 36 px buttons in the page's own style - ink on the page, a soft accent tint on
+hover, and the accent colour behind close - 4 px apart, 12 px from the edge, behind a hairline divider, centred on the links. They follow the theme (light, dark, system)
+and the accent colour you pick in Settings, and dim when the window is not active. Drag the bar to move the window, double-click it to maximize, and Windows snap,
+resizing from every edge and the Windows 11 rounded corners all work as usual. F11 is full screen; Ctrl + / Ctrl - / Ctrl 0 zoom.
 
-**Building it.** PyInstaller makes programs for the system it runs on, so the exe has to be built on Windows:
+**Start-up.** The window appears at once, in the theme and accent colour you used last, with a short *Opening...* screen while the back end starts
+(usually under a second; the very first start prepares the dataset). If it cannot start, the same screen says why, with *Try again* and *Open the log folder*.
+Opening the program again while it runs brings its window to the front. Closing the window stops everything it started (the back end, and an Ollama it started);
+if the window process is killed, the back end notices and stops by itself. Window size, position and the maximized state are remembered.
 
-* **GitHub Actions:** the workflow `.github/workflows/build-exe.yml` runs the unit tests on Linux, then builds on `windows-latest` (installs Tesseract and Poppler, builds, starts the exe and checks that it serves) and keeps `CeylonBuildex.exe` as a downloadable artifact. Run it from the Actions tab or push a tag such as `v1.1.0`.
-* **On your own Windows PC:** `pip install -r requirements.txt` then `python scripts/build_exe.py` -> `dist/CeylonBuildex.exe` (needs Tesseract and Poppler installed once: `winget install UB-Mannheim.TesseractOCR oschwartz10612.Poppler`).
-* **No build at all:** double-click `CeylonBuildex.pyw` (needs Python); it runs the same launcher with no console.
+Data lives in `%LOCALAPPDATA%\CeylonBuildex` (documents, the dataset, settings, `logs\launcher.log`; set `LRP_HOME` to move it). Links to other sites open in your browser.
 
-The exe is **not code-signed**, so Windows SmartScreen may show "Windows protected your PC" the first time; choose *More info*, then *Run anyway*. `run.bat` and `run.ps1` were removed.
+How it is built: `desktop/` is a small [Electron](https://www.electronjs.org/) window (`main.js`, `preload.js`, the start-up screen `loading.html`) with
+`titleBarStyle: "hidden"`; the page draws the buttons (`web/js/window.js`) and asks the window to act through a sandboxed, minimal bridge (`window.cbDesktop`).
+The back end is `launcher.py --desktop`, frozen with PyInstaller as a folder (`dist/CeylonBuildexServer/`) - a folder starts much faster than a one-file program,
+which unpacks itself to a temporary folder on every start. The window starts it on a fixed local port (47319, so the page's saved choices persist), and stops it with
+a request that carries a secret token only the window knows; the back end also watches the window's process id. electron-builder (NSIS) makes the installer.
 
-> **Tested vs not tested.** The launcher's logic (one-copy lock, data-folder seeding, window hand-off, quitting when the window closes, errors to the log) is covered by tests that run
-> on Linux with a stand-in browser. **The Windows exe itself was never built or run here** - the sandbox has no Windows and could not install PyInstaller - and neither were the
-> workflow, the Windows-only code paths (hidden console windows, message box, `%LOCALAPPDATA%`), Edge/Chrome `--app` mode on a real PC, or the bundled Tesseract/Poppler.
-> If the first build or run fails, send me `launcher.log` or the Actions log.
+**Building it** (Windows only - PyInstaller and the installer are made on the system they are for):
+
+* **GitHub Actions:** `.github/workflows/ceylon-buildex-installer.yml` runs on every push that touches `ceylon-buildex/`: unit tests and the browser test on Linux,
+  then on `windows-latest` it builds the back end and the installer, smoke-tests the back end, **installs the Setup program silently, starts the installed program,
+  presses its title-bar buttons (maximize, restore, minimize, a second start brings it back, close), checks closing it stops the back end, and uninstalls it**.
+  The Setup program is attached to the run as the artifact *CeylonBuildex-Setup*.
+* **On your own Windows PC:** install Python 3.12, Node.js 22 and the OCR tools once (`winget install UB-Mannheim.TesseractOCR oschwartz10612.Poppler`), then
+  `pip install -r requirements.txt pyinstaller` and `python scripts/build_installer.py` -> `dist/installer/CeylonBuildex-Setup-1.2.0.exe`.
+* **Developing the window:** `cd desktop && npm ci && npm start` runs it against the Python sources (`CB_PYTHON` picks the interpreter).
+* **No build at all:** double-click `CeylonBuildex.pyw` (needs Python); it opens the portal in an Edge/Chrome app window as before (system title bar).
+
+The installer and the program are **not code-signed**, so Windows SmartScreen may show "Windows protected your PC" the first time; choose *More info*, then *Run anyway*.
+
+> **Tested vs not tested.** Here (Linux): the back end's desktop mode (serves on its port, refuses a quit without the token, quits with it, quits when the window's
+> process ends, will not drift to another port), the title bar in headless Chromium (sizes, spacing, alignment, drag regions, hover colour, maximize/restore icon,
+> inactive state, dialogs, light/dark/minimum size), and the real Electron window under a virtual display (start-up screen, portal, theme remembered across starts,
+> external links opened outside, the error screen, close and kill both stopping the back end). Maximize itself needs a window manager, so it is checked on the
+> Windows runner. The Windows parts (the frozen back end, the installer, the installed program and its buttons) are exercised by the workflow above.
 
 ## Ollama at start-up
 
@@ -123,7 +144,7 @@ Ollama the portal still works and quotes passages. It is skipped when the saved 
 | System | Command | What it installs for you |
 |---|---|---|
 | **Linux, macOS, WSL** | `./run.sh` | Python 3.9+, `poppler`, `tesseract` (via apt, dnf, yum, pacman, zypper, apk or Homebrew - uses `sudo` when needed), a private `.venv`, the Python packages, then loads the dataset and starts the portal at http://127.0.0.1:8080 |
-| **Windows** | `CeylonBuildex.exe` | Nothing - see above |
+| **Windows** | `CeylonBuildex-Setup-1.2.0.exe` | Everything is inside the installer - see above |
 | **Any (Docker)** | `docker compose up --build` | Everything inside a container, including Sinhala and Tamil OCR; `./data` is kept on your disk *- not built here; see the note below* |
 
 On the **very first start** the portal also downloads all registered documents in the background (progress on the *Update* tab). Later starts
@@ -200,8 +221,8 @@ the full-text download path was tested against a local web server standing in fo
 
 ```bash
 pip install -r requirements-dev.txt
-python3 -m unittest discover -s tests -t .        # 115 tests: FAR engine, OCR, ingest, downloader/update (local server), API, settings, LLM (mock endpoints), highlight markers, Ollama start-up (fake `ollama`), launcher (fake browser)
-python3 tests/ui_smoke.py "" shots/      # headless-browser test (about 285 checks): starts its own server; desktop, phone, 2000 px wide, dark mode, reduced motion; fixed type, equal-height panels, spacing, centred start line, library map (nodes inside boxes, triangle mesh with no crossings, relations), accent colour, Settings, highlights, streamed progress
+python3 -m unittest discover -s tests -t .        # 121 tests: FAR engine, OCR, ingest, downloader/update (local server), API, settings, LLM (mock endpoints), highlight markers, Ollama start-up (fake `ollama`), launcher (fake browser) and its desktop back-end mode
+python3 tests/ui_smoke.py "" shots/      # headless-browser test (about 325 checks, including the desktop title bar): starts its own server; desktop, phone, 2000 px wide, dark mode, reduced motion; fixed type, equal-height panels, spacing, centred start line, library map (nodes inside boxes, triangle mesh with no crossings, relations), accent colour, Settings, highlights, streamed progress
 ```
 
 What the tests do and do not prove: OCR is tested on PDFs rendered from the real regulation wording (a *synthetic* scan, 100 % word recall),
@@ -212,13 +233,14 @@ program or model. The browser test is headless Chromium only (not Edge, Firefox 
 ## Layout
 
 ```
-launcher.py CeylonBuildex.spec CeylonBuildex.pyw VERSION   the desktop program and its PyInstaller recipe
+launcher.py CeylonBuildex.spec CeylonBuildex.pyw VERSION   the back end of the desktop program and its PyInstaller recipe
+desktop/    the window (Electron: main.js, preload.js, loading.html) and the installer recipe (package.json "build", build/installer.nsh)
 app/        config, db (SQLite + FTS5), ocr, extract, downloader, ingest (CLI), retrieval, far, llm, ollama_boot, winquiet, highlight (key-fact markers), server (Flask)
 web/        index.html (shell + icon sprite), css/app.css (type system, panels, controls), css/matrix.css (library map), js/*.js (ES modules: ask, far, library, matrix, ocr, update, settings, reader ...; accent.js is a small classic script loaded first so the saved colour is there at first paint), fonts/ (Anton, Inter, OFL)
 config/     sources.json  - 30 registered documents + 7 listing pages to scan
 data/       dataset.sqlite, dataset.jsonl, documents.json, rules/far_rules.json, seed/, raw/ (downloads, inbox/)
-scripts/    build_rules.py, make_seed.py, build_exe.py, smoke_exe.py
-assets/     icon;   .github/workflows/build-exe.yml
+scripts/    build_rules.py, make_seed.py, build_exe.py (back end), build_installer.py (Setup program), smoke_exe.py
+assets/     icon;   the build workflow is ../.github/workflows/ceylon-buildex-installer.yml
 tests/      unittest suite + ui_smoke.py
 ```
 

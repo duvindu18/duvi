@@ -10,6 +10,7 @@ import "./library.js";
 import "./ocr.js";
 import "./update.js";
 import "./settings.js";
+import {reportTheme} from "./window.js";
 
 const root = document.documentElement, mq = matchMedia("(prefers-color-scheme: dark)"), CB = window.CBAccent;
 
@@ -33,7 +34,7 @@ function paintTheme() {
   const r = $(`input[name="theme"][value="${c}"]`); if (r) r.checked = true;
   const dark = c === "dark" || (c === "system" && mq.matches);
   const m = $('meta[name="theme-color"]'); if (m) m.content = dark ? "#0e0e11" : "#f6eee3";
-  if (CB) { CB.apply(); paintAccent(); }
+  if (CB) { CB.apply(); paintAccent(); } else reportTheme(dark);
 }
 
 /* accent colour, chosen in Settings and remembered in this browser */
@@ -50,6 +51,7 @@ function paintAccent() {
   $$(".sw", sw).forEach(l => { const r = $("input[name=accent]", l); if (r) { l.style.setProperty("--c", CB.hex(r.value)); r.checked = r.value === v; } });
   const cl = $(".sw.custom", sw); cl.classList.toggle("on", custom); cl.style.setProperty("--c", custom ? v : "#f4481f");
   if (custom) $("#accentCustom").value = v;
+  reportTheme(root.dataset.theme === "dark" || (!root.dataset.theme && mq.matches));
 }
 $$('input[name="theme"]').forEach(r => r.addEventListener("change", () => { store.set("ceylon-buildex-theme", r.value); paintTheme(); }));
 mq.addEventListener("change", paintTheme);

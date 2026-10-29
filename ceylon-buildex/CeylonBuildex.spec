@@ -1,7 +1,8 @@
-# PyInstaller recipe for the single-file Windows program (no console window).
+# PyInstaller recipe for the back end of the Windows desktop program (no console window).
 #   python scripts/build_exe.py          (does everything, including the OCR tools)
 #   python -m PyInstaller CeylonBuildex.spec --noconfirm        (just this step)
-# Result: dist/CeylonBuildex.exe
+# Result: dist/CeylonBuildexServer/ (a folder: CeylonBuildexServer.exe + _internal/). The installer (desktop/) puts it next to the window.
+# A folder starts in a fraction of the time a one-file program takes: nothing is unpacked to a temporary folder on every start.
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_submodules
 
@@ -26,10 +27,12 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 exe = EXE(
-    pyz, a.scripts, a.binaries, a.datas, [],
-    name="CeylonBuildex",
+    pyz, a.scripts, [],
+    exclude_binaries=True,
+    name="CeylonBuildexServer",
     console=False,                                    # no command window, ever
     icon=str(ROOT / "assets" / "ceylon-buildex.ico"),
     upx=False,                                        # UPX-packed programs are flagged by more virus scanners
     disable_windowed_traceback=False,
 )
+coll = COLLECT(exe, a.binaries, a.datas, name="CeylonBuildexServer", upx=False)

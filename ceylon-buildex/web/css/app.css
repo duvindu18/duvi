@@ -94,6 +94,24 @@ h1.display{font-size:var(--fd-h1);color:var(--orange);margin:2px 0}
 .dot.off{display:none}
 .live{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--orange);animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.25;transform:scale(.7)}}
+/* ---------- desktop program: the top bar is the window's title bar ----------
+   Drag it to move the window (double-click maximizes, Windows snap works); links and buttons in it stay clickable.
+   The window buttons sit at the window's right edge, in the page's own type of control: round, ink on the page, accent on hover. */
+.winctl{display:none}
+.desktop .bar{position:relative;-webkit-app-region:drag;user-select:none;padding-right:max(var(--edge),calc(var(--wc-w) + var(--s3) + var(--s5)))}
+.desktop .bar a,.desktop .bar button,.desktop .winctl{-webkit-app-region:no-drag}
+.desktop:has(dialog[open]) .bar{-webkit-app-region:no-drag}          /* a dialog over the bar must get its own clicks */
+.desktop{--wc:36px; --wc-w:calc(3 * var(--wc) + 2 * var(--s1) + var(--s3) + 1px)}
+.desktop .winctl{position:absolute;top:var(--s4);bottom:var(--s3);right:var(--s3);display:flex;align-items:center;gap:var(--s1);padding-left:var(--s3);border-left:1px solid var(--line)}
+.wc{flex:none;width:var(--wc);height:var(--wc);display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:none;color:var(--ink);
+  transition:background var(--t1),color var(--t1),transform var(--t1) var(--ease)}
+.wc .i{width:16px;height:16px;stroke-width:1.8}
+.wc:hover{background:var(--tint)}
+.wc.close:hover{background:var(--orange);color:var(--on-orange)}
+.wc:active{transform:scale(.92)}
+.wc:focus-visible{outline-offset:0;border-radius:50%}
+.win-blur .wc:not(:hover){color:var(--muted)}
+@media (max-width:700px){.desktop .winctl{top:var(--s2);bottom:auto;height:var(--wc)}}
 main{min-height:0;min-width:0;display:grid;grid-template-rows:minmax(0,1fr);padding:0 var(--edge)}
 .view{display:none;min-height:0;min-width:0}
 /* a page is a scroll pane: its bar sits just outside the content edge, so content lines up with the header */

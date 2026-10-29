@@ -1,10 +1,11 @@
-"""Build the single-file Windows program:  python scripts/build_exe.py   ->   dist/CeylonBuildex.exe
+"""Build the back end of the Windows desktop program:  python scripts/build_exe.py   ->   dist/CeylonBuildexServer/
 
 Run it on Windows (PyInstaller makes programs for the system it runs on). It
   1. installs PyInstaller if needed;
-  2. gathers Tesseract (OCR) and Poppler (PDF text) into vendor/, so the program needs nothing else installed
-     (looks in TESSERACT_DIR / POPPLER_DIR, the usual install folders and Chocolatey's folders; --no-vendor skips this);
-  3. runs PyInstaller with CeylonBuildex.spec (one file, no console window).
+  2. gathers Tesseract (OCR, with English, Sinhala and Tamil) and Poppler (PDF text) into vendor/, so the program needs nothing
+     else installed (looks in TESSERACT_DIR / POPPLER_DIR, the usual install folders and Chocolatey's folders; --no-vendor skips this);
+  3. runs PyInstaller with CeylonBuildex.spec (a folder, no console window).
+Then `python scripts/build_installer.py` wraps it in the desktop window and the Setup program.
 Needs: Python 3.10+, `pip install -r requirements.txt`, and for step 2 Tesseract and Poppler installed
 (winget install UB-Mannheim.TesseractOCR oschwartz10612.Poppler   or   choco install tesseract poppler).
 """
@@ -15,10 +16,14 @@ import os
 import shutil
 import subprocess
 import sys
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VENDOR = ROOT / "vendor"
+OUT = ROOT / "dist" / "CeylonBuildexServer"
+LANGS = {"eng", "osd", "sin", "tam"}                  # OCR languages shipped (the Scan page lists what is installed)
+TESSDATA_URL = "https://github.com/tesseract-ocr/tessdata_fast/raw/main/{}.traineddata"
 
 
 def say(msg: str) -> None:
@@ -51,14 +56,22 @@ def vendor_tesseract() -> bool:
     shutil.copy2(src / "tesseract.exe", dst)
     for dll in src.glob("*.dll"):
         shutil.copy2(dll, dst)
+    (dst / "tessdata").mkdir()
     if (src / "tessdata").is_dir():
-        keep_lang = {"eng", "osd"} | ({"sin", "tam"} if os.environ.get("WITH_SIN_TAM") else set())
-        (dst / "tessdata").mkdir()
         for f in (src / "tessdata").iterdir():
             if f.is_dir():
                 shutil.copytree(f, dst / "tessdata" / f.name)
-            elif f.suffix != ".traineddata" or f.stem in keep_lang:
+            elif f.suffix != ".traineddata" or f.stem in LANGS:
                 shutil.copy2(f, dst / "tessdata" / f.name)
+    for lang in sorted(LANGS):                        # a language the local install lacks (Sinhala, Tamil) is downloaded once
+        f = dst / "tessdata" / f"{lang}.traineddata"
+        if not f.is_file():
+            say(f"Downloading OCR language data: {lang}")
+            try:
+                with urllib.request.urlopen(TESSDATA_URL.format(lang), timeout=120) as r:
+                    f.write_bytes(r.read())
+            except OSError as e:
+                print(f"warning: could not download {lang}.traineddata ({e}); that OCR language will not be available.", file=sys.stderr)
     say(f"Tesseract from {src}")
     return True
 
@@ -92,7 +105,7 @@ def main() -> int:
     args = ap.parse_args()
     if os.name != "nt":
         print("This builds the Windows program, so it has to run on Windows (PyInstaller cannot cross-build).\n"
-              "No Windows machine? The GitHub Actions workflow in .github/workflows/build-exe.yml builds it for you.", file=sys.stderr)
+              "No Windows machine? The GitHub Actions workflow (ceylon-buildex-installer.yml) builds it for you.", file=sys.stderr)
         return 2
     os.chdir(ROOT)
     if args.clean:
@@ -113,12 +126,13 @@ def main() -> int:
             print("warning: Tesseract not found: the program will not be able to read scanned pages unless it is installed on the computer.", file=sys.stderr)
         if not p:
             print("warning: Poppler not found: the program will not be able to read PDFs unless it is installed on the computer.", file=sys.stderr)
-    say("Building dist/CeylonBuildex.exe")
+    say("Building dist/CeylonBuildexServer/")
     subprocess.check_call([sys.executable, "-m", "PyInstaller", "CeylonBuildex.spec", "--noconfirm"])
-    exe = ROOT / "dist" / "CeylonBuildex.exe"
+    exe = OUT / "CeylonBuildexServer.exe"
     if not exe.is_file():
-        raise SystemExit("The build finished but dist/CeylonBuildex.exe is not there.")
-    say(f"Done: {exe}  ({exe.stat().st_size / 1e6:.0f} MB). Test it with: python scripts/smoke_exe.py")
+        raise SystemExit(f"The build finished but {exe} is not there.")
+    size = sum(f.stat().st_size for f in OUT.rglob("*") if f.is_file())
+    say(f"Done: {OUT}  ({size / 1e6:.0f} MB). Test it with: python scripts/smoke_exe.py")
     return 0
 
 

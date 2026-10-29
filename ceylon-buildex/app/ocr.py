@@ -30,11 +30,18 @@ def tesseract_available() -> bool:
     return shutil.which("tesseract") is not None
 
 
+_langs_cache: dict = {}
+
+
 def installed_langs() -> list[str]:
-    if not tesseract_available():
+    exe = shutil.which("tesseract")
+    if not exe:
         return []
-    out = subprocess.run(["tesseract", "--list-langs"], capture_output=True, text=True).stdout.splitlines()
-    return [x.strip() for x in out[1:] if x.strip() and x.strip() != "osd"]
+    key = (exe, os.environ.get("TESSDATA_PREFIX", ""))
+    if key not in _langs_cache:                       # starting tesseract costs tens of ms (more on Windows): ask once
+        out = subprocess.run([exe, "--list-langs"], capture_output=True, text=True).stdout.splitlines()
+        _langs_cache[key] = [x.strip() for x in out[1:] if x.strip() and x.strip() != "osd"]
+    return list(_langs_cache[key])
 
 
 def effective_lang(lang: str | None = None) -> str:
