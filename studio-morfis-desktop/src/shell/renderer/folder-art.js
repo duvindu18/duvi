@@ -74,12 +74,12 @@
   var PAL = { back: '#33353D', front: '#3C3E47', sheet: '#474A54', line: '#7B7F8C', soft: '#5C606C', ink: '#C9CCD5', ink2: '#9599A6' };
   function art(o) {
     o = o || {};
-    var sw = 1.5, out = '';
+    var sw = 0.8, out = '';
     /* back layer */
     out += '<rect x="13" y="9" width="106" height="80" rx="9" fill="' + PAL.back + '" stroke="' + PAL.soft + '" stroke-width="' + sw + '"/>';
     /* a sheet peeking out when there are files; its type written on it */
     if (o.full) {
-      out += '<rect x="24" y="14" width="84" height="40" rx="5" fill="' + PAL.sheet + '" stroke="' + PAL.line + '" stroke-width="1.2"/>';
+      out += '<rect x="24" y="14" width="84" height="40" rx="5" fill="' + PAL.sheet + '" stroke="' + PAL.line + '" stroke-width="0.7"/>';
       out += o.kind ? '<text x="32" y="25.6" font-family="Segoe UI,Arial,sans-serif" font-size="8.6" font-weight="700" letter-spacing=".5" fill="' + PAL.ink + '">' + o.kind + '</text>'
         : '<rect x="32" y="20" width="26" height="3.2" rx="1.6" fill="' + PAL.ink2 + '"/>';
     }
@@ -87,7 +87,7 @@
     out += '<path d="M8 38a8 8 0 0 1 8-8h40c4.6 0 7-1.6 9.6-4.6l2.4-2.8c2.6-3 5-4.6 9.6-4.6H116a8 8 0 0 1 8 8v60a8 8 0 0 1-8 8H16a8 8 0 0 1-8-8z" fill="' + PAL.front + '" stroke="' + PAL.line + '" stroke-width="' + sw + '" stroke-linejoin="round"/>';
     if (o.status) {
       var txt = (STATUS[o.status] || STATUS.not_started).label.toUpperCase(), fs = 10.2, w = Math.round(txt.length * fs * 0.68 + 16);
-      out += '<rect x="' + (66 - w / 2) + '" y="57" width="' + w + '" height="19" rx="5" fill="none" stroke="' + PAL.soft + '" stroke-width="1.2"/>' +
+      out += '<rect x="' + (66 - w / 2) + '" y="57" width="' + w + '" height="19" rx="5" fill="none" stroke="' + PAL.soft + '" stroke-width="0.7"/>' +
         '<text x="66" y="69.9" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="' + fs + '" font-weight="700" letter-spacing=".6" fill="' + PAL.ink + '">' + txt + '</text>';
     } else if (o.num) {
       out += '<text x="20" y="86" font-family="Segoe UI,Arial,sans-serif" font-size="15" font-weight="700" fill="' + PAL.ink + '">' + o.num + '</text>';
@@ -132,5 +132,5 @@
   }
 
   window.MorfisArt = { STATUS: STATUS, ORDER: ORDER, statusOf: statusOf, statusDot: statusDot, statusTag: statusTag, glyph: glyph,
-    kindOf: kindOf, fileIcon: fileIcon, folder: folder, variant: variant, kindsOf: kindsOf, explorerIcon: explorerIcon, toPng: toPng, ICON_VERSION: 'v6' };
+    kindOf: kindOf, fileIcon: fileIcon, folder: folder, variant: variant, kindsOf: kindsOf, explorerIcon: explorerIcon, toPng: toPng, ICON_VERSION: 'v7' };
 })();
