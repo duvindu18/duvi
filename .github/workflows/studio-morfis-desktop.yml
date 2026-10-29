@@ -9,9 +9,15 @@ on:
     paths: ["studio-morfis-desktop/**", ".github/workflows/studio-morfis-desktop.yml"]
   workflow_dispatch:
 
+# a newer push replaces a build still running for the same branch or pull request
+concurrency:
+  group: studio-morfis-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   windows:
     runs-on: windows-latest
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: studio-morfis-desktop
@@ -27,6 +33,7 @@ jobs:
       - name: Check the dashboard patch and bridge
         run: npm run check
       - name: Smoke test (starts the app, clicks through, saves screenshots)
+        timeout-minutes: 8
         run: npx electron scripts/smoke.js smoke-out
       - uses: actions/upload-artifact@v4
         if: always()

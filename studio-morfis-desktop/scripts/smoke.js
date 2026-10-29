@@ -9,7 +9,8 @@ const { app, BrowserWindow } = require('electron');
 
 const args = process.argv.slice(process.argv.findIndex((a) => /smoke\.js$/.test(a)) + 1).filter((a) => !a.startsWith('--'));
 const out = path.resolve(args[0] || 'smoke-out');
-const seed = args[1] ? JSON.parse(fs.readFileSync(args[1], 'utf8')) : null;
+/* the example studio from the dashboard, unless another backup file is given */
+const seed = JSON.parse(fs.readFileSync(args[1] || path.join(__dirname, 'fixtures', 'sample-studio.json'), 'utf8'));
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'morfis-smoke-'));
 app.setPath('userData', profile);
 fs.mkdirSync(out, { recursive: true });
@@ -47,6 +48,10 @@ const fake = require('http').createServer((req, res) => {
 });
 fake.on('error', () => console.log('fake AI engine not started (port in use)'));
 fake.listen(11434, '127.0.0.1');
+
+/* a failed step or a stall must end the run, never leave it waiting */
+process.on('unhandledRejection', (e) => { console.error('SMOKE FAILED (error): ' + ((e && e.stack) || e)); app.exit(1); });
+setTimeout(() => { console.error('SMOKE FAILED: timed out after 6 minutes'); app.exit(2); }, 6 * 60 * 1000).unref();
 
 require('../src/shell/main.js');
 app.whenReady().then(async () => {
