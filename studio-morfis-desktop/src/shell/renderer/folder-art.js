@@ -81,8 +81,11 @@
     }
     var badge = '';
     if (o.status) {
-      var c = (STATUS[o.status] || STATUS.not_started).color;
-      badge = '<circle cx="104" cy="78" r="23" fill="' + PAL.ring + '"/><circle cx="104" cy="78" r="19" fill="' + c + '"/><g transform="translate(89.6 63.6) scale(1.2)">' + glyph(o.status) + '</g>';
+      /* project root folders: the status written out on a coloured label across the front */
+      var st = STATUS[o.status] || STATUS.not_started, txt = st.label.toUpperCase();
+      var ink = o.status === 'on_hold' ? '#2B1C00' : '#FFFFFF', fs = txt.length > 9 ? 12.4 : 13.6;
+      badge = '<rect x="14" y="60" width="104" height="27" rx="7" fill="' + st.color + '"/>' +
+        '<text x="66" y="78.4" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="' + fs + '" font-weight="800" letter-spacing=".4" fill="' + ink + '">' + txt + '</text>';
     } else if (o.num) {
       badge = '<rect x="15" y="65" width="42" height="23" rx="6" fill="rgba(255,255,255,.2)"/><text x="36" y="81.8" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="15.5" font-weight="700" fill="#fff">' + o.num + '</text>';
     }
@@ -132,5 +135,5 @@
   }
 
   window.MorfisArt = { STATUS: STATUS, ORDER: ORDER, statusOf: statusOf, statusDot: statusDot, statusTag: statusTag, glyph: glyph,
-    kindOf: kindOf, fileIcon: fileIcon, folder: folder, variant: variant, kindsOf: kindsOf, explorerIcon: explorerIcon, toPng: toPng, ICON_VERSION: 'v3' };
+    kindOf: kindOf, fileIcon: fileIcon, folder: folder, variant: variant, kindsOf: kindsOf, explorerIcon: explorerIcon, toPng: toPng, ICON_VERSION: 'v4' };
 })();
