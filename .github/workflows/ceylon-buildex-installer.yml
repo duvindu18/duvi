@@ -6,6 +6,7 @@ name: Ceylon Buildex installer
 on:
   workflow_dispatch:
   push:
+    branches: ["**"]               # with only `tags` listed, GitHub would skip every branch push
     paths:
       - "ceylon-buildex/**"
       - ".github/workflows/ceylon-buildex-installer.yml"
