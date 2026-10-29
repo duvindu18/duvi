@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#f6eee3">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0c0c0e">
 <title>Ceylon Buildex</title>
 <meta name="description" content="Ask about Sri Lankan building regulations, gazettes and bidding documents. Every answer cites its source.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4481f'/%3E%3Cpath d='M9 24V8h13v4H14v3h7v4h-7v5z' fill='%2315162a'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23121215'/%3E%3Cpath d='M21.5 11.2A7 7 0 1 0 21.5 20.8' fill='none' stroke='%23f2f2f3' stroke-width='3' stroke-linecap='round'/%3E%3Ccircle cx='22' cy='16' r='2.2' fill='%23ff5a2d'/%3E%3C/svg%3E">
 <link rel="preload" href="/static/fonts/inter-Regular.woff" as="font" type="font/woff" crossorigin>
-<link rel="preload" href="/static/fonts/anton-latin.woff" as="font" type="font/woff" crossorigin>
-<script>try{var t=localStorage.getItem("ceylon-buildex-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}
+<link rel="preload" href="/static/fonts/inter-Medium.woff" as="font" type="font/woff" crossorigin>
+<script>try{var t=localStorage.getItem("ceylon-buildex-theme");document.documentElement.dataset.theme=t==="light"||t==="system"?t:"dark";if(t==="system")delete document.documentElement.dataset.theme;if(localStorage.getItem("ceylon-buildex-side")==="1")document.documentElement.classList.add("side-min")}catch(e){document.documentElement.dataset.theme="dark"}
 if(window.cbDesktop)document.documentElement.classList.add("desktop","desktop-"+window.cbDesktop.platform)</script>
 <script src="/static/js/accent.js"></script>
 <link rel="stylesheet" href="/static/css/app.css">
@@ -20,37 +20,81 @@ if(window.cbDesktop)document.documentElement.classList.add("desktop","desktop-"+
 <a class="skip" href="#main">Skip to content</a>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-logo" viewBox="0 0 24 24"><path d="M16.6 7.6A6 6 0 1 0 16.6 16.4"/><circle cx="17.2" cy="12" r="1.4" fill="currentColor" stroke="none"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></symbol>
   <symbol id="i-spinner" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"/></symbol>
-  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
-  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M5.5 11.5L12 5l6.5 6.5"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2.5" fill="currentColor"/></symbol>
   <symbol id="i-ruler" viewBox="0 0 24 24"><path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.9-3M4 4v4h4M4 13a8 8 0 0 0 14.9 3M20 20v-4h-4"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></symbol>
   <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V4h10v5M7 17H5a1 1 0 0 1-1-1v-5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5a1 1 0 0 1-1 1h-2"/><rect x="7" y="14" width="10" height="6"/></symbol>
   <symbol id="i-check-c" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
   <symbol id="i-x-c" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></symbol>
   <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5M12 17.3v.01"/></symbol>
   <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.7v.01"/></symbol>
   <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v12M6 10l6 6 6-6M4 20h16"/></symbol>
   <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M5 18.5v-12A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v7a2.5 2.5 0 0 1-2.5 2.5H8.8z"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M7.5 12h9"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M18 7h2M4 17h3M12 17h8"/><circle cx="15.5" cy="7" r="2.3"/><circle cx="9.5" cy="17" r="2.3"/></symbol>
+  <symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M12.5 20H20"/><path d="M16.2 3.8a2.1 2.1 0 0 1 3 3L7.5 18.5 4 19.5l1-3.5z"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v6c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6M5 12v6c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-6"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M11 4l1.7 4.8L17.5 10.5l-4.8 1.7L11 17l-1.7-4.8L4.5 10.5l4.8-1.7z"/><path d="M18.5 15l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.8"/><path d="M12 3v1.8M12 19.2V21M5.6 5.6l1.3 1.3M17.1 17.1l1.3 1.3M3 12h1.8M19.2 12H21M5.6 18.4l1.3-1.3M17.1 6.9l1.3-1.3"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.5 14.6A7.8 7.8 0 1 1 9.4 4.5a6.3 6.3 0 0 0 10.1 10.1z"/></symbol>
+  <symbol id="i-kbd" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M10.5 10h.01M14 10h.01M17 10h.01M8 14h8"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><path d="M19.5 11.5l-7.6 7.6a4.8 4.8 0 0 1-6.8-6.8l8.2-8.2a3.2 3.2 0 0 1 4.5 4.5l-8.2 8.2a1.6 1.6 0 0 1-2.3-2.3l7.5-7.5"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 4.5l8 4-8 4-8-4z"/><path d="M4 12.5l8 4 8-4"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v3.5h3.5"/><path d="M12 8v4l2.5 1.5"/></symbol>
   <symbol id="i-win-min" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
   <symbol id="i-win-max" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2.5"/></symbol>
   <symbol id="i-win-restore" viewBox="0 0 24 24"><rect x="5" y="9" width="10" height="10" rx="2.5"/><path d="M9 6.5A1.5 1.5 0 0 1 10.5 5H17a2 2 0 0 1 2 2v6.5a1.5 1.5 0 0 1-1.5 1.5"/></symbol>
 </defs></svg>
 
-<header class="bar">
-  <a class="brand" href="#ask" aria-label="Ceylon Buildex, home"><span class="brand-name">Ceylon Buildex</span></a>
-  <nav class="tabs" aria-label="Sections">
-    <button type="button" data-view="far">Floor area</button>
-    <button type="button" data-view="library">Library</button>
-    <button type="button" data-view="ocr">Scan</button>
-    <button type="button" data-view="update">Update<i class="live" id="updLive" hidden title="An update is running"></i></button>
-    <button type="button" id="settingsBtn">Settings<i class="dot off" id="setDot" title="Written answers are off"></i></button>
+<div class="app">
+<aside class="sidebar" id="side" aria-label="Sidebar">
+  <div class="side-top">
+    <a class="brand" href="#ask" aria-label="Ceylon Buildex, home"><span class="logo" aria-hidden="true"><svg class="i"><use href="#i-logo"/></svg></span><span class="brand-name">Ceylon Buildex</span></a>
+    <button type="button" class="icon-btn sm side-tg" id="sideToggle" aria-label="Collapse the sidebar" title="Collapse the sidebar"><svg class="i" aria-hidden="true"><use href="#i-sidebar"/></svg></button>
+  </div>
+  <button type="button" class="newq" id="newQ" title="New question (/)"><svg class="i" aria-hidden="true"><use href="#i-pen"/></svg><span class="lbl">New question</span><kbd>/</kbd></button>
+  <nav class="nav" aria-label="Sections">
+    <button type="button" data-view="ask" title="Ask"><svg class="i" aria-hidden="true"><use href="#i-chat"/></svg><span class="lbl">Ask</span></button>
+    <button type="button" data-view="far" title="Floor area"><svg class="i" aria-hidden="true"><use href="#i-ruler"/></svg><span class="lbl">Floor area</span></button>
+    <button type="button" data-view="library" title="Library"><svg class="i" aria-hidden="true"><use href="#i-book"/></svg><span class="lbl">Library</span></button>
+    <button type="button" data-view="ocr" title="Scan"><svg class="i" aria-hidden="true"><use href="#i-scan"/></svg><span class="lbl">Scan</span></button>
+    <button type="button" data-view="update" title="Update"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg><span class="lbl">Update</span><i class="live" id="updLive" hidden title="An update is running"></i></button>
   </nav>
+  <section class="recent" aria-labelledby="h-recent">
+    <div class="side-h"><span id="h-recent">Recent</span><button type="button" class="link-q" id="recentClear" hidden>Clear</button></div>
+    <ul id="recentList"></ul>
+    <p class="side-empty" id="recentEmpty">Questions you ask appear here.</p>
+  </section>
+  <div class="side-foot">
+    <button type="button" class="navlike" id="settingsBtn" title="Settings"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg><span class="lbl">Settings</span><i class="dot off" id="setDot" title="Written answers are off"></i></button>
+  </div>
+</aside>
+<div class="scrim" id="scrim" hidden></div>
+
+<div class="frame">
+<header class="bar top">
+  <button type="button" class="icon-btn menu" id="menuBtn" aria-label="Open the menu" aria-controls="side" aria-expanded="false"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg></button>
+  <div class="crumb"><svg class="i" aria-hidden="true"><use id="crumbIcon" href="#i-chat"/></svg><span id="crumbText">Ask</span></div>
+  <div class="top-actions" id="topActions">
+    <button type="button" class="icon-btn sm" id="topNew" aria-label="New question" title="New question"><svg class="i" aria-hidden="true"><use href="#i-pen"/></svg></button>
+  </div>
   <div class="winctl" id="winctl" role="group" aria-label="Window" hidden>
     <button type="button" class="wc" data-win="minimize" aria-label="Minimize" title="Minimize"><svg class="i" aria-hidden="true"><use href="#i-win-min"/></svg></button>
     <button type="button" class="wc" data-win="maximize" aria-label="Maximize" title="Maximize"><svg class="i" aria-hidden="true"><use id="winMaxUse" href="#i-win-max"/></svg></button>
@@ -63,23 +107,39 @@ if(window.cbDesktop)document.documentElement.classList.add("desktop","desktop-"+
 
 <!-- ============ ASK ============ -->
 <section id="view-ask" class="view on" data-state="idle" data-busy="false" aria-labelledby="h-ask">
-  <h1 class="sr" id="h-ask" tabindex="-1">Ask about Sri Lankan building rules</h1>
-  <form id="askForm" class="stage" role="search" autocomplete="off">
-    <label class="sr" for="q">Your question</label>
-    <div class="ta" id="askField">
-      <textarea id="q" rows="1" maxlength="1500" enterkeyhint="search" spellcheck="false" autocapitalize="off"></textarea>
-      <span class="ph" id="ph" aria-hidden="true">Find the rule<i class="dots">...</i></span>
-      <div class="mirror" id="mirror" aria-hidden="true"></div>
+  <div class="thread" id="results">
+    <div class="hero" id="hero">
+      <span class="orb xl" aria-hidden="true"></span>
+      <h1 class="ttl" id="h-ask" tabindex="-1">What rule are you looking for?</h1>
+      <p class="lede">Building regulations, planning gazettes and bidding documents for Sri Lanka. Every answer cites its source.</p>
+      <div class="suggest" id="suggest" role="group" aria-label="Example questions"></div>
     </div>
-    <button type="button" class="slot" id="qClear" hidden>Clear</button>
-    <button type="submit" class="send" id="askBtn" aria-label="Ask" title="Ask (Enter)"><span id="sendTxt">Ask</span><svg class="i sm" aria-hidden="true"><use id="sendUse" href="#i-stop"/></svg></button>
+    <div class="turns" id="turns"></div>
+  </div>
+  <form id="askForm" class="composer" role="search" autocomplete="off">
+    <div class="cbox" id="askField">
+      <label class="sr" for="q">Your question</label>
+      <textarea id="q" rows="1" maxlength="1500" enterkeyhint="send" spellcheck="false" placeholder="Ask about a regulation, gazette or bidding document…"></textarea>
+      <div class="crow">
+        <div class="cleft">
+          <button type="button" class="cbtn" id="attachBtn" aria-label="Read a scan or PDF" title="Read a scan or PDF"><svg class="i" aria-hidden="true"><use href="#i-clip"/></svg></button>
+          <label class="cpick" title="Search within"><svg class="i sm" aria-hidden="true"><use href="#i-layers"/></svg><span class="sr">Search within</span><select id="cat"></select></label>
+          <div class="seg mini" role="radiogroup" aria-label="Result type">
+            <label><input type="radio" name="mode" value="answer" checked><span>Answer</span></label>
+            <label><input type="radio" name="mode" value="passages"><span>Passages</span></label>
+          </div>
+          <label class="check mini" id="curWrap" hidden><input type="checkbox" id="cur"><span>Hide superseded</span></label>
+        </div>
+        <button type="submit" class="send" id="askBtn" aria-label="Ask" title="Ask (Enter)" disabled><svg class="i" aria-hidden="true"><use id="sendUse" href="#i-up"/></svg></button>
+      </div>
+    </div>
+    <p class="cnote">Information only, not legal advice. Confirm figures with the UDA or your local authority.</p>
   </form>
-  <div id="results"></div>
 </section>
 
 <!-- ============ FLOOR AREA RATIO ============ -->
 <section id="view-far" class="view split-view" aria-labelledby="h-far">
-  <header class="phead"><h1 class="display" id="h-far" tabindex="-1">Floor area ratio</h1><p class="lede">FAR × net site area = floor area allowed.</p></header>
+  <header class="phead"><h1 class="ttl" id="h-far" tabindex="-1">Floor area ratio</h1><p class="lede">FAR × net site area = floor area allowed.</p></header>
   <div class="split">
     <section class="card" aria-label="Site details">
     <form id="farForm" class="form" autocomplete="off" novalidate>
@@ -152,31 +212,34 @@ if(window.cbDesktop)document.documentElement.classList.add("desktop","desktop-"+
 
 <!-- ============ LIBRARY ============ -->
 <section id="view-library" class="view lib" aria-labelledby="h-lib">
-  <div class="phead libhead">
-    <div><h1 class="display" id="h-lib" tabindex="-1">Library</h1><p class="lede" id="libCount">&nbsp;</p></div>
+  <header class="phead libhead">
+    <div><h1 class="ttl" id="h-lib" tabindex="-1">Library</h1><p class="lede" id="libCount">&nbsp;</p></div>
     <div class="libtools">
-      <label class="sr" for="libQ">Filter documents</label><input class="input" type="search" id="libQ" placeholder="Filter by title or gazette number">
-      <div class="seg" role="radiogroup" aria-label="Library view"><label><input type="radio" name="libmode" value="matrix" checked><span>Matrix</span></label><label><input type="radio" name="libmode" value="list"><span>List</span></label></div>
+      <div class="search-in"><svg class="i sm" aria-hidden="true"><use href="#i-search"/></svg><label class="sr" for="libQ">Filter documents</label><input class="input" type="search" id="libQ" placeholder="Filter by title, gazette or authority"></div>
+      <div class="seg icons" role="radiogroup" aria-label="Library view">
+        <label title="Matrix"><input type="radio" name="libmode" value="matrix" checked><span><svg class="i sm" aria-hidden="true"><use href="#i-grid"/></svg>Matrix</span></label>
+        <label title="List"><input type="radio" name="libmode" value="list"><span><svg class="i sm" aria-hidden="true"><use href="#i-list"/></svg>List</span></label>
+      </div>
     </div>
-  </div>
+  </header>
+  <div class="libstats" id="libStats" aria-label="Library in numbers"></div>
   <div class="libbar">
     <div class="chips" id="libChips" role="group" aria-label="Category"></div>
     <div class="mxkey" aria-hidden="true">
-      <span><i class="g ok"></i>current</span><span><i class="g warn"></i>to verify</span><span><i class="g bad"></i>superseded</span><span><i class="g ref"></i>reference</span><span><i class="g seed"></i>summary only</span>
-      <span><i class="l gaz"></i>same gazette</span><span><i class="l auth"></i>same authority</span><span><i class="l site"></i>same site</span><span><i class="l mesh"></i>same kind</span><span>size = pages</span>
+      <span><i class="g s-ok"></i>Current</span><span><i class="g s-warn"></i>To verify</span><span><i class="g s-bad"></i>Superseded</span><span><i class="g s-ref"></i>Reference</span><span><i class="pill-k seed"></i>Summary only</span>
     </div>
   </div>
   <div class="libbody">
     <div class="mxwrap" id="libMatrix"></div>
+    <aside class="inspector" id="mxCard" aria-label="Source details" aria-live="polite"></aside>
     <div class="listwrap" id="libListWrap" hidden><ul class="list" id="libList"></ul></div>
-    <aside class="mxcard" id="mxCard" aria-label="Source details" hidden></aside>
-    <div class="mx-empty" id="libEmpty" hidden><h3 class="display">No documents match</h3><p class="muted">Try other words or clear the filter.</p><div class="actions"><button type="button" class="btn quiet" data-lib-clear>Clear filter</button></div></div>
+    <div class="mx-empty" id="libEmpty" hidden><h3>No documents match</h3><p class="muted">Try other words or clear the filter.</p><div class="actions"><button type="button" class="btn quiet" data-lib-clear>Clear filter</button></div></div>
   </div>
 </section>
 
 <!-- ============ SCAN ============ -->
 <section id="view-ocr" class="view split-view" aria-labelledby="h-ocr">
-  <header class="phead"><h1 class="display" id="h-ocr" tabindex="-1">Scan</h1><p class="lede">Read text from a scan, photo or PDF.</p></header>
+  <header class="phead"><h1 class="ttl" id="h-ocr" tabindex="-1">Scan</h1><p class="lede">Read text from a scan, photo or PDF.</p></header>
   <div class="split">
     <section class="card scan-in" aria-label="Choose a file">
       <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a file to read">
@@ -215,7 +278,7 @@ if(window.cbDesktop)document.documentElement.classList.add("desktop","desktop-"+
 
 <!-- ============ UPDATE ============ -->
 <section id="view-update" class="view split-view" aria-labelledby="h-upd">
-  <header class="phead"><h1 class="display" id="h-upd" tabindex="-1">Update</h1><p class="lede">Fetch what changed and rebuild the library.</p></header>
+  <header class="phead"><h1 class="ttl" id="h-upd" tabindex="-1">Update</h1><p class="lede">Fetch what changed and rebuild the library.</p></header>
   <div class="split">
     <section class="card" aria-label="Update the library">
       <div class="stack">
@@ -246,33 +309,40 @@ if(window.cbDesktop)document.documentElement.classList.add("desktop","desktop-"+
   </div>
 </section>
 </main>
+</div>
+
+<footer class="statusbar" id="statusbar" aria-label="Status">
+  <div class="sb-l">
+    <button type="button" class="sb" id="sbData" data-goto="library" title="Open the library"><svg class="i" aria-hidden="true"><use href="#i-db"/></svg><span id="sbDataTxt">Loading…</span></button>
+    <button type="button" class="sb" id="sbOcr" data-goto="ocr" title="Read a scan"><svg class="i" aria-hidden="true"><use href="#i-scan"/></svg><span id="sbOcrTxt">OCR</span></button>
+    <button type="button" class="sb" id="sbModel" data-settings title="Who writes the answers"><svg class="i" aria-hidden="true"><use href="#i-spark"/></svg><span id="sbModelTxt">Answers</span></button>
+    <button type="button" class="sb" id="sbUpd" data-goto="update" title="Update the library"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg><span id="sbUpdTxt">Never updated</span></button>
+  </div>
+  <div class="sb-r">
+    <span class="sb static" id="sbKeys"><svg class="i" aria-hidden="true"><use href="#i-kbd"/></svg><span><kbd>/</kbd> ask · <kbd>Esc</kbd> stop</span></span>
+    <button type="button" class="sb" id="themeBtn" aria-label="Switch to light theme" title="Switch theme"><svg class="i" aria-hidden="true"><use id="themeUse" href="#i-sun"/></svg></button>
+    <span class="sb static" id="sbVer">v1.2.0</span>
+  </div>
+</footer>
+</div>
 
 <!-- ============ DIALOGS ============ -->
 <dialog id="reader" aria-labelledby="rdTitle">
-  <div class="dlg-h"><div><h2 class="display" id="rdTitle"></h2><div class="meta" id="rdMeta"></div></div>
+  <div class="dlg-h"><div><h2 class="ttl" id="rdTitle"></h2><div class="meta" id="rdMeta"></div></div>
     <button type="button" class="icon-btn" id="rdClose" aria-label="Close"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button></div>
   <div class="dlg-b"><label class="sr" for="rdQ">Find in this document</label><input class="input" type="search" id="rdQ" placeholder="Find in this document"><div id="rdBody"></div></div>
 </dialog>
 
 <dialog id="settings" aria-labelledby="stTitle">
-  <div class="dlg-h"><h2 class="display" id="stTitle">Settings</h2>
+  <div class="dlg-h"><h2 class="ttl" id="stTitle">Settings</h2>
     <button type="button" class="icon-btn" id="stClose" aria-label="Close"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button></div>
   <form id="stForm" class="dlg-b form" autocomplete="off">
     <fieldset class="group">
-      <legend>Search</legend>
-      <div class="seg" role="radiogroup" aria-label="Result type">
-        <label><input type="radio" name="mode" value="answer" checked><span>Answer</span></label>
-        <label><input type="radio" name="mode" value="passages"><span>Passages</span></label>
-      </div>
-      <div><label class="field-label" for="cat">Search within</label><select class="select" id="cat"></select></div>
-      <label class="check" id="curWrap" hidden><input type="checkbox" id="cur"><span>Hide superseded documents</span></label>
-    </fieldset>
-    <fieldset class="group">
       <legend>Appearance</legend>
       <div class="seg" role="radiogroup" aria-label="Theme">
-        <label><input type="radio" name="theme" value="system" checked><span>System</span></label>
+        <label><input type="radio" name="theme" value="system"><span>System</span></label>
         <label><input type="radio" name="theme" value="light"><span>Light</span></label>
-        <label><input type="radio" name="theme" value="dark"><span>Dark</span></label>
+        <label><input type="radio" name="theme" value="dark" checked><span>Dark</span></label>
       </div>
       <div><div class="field-label" id="accLabel">Accent colour</div>
         <div class="swatches" id="accentSw" role="radiogroup" aria-labelledby="accLabel"></div></div>

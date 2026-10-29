@@ -13,6 +13,7 @@ function render(s) {
   btn.disabled = !!s.running;
   btn.innerHTML = s.running ? `${icon("spinner", "spin")}Updating` : `${icon("refresh")}Update now`;
   progEl.hidden = !s.running; live.hidden = !s.running;
+  emit("update:running", !!s.running);
   msg.textContent = s.running ? "Scanned documents can take a few minutes." : (s.finished ? "Finished " + fmtTime(s.finished) : "");
   if (s.running) { if (!timer) timer = setInterval(poll, 1500); return; }
   if (timer) { clearInterval(timer); timer = null; loadStatus(); emit("docs:changed"); loadSources(); }

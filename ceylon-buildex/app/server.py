@@ -127,7 +127,8 @@ def ask_events(question: str, category: str | None = None, history: list[dict] |
     yield {"stage": "search", "passages": st["chunks"], "documents": st["documents"]}
     found = retrieval.search(question, limit=k + 3, category=category, boost=boost)
     passages = retrieval.relevant(found)[:k]
-    yield {"stage": "found", "passages": len(passages), "documents": len({p["doc_id"] for p in passages}), "far": bool(far_result)}
+    titles = list(dict.fromkeys(p["title"] for p in passages))          # the documents the passages come from, best match first
+    yield {"stage": "found", "passages": len(passages), "documents": len(titles), "far": bool(far_result), "titles": titles[:6]}
     if not passages and not far_result:
         yield {"stage": "done", "result": {
             "answer": ("The dataset does not contain a passage that answers this question. Try different wording, widen the filter, "

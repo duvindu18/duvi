@@ -107,6 +107,8 @@ class API(unittest.TestCase):
         by = {e["stage"]: e for e in ev}
         self.assertGreater(by["search"]["passages"], 20); self.assertEqual(by["write"]["mode"], "compose")
         self.assertEqual(by["found"]["passages"], len(by["done"]["result"]["citations"]))
+        cited = list(dict.fromkeys(c["title"] for c in by["done"]["result"]["citations"]))
+        self.assertEqual(by["found"]["titles"], cited[:6]); self.assertEqual(by["found"]["documents"], len(cited))   # the documents named are the ones cited
         self.assertEqual(by["done"]["result"]["answer"], self.ask("What is the bid security requirement in the national competitive bidding goods document?")["answer"])
 
     def test_stream_far_stage_only_for_far_questions(self):

@@ -4,7 +4,7 @@
 // When it answers, the window loads the portal. Quit: the window asks the back end to stop (it then stops an Ollama it started),
 // and kills it if it does not. If this process dies, the back end notices (it watches our process id) and stops by itself.
 "use strict";
-const {app, BrowserWindow, ipcMain, nativeTheme, shell, Menu, session} = require("electron");
+const {app, BrowserWindow, ipcMain, shell, Menu, session} = require("electron");
 const path = require("path");
 const fs = require("fs");
 const net = require("net");
@@ -14,7 +14,7 @@ const {spawn, execFile} = require("child_process");
 
 const PREFERRED_PORT = 47319;                    // the same port each time keeps the page's saved choices (theme, accent, mode)
 const TOKEN = crypto.randomBytes(24).toString("hex");
-const BG = {dark: "#0e0e11", light: "#f6eee3"};
+const BG = {dark: "#0b0b0d", light: "#f3f3f1"};
 const BOOT_TIMEOUT_MS = 120000;                  // first start on a slow disk with a virus scanner looking at every file
 
 let win = null, child = null, origin = null, quitting = false, booting = null;
@@ -48,7 +48,7 @@ function savePrefs(now) {
   const write = () => { try { fs.writeFileSync(prefsFile(), JSON.stringify(prefs)); } catch { /* not important enough to complain */ } };
   if (now) write(); else saveTimer = setTimeout(write, 400);
 }
-const isDark = () => (typeof prefs.dark === "boolean" ? prefs.dark : nativeTheme.shouldUseDarkColors);
+const isDark = () => (typeof prefs.dark === "boolean" ? prefs.dark : true);              // the portal opens dark until you choose otherwise
 
 function onScreen(b) {                           // a saved position on a monitor that is no longer attached is not used
   const {screen} = require("electron");

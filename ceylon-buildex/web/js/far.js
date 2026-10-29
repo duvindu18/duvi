@@ -113,8 +113,8 @@ const more = (title, html, open = false) => `<details class="more"${open ? " ope
 function render(r) {
   const f = r.far, val = f.unlimited ? "Unlimited" : farFmt(f.value);
   const inp = r.inputs;
-  let h = `<div class="big"><div><div class="k small muted">Permissible FAR</div><div class="num"><mark>${esc(val)}</mark></div></div>
-    ${r.max_gfa_m2 != null ? `<div><div class="k small muted">Max floor area</div><div class="display">${fmt(r.max_gfa_m2, 0)} m²</div></div>` : ""}</div>
+  let h = `<div class="big"><div><div class="k">Permissible FAR</div><div class="num"><mark>${esc(val)}</mark></div></div>
+    ${r.max_gfa_m2 != null ? `<div><div class="k">Max floor area</div><div class="gfa">${fmt(r.max_gfa_m2, 0)} m²</div></div>` : ""}</div>
     <div class="dim"></div><p class="small muted">${esc(f.basis)}</p>`;
   h += `<dl class="kv">${r.zone ? `<dt>Zone</dt><dd>${esc(r.zone.name)}</dd>` : ""}<dt>Land</dt><dd>${fmt(inp.gross_area_m2, 1)} m² (${fmt(inp.gross_area_m2 / FAR.unit_conversions.perch_to_m2, 2)} perches)</dd>
     ${inp.reserve_area_m2 ? `<dt>Within street lines</dt><dd>− ${fmt(inp.reserve_area_m2, 1)} m²</dd>` : ""}<dt>Net site</dt><dd>${fmt(inp.net_area_m2, 1)} m²</dd>

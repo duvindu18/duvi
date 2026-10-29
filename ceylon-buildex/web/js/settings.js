@@ -32,7 +32,7 @@ function sync() {
 $$('input[name="prov"]').forEach(r => r.addEventListener("change", sync));
 
 async function open() {
-  msg.innerHTML = ""; $("#stForce").hidden = true;
+  msg.innerHTML = ""; $("#stForce").hidden = true; delete dlg.dataset.ready;
   if (!dlg.open) dlg.showModal();
   try {
     ST = await api("/api/settings");
@@ -45,6 +45,7 @@ async function open() {
     $("#stSaved").innerHTML = savedLine(ST);
     paintBoot(ST.ollama_boot); watchBoot();
     sync();
+    dlg.dataset.ready = "1";
   } catch (e) { msg.innerHTML = `<div class="notice bad">${icon("alert")}<div>${esc(e.message)}</div></div>`; }
 }
 

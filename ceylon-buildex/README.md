@@ -16,69 +16,55 @@ CeylonBuildex-Setup-1.2.0.exe   # Windows: install, then start Ceylon Buildex fr
 |---|---|
 | **Ask** | Searches the dataset first, runs the FAR rules engine if the question is about floor area, then an LLM writes the reply *only from the retrieved passages* with `[S1]`-style citations. No LLM key? It falls back to quoting the best-matching passages (extractive mode). Nothing relevant? It says so - no guessing. |
 | **Floor area** | Two regimes: **CMC area** (City of Colombo Development Plan 2008: zones, Form C1 FAR by land extent and street width, Form C2 coverage/spaces, Concentrated Development table) and **UDA 2021** (Gazette 2235/54 Schedule 6: Forms A-E by zone factor / density, land extent and road width). Shows the table row used, max floor area, coverage, spaces, checks against a proposed design, warnings and the legal-status caveat. |
-| **Library** | Every source as a round node in a labelled box for its kind of document, joined by a **mesh of triangles** (or a plain list). Node size follows page count; lines across the map are real relations. Status, origin (full text vs seed extract) and a page-level reader. |
+| **Library** | Every source in a **matrix of kind x year** (or a plain list), with its real relations drawn on demand and an inspector beside it. Status, origin (full text vs seed extract) and a page-level reader. |
 | **Scan** | Drop a scan or photo: text-layer pages are used as they are; image-only pages go to Tesseract in parallel (170 dpi fast / 300 dpi accurate), cached by content hash, rotation retry for low-confidence pages, garbled legacy-font text layers detected and re-OCR'd. Option to add the result to the dataset. |
 | **Update** | Downloads every source in `config/sources.json` with conditional GET (ETag / Last-Modified / SHA-256, PDF validation), scans listing pages (UDA, documents.gov.lk, Treasury, CIDA) for new documents, OCRs what needs it, rebuilds the dataset and exports `data/dataset.jsonl`. |
 
 ## The interface
 
-**The query page is one line of type and nothing else.** Bold capitals in the accent colour read **FIND THE RULE...** (the dots blink) in the middle of the page until
-you type. The line is a fixed size - at most 88 px (56 px on a phone), set in Anton - and is centred across and down; what you type takes the room it needs and shrinks only
-as you keep typing, so a long question still fits. Enter asks (Shift+Enter adds a line), Esc clears the line or stops a running question. No example questions, no toggles, no footer.
+A quiet dark workspace (a light theme is one click away), one typeface (Inter, bundled) and one accent colour used sparingly: the live state, a key fact, the page you are on.
 
-**One small, fixed type system.** Titles, the start line, the brand and the big numbers are Anton, uppercase, in the accent colour. Everything you read or click is Inter in
-three weights only (regular, medium, semibold) and six fixed sizes from 12 to 22 px; phone fields are 16 px so the page does not zoom when you tap one. Nothing scales with the
-window, so a 2000 px monitor shows the same type as a laptop and the page simply stops widening at 1560 px.
+**The frame.** A **sidebar** on the left holds *New question*, the five places (Ask, Floor area, Library, Scan, Update), your **recent questions** and Settings; it collapses to icons
+(remembered) and becomes a drawer on a phone. The workspace is a rounded panel whose **top bar** names the page you are on (and, in the desktop program, is the window's title bar).
+A slim **status bar** along the bottom says what the program knows right now, each item with its icon and each a shortcut: the dataset (documents and passages), OCR and its languages,
+who writes the answers (or "Quoting passages"), the last update (a spinning icon while one runs), the keyboard shortcuts, a light/dark switch and the version.
+The browser window never scrolls: each page scrolls inside its own pane.
 
-**The page is a fixed frame.** The browser window never scrolls: the top bar stays where it is, and each page scrolls inside its own area with a slim bar that sits just
-outside the content edge, so content lines up with the header whether or not a bar is showing. The Floor area, Scan and Update pages are two panels of **exactly the same top,
-height and bottom** (one column on a phone); each scrolls on its own if its content is taller. Spacing comes from one scale (4-48 px) and rows of chips or buttons wrap with
-a 12 px gap, so nothing touches. On an answer the sources stay beside the text.
+**Ask is a conversation.** The empty page greets you with a short line, four example questions and the question box in the middle; the first question moves the box to the bottom.
+The box grows with what you type; beside it sit *attach a scan* (opens Scan), *search within* (one kind of document, or all) and *Answer / Passages* (with *Hide superseded* in
+Passages mode). Enter asks, Shift+Enter adds a line, Esc stops, `/` jumps to the box from anywhere.
 
-**Library map.** Each kind of document gets a labelled box; box area follows how many documents it holds. Inside a box every source is a round node (size = pages) and
-the nodes are joined by a **Delaunay triangulation** - a mesh of triangles whose lines never cross. *The mesh only means "same kind of document"*; where a node sits inside its
-box is layout (date order along a snake path, with small fixed offsets), not data. A solid node is current, an orange centre means *to verify*, a strike means *superseded*,
-hollow is reference, and a dashed ring marks a summary only (not the full text). The lines drawn **across** the map are the real relations, and only when the data says so:
-*same gazette number* or *supersedes* (orange, the strongest, always shown), *same issuing authority* and *same publishing site* (faint, shown between boxes and inside a box when you
-point at a node). Nothing is inferred from titles. Boxes rise, nodes pop in, lines draw themselves, then small signals travel along the gazette and authority lines (all switched
-off by `prefers-reduced-motion`). Point at, focus or tap a node to light its relations, outline its box and see its card; arrow keys move between nodes, Enter opens the document.
-The category chips and the filter box dim the nodes (and any box left empty) that do not match. On a phone the boxes stack in one column.
+Your question appears as a bubble on the right. The assistant's reply starts with **thinking out loud**: a glowing orb, a shimmering *Thinking* with a live timer, and a timeline of
+steps, each the moment the server really reports it (`parse`, `far`, `search`, `found`, `write` on `POST /api/ask/stream`):
 
-The other pages - **Floor area, Library, Scan, Update** - and **Settings** are plain text links in the top-right corner (a second row on a phone).
-
-**Settings** (a dialog; a bottom sheet on a phone) holds everything that used to sit on the page:
-
-* *Search* - Answer or Passages, search within one kind of document, hide superseded documents (Passages mode).
-* *Appearance* - System, Light or Dark, and an **accent colour**: seven presets (each has a deeper variant for light pages and a brighter one for dark pages) or any colour you pick. The text on top of the accent switches between dark and white for contrast. Saved in this browser and applied before the first paint.
-* *Written answers* - Claude, any OpenAI-compatible server or local model (Ollama), Automatic, or Off. A dot beside the link shows while no model writes the answers.
-
-Choices are remembered in this browser. Keys are sent to the server, kept in `data/settings.json` (private file) and never sent back to the page.
-
-**Answers** keep your question as a compact line, open with the answer in large bold type, and put a **highlighter** over the facts a reader must not miss - a limit, a
-value, a date, a condition - with the sources in a column beside it. The model is asked to wrap such facts in `==...==`; if it does not (or no model is used), the server finds
-values with units, percentages, money, ratios, dates and FAR values by pattern (at most 6 per answer, 3 per paragraph; never in the caution, regime or note paragraphs; never touching a
-`[S1]` tag). Only words already in the answer are marked - the highlight is emphasis, not verification - and the markers are removed when you copy the answer.
-With reduced motion the strokes are drawn at once instead of sweeping across.
-
-While a question runs, one status line says what is happening *now*:
-
-| The page shows | When the server has really... |
+| Step shown | When the server has really... |
 |---|---|
-| Sending your question | received nothing yet (the request is in flight) |
-| Reading your question | started to parse the question |
-| Calculating floor area ratio | found complete FAR inputs and started the rules engine (only then) |
-| Searching 340 passages in 16 documents | started the search, over exactly that many passages |
-| Found 7 passages in 3 documents | finished the search |
-| Writing the answer with *model* (and an elapsed-seconds counter after 6 s) / Composing the answer from the passages | started the language model / composed the answer without one |
+| Reading your question | started to parse it |
+| Calculating the floor area ratio | found complete FAR inputs and started the rules engine (only then) |
+| Searching the library · *340 passages in 16 documents* | started the search, over exactly that many passages |
+| Found 7 passages · *in 3 documents*, with the documents named as chips | finished the search (the names are the documents the answer then cites) |
+| Writing the answer · *with model* (an elapsed counter after 4 s) / Composing the answer | started the language model / composed the answer without one |
 
-Nothing is timed or faked: the status comes from the NDJSON events of `POST /api/ask/stream` (`parse`, `far`, `search`, `found`, `write`, `done`, `error`),
-the loaders disappear the moment `done` arrives, and a skeleton holds the answer's place so nothing jumps. Enter is ignored while a question is running;
-a **Stop** button appears at the right of the line. A failed or stopped question keeps your text and offers **Retry**. Older answers fold up. `/` jumps to the line from anywhere.
+Each step stays on screen for a short beat (about half a second) so the sequence reads smoothly instead of flashing past; a "Working" row with typing dots marks that more is coming.
+Nothing is invented: no step appears that the server did not report, and when the answer lands the panel folds into **Thought for 1.4 s**, the real time the work took (click to open it again).
+With `prefers-reduced-motion` the steps appear without the pause and nothing moves.
 
-The Floor area page recalculates as you type (no button); on a phone a floating bar keeps the FAR in view while you edit. Library, Scan and Update carry every earlier feature.
-The Floor area page recalculates as you type (no button); on a phone a floating bar keeps the FAR in view while you edit. Library, Scan and Update carry every earlier feature.
-`prefers-reduced-motion` cuts animation to nothing without changing content. The front end is plain ES modules - no build step, no dependencies. Both typefaces are bundled
-and served from this server, so no page ever asks another site for a font: **Anton** and **Inter** (SIL Open Font License 1.1; licences in `web/fonts/OFL-Anton.txt` and `OFL-Inter.txt`).
+The **answer** follows, paragraph by paragraph, with the facts a reader must not miss under a soft highlighter, `[S1]`-style citation chips, a FAR card when the question was about floor area,
+and the **sources as cards** below (number, title, page, gazette, status; a chevron shows the excerpt; a click opens the reader at that page). A row of small icons copies the answer
+(plain text with the sources), asks again or edits the question, and says how it was made ("Written by ..." or "Compiled from the passages", the number of sources, the time).
+A failed or stopped question says so in the thinking header and offers Retry. *New question* starts over.
+
+**The library matrix.** Above it, the library in numbers (documents with a bar of their status, pages, how many are full text, the last update). The matrix itself has **one row per kind of
+document and one column per year** (plus *Undated*), so where a document sits *is* its data. Each document is a chip with a status mark (current, to verify, superseded, reference; its size
+follows the page count) and a short name (its gazette number, else the first words of its title); a dashed chip is a summary, not the full text. Point at, focus or tap a chip and its row and
+column light up, its **real relations** are drawn as curves (same gazette or supersedes in the accent colour, same authority or website in grey; nothing is inferred from titles),
+everything else dims, and the **inspector** shows what it is, where it comes from and what it relates to. The inspector floats beside the chip and stays while you move onto it; a click
+keeps it, a second click (or double-click, or Enter) opens the document; on a screen 1560 px or wider it is docked beside the matrix. Category chips and the filter box dim what does not
+match; arrow keys move between documents. A plain **list** is one click away.
+
+**Floor area, Scan, Update** keep every earlier feature in the same panels, restyled. **Settings** (a dialog; a bottom sheet on a phone) holds *Appearance* (Dark, Light or System, and
+an accent colour: seven presets or any colour) and *Written answers* (Claude, any OpenAI-compatible server or local model, Automatic, or Off). Choices are remembered in this browser;
+keys are sent to the server, kept in `data/settings.json` (private file) and never sent back to the page.
 
 ## The desktop program (Windows, with an installer)
 
@@ -222,7 +208,7 @@ the full-text download path was tested against a local web server standing in fo
 ```bash
 pip install -r requirements-dev.txt
 python3 -m unittest discover -s tests -t .        # 121 tests: FAR engine, OCR, ingest, downloader/update (local server), API, settings, LLM (mock endpoints), highlight markers, Ollama start-up (fake `ollama`), launcher (fake browser) and its desktop back-end mode
-python3 tests/ui_smoke.py "" shots/      # headless-browser test (about 325 checks, including the desktop title bar): starts its own server; desktop, phone, 2000 px wide, dark mode, reduced motion; fixed type, equal-height panels, spacing, centred start line, library map (nodes inside boxes, triangle mesh with no crossings, relations), accent colour, Settings, highlights, streamed progress
+python3 tests/ui_smoke.py "" shots/      # headless-browser test (276 checks: frame, conversation and thinking steps fed event by event, library matrix, phone drawer, themes, desktop title bar); starts its own server
 ```
 
 What the tests do and do not prove: OCR is tested on PDFs rendered from the real regulation wording (a *synthetic* scan, 100 % word recall),
@@ -236,7 +222,7 @@ program or model. The browser test is headless Chromium only (not Edge, Firefox 
 launcher.py CeylonBuildex.spec CeylonBuildex.pyw VERSION   the back end of the desktop program and its PyInstaller recipe
 desktop/    the window (Electron: main.js, preload.js, loading.html) and the installer recipe (package.json "build", build/installer.nsh)
 app/        config, db (SQLite + FTS5), ocr, extract, downloader, ingest (CLI), retrieval, far, llm, ollama_boot, winquiet, highlight (key-fact markers), server (Flask)
-web/        index.html (shell + icon sprite), css/app.css (type system, panels, controls), css/matrix.css (library map), js/*.js (ES modules: ask, far, library, matrix, ocr, update, settings, reader ...; accent.js is a small classic script loaded first so the saved colour is there at first paint), fonts/ (Anton, Inter, OFL)
+web/        index.html (frame + icon sprite), css/app.css (tokens, frame, controls, conversation), css/matrix.css (library), js/*.js (plain ES modules, no build step: ask, far, library, matrix, ocr, update, settings, reader, window ...; accent.js loads first so the saved colour is there at first paint), fonts/ (Inter, SIL OFL 1.1, bundled: no page asks another site for anything)
 config/     sources.json  - 30 registered documents + 7 listing pages to scan
 data/       dataset.sqlite, dataset.jsonl, documents.json, rules/far_rules.json, seed/, raw/ (downloads, inbox/)
 scripts/    build_rules.py, make_seed.py, build_exe.py (back end), build_installer.py (Setup program), smoke_exe.py
