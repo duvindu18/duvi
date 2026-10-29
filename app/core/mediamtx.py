@@ -211,3 +211,112 @@ class MediaMTXServer:
                     readers=len(item.get("readers") or []),
                 )
         return None
+
+
+# ---------------------------------------------------------------------------
+# Blackmagic Camera: "Live Stream > Platform > Import Stream Settings"
+# ---------------------------------------------------------------------------
+# Blackmagic Camera has no free-text server field; custom servers are added by
+# importing a streaming XML file (the same format ATEM Software Control
+# exports). Veil generates one for this PC and can serve it over the LAN so
+# the phone downloads it by scanning a QR code.
+SHARE_PORT = 8899
+XML_NAME = "Veil.xml"
+
+_PROFILES = (
+    # name, resolution, fps, video bitrate (b/s)
+    ("1080p30 (recommended)", "1080p", 30, 8_000_000),
+    ("1080p60", "1080p", 60, 12_000_000),
+    ("720p30 (weak Wi-Fi)", "720p", 30, 4_000_000),
+    ("2160p30", "2160p", 30, 25_000_000),
+)
+
+
+def blackmagic_xml(ip: str) -> str:
+    from xml.sax.saxutils import escape
+
+    server, key = STREAM_PATH.split("/", 1)
+    profiles = "\n".join(
+        f"""            <profile>
+                <name>{escape(name)}</name>
+                <config resolution="{res}" fps="{fps}">
+                    <bitrate>{rate}</bitrate>
+                    <audio-bitrate>128000</audio-bitrate>
+                    <keyframe-interval>1</keyframe-interval>
+                </config>
+            </profile>"""
+        for name, res, fps, rate in _PROFILES
+    )
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<streaming>
+    <service>
+        <name>Veil</name>
+        <servers>
+            <server>
+                <name>Veil PC ({escape(ip)})</name>
+                <url>rtmp://{escape(ip)}:{RTMP_PORT}/{server}</url>
+            </server>
+        </servers>
+        <key>{key}</key>
+        <profiles>
+{profiles}
+        </profiles>
+    </service>
+</streaming>
+"""
+
+
+def share_url(ip: str) -> str:
+    return f"http://{ip}:{SHARE_PORT}/{XML_NAME}"
+
+
+class SettingsShareServer:
+    """Tiny LAN web server that only serves the generated settings file.
+
+    Lets the phone download it by scanning a QR code; it stops when the
+    connection dialog closes. Nothing else is exposed.
+    """
+
+    def __init__(self) -> None:
+        self._httpd = None
+        self._thread = None
+        self.xml = b""
+
+    def start(self, ip: str) -> bool:
+        import http.server
+        import threading
+
+        self.xml = blackmagic_xml(ip).encode("utf-8")
+        if self._httpd is not None:
+            return True
+        owner = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):  # noqa: N802
+                if self.path.split("?")[0] != f"/{XML_NAME}":
+                    self.send_error(404)
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "application/xml")
+                self.send_header("Content-Disposition", f'attachment; filename="{XML_NAME}"')
+                self.send_header("Content-Length", str(len(owner.xml)))
+                self.end_headers()
+                self.wfile.write(owner.xml)
+
+            def log_message(self, *_a):  # keep the console quiet
+                pass
+
+        try:
+            self._httpd = http.server.ThreadingHTTPServer(("0.0.0.0", SHARE_PORT), Handler)
+        except OSError as exc:
+            log.warning("Settings share server unavailable: %s", exc)
+            return False
+        self._thread = threading.Thread(target=self._httpd.serve_forever, name="XmlShare", daemon=True)
+        self._thread.start()
+        return True
+
+    def stop(self) -> None:
+        if self._httpd is not None:
+            self._httpd.shutdown()
+            self._httpd.server_close()
+            self._httpd = None

@@ -251,12 +251,21 @@ def set_firewall(add: bool) -> None:
         capture_output=True,
     )
     if not add:
+        subprocess.run(["netsh", "advfirewall", "firewall", "delete", "rule", f"name={FIREWALL_RULE} - settings"], capture_output=True)
         return
     step("Firewall rule for the phone receiver")
     res = subprocess.run(
         ["netsh", "advfirewall", "firewall", "add", "rule", f"name={FIREWALL_RULE}", "dir=in", "action=allow",
          f"program={exe}", "enable=yes", "profile=private,domain"],
         capture_output=True, text=True,
+    )
+    # Settings-file download for Blackmagic Camera (served only while the
+    # connection dialog is open).
+    subprocess.run(["netsh", "advfirewall", "firewall", "delete", "rule", f"name={FIREWALL_RULE} - settings"], capture_output=True)
+    subprocess.run(
+        ["netsh", "advfirewall", "firewall", "add", "rule", f"name={FIREWALL_RULE} - settings", "dir=in",
+         "action=allow", "protocol=TCP", "localport=8899", "enable=yes", "profile=private,domain"],
+        capture_output=True,
     )
     if res.returncode == 0:
         say("   allowed on private and domain networks (not public Wi-Fi)")

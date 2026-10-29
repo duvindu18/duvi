@@ -185,3 +185,27 @@ def test_export_keeps_original_audio(tmp_path, acodec, ext):
         assert c.streams.audio[0].codec_context.name == "aac"  # PCM was re-encoded for MP4
         frames = sum(1 for _ in c.decode(video=0))
     assert frames == 40
+
+
+def test_blackmagic_settings_file_and_share():
+    import urllib.request
+    import xml.etree.ElementTree as ET
+
+    from app.core import mediamtx
+
+    root = ET.fromstring(mediamtx.blackmagic_xml("10.0.0.7"))
+    assert root.find("service/name").text == "Veil"
+    assert root.find("service/servers/server/url").text == "rtmp://10.0.0.7:1935/live"
+    assert root.find("service/key").text == "phone"
+    assert len(root.findall("service/profiles/profile")) >= 3
+    srv = mediamtx.SettingsShareServer()
+    if not srv.start("10.0.0.7"):
+        pytest.skip("port 8899 busy")
+    try:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        body = opener.open(f"http://127.0.0.1:{mediamtx.SHARE_PORT}/{mediamtx.XML_NAME}").read()
+        assert b"rtmp://10.0.0.7:1935/live" in body
+        with pytest.raises(Exception):
+            opener.open(f"http://127.0.0.1:{mediamtx.SHARE_PORT}/")
+    finally:
+        srv.stop()

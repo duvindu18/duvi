@@ -141,7 +141,7 @@ class PhoneDialog(QDialog):
         super().__init__(parent)
         self.receiver = receiver
         self.setWindowTitle("Connect a phone camera")
-        self.setMinimumSize(820, 600)
+        self.setMinimumSize(860, 560)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         bg = EmberBackground()
@@ -161,56 +161,61 @@ class PhoneDialog(QDialog):
 
         body = QHBoxLayout()
         body.setSpacing(18)
-        left = GlassCard("1 · Enter these in the app")
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(10)
-        grid.setVerticalSpacing(10)
+        left = GlassCard("Set up Blackmagic Camera")
+        ip_row = QHBoxLayout()
+        ip_row.addWidget(label("This PC", "caption"))
         self.ip_combo = QComboBox()
-        ips = mediamtx.local_ipv4_addresses() or ["127.0.0.1"]
-        self.ip_combo.addItems(ips)
+        self.ip_combo.addItems(mediamtx.local_ipv4_addresses() or ["127.0.0.1"])
         self.ip_combo.setToolTip("This PC's address on your network. Pick the Wi-Fi/Ethernet one the phone uses.")
-        grid.addWidget(label("PC address", "caption"), 0, 0)
-        grid.addWidget(self.ip_combo, 0, 1, 1, 2)
-        self.fields: dict[str, QLineEdit] = {}
-        for row, (key, title) in enumerate(
-            (("rtmp_server", "Server URL"), ("rtmp_key", "Stream key"), ("rtmp_full", "Full RTMP URL"), ("srt", "SRT URL (alternative)")),
-            start=1,
-        ):
-            edit = QLineEdit()
-            edit.setReadOnly(True)
-            self.fields[key] = edit
-            copy = button("Copy", on_click=lambda _=False, e=edit: self._copy(e))
-            grid.addWidget(label(title, "caption"), row, 0)
-            grid.addWidget(edit, row, 1)
-            grid.addWidget(copy, row, 2)
-        grid.setColumnStretch(1, 1)
-        left.body.addLayout(grid)
-        left.body.addWidget(label("2 · In Blackmagic Camera", "h2"))
+        ip_row.addWidget(self.ip_combo, 1)
+        left.body.addLayout(ip_row)
         left.body.addWidget(
             label(
-                "Open Settings (gear) → Stream (live streaming) → choose a custom RTMP server / "
-                "'Custom' platform → paste the Server URL and Stream key above → go back and tap "
-                "the stream / live button. Menu names vary slightly between app versions; any app "
-                "that accepts a custom RTMP URL works the same way.",
+                "<b>1.</b> Scan the QR code with the phone's camera and download <b>Veil.xml</b> "
+                "(or <i>Save Veil.xml…</i> and copy it to the phone).<br>"
+                "<b>2.</b> In Blackmagic Camera: Settings → <b>Live Stream</b> → <b>Platform</b> → "
+                "<b>Import Stream Settings</b> → choose Veil.xml.<br>"
+                "<b>3.</b> Select Platform <b>Veil</b>, Server <b>Veil PC</b>, Key <b>phone</b>, "
+                "Quality <b>1080p30</b>.<br>"
+                "<b>4.</b> On the camera screen, start the live stream. The status turns green here.",
                 "dim",
                 wrap=True,
             )
         )
-        left.body.addWidget(
-            label(
-                "Tip: 1080p30 at 6-10 Mbps with a 1-second keyframe interval gives the lowest delay "
-                "(about 0.5-1.5 s). Windows may ask to allow 'mediamtx' through the firewall - choose "
-                "Private networks.",
-                "faint",
-                wrap=True,
-            )
-        )
+        tools = QHBoxLayout()
+        tools.addWidget(button("Save Veil.xml…", icon=make_icon("export", 16), on_click=self._save_xml))
+        self.details_btn = button("Other apps / manual setup", on_click=self._toggle_details)
+        tools.addWidget(self.details_btn)
+        tools.addStretch(1)
+        left.body.addLayout(tools)
+
+        # Raw URLs for Larix / OBS / Prism / any RTMP-SRT app (hidden by default).
+        self.details = QWidget()
+        grid = QGridLayout(self.details)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(8)
+        self.fields: dict[str, QLineEdit] = {}
+        for row, (key, title) in enumerate(
+            (("rtmp_server", "Server URL"), ("rtmp_key", "Stream key"), ("rtmp_full", "Full RTMP URL"), ("srt", "SRT URL"))
+        ):
+            edit = QLineEdit()
+            edit.setReadOnly(True)
+            self.fields[key] = edit
+            grid.addWidget(label(title, "caption"), row, 0)
+            grid.addWidget(edit, row, 1)
+            grid.addWidget(button("Copy", on_click=lambda _=False, e=edit: self._copy(e)), row, 2)
+        grid.setColumnStretch(1, 1)
+        self.details.setVisible(False)
+        left.body.addWidget(self.details)
+        left.body.addStretch(1)
         body.addWidget(left, 3)
 
         right = GlassCard("Scan on the phone")
         self.qr = QrCode()
         right.body.addWidget(self.qr, 0, Qt.AlignmentFlag.AlignHCenter)
-        right.body.addWidget(label("Contains the full RTMP URL", "faint"), 0, Qt.AlignmentFlag.AlignHCenter)
+        self.qr_caption = label("Scan to download Veil.xml", "faint")
+        right.body.addWidget(self.qr_caption, 0, Qt.AlignmentFlag.AlignHCenter)
         right.body.addStretch(1)
         self.status_chip = Chip("Receiver off", dot=P.text_faint)
         right.body.addWidget(self.status_chip, 0, Qt.AlignmentFlag.AlignHCenter)
@@ -224,6 +229,8 @@ class PhoneDialog(QDialog):
         actions.addWidget(self.start_btn)
         root.addLayout(actions)
 
+        self.share = mediamtx.SettingsShareServer()
+        self.finished.connect(lambda _r: self.share.stop())
         self.ip_combo.currentTextChanged.connect(self._fill)
         receiver.statusChanged.connect(self._on_status)
         receiver.started.connect(lambda: self._on_status(receiver.status))
@@ -236,7 +243,25 @@ class PhoneDialog(QDialog):
         urls = mediamtx.publish_urls(ip)
         for key, edit in self.fields.items():
             edit.setText(urls[key])
-        self.qr.set_text(urls["rtmp_full"])
+        if self.share.start(ip):
+            self.qr.set_text(mediamtx.share_url(ip))
+            self.qr_caption.setText("Scan to download Veil.xml")
+        else:  # port busy: fall back to the plain RTMP URL
+            self.qr.set_text(urls["rtmp_full"])
+            self.qr_caption.setText("Contains the full RTMP URL")
+
+    def _toggle_details(self) -> None:
+        show = not self.details.isVisible()
+        self.details.setVisible(show)
+        self.details_btn.setText("Hide manual setup" if show else "Other apps / manual setup")
+
+    def _save_xml(self) -> None:
+        from PySide6.QtWidgets import QFileDialog
+
+        path, _ = QFileDialog.getSaveFileName(self, "Save Blackmagic stream settings", mediamtx.XML_NAME, "XML (*.xml)")
+        if path:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(mediamtx.blackmagic_xml(self.ip_combo.currentText()))
 
     @staticmethod
     def _copy(edit: QLineEdit) -> None:
