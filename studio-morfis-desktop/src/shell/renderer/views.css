@@ -326,3 +326,17 @@ html.has-wbar .pv{top:40px}
 .pv.multi .pv-arrow{display:grid}
 .pv-arrow.prev{left:14px}
 .pv-arrow.next{right:14px}
+
+/* ===== Project folder setup ===== */
+.fs-head,.fs-row{display:grid;grid-template-columns:44px 42px minmax(0,1fr) minmax(0,1.3fr) 104px;gap:10px;align-items:center}
+.fs-head{font-size:11px;font-weight:600;color:var(--ink-3);letter-spacing:.04em;text-transform:uppercase;padding:0 10px}
+.fs-list{display:flex;flex-direction:column;gap:6px;max-height:52vh;overflow:auto;padding:2px}
+.fs-row{padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+.fs-row.off{opacity:.55}
+.fs-row .in{height:34px}
+.fs-id{display:grid;place-items:center;height:26px;border-radius:6px;background:var(--surface-3);font-size:12px;color:var(--ink-2)}
+.fs-move{display:flex;align-items:center;justify-content:flex-end;gap:2px}
+.fs-move .icon-btn{width:28px;height:28px}
+.fs-move .icon-btn[disabled]{opacity:.3}
+.fs-std{font:600 10px var(--f-mono);color:var(--ink-3);padding:0 6px;letter-spacing:.04em;width:28px;text-align:center}
+.fs-opts{display:flex;flex-direction:column;gap:10px;padding-top:6px;border-top:1px solid var(--line)}

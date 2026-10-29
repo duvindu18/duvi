@@ -52,6 +52,10 @@ function rules(o) {
     ['<main id="view" class="content main" aria-live="polite"></main>', '<main id="view" class="content main" aria-live="polite"></main><section id="dkView" class="content dk-view" aria-live="polite" hidden></section>', true],
     ["const t = st.max ? 'Restore window' : 'Enlarge window'; b.setAttribute('aria-label', t); b.title = st.max ? 'Restore' : 'Enlarge';",
       "const t = st.max ? 'Restore window' : 'Maximize window'; b.setAttribute('aria-label', t); b.title = st.max ? 'Restore down' : 'Maximize';", true],
+    /* the project folders can be changed in Files > Folder setup: a file headed for a folder that is switched off stays where it is */
+    ['var ft0 = FOLDER_TEMPLATES.filter(function (f) { return f.id === t0; })[0];', 'var ft0 = FOLDER_TEMPLATES.filter(function (f) { return f.id === t0; })[0]; if (!ft0) { plan.loose.push(e.rel); return; }', true],
+    ['var ft = FOLDER_TEMPLATES.filter(function (f) { return f.id === cat; })[0];', 'var ft = FOLDER_TEMPLATES.filter(function (f) { return f.id === cat; })[0]; if (!ft) { plan.loose.push(e.rel); return; }', true],
+    ['const ft = FOLDER_TEMPLATES.find((f) => f.id === DELIVERABLES[type]);', "const ft = FOLDER_TEMPLATES.find((f) => f.id === DELIVERABLES[type]) || { id: '', label: 'No folder' };", true],
     ['/* ----- start ----- */\n(function boot() {', '/* ----- start ----- */\n' + HOOK + '(function boot() {', true],
     ["(HOST ? ' The installed program file and its desktop shortcut keep the original icon.' : '')",
       "(HOST ? ' The Start menu entry, desktop and taskbar shortcuts and the Apps list follow it too.' : '')", false],
@@ -74,7 +78,7 @@ function build(html, o) {
 }
 
 const STYLES = ['vendor/leaflet/leaflet.css', 'theme.css', 'desktop.css', 'views.css'];
-const SCRIPTS = ['vendor/leaflet/leaflet.js', 'folder-art.js', 'desktop.js', 'preview.js', 'files.js', 'docs.js', 'automations.js'];
+const SCRIPTS = ['vendor/leaflet/leaflet.js', 'folder-art.js', 'desktop.js', 'preview.js', 'files.js', 'folder-setup.js', 'docs.js', 'automations.js'];
 function tail(base) {
   return STYLES.map((s) => '<link rel="stylesheet" href="' + base + s + '">').join('') +
     SCRIPTS.map((s) => '<script src="' + base + s + '"></script>').join('') + '\n';

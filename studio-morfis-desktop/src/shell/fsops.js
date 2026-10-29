@@ -53,11 +53,13 @@ async function walk(dir, cap, onFile, rel) {
 }
 
 /* ----- reading ----- */
-async function scanProject(dir) {
+/* tpls: the project folders in use ([{ id, name }]); the six standard ones when not given */
+async function scanProject(dir, tpls) {
+  const T = Array.isArray(tpls) && tpls.length ? tpls.filter((t) => t && t.id && t.name) : TEMPLATES;
   const st = await statOrNull(dir);
   if (!st || !st.isDirectory()) return { exists: false, subs: {}, looseCount: 0, loose: [] };
   const subs = {};
-  for (const t of TEMPLATES) {
+  for (const t of T) {
     const sd = path.join(dir, t.name), sst = await statOrNull(sd);
     if (!sst || !sst.isDirectory()) { subs[t.id] = { exists: false, count: 0, files: [] }; continue; }
     const files = [];
@@ -69,7 +71,7 @@ async function scanProject(dir) {
   const loose = [];
   let top = [];
   try { top = await fsp.readdir(dir, { withFileTypes: true }); } catch (e) { top = []; }
-  const names = TEMPLATES.map((t) => t.name.toLowerCase());
+  const names = T.map((t) => t.name.toLowerCase());
   for (const d of top) {
     if (names.indexOf(d.name.toLowerCase()) !== -1) continue;
     if (isDirent(d)) { if (!SKIP_DIR.test(d.name)) await walk(path.join(dir, d.name), { left: 5000 }, (f) => { if (!JUNK.test(f.name)) loose.push(d.name + '/' + f.rel); }); }

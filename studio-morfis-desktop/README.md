@@ -44,6 +44,24 @@ You change it from a project's tag in Files, on the project page, or from a fold
 - **Inside a folder:** subfolders as cards, then the files.
 - **Working with files:** open, show in Explorer, copy the path, or move to the Recycle Bin. Drop files from Explorer onto any folder to copy them in.
 
+## Project folders: setup, rename, delete
+
+**Files → Folder setup** decides which folders every project root gets:
+
+- **On or off:** turn any of the six standard folders (01 to 06, the ones automatic sorting knows) on or off.
+- **Names:** change a folder's name in the app and its name on disk.
+- **Order:** reorder the folders.
+- **Your own folders:** add folders of your own; they are numbered 07, 08 and so on.
+- **Existing projects:** saving can create the new folders in existing projects and rename changed folders on disk to match.
+
+Turning a folder off stops it being created; folders already on disk are left alone, and sorting never moves files into a folder that is off. The setup is part of the studio settings, so it is included in backups.
+
+Every folder card has a three-dot menu:
+
+- **Project folder:** open, change status, File Explorer, rename on disk, copy path, read again, redraw icons, sort loose files, folder setup, delete the project folder. Deleting moves it to the Recycle Bin and the project itself stays.
+- **Standard folder:** open, File Explorer, add files, new folder inside, copy path, redraw icon, rename (in every project), delete this project's copy (optionally stop creating it).
+- **Subfolder:** open, File Explorer, rename with undo, copy path, delete to the Recycle Bin.
+
 ## Folder icons in File Explorer
 
 The folders you see in Files are the icons the real folders get in File Explorer, drawn by the same code:

@@ -117,7 +117,7 @@
   function folderCard(p, t) {
     var s = fstat(p, t.id);
     return '<div class="fx-card" role="button" tabindex="0" data-go-node="' + p.id + '|' + t.id + '" data-dropzone data-pid="' + p.id + '" data-fid="' + t.id + '" title="Open ' + esc(t.label) + '. Drop files here to copy them in.">' +
-      '<div class="fx-art">' + A.folder({ num: t.id, count: s.count, kinds: kindsOf(s.files) }) + '</div>' +
+      '<div class="fx-art">' + A.folder({ num: /^\d+$/.test(t.id) ? t.id : '', count: s.count, kinds: kindsOf(s.files) }) + '</div>' +
       '<div class="fx-name">' + esc(t.label) + '</div>' +
       '<div class="fx-meta"><span class="mono">' + t.id + '</span> · ' + (s.exists ? s.count + ' file' + (s.count === 1 ? '' : 's') : 'Not created') + '</div>' +
       '<button type="button" class="fx-more" data-card-menu="' + 'f:' + p.id + '|' + t.id + '" aria-label="Folder options for ' + esc(t.label) + '" title="Folder options">' + ic('dots', 16) + '</button>' + '</div>';
@@ -152,7 +152,7 @@
       return { name: parts.pop(), sub: x.p.name + (parts.length ? ' / ' + parts.join(' / ') : ''), folder: x.t.label, size: x.f.size || '', date: M.fdate(x.f.added), abs: jn(pg().subDir(x.p, x.t.id), x.f.name) };
     });
     return '<div class="fx-head"><div><h1>Files</h1><p class="muted">Project folders in <span class="mono">' + esc(pg().S.settings.root || '') + '</span>. Drop files onto a folder to copy them in.</p></div>' +
-      '<div class="toolbar">' + viewToggle() + '<button type="button" class="btn" data-fx-act="import">' + ic('upload', 15) + 'Import folders</button><button type="button" class="btn" data-fx-act="openRoot">' + ic('ext', 15) + 'Open in Explorer</button></div></div>' +
+      '<div class="toolbar">' + viewToggle() + '<button type="button" class="btn" data-fx-act="setup">' + ic('settings', 15) + 'Folder setup</button><button type="button" class="btn" data-fx-act="import">' + ic('upload', 15) + 'Import folders</button><button type="button" class="btn" data-fx-act="openRoot">' + ic('ext', 15) + 'Open in Explorer</button></div></div>' +
       '<section><div class="fx-sec-h"><h2>Project folders</h2><span class="count">' + list.length + '</span></div>' +
       (list.length ? (F.view === 'grid' ? '<div class="fx-grid">' + list.map(projectCard).join('') + '</div>' : projectTable(list)) : '<div class="fx-empty">No projects in this filter.</div>') + '</section>' +
       '<section><div class="fx-sec-h"><h2>Recently changed files</h2></div>' + fileRows(rows, 'Files you add to project folders show up here.') + '</section>';
@@ -190,7 +190,7 @@
     return '<div class="fx-table" role="table"><div class="fx-tr fx-th" role="row"><span>Folder</span><span>Name on disk</span><span>Files</span><span></span><span></span></div>' +
       pg().FOLDER_TEMPLATES.map(function (t) {
         var s = fstat(p, t.id);
-        return '<div class="fx-tr" role="row" data-go-node="' + p.id + '|' + t.id + '" data-dropzone data-pid="' + p.id + '" data-fid="' + t.id + '"><span class="fx-fn"><span class="fx-mini">' + A.folder({ num: t.id, count: s.count, kinds: kindsOf(s.files) }) + '</span><b>' + esc(t.label) + '</b></span>' +
+        return '<div class="fx-tr" role="row" data-go-node="' + p.id + '|' + t.id + '" data-dropzone data-pid="' + p.id + '" data-fid="' + t.id + '"><span class="fx-fn"><span class="fx-mini">' + A.folder({ num: /^\d+$/.test(t.id) ? t.id : '', count: s.count, kinds: kindsOf(s.files) }) + '</span><b>' + esc(t.label) + '</b></span>' +
           '<span class="muted mono">' + esc(t.name) + '</span><span class="muted mono">' + (s.exists ? s.count : '–') + '</span><span></span><span></span></div>';
       }).join('') + '</div>';
   }
@@ -328,7 +328,9 @@
         { label: 'Redraw folder icons', icon: 'grid', fn: function () { refreshIcons(p.id); } });
       else items.push({ label: 'Create the folders', icon: 'plus', fn: function () { F.pid = p.id; ACT.create(); } });
       if ((p.looseCount || 0) && disk) items.push({ label: 'Sort ' + p.looseCount + ' loose file' + (p.looseCount === 1 ? '' : 's') + '…', icon: 'sort', fn: function () { pageAct('arrangeProject', { pid: p.id }); } });
-      items.push({ sep: true }, { label: 'Project page', icon: 'projects', fn: function () { M.go('project', { id: p.id }); } });
+      items.push({ sep: true }, { label: 'Project folder setup…', icon: 'settings', fn: function () { ACT.setup(); } },
+        { label: 'Project page', icon: 'projects', fn: function () { M.go('project', { id: p.id }); } });
+      if (disk) items.push({ sep: true }, { label: 'Delete the project folder…', icon: 'trash', danger: true, fn: function () { window.MorfisFolders.deleteProjectFolder(p.id); } });
     } else if (kind === 'f') {
       var t = tmpl(parts[1]), fdir = pg().subDir(p, t.id), exists = fstat(p, t.id).exists;
       items = [{ head: t.id + ' · ' + t.label },
@@ -340,6 +342,10 @@
         { label: 'Copy folder path', icon: 'copy', fn: function () { copyPath(fdir); } },
         { label: 'Redraw folder icon', icon: 'grid', fn: function () { refreshIcons(p.id); } });
       else items.push({ label: 'Create the folders', icon: 'plus', fn: function () { F.pid = p.id; ACT.create(); } });
+      items.push({ sep: true },
+        { label: 'Rename (in every project)…', icon: 'documents', fn: function () { window.MorfisFolders.renameStandard(t.id); } },
+        { label: 'Project folder setup…', icon: 'settings', fn: function () { ACT.setup(); } });
+      if (exists) items.push({ label: 'Delete this folder…', icon: 'trash', danger: true, fn: function () { window.MorfisFolders.deleteStandard(p.id, t.id); } });
     } else {
       var fid = parts[1], sub = parts.slice(2).join('|'), sdir = jn(pg().subDir(p, fid), sub), name = sub.split('/').pop();
       items = [{ head: name },
@@ -355,7 +361,7 @@
         } },
         { label: 'Copy folder path', icon: 'copy', fn: function () { copyPath(sdir); } },
         { sep: true },
-        { label: 'Move to the Recycle Bin', icon: 'trash', danger: true, fn: function () {
+        { label: 'Delete (to the Recycle Bin)…', icon: 'trash', danger: true, fn: function () {
           if (!window.confirm('Move the folder ' + name + ' and everything in it to the Recycle Bin?')) return;
           H.trashPath(sdir).then(function () { M.toast(name + ' is in the Recycle Bin.'); afterChange(); }, function (e) { M.toast('Could not remove it: ' + (e && e.message ? e.message : 'unknown error')); });
         } }];
@@ -368,6 +374,7 @@
     if (p) pg().rescanProject(p, { force: true, quiet: true }).then(draw); else draw();
   }
   var ACT = {
+    setup: function () { if (window.MorfisFolders) window.MorfisFolders.openSetup().then(function (r) { if (r) draw(); }); },
     import: function () { pg().setView('settings'); setTimeout(function () { var x = document.querySelector('[data-act=openImport]'); if (x) x.click(); }, 50); },
     openRoot: function () { H.openPath(pg().S.settings.root).catch(function () { M.toast('That folder is not there yet.'); }); },
     openDir: function () { var p = pg().P(F.pid); H.openPath(pg().projDir(p)).catch(function () { M.toast('The folder is not there yet.'); }); },
@@ -436,5 +443,5 @@
   });
   /* drops are handled by the dashboard; read the folder again afterwards */
   document.addEventListener('drop', function (e) { if (M.current() === 'files' && e.target.closest && e.target.closest('#dkView [data-dropzone]')) setTimeout(afterChange, 1200); });
-  window.MorfisFiles = { open: function (pid) { M.go('files'); open(pid); } };
+  window.MorfisFiles = { open: function (pid) { M.go('files'); open(pid); }, redraw: function () { F.listKey = ''; draw(); } };
 })();

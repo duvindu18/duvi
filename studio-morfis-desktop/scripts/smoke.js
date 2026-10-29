@@ -201,6 +201,24 @@ app.whenReady().then(async () => {
   await js(w, "document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}))"); await wait(900);
   kinds.arrows = await js(w, "/Client_brief/.test(document.querySelector('.pv .pv-file b').textContent)");
   await js(w, "MorfisPreview.close()");
+  /* project folder setup: switch 04 off, rename 03 on disk, add a folder of our own; then delete 05 of one project */
+  await js(w, "MorfisFolders.openSetup(); true"); await wait(500);
+  await js(w, "(function(){var rows=document.querySelectorAll('#overlay .fs-row');" +
+    "rows[3].querySelector('[data-fs=on]').checked=false;" +
+    "var n=rows[2].querySelector('[data-fs=name]');n.value='03_Drawings';" +
+    "document.getElementById('fsAdd').click();" +
+    "var last=document.querySelector('#overlay .fs-row:last-child [data-fs=label]');last.value='Client correspondence';last.dispatchEvent(new Event('input',{bubbles:true}));})()");
+  await wait(300); await shot(w, '22-folder-setup');
+  await js(w, "document.getElementById('fsOk').click()"); await wait(3500);
+  const setup = JSON.parse(await js(w, "JSON.stringify({ids:FOLDER_TEMPLATES.map(function(t){return t.id}),names:FOLDER_TEMPLATES.map(function(t){return t.name}),scan:Object.keys(window.__morfisPage.P(" + JSON.stringify(pid) + ").folders).filter(function(k){return window.__morfisPage.P(" + JSON.stringify(pid) + ").folders[k].exists})})"));
+  setup.disk = fs.readdirSync(pv).sort();
+  console.log('folder setup:', JSON.stringify(setup));
+  await js(w, "MorfisFolders.deleteStandard(" + JSON.stringify(pid) + ", '05'); true"); await wait(400);
+  await shot(w, '23-delete-folder');
+  await js(w, "document.getElementById('fsOk').click()"); await wait(1500);
+  const del05 = !fs.existsSync(path.join(pv, '05_Financials_and_Contracts'));
+  console.log('delete 05 moved to Recycle Bin:', del05, '(Linux test machines may have no Recycle Bin)');
+  await js(w, "MorfisFiles.open(" + JSON.stringify(pid) + ")"); await wait(1200); await shot(w, '24-files-after-setup');
   console.log('preview:', JSON.stringify(kinds));
   const menuOk = madeDir;
   for (const v of [{ status: 'in_progress', count: 3, kinds: ['PDF'] }, { status: 'completed', count: 0 }, { num: '03', count: 5, kinds: ['DWG'] }, { num: '06', count: 0 }]) {
@@ -223,6 +241,7 @@ app.whenReady().then(async () => {
   expect(o.enoent === 'ENOENT' && !!o.badName && o.rows === 1, 'error codes, name checks and reading the root');
   expect(Object.keys(kinds).length === 8 && Object.values(kinds).every(Boolean), 'built-in preview of image, PDF, CSV, JSON, Markdown, Word, other, and arrows: ' + JSON.stringify(kinds));
   expect(/Open in File Explorer/.test(menuItems) && /New folder inside/.test(menuItems) && madeDir, 'folder card menu and New folder dialog');
+  expect(setup.ids.join() === '01,02,03,05,06,07' && setup.disk.indexOf('03_Drawings') !== -1 && setup.disk.indexOf('03_Working_Drawings') === -1 && setup.disk.indexOf('07_Client_correspondence') !== -1 && setup.scan.indexOf('07') !== -1, 'project folder setup: ' + JSON.stringify(setup));
   expect(quote.done && quote.lines === 2 && quote.total === 590000, 'AI quotation assistant');
   expect(/overdue/.test(digest || ''), 'AI Monday summary');
   expect(pdf.length > 5000, 'quotation PDF');

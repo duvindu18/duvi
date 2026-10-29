@@ -298,7 +298,7 @@ const API = {
   },
   readFile: (p) => fs.readFileSync(p, 'utf8').replace(/^﻿/, ''),
   isDir: (p) => { try { return fs.statSync(p).isDirectory(); } catch (e) { return false; } },
-  scanProject: (d) => fsops.scanProject(d),
+  scanProject: (d, t) => fsops.scanProject(d, t),
   scanRoot: (d) => fsops.scanRoot(d),
   scanDir: (d) => fsops.scanDir(d),
   listTree: (d, o) => fsops.listTree(d, o),
