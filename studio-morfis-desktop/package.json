@@ -1,0 +1,67 @@
+{
+  "name": "studio-morfis-desktop",
+  "productName": "Studio Morfis",
+  "version": "1.3.0",
+  "description": "Studio Morfis practice dashboard as a Windows desktop app: projects, stages, tasks, invoices, payments and real project folders on disk.",
+  "main": "src/shell/main.js",
+  "author": "Studio Morfis",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "check": "node scripts/check.js",
+    "icons": "node scripts/make-icons.js",
+    "dist": "electron-builder --win nsis --x64",
+    "dist:portable": "electron-builder --win portable --x64",
+    "pack": "electron-builder --win dir --x64"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "5.2.8",
+    "leaflet": "1.9.4",
+    "mammoth": "1.13.0"
+  },
+  "devDependencies": {
+    "electron": "42.11.18",
+    "electron-builder": "26.17.0"
+  },
+  "build": {
+    "appId": "com.studiomorfis.desktop",
+    "productName": "Studio Morfis",
+    "copyright": "Studio Morfis",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "build/icon.png",
+      "build/icon.ico",
+      "node_modules/leaflet/dist/**/*",
+      "node_modules/@fontsource-variable/inter/files/**/*",
+      "node_modules/mammoth/mammoth.browser.min.js",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "Studio-Morfis-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Studio Morfis",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "uninstallDisplayName": "Studio Morfis",
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "Studio-Morfis-Portable-${version}.${ext}"
+    }
+  }
+}
