@@ -120,8 +120,9 @@
       /* cards drawn before the art was loaded */
       if (!c.querySelector('.dk-cart') && !c.querySelector('.has-cover')) { var top = c.querySelector('.pcard-top'), p0 = pg.P(c.dataset.id), pl = top && top.querySelector('svg.plan'); if (p0 && pl) pl.outerHTML = window.MorfisCardArt(p0); }
       var p = pg.P(c.dataset.id), code = c.querySelector('.pcard-top .code'), st = p && A.statusOf(p, pg.today());
-      /* the folder art already carries the status */
-      if (!p || !code || c.querySelector('.dk-cart')) return;
+      /* the folder art already carries the status: no separate tag beside it */
+      if (c.querySelector('.dk-cart')) { var t0 = c.querySelector('.dk-st'); if (t0) t0.remove(); return; }
+      if (!p || !code) return;
       var old = c.querySelector('.dk-st');
       if (old && old.dataset.st === st) return;
       if (old) old.remove();
