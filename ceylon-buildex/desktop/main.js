@@ -124,13 +124,15 @@ async function stopBackend() {
 
 // ------------------------------------------------------------------ the window
 function windowState(w) {
-  return {maximized: w.isMaximized(), fullscreen: w.isFullScreen(), focused: w.isFocused()};
+  return {maximized: w.isMaximized(), minimized: w.isMinimized(), fullscreen: w.isFullScreen(), focused: w.isFocused()};
 }
 
 function createWindow() {
   const saved = prefs.bounds && onScreen(prefs.bounds) ? prefs.bounds : null;
+  const area = require("electron").screen.getPrimaryDisplay().workAreaSize;      // first start: 1360 x 880, or 90 % of a smaller screen
   win = new BrowserWindow({
-    width: saved ? saved.width : 1360, height: saved ? saved.height : 880, x: saved ? saved.x : undefined, y: saved ? saved.y : undefined,
+    width: saved ? saved.width : Math.min(1360, Math.round(area.width * 0.9)), height: saved ? saved.height : Math.min(880, Math.round(area.height * 0.9)),
+    x: saved ? saved.x : undefined, y: saved ? saved.y : undefined,
     minWidth: 820, minHeight: 560,
     title: "Ceylon Buildex",
     titleBarStyle: "hidden",                    // no system title bar: the page draws its own, in its own theme (resizing and snap stay native)
@@ -139,7 +141,7 @@ function createWindow() {
     webPreferences: {preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false},
   });
   const send = () => { if (win && !win.isDestroyed()) win.webContents.send("win:state", windowState(win)); };
-  for (const ev of ["maximize", "unmaximize", "enter-full-screen", "leave-full-screen", "focus", "blur", "restore"]) win.on(ev, send);
+  for (const ev of ["maximize", "unmaximize", "minimize", "restore", "enter-full-screen", "leave-full-screen", "focus", "blur"]) win.on(ev, send);
   win.once("ready-to-show", () => {
     if (prefs.maximized) win.maximize();
     win.show();

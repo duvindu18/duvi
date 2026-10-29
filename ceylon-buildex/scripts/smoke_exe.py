@@ -178,13 +178,13 @@ def window_buttons(exe: Path, env: dict) -> bool:
         pg.click('#winctl [data-win="maximize"]')
         pg.wait_for_function("!document.documentElement.classList.contains('win-max')", timeout=5000)
         r = pg.evaluate("[outerWidth, outerHeight]")
-        assert abs(r[0] - g["size"][0]) <= 16, f"restore did not bring back the size: {r} vs {g['size']}"
+        assert abs(r[0] - g["size"][0]) <= 16 and m[0] > r[0], f"restore did not bring back the size: {r} vs {g['size']}, maximized {m}"
         print(f"maximize {g['size']} -> {m[:2]}, restore -> {r}")
         pg.click('#winctl [data-win="minimize"]')
-        pg.wait_for_function("document.visibilityState === 'hidden'", timeout=5000)
-        print("minimize hid the window")
+        pg.wait_for_function("cbDesktop.state().then(s => s.minimized)", timeout=5000, polling=200)
+        print("minimize minimized the window")
         second = subprocess.run([str(exe)], env=env, timeout=60)           # a second start only brings the running window back
-        pg.wait_for_function("document.visibilityState === 'visible'", timeout=10000)
+        pg.wait_for_function("cbDesktop.state().then(s => !s.minimized)", timeout=10000, polling=200)
         assert len(tasklist("CeylonBuildexServer.exe")) == 1, "a second start started a second back end"
         print(f"a second start (exit {second.returncode}) brought the window back; still one back end")
         pg.click('#winctl [data-win="close"]')
