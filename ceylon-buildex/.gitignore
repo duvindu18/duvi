@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+data/raw/*
+!data/raw/.gitkeep
+data/uploads/*
+data/.first_update_started
+data/settings.json
+!CeylonBuildex.spec

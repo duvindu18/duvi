@@ -1,0 +1,11 @@
+services:
+  portal:
+    build: .
+    ports:
+      - "127.0.0.1:8080:8080"        # local only: the portal has no login, do not expose it to the internet as is
+    volumes:
+      - ./data:/app/data             # dataset, downloads and uploads survive restarts
+    environment:
+      - ANTHROPIC_API_KEY            # optional: written answers from Claude (taken from your shell)
+      - AUTO_UPDATE_HOURS=24
+    restart: unless-stopped

@@ -1,0 +1,9 @@
+flask>=3.0
+requests>=2.31
+beautifulsoup4>=4.12
+pillow>=10.0
+# System tools (not pip): poppler-utils (pdftotext, pdftoppm) and tesseract-ocr
+#   Debian/Ubuntu: sudo apt install poppler-utils tesseract-ocr
+#   macOS:         brew install poppler tesseract
+#   Windows:       install Poppler and Tesseract, and add both to PATH
+#   Sinhala / Tamil OCR: apt install tesseract-ocr-sin tesseract-ocr-tam, then set OCR_LANGS=eng+sin+tam

@@ -1,0 +1,544 @@
+{
+ "version": 1,
+ "checked": "2026-10-19",
+ "sources": [
+  {
+   "id": "uda-pdr-2021-en",
+   "title": "UDA Planning & Development Regulations 2021 (Gazette 2235/54)",
+   "category": "building-regulations",
+   "authority": "Urban Development Authority",
+   "gazette_no": "2235/54",
+   "date": "2021-07-08",
+   "language": "en",
+   "urls": [
+    "https://www.uda.gov.lk/attachments/act/2235-54_E.pdf",
+    "https://iesl.lk/SLEN/56/img/2235-54_E.pdf"
+   ],
+   "status": "current",
+   "verified": true,
+   "notes": "Listed by UDA as the applicable Planning and Development Regulations; made under s.21 of the UDA Law No. 41 of 1978. Schedule 6 holds the FAR tables."
+  },
+  {
+   "id": "uda-pdr-2021-si",
+   "title": "UDA Planning & Development Regulations 2021 - Sinhala text",
+   "category": "building-regulations",
+   "authority": "Urban Development Authority",
+   "gazette_no": "2235/54",
+   "date": "2021-07-08",
+   "language": "si",
+   "urls": [
+    "https://www.uda.gov.lk/attachments/act/2235-54_S.pdf"
+   ],
+   "status": "current",
+   "verified": true,
+   "enabled": false,
+   "notes": "Disabled by default: legacy Sinhala fonts need the 'sin' Tesseract language pack (set OCR_LANGS=eng+sin and enable)."
+  },
+  {
+   "id": "kotte-pnbr-schedules-2021",
+   "title": "Summary of the Schedules of the UDA Planning & Development Regulations 2021 (Kotte MC)",
+   "category": "building-regulations",
+   "authority": "Sri Jayawardenepura Kotte Municipal Council",
+   "gazette_no": "2235/54",
+   "date": "2021",
+   "language": "en",
+   "urls": [
+    "https://www.kotte.mc.gov.lk/images/pdf/Planning/PnBR_Schedules_2021_Summarized.pdf"
+   ],
+   "status": "reference",
+   "verified": true,
+   "notes": "Municipal summary of Schedules 6 to 10: FAR (Forms A-D), coverage, setbacks (Form E), parking (Schedule 10)."
+  },
+  {
+   "id": "ccdp-2008-colombo",
+   "title": "City of Colombo Development Plan (Amendment) 2008 - Colombo MC copy",
+   "category": "building-regulations",
+   "authority": "Urban Development Authority / Colombo Municipal Council",
+   "gazette_no": "1535/4",
+   "date": "2008",
+   "language": "en",
+   "urls": [
+    "https://www.colombo.mc.gov.lk/downloads/ccdp-2008.pdf"
+   ],
+   "status": "verify",
+   "verified": true,
+   "notes": "Zoning regulations for the Colombo Municipal Council area (Forms C1, C2). Recorded as in effect for 2008-2025; UDA's website lists it under 'Expired Regulations'."
+  },
+  {
+   "id": "gazette-2105-24-en",
+   "title": "Gazette 2105/24 (9 Jan 2019) - Amendment to the City of Colombo Development Plan",
+   "category": "building-regulations",
+   "authority": "Ministry of Megapolis and Western Development",
+   "gazette_no": "2105/24",
+   "date": "2019-01-09",
+   "language": "en",
+   "urls": [
+    "https://www.documents.gov.lk/view/extra-gazettes/2019/1/2105-24_E.pdf"
+   ],
+   "status": "verify",
+   "verified": true,
+   "notes": "Rezoning, building lines, inspection and insurance provisions."
+  },
+  {
+   "id": "gazette-2105-22-en",
+   "title": "Gazette 2105/22 (2019) - City of Colombo Development Plan (Amendment)",
+   "category": "building-regulations",
+   "authority": "Ministry of Megapolis and Western Development",
+   "gazette_no": "2105/22",
+   "date": "2019-01",
+   "language": "en",
+   "urls": [
+    "https://www.documents.gov.lk/view/extra-gazettes/2019/1/2105-22_E.pdf"
+   ],
+   "status": "verify",
+   "verified": false,
+   "notes": "Listed on UDA's expired-regulations page. URL derived from the documents.gov.lk file pattern - not confirmed to exist."
+  },
+  {
+   "id": "gazette-2105-23-en",
+   "title": "Gazette 2105/23 (2019) - City of Colombo Development Plan (Amendment)",
+   "category": "building-regulations",
+   "authority": "Ministry of Megapolis and Western Development",
+   "gazette_no": "2105/23",
+   "date": "2019-01",
+   "language": "en",
+   "urls": [
+    "https://www.documents.gov.lk/view/extra-gazettes/2019/1/2105-23_E.pdf"
+   ],
+   "status": "verify",
+   "verified": false,
+   "notes": "Listed on UDA's expired-regulations page. URL derived from the documents.gov.lk file pattern - not confirmed to exist."
+  },
+  {
+   "id": "gazette-2105-21-en",
+   "title": "Gazette 2105/21 (2019)",
+   "category": "gazette",
+   "authority": "Gazette",
+   "gazette_no": "2105/21",
+   "date": "2019-01",
+   "language": "en",
+   "urls": [
+    "https://www.documents.gov.lk/view/extra-gazettes/2019/1/2105-21_E.pdf"
+   ],
+   "status": "unverified",
+   "verified": false,
+   "notes": "Returned by a search on UDA building regulations; contents not yet checked."
+  },
+  {
+   "id": "gazette-2203-05-en",
+   "title": "Gazette 2203/05 (Nov 2020)",
+   "category": "gazette",
+   "authority": "Gazette",
+   "gazette_no": "2203/05",
+   "date": "2020-11",
+   "language": "en",
+   "urls": [
+    "https://www.documents.gov.lk/view/extra-gazettes/2020/11/2203-05_E.pdf"
+   ],
+   "status": "unverified",
+   "verified": false,
+   "notes": "Returned by a search on Colombo zoning; contents not yet checked."
+  },
+  {
+   "id": "gazette-2129-94-en",
+   "title": "Gazette 2129/94 (Jun 2019)",
+   "category": "gazette",
+   "authority": "Gazette",
+   "gazette_no": "2129/94",
+   "date": "2019-06",
+   "language": "en",
+   "urls": [
+    "https://www.documents.gov.lk/view/extra-gazettes/2019/6/2129-94_E.pdf"
+   ],
+   "status": "unverified",
+   "verified": false,
+   "notes": "Returned by a search on Colombo development plan gazettes; contents not yet checked."
+  },
+  {
+   "id": "gazette-2054-45-en",
+   "title": "Gazette 2054/45 (Jan 2018)",
+   "category": "gazette",
+   "authority": "Gazette",
+   "gazette_no": "2054/45",
+   "date": "2018-01",
+   "language": "en",
+   "urls": [
+    "https://documents.gov.lk/view/extra-gazettes/2018/1/2054-45_E.pdf"
+   ],
+   "status": "unverified",
+   "verified": false,
+   "notes": "Returned by a search on Colombo development plan gazettes; contents not yet checked."
+  },
+  {
+   "id": "uda-ccdp-compiled",
+   "title": "City of Colombo Development Plan (compiled edition)",
+   "category": "building-regulations",
+   "authority": "Urban Development Authority",
+   "gazette_no": "",
+   "date": "",
+   "language": "en",
+   "urls": [
+    "https://www.uda.gov.lk/attachments/act/q31LejWXNw.pdf"
+   ],
+   "status": "unverified",
+   "verified": false,
+   "notes": "Appears under UDA's expired list as the 'compiled edition'; contents not yet checked."
+  },
+  {
+   "id": "uda-law-consolidated",
+   "title": "Urban Development Authority Law No. 41 of 1978 - consolidated text (to Act No. 36 of 2007)",
+   "category": "legislation",
+   "authority": "Parliament of Sri Lanka",
+   "gazette_no": "",
+   "date": "2007",
+   "language": "en",
+   "urls": [
+    "https://lankalaw.net/wp-content/uploads/2025/03/Urban-Development-Authority-Consolidated-2024.pdf"
+   ],
+   "status": "reference",
+   "verified": true,
+   "notes": "Scanned copy - OCR is used. Consolidates Acts 70/1979, 4/1982, 44/1984, 49/1987, 41/1988 and 36/2007."
+  },
+  {
+   "id": "uda-law-uda-site",
+   "title": "Urban Development Authority Law No. 41 of 1978 (UDA site copy)",
+   "category": "legislation",
+   "authority": "Urban Development Authority",
+   "gazette_no": "",
+   "date": "",
+   "language": "en",
+   "urls": [
+    "https://www.uda.gov.lk/attachments/act/mcK3c2YfvS.pdf"
+   ],
+   "status": "unverified",
+   "verified": false,
+   "notes": "Returned by a search; contents not yet checked."
+  },
+  {
+   "id": "cccdp-2019-v1",
+   "title": "Colombo Commercial City Development Plan 2019-2030 - Volume I",
+   "category": "development-plans",
+   "authority": "Urban Development Authority",
+   "gazette_no": "",
+   "date": "2019-07",
+   "language": "en",
+   "urls": [
+    "https://www.uda.gov.lk/attachments/devplan_detailed/Development%20Plans%202019-2030/commercial%20city/CommercialCity-eng-v1.pdf"
+   ],
+   "status": "verify",
+   "verified": true,
+   "notes": "Covers eight local authority areas including the CMC area; Volume III holds the regulations."
+  },
+  {
+   "id": "cccdp-2019-v2",
+   "title": "Colombo Commercial City Development Plan 2019-2030 - Volume II",
+   "category": "development-plans",
+   "authority": "Urban Development Authority",
+   "gazette_no": "",
+   "date": "2019-07",
+   "language": "en",
+   "urls": [
+    "https://www.uda.gov.lk/attachments/devplan_detailed/Development%20Plans%202019-2030/commercial%20city/CommercialCity-eng-v2.pdf"
+   ],
+   "status": "verify",
+   "verified": true,
+   "notes": "Vision, strategies, zones; says the Planning & Building Regulations are in Volume III."
+  },
+  {
+   "id": "colombo-dp-2021-2030",
+   "title": "Colombo Development Plan 2021-2030 (English)",
+   "category": "development-plans",
+   "authority": "Urban Development Authority",
+   "gazette_no": "",
+   "date": "",
+   "language": "en",
+   "urls": [
+    "https://www.uda.gov.lk/attachments/dev-plans-2021-2030/colombo_eng.pdf"
+   ],
+   "status": "verify",
+   "verified": true,
+   "notes": "Linked from UDA's 'Applicable development plans' page; the page does not state its legal status."
+  },
+  {
+   "id": "uda-western-province-review-2025",
+   "title": "Review Plan of the Master Plan for the Development of the Western Province and Colombo City (Nov 2025)",
+   "category": "development-plans",
+   "authority": "Urban Development Authority",
+   "gazette_no": "",
+   "date": "2025-11-06",
+   "language": "en",
+   "urls": [
+    "https://www.uda.gov.lk/attachments/dev-plans-2025-2035/ZONE_WESTERN_PROVINCE_SJ.pdf"
+   ],
+   "status": "reference",
+   "verified": true,
+   "notes": "The only Colombo-related entry on UDA's regulations tree page at 2026-10-19; a review plan."
+  },
+  {
+   "id": "gazette-2412-01-en",
+   "title": "Gazette 2412/01 (25 Nov 2024) - Procurement Guidelines 2024: Goods, Works and Non-Consulting Services",
+   "category": "procurement-policy",
+   "authority": "National Procurement Commission",
+   "gazette_no": "2412/01",
+   "date": "2024-11-25",
+   "language": "en",
+   "urls": [
+    "https://www.documents.gov.lk/view/extra-gazettes/2024/11/2412-01_E.pdf"
+   ],
+   "status": "current",
+   "verified": true,
+   "notes": "Replaces the 2006 Procurement Guidelines (Goods and Works), related NPA manuals and circulars; effective 1 January 2025."
+  },
+  {
+   "id": "npa-goods-sbd01-ncb",
+   "title": "Standard Bidding Document NPA/Goods/SBD 01 - National Competitive Bidding (Goods)",
+   "category": "procurement-sbd",
+   "authority": "National Procurement Agency",
+   "gazette_no": "",
+   "date": "",
+   "language": "en",
+   "urls": [
+    "https://www.treasury.gov.lk/api/file/7fae21c1-fb48-45c0-8d2a-265de763bf8a"
+   ],
+   "status": "check-current",
+   "verified": true,
+   "notes": "Eight sections: ITB, Bidding Data Sheet, Evaluation and Qualification, Bidding Forms, Schedule of Requirements, Conditions of Contract, Contract Data, Contract Forms. Issued under the earlier regime - check for a revision under the 2024 Guidelines."
+  },
+  {
+   "id": "npa-goods-sbd01-vol1",
+   "title": "GOSL/NPA/GOODS/SBD 01 - Volume 1 (ITB, Conditions of Contract, Contract Forms)",
+   "category": "procurement-sbd",
+   "authority": "National Procurement Agency",
+   "gazette_no": "",
+   "date": "",
+   "language": "en",
+   "urls": [
+    "https://www.treasury.gov.lk/api/file/86591add-c570-4d37-aaea-ebba8589cc78"
+   ],
+   "status": "check-current",
+   "verified": true,
+   "notes": "Volume 2 carries bid-specific data, evaluation criteria and schedules."
+  },
+  {
+   "id": "npa-bidders-guide",
+   "title": "Bidders' Guide to Success in Public Procurement",
+   "category": "procurement-policy",
+   "authority": "National Procurement Agency",
+   "gazette_no": "",
+   "date": "",
+   "language": "en",
+   "urls": [
+    "https://www.treasury.gov.lk/api/file/a904e6f9-dff9-4e0b-baed-b8d5e7e35542"
+   ],
+   "status": "check-current",
+   "verified": true,
+   "notes": "Handbook for bidders; refers to the 2006 Guidelines and Manual."
+  },
+  {
+   "id": "npa-procurement-manual-2006",
+   "title": "NPA Procurement Manual 2006 (Goods and Works)",
+   "category": "procurement-policy",
+   "authority": "National Procurement Agency",
+   "gazette_no": "",
+   "date": "2006-03-01",
+   "language": "en",
+   "urls": [
+    "https://www.treasury.gov.lk/api/file/a4b1de27-1848-409b-9551-14df3e441533"
+   ],
+   "status": "superseded",
+   "verified": true,
+   "notes": "NPA Circular No. 09 of 1 March 2006. Gazette 2412/01 replaces the 2006 Guidelines, related NPA manuals and circulars."
+  },
+  {
+   "id": "dpf-supplement-37",
+   "title": "Supplement 37 to the Procurement Manual - Contents of the Bidding Document (Guideline 5.2.1)",
+   "category": "procurement-sbd",
+   "authority": "Department of Public Finance",
+   "gazette_no": "",
+   "date": "2021-04-09",
+   "language": "en",
+   "urls": [
+    "https://www.treasury.gov.lk/api/file/4cacc73f-e8b0-4af6-b604-2def9c51ff14"
+   ],
+   "status": "check-current",
+   "verified": true,
+   "notes": "Issued 9 April 2021 under the 2006 Guidelines regime."
+  },
+  {
+   "id": "treasury-ncb",
+   "title": "National Competitive Bidding (NCB) document",
+   "category": "procurement-sbd",
+   "authority": "Ministry of Finance",
+   "gazette_no": "",
+   "date": "",
+   "language": "en",
+   "urls": [
+    "https://www.treasury.gov.lk/api/file/090f3318-c76e-4fd3-9bde-412a3ff38fa0"
+   ],
+   "status": "unverified",
+   "verified": false,
+   "notes": "Returned by a search; contents not yet checked."
+  },
+  {
+   "id": "treasury-guidelines-2006",
+   "title": "Government Procurement Guidelines (Treasury copy)",
+   "category": "procurement-policy",
+   "authority": "Ministry of Finance",
+   "gazette_no": "",
+   "date": "",
+   "language": "en",
+   "urls": [
+    "https://www.treasury.gov.lk/api/file/f91cd0e0-6dab-44d4-b9b7-2c5652ed3390"
+   ],
+   "status": "unverified",
+   "verified": false,
+   "notes": "Returned by a search; probably the 2006 edition - check before relying."
+  },
+  {
+   "id": "treasury-procurement-doc-a",
+   "title": "Ministry of Finance procurement document (A)",
+   "category": "procurement-sbd",
+   "authority": "Ministry of Finance",
+   "gazette_no": "",
+   "date": "",
+   "language": "en",
+   "urls": [
+    "https://www.treasury.gov.lk/api/file/d2dfbbf7-9a4c-4df2-ae76-8e20d9317b6a"
+   ],
+   "status": "unverified",
+   "verified": false,
+   "notes": "Returned by a search; contents not yet checked."
+  },
+  {
+   "id": "treasury-procurement-doc-b",
+   "title": "Ministry of Finance procurement document (B)",
+   "category": "procurement-sbd",
+   "authority": "Ministry of Finance",
+   "gazette_no": "",
+   "date": "",
+   "language": "en",
+   "urls": [
+    "https://www.treasury.gov.lk/api/file/09609c7e-fc86-4b91-95d1-b04edad14212"
+   ],
+   "status": "unverified",
+   "verified": false,
+   "notes": "Returned by a search; contents not yet checked."
+  },
+  {
+   "id": "procurement-manual-2024-sp",
+   "title": "Procurement Manual 2024 (provincial copy)",
+   "category": "procurement-policy",
+   "authority": "Government of Sri Lanka",
+   "gazette_no": "",
+   "date": "2024",
+   "language": "en",
+   "urls": [
+    "https://www.cs.sp.gov.lk/css/csw/supply/2025_09_02_03_en.pdf"
+   ],
+   "status": "unverified",
+   "verified": false,
+   "notes": "Returned by a search; a provincial copy of the 2024 manual - confirm it matches the NPC original."
+  },
+  {
+   "id": "auditor-general-new-guidelines",
+   "title": "New Procurement Guidelines (English) - Auditor General's Department copy",
+   "category": "procurement-policy",
+   "authority": "Government of Sri Lanka",
+   "gazette_no": "",
+   "date": "",
+   "language": "en",
+   "urls": [
+    "http://auditorgeneral.gov.lk/web/images/rightside_tabdoc/New-Procurement-Guidlines---English.pdf"
+   ],
+   "status": "unverified",
+   "verified": false,
+   "notes": "Returned by a search; edition not checked."
+  }
+ ],
+ "discovery": [
+  {
+   "id": "d-uda-regulations",
+   "title": "UDA applicable regulations page",
+   "page_url": "https://www.uda.gov.lk/applicable_regulations.html",
+   "link_regex": "attachments/act|upload/attach",
+   "text_regex": "regulation|plan|gazette|\\d{4}-\\d+",
+   "category": "building-regulations",
+   "authority": "Urban Development Authority",
+   "max_links": 20,
+   "enabled": true,
+   "verified": true
+  },
+  {
+   "id": "d-uda-acts",
+   "title": "UDA Acts and amendments page",
+   "page_url": "https://www.uda.gov.lk/uda-acts-and-amendments_2021.html",
+   "link_regex": "attachments/act|upload/attach",
+   "text_regex": "",
+   "category": "legislation",
+   "authority": "Urban Development Authority",
+   "max_links": 20,
+   "enabled": true,
+   "verified": true
+  },
+  {
+   "id": "d-uda-tree",
+   "title": "UDA development plans & regulations tree",
+   "page_url": "https://www.uda.gov.lk/acts-regulations-tree.html",
+   "link_regex": "attachments/",
+   "text_regex": "regulation|colombo|planning",
+   "category": "building-regulations",
+   "authority": "Urban Development Authority",
+   "max_links": 20,
+   "enabled": true,
+   "verified": true
+  },
+  {
+   "id": "d-uda-devplans",
+   "title": "UDA applicable development plans",
+   "page_url": "https://www.uda.gov.lk/applicable_dev_plans.html",
+   "link_regex": "attachments/",
+   "text_regex": "colombo|kotte|dehiwala|regulation",
+   "category": "development-plans",
+   "authority": "Urban Development Authority",
+   "max_links": 10,
+   "enabled": true,
+   "verified": true
+  },
+  {
+   "id": "d-gazette-extra",
+   "title": "Extraordinary Gazettes (documents.gov.lk)",
+   "page_url": "https://www.documents.gov.lk/en/exgazette.php",
+   "link_regex": "\\.pdf",
+   "text_regex": "urban development|planning|building|procure|bidding|construction|local government|development plan|floor area|zoning|town and country",
+   "category": "gazette",
+   "authority": "Gazette",
+   "max_links": 60,
+   "enabled": true,
+   "verified": true
+  },
+  {
+   "id": "d-treasury-manuals",
+   "title": "Treasury - procurement guidelines & manuals",
+   "page_url": "https://www.treasury.gov.lk/web/procurement-guidelines-and-manuals/section/procurement%20manual",
+   "link_regex": "/api/file/|\\.pdf",
+   "text_regex": "",
+   "category": "procurement-policy",
+   "authority": "Ministry of Finance / NPC",
+   "max_links": 40,
+   "enabled": true,
+   "verified": true
+  },
+  {
+   "id": "d-cida",
+   "title": "CIDA pages (specifications / SBD)",
+   "page_url": "https://www.cida.gov.lk/pages_e.php?id=47",
+   "link_regex": "\\.pdf",
+   "text_regex": "SBD|bidding|specification|building|regulation|code",
+   "category": "procurement-sbd",
+   "authority": "Construction Industry Development Authority",
+   "max_links": 30,
+   "enabled": true,
+   "verified": false
+  }
+ ]
+}

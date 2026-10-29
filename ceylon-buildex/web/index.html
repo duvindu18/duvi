@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6eee3">
+<title>Ceylon Buildex</title>
+<meta name="description" content="Ask about Sri Lankan building regulations, gazettes and bidding documents. Every answer cites its source.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f4481f'/%3E%3Cpath d='M9 24V8h13v4H14v3h7v4h-7v5z' fill='%2315162a'/%3E%3C/svg%3E">
+<link rel="preload" href="/static/fonts/inter-Regular.woff" as="font" type="font/woff" crossorigin>
+<link rel="preload" href="/static/fonts/anton-latin.woff" as="font" type="font/woff" crossorigin>
+<script>try{var t=localStorage.getItem("ceylon-buildex-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+<script src="/static/js/accent.js"></script>
+<link rel="stylesheet" href="/static/css/app.css">
+<link rel="stylesheet" href="/static/css/matrix.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></symbol>
+  <symbol id="i-spinner" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5"/></symbol>
+  <symbol id="i-ruler" viewBox="0 0 24 24"><path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.9-3M4 4v4h4M4 13a8 8 0 0 0 14.9 3M20 20v-4h-4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></symbol>
+  <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V4h10v5M7 17H5a1 1 0 0 1-1-1v-5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5a1 1 0 0 1-1 1h-2"/><rect x="7" y="14" width="10" height="6"/></symbol>
+  <symbol id="i-check-c" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></symbol>
+  <symbol id="i-x-c" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5M12 17.3v.01"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.7v.01"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v12M6 10l6 6 6-6M4 20h16"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+</defs></svg>
+
+<header class="bar">
+  <a class="brand" href="#ask" aria-label="Ceylon Buildex, home"><span class="brand-name">Ceylon Buildex</span></a>
+  <nav class="tabs" aria-label="Sections">
+    <button type="button" data-view="far">Floor area</button>
+    <button type="button" data-view="library">Library</button>
+    <button type="button" data-view="ocr">Scan</button>
+    <button type="button" data-view="update">Update<i class="live" id="updLive" hidden title="An update is running"></i></button>
+    <button type="button" id="settingsBtn">Settings<i class="dot off" id="setDot" title="Written answers are off"></i></button>
+  </nav>
+</header>
+
+<main id="main">
+<noscript><p class="notice bad">This page needs JavaScript.</p></noscript>
+
+<!-- ============ ASK ============ -->
+<section id="view-ask" class="view on" data-state="idle" data-busy="false" aria-labelledby="h-ask">
+  <h1 class="sr" id="h-ask" tabindex="-1">Ask about Sri Lankan building rules</h1>
+  <form id="askForm" class="stage" role="search" autocomplete="off">
+    <label class="sr" for="q">Your question</label>
+    <div class="ta" id="askField">
+      <textarea id="q" rows="1" maxlength="1500" enterkeyhint="search" spellcheck="false" autocapitalize="off"></textarea>
+      <span class="ph" id="ph" aria-hidden="true">Find the rule<i class="dots">...</i></span>
+      <div class="mirror" id="mirror" aria-hidden="true"></div>
+    </div>
+    <button type="button" class="slot" id="qClear" hidden>Clear</button>
+    <button type="submit" class="send" id="askBtn" aria-label="Ask" title="Ask (Enter)"><span id="sendTxt">Ask</span><svg class="i sm" aria-hidden="true"><use id="sendUse" href="#i-stop"/></svg></button>
+  </form>
+  <div id="results"></div>
+</section>
+
+<!-- ============ FLOOR AREA RATIO ============ -->
+<section id="view-far" class="view split-view" aria-labelledby="h-far">
+  <header class="phead"><h1 class="display" id="h-far" tabindex="-1">Floor area ratio</h1><p class="lede">FAR × net site area = floor area allowed.</p></header>
+  <div class="split">
+    <section class="card" aria-label="Site details">
+    <form id="farForm" class="form" autocomplete="off" novalidate>
+      <div class="seg wide" role="radiogroup" aria-label="Which rules apply">
+        <label><input type="radio" name="regime" value="cmc2008" checked><span>Colombo MC area</span></label>
+        <label><input type="radio" name="regime" value="uda2021"><span>Other UDA areas</span></label>
+      </div>
+
+      <div id="cmcFields" class="form">
+        <div class="row2">
+          <div><label class="field-label" for="zone">Zone</label><select class="select" id="zone"></select></div>
+          <div><label class="field-label" for="useSel">Intended use</label><select class="select" id="useSel"><option value="">Not checked</option></select></div>
+        </div>
+        <p class="small muted" id="zoneNote"></p>
+      </div>
+      <div id="udaFields" class="form" hidden>
+        <div class="row2">
+          <div><label class="field-label" for="zf">Zone factor</label><input class="input" type="number" id="zf" step="0.01" min="0.5" max="4" inputmode="decimal" placeholder="1.10"></div>
+          <div><label class="field-label" for="dens">or density</label><select class="select" id="dens"><option value="">—</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div>
+        </div>
+        <label class="check"><input type="checkbox" id="hasBL" checked><span>A building line exists on this road</span></label>
+        <p class="small muted">Without a building line, FAR is capped at 9.0.</p>
+      </div>
+
+      <div class="row2">
+        <div>
+          <label class="field-label" for="land">Land extent</label>
+          <div class="with-unit"><input class="input" type="number" id="land" min="0" step="any" inputmode="decimal" placeholder="20">
+            <select class="select" id="landU" aria-label="Land unit"><option value="perch">perches</option><option value="m2">m²</option><option value="sqft">sq ft</option><option value="acre">acres</option><option value="hectare">hectares</option></select></div>
+          <p class="small muted echo" id="landEcho"></p>
+        </div>
+        <div>
+          <label class="field-label" for="road" id="roadLabel">Width between building lines</label>
+          <div class="with-unit"><input class="input" type="number" id="road" min="0" step="any" inputmode="decimal" placeholder="12.2">
+            <select class="select" id="roadU" aria-label="Road width unit"><option value="m">m</option><option value="ft">ft</option></select></div>
+        </div>
+      </div>
+      <div id="streetTypeBox"><label class="field-label" for="streetType">Street</label>
+        <select class="select" id="streetType"><option value="public">Public street</option><option value="private">Private street</option></select></div>
+
+      <details class="more"><summary>More site details<svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></summary>
+        <div class="body form">
+          <div class="row2">
+            <div><label class="field-label" for="reserve">Part within street lines <span class="muted">(land unit)</span></label><input class="input" type="number" id="reserve" min="0" step="any" inputmode="decimal" placeholder="0"></div>
+            <div id="slopeBox" hidden><label class="field-label" for="slope">Land slope, degrees</label><input class="input" type="number" id="slope" min="0" max="90" step="1" inputmode="decimal"></div>
+          </div>
+        </div></details>
+      <details class="more"><summary>Check a proposed design<svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></summary>
+        <div class="body form">
+          <div class="row2">
+            <div><label class="field-label" for="pFloors">Floors, incl. ground</label><input class="input" type="number" id="pFloors" min="1" step="1" inputmode="numeric"></div>
+            <div><label class="field-label" for="pHeight">Height, m</label><input class="input" type="number" id="pHeight" min="0" step="0.1" inputmode="decimal"></div>
+            <div><label class="field-label" for="pFront">Frontage, m</label><input class="input" type="number" id="pFront" min="0" step="0.1" inputmode="decimal"></div>
+            <div><label class="field-label" for="pFoot">Ground footprint, m²</label><input class="input" type="number" id="pFoot" min="0" step="any" inputmode="decimal"></div>
+            <div><label class="field-label" for="pGfa">Total floor area, m²</label><input class="input" type="number" id="pGfa" min="0" step="any" inputmode="decimal"></div>
+            <div><label class="field-label" for="pPark">…of which parking, m²</label><input class="input" type="number" id="pPark" min="0" step="any" inputmode="decimal"></div>
+          </div>
+          <label class="check" id="resBox" hidden><input type="checkbox" id="pRes" checked><span>Residential development</span></label>
+        </div></details>
+      <details class="more"><summary>About these rules<svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></summary><div class="body small" id="farRegimeNote"></div></details>
+
+      <div class="try"><div class="field-label" id="exLabel">Try an example</div><div class="examples" id="farExamples" aria-labelledby="exLabel"></div></div>
+      <div class="actions"><button type="button" class="btn quiet sm" id="farReset">Clear</button></div>
+    </form>
+    </section>
+    <aside id="farOut" class="farout pending" aria-live="polite" aria-label="Result"></aside>
+  </div>
+  <button type="button" class="farmini" id="farMini" aria-label="Show the result"><span id="farMiniTxt"></span><svg class="i sm" aria-hidden="true"><use href="#i-up"/></svg></button>
+</section>
+
+<!-- ============ LIBRARY ============ -->
+<section id="view-library" class="view lib" aria-labelledby="h-lib">
+  <div class="phead libhead">
+    <div><h1 class="display" id="h-lib" tabindex="-1">Library</h1><p class="lede" id="libCount">&nbsp;</p></div>
+    <div class="libtools">
+      <label class="sr" for="libQ">Filter documents</label><input class="input" type="search" id="libQ" placeholder="Filter by title or gazette number">
+      <div class="seg" role="radiogroup" aria-label="Library view"><label><input type="radio" name="libmode" value="matrix" checked><span>Matrix</span></label><label><input type="radio" name="libmode" value="list"><span>List</span></label></div>
+    </div>
+  </div>
+  <div class="libbar">
+    <div class="chips" id="libChips" role="group" aria-label="Category"></div>
+    <div class="mxkey" aria-hidden="true">
+      <span><i class="g ok"></i>current</span><span><i class="g warn"></i>to verify</span><span><i class="g bad"></i>superseded</span><span><i class="g ref"></i>reference</span><span><i class="g seed"></i>summary only</span>
+      <span><i class="l gaz"></i>same gazette</span><span><i class="l auth"></i>same authority</span><span><i class="l site"></i>same site</span><span><i class="l mesh"></i>same kind</span><span>size = pages</span>
+    </div>
+  </div>
+  <div class="libbody">
+    <div class="mxwrap" id="libMatrix"></div>
+    <div class="listwrap" id="libListWrap" hidden><ul class="list" id="libList"></ul></div>
+    <aside class="mxcard" id="mxCard" aria-label="Source details" hidden></aside>
+    <div class="mx-empty" id="libEmpty" hidden><h3 class="display">No documents match</h3><p class="muted">Try other words or clear the filter.</p><div class="actions"><button type="button" class="btn quiet" data-lib-clear>Clear filter</button></div></div>
+  </div>
+</section>
+
+<!-- ============ SCAN ============ -->
+<section id="view-ocr" class="view split-view" aria-labelledby="h-ocr">
+  <header class="phead"><h1 class="display" id="h-ocr" tabindex="-1">Scan</h1><p class="lede">Read text from a scan, photo or PDF.</p></header>
+  <div class="split">
+    <section class="card scan-in" aria-label="Choose a file">
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a file to read">
+        <svg class="i" aria-hidden="true"><use href="#i-upload"/></svg>
+        <strong>Drop a file or tap to choose</strong>
+        <span class="small muted">PDF, image or DOCX, up to 60 MB</span>
+        <input type="file" id="file" hidden accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp,.docx,.txt,image/*">
+      </div>
+      <p class="small muted" id="ocrInfo">&nbsp;</p>
+      <details class="more"><summary>Options<svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></summary>
+        <div class="body form">
+          <div class="row2">
+            <div><label class="field-label" for="ocrMode">Speed</label><select class="select" id="ocrMode"><option value="fast">Fast (170 dpi)</option><option value="accurate">Accurate (300 dpi)</option></select></div>
+            <div><label class="field-label" for="ocrLang">Language</label><select class="select" id="ocrLang"><option value="">Default</option></select></div>
+          </div>
+          <label class="check"><input type="checkbox" id="ocrForce"><span>Read every page, ignoring the PDF's text layer</span></label>
+          <label class="check"><input type="checkbox" id="ocrAdd"><span>Add the result to the library</span></label>
+          <div class="row2" id="ocrAddBox" hidden>
+            <div><label class="field-label" for="ocrTitle">Title</label><input class="input" type="text" id="ocrTitle" placeholder="e.g. Gazette 2xxx/xx building regulations"></div>
+            <div><label class="field-label" for="ocrCat">Category</label><select class="select" id="ocrCat"></select></div>
+          </div>
+        </div></details>
+      <div id="ocrStatus" hidden><div class="prog indet" id="ocrProg"><i></i></div><p class="small" id="ocrMsg" role="status"></p></div>
+    </section>
+    <section class="card scan-out" aria-label="Recognised text">
+      <div id="ocrOut" class="stack" hidden>
+        <p class="small muted" id="ocrStats"></p>
+        <label class="sr" for="ocrText">Recognised text</label>
+        <textarea id="ocrText" class="out" spellcheck="false"></textarea>
+        <div class="actions"><button type="button" class="chip" id="ocrCopy"><svg class="i sm" aria-hidden="true"><use href="#i-copy"/></svg>Copy</button><button type="button" class="chip" id="ocrDl"><svg class="i sm" aria-hidden="true"><use href="#i-download"/></svg>Download .txt</button><button type="button" class="chip" id="ocrAsk"><svg class="i sm" aria-hidden="true"><use href="#i-search"/></svg>Search these words</button></div>
+      </div>
+      <div class="ghost"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg><p>The text it reads appears here.</p></div>
+    </section>
+  </div>
+</section>
+
+<!-- ============ UPDATE ============ -->
+<section id="view-update" class="view split-view" aria-labelledby="h-upd">
+  <header class="phead"><h1 class="display" id="h-upd" tabindex="-1">Update</h1><p class="lede">Fetch what changed and rebuild the library.</p></header>
+  <div class="split">
+    <section class="card" aria-label="Update the library">
+      <div class="stack">
+        <p class="small muted" id="libNote"></p>
+        <div class="actions"><button type="button" class="btn" id="updBtn"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg>Update now</button><span class="small muted" id="updMsg" role="status"></span></div>
+        <details class="more"><summary>Options<svg class="i" aria-hidden="true"><use href="#i-chev"/></svg></summary>
+          <div class="body">
+            <label class="check"><input type="checkbox" id="updDisc" checked><span>Look for new documents on listing pages</span></label>
+            <label class="check"><input type="checkbox" id="updAcc"><span>Accurate OCR (slower)</span></label>
+            <label class="check"><input type="checkbox" id="updForce"><span>Re-read unchanged files</span></label>
+          </div></details>
+        <div class="prog indet" id="updProg" hidden><i></i></div>
+        <div class="notice" id="updSummary" hidden></div>
+      </div>
+      <h2 class="sect-t">Add a document</h2>
+      <form id="addForm" class="with-unit"><div><label class="field-label" for="addUrl">Link to a PDF or DOCX</label><input class="input" type="url" id="addUrl" placeholder="https://…"></div><button class="btn quiet" type="submit" id="addBtn">Add</button></form>
+      <p class="small muted" id="addMsg" role="status">Site blocked? Put the file in <code>data/raw/inbox/</code> and update.</p>
+      <p class="small dl"><a href="/api/export/dataset.jsonl">Download the dataset (.jsonl)</a></p>
+    </section>
+    <section class="card" aria-labelledby="h-src">
+      <pre class="log" id="updLog" hidden></pre>
+      <div class="panel srcpanel">
+        <h2 class="sect-t" id="h-src">Registered sources <span id="srcCount" class="muted"></span></h2>
+        <p class="small muted" id="srcNote"></p>
+        <ul class="list" id="srcList"></ul>
+      </div>
+    </section>
+  </div>
+</section>
+</main>
+
+<!-- ============ DIALOGS ============ -->
+<dialog id="reader" aria-labelledby="rdTitle">
+  <div class="dlg-h"><div><h2 class="display" id="rdTitle"></h2><div class="meta" id="rdMeta"></div></div>
+    <button type="button" class="icon-btn" id="rdClose" aria-label="Close"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-b"><label class="sr" for="rdQ">Find in this document</label><input class="input" type="search" id="rdQ" placeholder="Find in this document"><div id="rdBody"></div></div>
+</dialog>
+
+<dialog id="settings" aria-labelledby="stTitle">
+  <div class="dlg-h"><h2 class="display" id="stTitle">Settings</h2>
+    <button type="button" class="icon-btn" id="stClose" aria-label="Close"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button></div>
+  <form id="stForm" class="dlg-b form" autocomplete="off">
+    <fieldset class="group">
+      <legend>Search</legend>
+      <div class="seg" role="radiogroup" aria-label="Result type">
+        <label><input type="radio" name="mode" value="answer" checked><span>Answer</span></label>
+        <label><input type="radio" name="mode" value="passages"><span>Passages</span></label>
+      </div>
+      <div><label class="field-label" for="cat">Search within</label><select class="select" id="cat"></select></div>
+      <label class="check" id="curWrap" hidden><input type="checkbox" id="cur"><span>Hide superseded documents</span></label>
+    </fieldset>
+    <fieldset class="group">
+      <legend>Appearance</legend>
+      <div class="seg" role="radiogroup" aria-label="Theme">
+        <label><input type="radio" name="theme" value="system" checked><span>System</span></label>
+        <label><input type="radio" name="theme" value="light"><span>Light</span></label>
+        <label><input type="radio" name="theme" value="dark"><span>Dark</span></label>
+      </div>
+      <div><div class="field-label" id="accLabel">Accent colour</div>
+        <div class="swatches" id="accentSw" role="radiogroup" aria-labelledby="accLabel"></div></div>
+    </fieldset>
+    <fieldset class="group">
+      <legend>Written answers</legend>
+      <label class="opt"><input type="radio" name="prov" value="anthropic"><b>Claude</b><small>Best quality. Needs an API key from <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>.</small></label>
+      <label class="opt"><input type="radio" name="prov" value="openai"><b>OpenAI-compatible or local</b><small>Includes Ollama: free, on this computer, no key.</small></label>
+      <label class="opt"><input type="radio" name="prov" value="auto"><b>Automatic</b><small>Use environment keys or a running Ollama.</small></label>
+      <label class="opt"><input type="radio" name="prov" value="off"><b>Off</b><small>Quote the closest passages only.</small></label>
+      <div id="stAnth" class="form" hidden>
+        <div class="row2"><div><label class="field-label" for="stKeyA">Claude API key</label><input class="input" type="password" id="stKeyA" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></div>
+          <div><label class="field-label" for="stModelA">Model</label><input class="input" type="text" id="stModelA" spellcheck="false"></div></div>
+      </div>
+      <div id="stOai" class="form" hidden>
+        <div class="row2"><div><label class="field-label" for="stBase">Server address</label><input class="input" type="text" id="stBase" spellcheck="false" placeholder="https://api.openai.com/v1"></div>
+          <div><label class="field-label" for="stModelO">Model</label><input class="input" type="text" id="stModelO" spellcheck="false" placeholder="gpt-4o-mini or llama3.1"></div></div>
+        <div class="with-unit"><div><label class="field-label" for="stKeyO">API key</label><input class="input" type="password" id="stKeyO" autocomplete="off" spellcheck="false"></div>
+          <button type="button" class="btn quiet" id="stOllama">Use Ollama</button></div>
+      </div>
+      <div class="olstate" id="stBoot" hidden><span class="dot-s" id="stBootDot"></span><span id="stBootTxt"></span><button type="button" class="link small" id="stBootBtn">Check again</button></div>
+      <p class="small muted" id="stSaved"></p>
+      <p class="small muted">Your key stays on this computer in <code>data/settings.json</code> and is never sent back to this page.</p>
+    </fieldset>
+    <div class="sticky-foot"><div id="stMsg" aria-live="polite"></div>
+      <div class="actions"><button type="submit" class="btn" id="stSave">Save</button><button type="button" class="btn quiet" id="stForce" hidden>Save anyway</button></div></div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="sr" id="announce" role="status" aria-live="polite"></div>
+<script type="module" src="/static/js/main.js"></script>
+</body>
+</html>

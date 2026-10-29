@@ -1,0 +1,39 @@
+# Builds CeylonBuildex.exe (one file, no console window) on a Windows runner and keeps it as a downloadable artifact.
+# Run it from the Actions tab ("Run workflow"), or push a tag such as v1.1.0.
+name: Build Windows exe
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: sudo apt-get update && sudo apt-get install -y poppler-utils tesseract-ocr
+      - run: pip install -r requirements-dev.txt
+      - run: python -m unittest discover -s tests -t .
+
+  exe:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.txt pyinstaller
+      - name: Install the OCR tools that get bundled into the program
+        run: choco install tesseract poppler -y --no-progress
+      - name: Build
+        run: python scripts/build_exe.py --clean
+      - name: Smoke test (starts it without a window, checks it serves, checks it quits)
+        run: python scripts/smoke_exe.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CeylonBuildex
+          path: dist/CeylonBuildex.exe
+          if-no-files-found: error

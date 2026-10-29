@@ -1,0 +1,103 @@
+/* ---------- library: a map of sources ----------
+   Labelled boxes (one per kind of document) hold round nodes joined by a mesh of triangles. The mesh says "same kind";
+   the coloured lines over it are real relations from the dataset. Everything is thin, grey and quiet until you point at a document. */
+.view.on.lib{display:flex;flex-direction:column;overflow:hidden;margin-right:0;padding:0 0 var(--s5)}
+.libhead{justify-content:space-between;align-items:flex-end}
+.libhead>div:first-child{display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--s1) var(--s4)}
+.libhead h1{margin:0}
+.libhead .lede{margin:0}
+.libtools{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s3)}
+.libtools .input{width:clamp(220px,26vw,340px);min-height:36px}
+.libbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--s3) var(--s5);padding:0 0 var(--s3)}
+.mxkey{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s1) var(--s4);font-size:var(--fs-xs);color:var(--muted)}
+.mxkey span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.mxkey .g{position:relative;display:inline-block;width:11px;height:11px;border:1.5px solid var(--ink);border-radius:50%;background:var(--panel)}
+.mxkey .g.ok{background:var(--ink)}
+.mxkey .g.warn::after{content:"";position:absolute;inset:2px;border-radius:50%;background:var(--orange)}
+.mxkey .g.bad{border-color:var(--muted)}
+.mxkey .g.bad::after{content:"";position:absolute;left:-2px;right:-2px;top:3.5px;border-top:1.6px solid var(--bad);transform:rotate(-45deg)}
+.mxkey .g.seed{border-style:dashed}
+.mxkey .l{display:inline-block;width:20px;border-top:2px solid var(--line-2)}
+.mxkey .l.gaz{border-color:var(--orange)}.mxkey .l.auth{border-color:var(--ink)}.mxkey .l.site{border-color:var(--muted)}.mxkey .l.mesh{border-top-width:1px;border-color:var(--mesh)}
+.libbody,.mxkey{--mesh:color-mix(in srgb,var(--ink) 26%,transparent)}
+.libbody{position:relative;flex:1;min-height:0;border:1px solid var(--line-2);border-radius:var(--r3);background:var(--panel);overflow:hidden}
+.mxwrap,.listwrap{position:absolute;inset:0;overflow:auto;overscroll-behavior:contain}
+.listwrap{padding:0 var(--s4)}
+.listwrap .list{margin:0;border-top:0}
+svg.mx{display:block;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+.mx .dotc{fill:var(--line-2);opacity:.8}
+.mx .box{animation:bx-in .6s var(--ease) backwards;animation-delay:calc(var(--b) * 90ms);transition:opacity .25s}
+@keyframes bx-in{from{opacity:0;transform:translateY(8px)}}
+.mx.still .box{animation:none}
+.mx .bx{fill:var(--panel);stroke:var(--line-2);stroke-width:1;transition:stroke .2s}
+.mx .box.on .bx,.mx .box.on .tb{stroke:var(--ink)}
+.mx .box.off{opacity:.35}
+.mx .tb{fill:var(--panel);stroke:var(--line-2);stroke-width:1;transition:stroke .2s}
+.mx .tt{font:500 10px var(--f-mono);letter-spacing:.07em;fill:var(--ink)}
+.mx .tc{font:500 10px var(--f-mono);fill:var(--muted)}
+.mx .m,.mx .e{fill:none;stroke-dasharray:1;stroke-dashoffset:1;animation:mx-draw .9s var(--ease) forwards;animation-delay:var(--d);transition:opacity .25s,stroke .25s}
+.mx .m{stroke:var(--mesh);stroke-width:1}
+.mx .e{stroke:var(--line-2);stroke-width:1.1}
+.mx .e.site{stroke:var(--muted);opacity:.3}
+.mx .e.auth{stroke:var(--ink);stroke-width:1.1;opacity:.3}
+.mx .e.gaz,.mx .e.sup{stroke:var(--orange);stroke-width:2}
+.mx .e.hov{opacity:0}
+.mx.still .m,.mx.still .e{animation:none;stroke-dashoffset:0}
+@keyframes mx-draw{to{stroke-dashoffset:0}}
+.mx .p{fill:none;stroke-linecap:round;stroke-dasharray:.025 .475;opacity:0;transition:opacity .6s}
+.mx .p.auth{stroke:var(--ink);stroke-width:2.2}
+.mx .p.gaz,.mx .p.sup{stroke:var(--orange);stroke-width:3.4}
+.mx.flow .p{opacity:1;animation:mx-flow 2.6s linear infinite;animation-delay:var(--d)}
+.mx.flow .p.auth{opacity:.3}
+@keyframes mx-flow{to{stroke-dashoffset:-.5}}
+.mx .node{cursor:pointer;outline:none;transform-box:fill-box;transform-origin:center;animation:mx-pop .5s var(--ease) backwards;animation-delay:calc(450ms + var(--k) * 22ms);transition:opacity .25s}
+.mx.still .node{animation:none}
+@keyframes mx-pop{from{opacity:0;transform:scale(.2)}}
+.mx .dot{fill:var(--panel);stroke:var(--ink);stroke-width:1.5;transition:stroke .15s,stroke-width .15s}
+.mx .seed .dot{stroke-dasharray:3 2.2}
+.mx .in{fill:none}
+.mx .s-ok .in{fill:var(--ink)}.mx .s-warn .in{fill:var(--orange)}
+.mx .s-bad .dot{stroke:var(--muted)}
+.mx .strike{fill:none;stroke:none}.mx .s-bad .strike{stroke:var(--bad);stroke-width:1.8;stroke-linecap:round}
+.mx .nl{font:500 9.5px var(--f-mono);fill:var(--muted);text-anchor:middle;pointer-events:none}
+.mx .hit{fill:transparent;stroke:none}
+.mx .halo{fill:none;stroke:var(--orange);stroke-width:1.5;opacity:0;pointer-events:none;transform-box:fill-box;transform-origin:center}
+.mx .node:hover .dot,.mx .node:focus-visible .dot,.mx .node.sel .dot{stroke:var(--orange);stroke-width:2.3}
+.mx .node:focus-visible .halo{opacity:.9}
+.mx .node.sel .halo{animation:mx-ring 1.8s ease-out infinite}
+@keyframes mx-ring{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(1.8)}}
+.mx.hot .node:not(.on){opacity:.22}
+.mx.hot .m{opacity:.35}
+.mx.hot .e:not(.on),.mx.hot .p:not(.on){opacity:.06}
+.mx.hot .e.on{stroke:var(--orange);stroke-width:2.2;opacity:1}
+.mx.hot .p.on{opacity:1}
+.mx .node.off{opacity:.13;pointer-events:none}
+.mx .m.off,.mx .e.off,.mx .p.off{opacity:.04}
+.mxcard{position:absolute;bottom:var(--s4);z-index:3;width:min(420px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;padding:var(--s4) var(--s5) var(--s5);border:1px solid var(--line-2);border-radius:var(--r3);background:var(--bg);box-shadow:0 14px 44px rgba(0,0,0,.2);animation:rise var(--t2) var(--ease)}
+.mxcard[data-side="right"]{right:var(--s4)}.mxcard[data-side="left"]{left:var(--s4)}
+.mxc-top{display:flex;align-items:center;justify-content:space-between;min-height:24px}
+.mxc-cat{font:500 10px var(--f-mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.mxcard h3{margin:var(--s1) 0 var(--s2);font:600 var(--fs-base)/1.35 var(--f-body);letter-spacing:-.01em}
+.mxcard .meta{font-size:var(--fs-xs);gap:2px var(--s3)}
+.mxcard .meta>*+*{margin-left:0;padding-left:0;border-left:0}
+.mxc-tags{display:flex;flex-wrap:wrap;gap:var(--s1) var(--s3);margin:var(--s3) 0 0}
+.mxc-links{list-style:none;margin:var(--s4) 0 0;padding:0;display:grid;gap:var(--s2);font-size:var(--fs-sm)}
+.mxc-links .link{text-align:left}
+.mxc-links span{display:inline-block;min-width:7.6em;color:var(--muted);font-size:var(--fs-xs)}
+.mxcard .actions{margin-top:var(--s4)}
+.icon-btn.sm{width:32px;height:32px}
+.mx-empty{position:absolute;inset:0;z-index:2;display:grid;place-content:center;justify-items:center;gap:var(--s3);text-align:center;background:color-mix(in srgb,var(--panel) 80%,transparent)}
+.mx-empty h3{font-size:var(--fd-h1);color:var(--ink)}
+@media (max-width:700px){
+  .mxcard{position:fixed;left:8px!important;right:8px!important;bottom:calc(8px + env(safe-area-inset-bottom));top:auto;width:auto;max-height:58vh;overflow:auto;z-index:30}
+  .libtools,.libtools .input{width:100%}
+  .mxkey{flex-wrap:nowrap;overflow-x:auto;width:100%;margin:0 calc(-1 * var(--edge));padding:0 var(--edge) 2px;scrollbar-width:none}
+  .mxkey::-webkit-scrollbar{display:none}
+  /* phone: the page scrolls as a whole, the map keeps a comfortable height, and the filters sit in one swipeable row */
+  .view.on.lib{display:block;overflow:auto;margin-right:calc(-1 * var(--sbw));padding:0 var(--sbw) var(--s5) 0}
+  .libbody{height:max(460px,64vh);flex:none}
+  #libChips{flex-wrap:nowrap;overflow-x:auto;margin:0 calc(-1 * var(--edge));padding:2px var(--edge);scrollbar-width:none}
+  #libChips::-webkit-scrollbar{display:none}
+  #libChips .chip{flex:none}
+}
+@media (prefers-reduced-motion:reduce){.mx .p{display:none}}

@@ -1,0 +1,7 @@
+.venv
+.git
+**/__pycache__
+data/uploads
+data/raw
+tests
+data/settings.json
