@@ -106,12 +106,22 @@
     drawSide(); crumb(); refreshDk(); decorate();
   }
   /* the work status on the dashboard's own project cards and project page, with a picker on the page */
+  /* the folder art on a project card: status, the main file kinds and whether it holds files, as in Files */
+  window.MorfisCardArt = function (p) {
+    var pg = page(), A = window.MorfisArt; if (!pg || !A) return '';
+    var files = [], n = (p.looseCount || 0);
+    pg.FOLDER_TEMPLATES.forEach(function (t) { var f = (p.folders || {})[t.id] || {}; files = files.concat(f.files || []); n += f.count != null ? f.count : (f.files || []).length; });
+    return '<span class="dk-cart" title="' + esc(A.STATUS[A.statusOf(p, pg.today())].label + ' · ' + n + ' file' + (n === 1 ? '' : 's')) + '">' + A.folder({ status: A.statusOf(p, pg.today()), count: n, kinds: A.kindsOf(files) }) + '</span>';
+  };
   function decorate() {
     var pg = page(), A = window.MorfisArt;
     if (!pg || !A || R.cur) return;
     document.querySelectorAll('#view .pcard[data-id]').forEach(function (c) {
+      /* cards drawn before the art was loaded */
+      if (!c.querySelector('.dk-cart') && !c.querySelector('.has-cover')) { var top = c.querySelector('.pcard-top'), p0 = pg.P(c.dataset.id), pl = top && top.querySelector('svg.plan'); if (p0 && pl) pl.outerHTML = window.MorfisCardArt(p0); }
       var p = pg.P(c.dataset.id), code = c.querySelector('.pcard-top .code'), st = p && A.statusOf(p, pg.today());
-      if (!p || !code) return;
+      /* the folder art already carries the status */
+      if (!p || !code || c.querySelector('.dk-cart')) return;
       var old = c.querySelector('.dk-st');
       if (old && old.dataset.st === st) return;
       if (old) old.remove();

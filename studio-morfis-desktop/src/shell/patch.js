@@ -72,6 +72,8 @@ function rules(o) {
     ["data-act=\"go\" data-v=\"settings\">' + icon('gear', 15) + 'Reminder settings", "data-act=\"remSettings\">' + icon('gear', 15) + 'Reminder settings", true],
     ["'<section class=\"card stack\"><div><h2>Reminders</h2>", "'<section class=\"card stack\" id=\"remCard\"><div><h2>Reminders</h2>", true],
     ["(S.ui.status !== 'closed' ? newCard() : '') + '</div>' : noMatch());", "(S.ui.status !== 'closed' ? newCard() : '') + '</div>' : dkNoProjects());", true],
+    /* project cards on Home and Projects: the same folder art as Files and File Explorer, in place of the plan sketch */
+    ["coverEl('pc-cover', p.cover) + planSvg(tone) +", "coverEl('pc-cover', p.cover) + (window.MorfisCardArt && !p.cover ? window.MorfisCardArt(p) : planSvg(tone)) +", true],
     ['/* ----- start ----- */\n(function boot() {', '/* ----- start ----- */\n' + HOOK + '(function boot() {', true],
     ["(HOST ? ' The installed program file and its desktop shortcut keep the original icon.' : '')",
       "(HOST ? ' The Start menu entry, desktop and taskbar shortcuts and the Apps list follow it too.' : '')", false],
