@@ -206,7 +206,7 @@
     var t = tmpl(F.fid), key = p.id + '|' + F.fid + '|' + F.sub;
     if (F.listKey !== key) { F.listKey = key; F.list = null; load(p); }
     var dirs = F.list ? F.list.entries.filter(function (e) { return e.dir; }) : [];
-    var files = F.list ? F.list.entries.filter(function (e) { return !e.dir; }).sort(function (a, b) { return b.mtimeMs - a.mtimeMs; }) : [];
+    var files = F.list ? F.list.entries.filter(function (e) { return !e.dir; }).sort(function (a, b) { return (b.mtimeMs - a.mtimeMs) || a.name.localeCompare(b.name, undefined, { numeric: true }); }) : [];
     var q = F.q.trim().toLowerCase();
     if (q) { dirs = dirs.filter(function (e) { return e.name.toLowerCase().indexOf(q) !== -1; }); files = files.filter(function (e) { return e.name.toLowerCase().indexOf(q) !== -1; }); }
     var base = jn(pg().subDir(p, F.fid), F.sub);

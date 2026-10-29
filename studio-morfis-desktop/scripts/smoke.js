@@ -198,8 +198,10 @@ app.whenReady().then(async () => {
   await look('Meeting_notes.md', "/second sink/.test(document.querySelector('.pv .pv-pre').textContent)");
   await look('Client_brief.docx', "(function(){var f=document.querySelector('.pv iframe.pv-frame');return !!(f&&/Two treatment rooms/.test(f.srcdoc||''))})()", '20-preview-docx');
   await look('Ground_floor.dwg', "!!document.querySelector('.pv .pv-none .btn')", '21-preview-other');
+  /* the file before Ground_floor.dwg in the order on screen */
+  const before = await js(w, "(function(){var l=Array.from(document.querySelectorAll('#dkView .fx-main [data-file]')).map(function(r){return r.dataset.file.split(/[\\\\/]/).pop()}).filter(function(v,i,a){return a.indexOf(v)===i});var i=l.indexOf('Ground_floor.dwg');return l[(i-1+l.length)%l.length]})()");
   await js(w, "document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}))"); await wait(900);
-  kinds.arrows = await js(w, "/Client_brief/.test(document.querySelector('.pv .pv-file b').textContent)");
+  kinds.arrows = await js(w, "document.querySelector('.pv .pv-file b').textContent") === before;
   await js(w, "MorfisPreview.close()");
   /* project folder setup: switch 04 off, rename 03 on disk, add a folder of our own; then delete 05 of one project */
   await js(w, "MorfisFolders.openSetup(); true"); await wait(500);
