@@ -1,4 +1,4 @@
-"""Reusable "Ember" widgets: gradient backdrop, glass cards, pills, circular
+"""Reusable "Noir" widgets: flat backdrop, cards, pills, circular
 buttons, the frosted value slider and the video surface."""
 
 from __future__ import annotations
@@ -19,7 +19,6 @@ from PySide6.QtCore import (
     Signal,
 )
 from PySide6.QtGui import (
-    QBrush,
     QColor,
     QFont,
     QFontMetricsF,
@@ -27,15 +26,13 @@ from PySide6.QtGui import (
     QLinearGradient,
     QPainter,
     QPainterPath,
-    QPen,
-    QPixmap,
-    QRadialGradient,
 )
 from PySide6.QtWidgets import (
     QAbstractButton,
     QButtonGroup,
     QFrame,
     QGraphicsDropShadowEffect,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
     QLayout,
@@ -136,7 +133,7 @@ class FlowLayout(QLayout):
 
 
 def label(text: str = "", role: str | None = None, wrap: bool = False) -> QLabel:
-    lbl = QLabel(text)
+    lbl = QLabel(text.upper() if role == "caption" else text)
     if role:
         lbl.setProperty("role", role)
     lbl.setWordWrap(wrap)
@@ -173,51 +170,15 @@ def soft_shadow(widget: QWidget, blur: int = 40, alpha: int = 110, dy: int = 12)
 # Surfaces
 # --------------------------------------------------------------------------
 class EmberBackground(QWidget):
-    """Window backdrop: diagonal ember gradient with soft light blooms."""
+    """Window backdrop: flat near-black (name kept for compatibility)."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("Root")
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
-        self._cache: QPixmap | None = None
-
-    def resizeEvent(self, e) -> None:  # noqa: N802
-        self._cache = None
-        super().resizeEvent(e)
-
-    def _render(self) -> QPixmap:
-        dpr = self.devicePixelRatioF()
-        pm = QPixmap(int(self.width() * dpr), int(self.height() * dpr))
-        pm.setDevicePixelRatio(dpr)
-        p = QPainter(pm)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        w, h = self.width(), self.height()
-        base = QLinearGradient(0, 0, w * 0.8, h)
-        base.setColorAt(0.0, qcolor(P.ember))
-        base.setColorAt(0.45, qcolor(P.ember_lo))
-        base.setColorAt(1.0, qcolor(P.ember_deep))
-        p.fillRect(QRectF(0, 0, w, h), base)
-        for cx, cy, rad, color, alpha in (
-            (w * 0.92, h * 0.05, max(w, h) * 0.55, P.ember_hi, 0.75),
-            (w * 0.05, h * 0.95, max(w, h) * 0.45, "#7A1A0C", 0.6),
-            (w * 0.55, h * 0.55, max(w, h) * 0.35, P.accent, 0.12),
-        ):
-            g = QRadialGradient(QPointF(cx, cy), rad)
-            c0 = qcolor(color)
-            c0.setAlphaF(alpha)
-            c1 = qcolor(color)
-            c1.setAlphaF(0.0)
-            g.setColorAt(0, c0)
-            g.setColorAt(1, c1)
-            p.fillRect(QRectF(0, 0, w, h), g)
-        p.end()
-        return pm
 
     def paintEvent(self, _e) -> None:  # noqa: N802
-        if self._cache is None or self._cache.size() != self.size() * self.devicePixelRatioF():
-            self._cache = self._render()
-        p = QPainter(self)
-        p.drawPixmap(0, 0, self._cache)
+        QPainter(self).fillRect(self.rect(), qcolor(P.bg))
 
 
 class GlassCard(QFrame):
@@ -229,8 +190,8 @@ class GlassCard(QFrame):
         subtitle: str | None = None,
         parent: QWidget | None = None,
         radius: int = RADIUS_CARD,
-        tint: str = P.glass,
-        padding: int = 20,
+        tint: str = P.surface,
+        padding: int = 22,
     ) -> None:
         super().__init__(parent)
         self._radius = radius
@@ -241,7 +202,7 @@ class GlassCard(QFrame):
         if title:
             head = QVBoxLayout()
             head.setSpacing(2)
-            head.addWidget(label(title, "h2"))
+            head.addWidget(label(title, "caption"))
             if subtitle:
                 head.addWidget(label(subtitle, "faint", wrap=True))
             self.body.addLayout(head)
@@ -253,15 +214,9 @@ class GlassCard(QFrame):
     def paintEvent(self, _e) -> None:  # noqa: N802
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-        grad = QLinearGradient(r.topLeft(), r.bottomRight())
-        top = QColor(self._tint)
-        top.setAlphaF(min(1.0, self._tint.alphaF() * 1.5))
-        grad.setColorAt(0, top)
-        grad.setColorAt(1, self._tint)
-        p.setBrush(grad)
-        p.setPen(QPen(qcolor(P.glass_border), 1))
-        p.drawRoundedRect(r, self._radius, self._radius)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(self._tint)
+        p.drawRoundedRect(QRectF(self.rect()), self._radius, self._radius)
 
 
 # --------------------------------------------------------------------------
@@ -330,33 +285,60 @@ class CircleButton(QAbstractButton):
         r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
         enabled = self.isEnabled()
         checked = self.isChecked()
-        if self._solid or (checked and self.accent is None):
-            fill = QColor(255, 255, 255, 255 if enabled else 110)
-            if self.isDown():
-                fill = QColor("#FFD9CC")
-            elif self._hover:
-                fill = QColor(255, 241, 236)
-            p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(fill)
-            icon_color = qcolor(P.text_on_light)
+        h = self._hover
+        p.setPen(Qt.PenStyle.NoPen)
+        if self._solid:
+            fill = QColor(P.accent) if self.isDown() else _mix(qcolor(P.text), QColor("white"), h)
+            if not enabled:
+                fill = qcolor(P.surface3)
+            icon_color = qcolor(P.text_on_light) if enabled else qcolor(P.text_faint)
+        elif checked:
+            fill = QColor(self.accent) if self.accent is not None else qcolor(P.text)
+            icon_color = qcolor(P.text_on_light) if fill.lightness() > 140 else QColor("white")
         else:
-            alpha = 0.10 + 0.08 * self._hover + (0.08 if self.isDown() else 0)
-            fill = QColor(self.accent) if (checked and self.accent is not None) else QColor(255, 255, 255)
-            fill.setAlphaF(0.85 if (checked and self.accent is not None) else alpha)
-            p.setBrush(fill)
-            p.setPen(QPen(QColor(255, 255, 255, int(46 + 50 * self._hover)), 1))
-            icon_color = QColor(255, 255, 255, 255 if enabled else 100)
+            fill = _mix(qcolor(P.surface2), qcolor(P.surface3), h)
+            if self.isDown():
+                fill = qcolor(P.glass_pressed)
+            icon_color = _mix(qcolor(P.text_dim), qcolor(P.text), h) if enabled else qcolor(P.text_faint)
+        p.setBrush(fill)
         p.drawEllipse(r)
         name = self._checked_icon if (checked and self._checked_icon) else self._icon
         inset = r.width() * 0.29
         draw_icon(p, name, r.adjusted(inset, inset, -inset, -inset), icon_color)
 
 
+def _mix(a: QColor, b: QColor, t: float) -> QColor:
+    t = max(0.0, min(1.0, t))
+    return QColor(
+        int(a.red() + (b.red() - a.red()) * t),
+        int(a.green() + (b.green() - a.green()) * t),
+        int(a.blue() + (b.blue() - a.blue()) * t),
+        int(a.alpha() + (b.alpha() - a.alpha()) * t),
+    )
+
+
 class NavButton(CircleButton):
-    """Rail button with an accessible text label below the circle."""
+    """Rail button: transparent until hovered, white when it is the current page."""
 
     def __init__(self, icon: str, text: str, parent: QWidget | None = None) -> None:
         super().__init__(icon, 52, checkable=True, tooltip=text, parent=parent)
+
+    def paintEvent(self, _e) -> None:  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
+        p.setPen(Qt.PenStyle.NoPen)
+        if self.isChecked():
+            p.setBrush(qcolor(P.text))
+            icon_color = qcolor(P.text_on_light)
+        else:
+            bg = qcolor(P.surface2)
+            bg.setAlphaF(self._hover)
+            p.setBrush(bg)
+            icon_color = _mix(qcolor(P.text_faint), qcolor(P.text), self._hover)
+        p.drawEllipse(r)
+        inset = r.width() * 0.31
+        draw_icon(p, self._icon, r.adjusted(inset, inset, -inset, -inset), icon_color)
 
 
 class PillGroup(QWidget):
@@ -447,15 +429,12 @@ class ToggleSwitch(QAbstractButton):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
-        track = QColor(255, 255, 255, int(40 + 215 * self._pos))
-        p.setPen(QPen(QColor(255, 255, 255, 60), 1))
-        p.setBrush(track)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(_mix(qcolor(P.surface3), qcolor(P.accent), self._pos))
         p.drawRoundedRect(r, r.height() / 2, r.height() / 2)
         d = r.height() - 6
         x = r.left() + 3 + (r.width() - d - 6) * self._pos
-        knob = QColor(qcolor(P.ember)) if self._pos > 0.5 else QColor(255, 255, 255)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(knob)
+        p.setBrush(_mix(qcolor(P.text_dim), qcolor(P.text_on_light), self._pos))
         p.drawEllipse(QRectF(x, r.top() + 3, d, d))
 
 
@@ -509,8 +488,8 @@ class GlassSlider(QWidget):
         self._value = value
         self._fmt = fmt or (lambda v: f"{v:.0f}")
         self._dragging = False
-        self.setMinimumHeight(48)
-        self.setMaximumHeight(48)
+        self.setMinimumHeight(44)
+        self.setMaximumHeight(44)
         self.setMinimumWidth(180)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -586,38 +565,38 @@ class GlassSlider(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
         rad = r.height() / 2
-        border = QColor(255, 255, 255, 120 if self.hasFocus() else 46)
-        p.setPen(QPen(border, 1))
-        p.setBrush(QColor(255, 255, 255, 26))
-        p.drawRoundedRect(r, rad, rad)
-
-        # Filled portion (left of the thumb) is slightly brighter glass.
-        t = self._track()
-        x = t.left() + t.width() * self._frac()
-        fill = QPainterPath()
-        fill.addRoundedRect(QRectF(r.left(), r.top(), x - r.left(), r.height()), rad, rad)
         clip = QPainterPath()
         clip.addRoundedRect(r, rad, rad)
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(255, 255, 255, 30))
+        p.setBrush(qcolor(P.surface3) if self.hasFocus() else qcolor(P.surface2))
+        p.drawPath(clip)
+
+        # Filled portion (left of the thumb) is a lighter tone, as in the reference.
+        t = self._track()
+        x = t.left() + t.width() * self._frac()
+        fill = QPainterPath()
+        fill.addRect(QRectF(r.left(), r.top(), x - r.left(), r.height()))
+        p.setBrush(QColor(255, 255, 255, 22))
         p.drawPath(fill.intersected(clip))
 
-        p.setPen(QColor(255, 255, 255, 220))
+        p.setPen(qcolor(P.text_dim))
         p.setFont(app_font(9.5))
         p.drawText(r.adjusted(rad, 0, 0, 0), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self._text)
+        p.setPen(qcolor(P.text))
         p.setFont(app_font(9.5, QFont.Weight.DemiBold))
         p.drawText(r.adjusted(0, 0, -rad, 0), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight, self._fmt(self._value))
 
         # Tick dots
-        p.setBrush(QColor(255, 255, 255, 70))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(255, 255, 255, 46))
         n = 14
         for i in range(n + 1):
             tx = t.left() + t.width() * i / n
             if abs(tx - x) > 5:
-                p.drawEllipse(QPointF(tx, r.center().y()), 1.4, 1.4)
-        # Thumb: bright vertical bar
+                p.drawEllipse(QPointF(tx, r.center().y()), 1.3, 1.3)
+        # Thumb: thin white bar
         p.setBrush(QColor("white"))
-        p.drawRoundedRect(QRectF(x - 1.5, r.center().y() - 9, 3, 18), 1.5, 1.5)
+        p.drawRoundedRect(QRectF(x - 1, r.center().y() - 10, 2, 20), 1, 1)
 
 
 class StatTile(QWidget):
@@ -646,6 +625,7 @@ class Chip(QLabel):
         self._dot = qcolor(dot) if dot else None
         self.setFont(app_font(8.5 if height < 36 else 9.5, QFont.Weight.Medium))
         self.setFixedHeight(height)
+        self.overlay_alpha = 1.0  # < 1 for chips floating over video
         self._apply_margins()
 
     def _apply_margins(self) -> None:
@@ -660,9 +640,11 @@ class Chip(QLabel):
     def paintEvent(self, _e) -> None:  # noqa: N802
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-        p.setPen(QPen(qcolor(P.glass_border), 1))
-        p.setBrush(QColor(255, 255, 255, 30))
+        r = QRectF(self.rect())
+        p.setPen(Qt.PenStyle.NoPen)
+        bg = qcolor(P.surface2)
+        bg.setAlphaF(self.overlay_alpha)
+        p.setBrush(bg)
         p.drawRoundedRect(r, r.height() / 2, r.height() / 2)
         if self._dot is not None:
             p.setPen(Qt.PenStyle.NoPen)
@@ -674,36 +656,59 @@ class Chip(QLabel):
 
 
 class Banner(QFrame):
-    """Transient notification shown at the top of the window."""
+    """Transient notification that fades in at the top of the window."""
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
         self.setVisible(False)
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(16, 10, 10, 10)
+        lay.setContentsMargins(18, 8, 8, 8)
+        self._dot = QLabel()
+        self._dot.setFixedSize(8, 8)
+        lay.addWidget(self._dot, 0, Qt.AlignmentFlag.AlignVCenter)
         self._text = label("", wrap=True)
         lay.addWidget(self._text, 1)
         close = CircleButton("close", 28, tooltip="Dismiss")
-        close.clicked.connect(self.hide)
+        close.clicked.connect(self.dismiss)
         lay.addWidget(close)
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
-        self._timer.timeout.connect(self.hide)
-        soft_shadow(self, 30, 140, 8)
+        self._timer.timeout.connect(self.dismiss)
+        self._fx = QGraphicsOpacityEffect(self)
+        self._fx.setOpacity(0.0)
+        self.setGraphicsEffect(self._fx)
+        self._fade = QPropertyAnimation(self._fx, b"opacity", self)
+        self._fade.setDuration(220)
+        self._fade.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._fade.finished.connect(self._fade_done)
 
     def show_message(self, text: str, level: str = "info", timeout_ms: int = 6000) -> None:
-        color = {"info": "rgba(255,255,255,0.18)", "warn": "rgba(255,211,110,0.30)", "error": "rgba(255,77,77,0.42)"}[level]
-        self.setStyleSheet(
-            f"Banner {{ background: {color}; border: 1px solid rgba(255,255,255,0.35); border-radius: 18px; }}"
-        )
+        dot = {"info": P.accent, "warn": P.warn, "error": P.danger}[level]
+        self.setStyleSheet(f"Banner {{ background: {P.surface3}; border: none; border-radius: 22px; }}")
+        self._dot.setStyleSheet(f"background: {dot}; border-radius: 4px;")
         self._text.setText(text)
         self.reposition()
         self.show()
         self.raise_()
+        self._fade.stop()
+        self._fade.setStartValue(self._fx.opacity())
+        self._fade.setEndValue(1.0)
+        self._fade.start()
         if timeout_ms > 0:
             self._timer.start(timeout_ms)
         else:
             self._timer.stop()
+
+    def dismiss(self) -> None:
+        self._timer.stop()
+        self._fade.stop()
+        self._fade.setStartValue(self._fx.opacity())
+        self._fade.setEndValue(0.0)
+        self._fade.start()
+
+    def _fade_done(self) -> None:
+        if self._fx.opacity() < 0.01:
+            self.hide()
 
     def reposition(self) -> None:
         parent = self.parentWidget()
@@ -756,9 +761,9 @@ class VideoView(QWidget):
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         r = QRectF(self.rect())
         clip = QPainterPath()
-        clip.addRoundedRect(r, 28, 28)
+        clip.addRoundedRect(r, RADIUS_CARD, RADIUS_CARD)
         p.setClipPath(clip)
-        p.fillRect(r, QColor(20, 5, 3, 150))
+        p.fillRect(r, qcolor(P.stage))
 
         if self._image is not None and not self._image.isNull():
             img = self._image
@@ -768,33 +773,24 @@ class VideoView(QWidget):
             dw, dh = iw * scale, ih * scale
             target = QRectF(r.center().x() - dw / 2, r.center().y() - dh / 2, dw, dh)
             p.drawImage(target, img)
-            # Bottom fade so the transport controls stay legible (as in the reference).
+            # Bottom fade so the transport controls stay legible.
             fade = QLinearGradient(0, r.bottom() - 140, 0, r.bottom())
-            fade.setColorAt(0, QColor(30, 6, 3, 0))
-            fade.setColorAt(1, QColor(30, 6, 3, 150))
+            fade.setColorAt(0, QColor(0, 0, 0, 0))
+            fade.setColorAt(1, QColor(0, 0, 0, 170))
             p.fillRect(QRectF(r.left(), r.bottom() - 140, r.width(), 140), fade)
         else:
             self._paint_placeholder(p, r)
-        p.setClipping(False)
-        p.setPen(QPen(QColor(255, 255, 255, 40), 1))
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawRoundedRect(r.adjusted(0.5, 0.5, -0.5, -0.5), 28, 28)
 
     def _paint_placeholder(self, p: QPainter, r: QRectF) -> None:
-        g = QRadialGradient(QPointF(r.width() * 0.7, r.height() * 0.35), max(r.width(), r.height()) * 0.7)
-        g.setColorAt(0, QColor(255, 120, 70, 120))
-        g.setColorAt(0.5, QColor(185, 53, 27, 70))
-        g.setColorAt(1, QColor(30, 6, 3, 0))
-        p.fillRect(r, QBrush(g))
-        size = min(r.width(), r.height()) * 0.22
-        logo = QRectF(r.center().x() - size / 2, r.center().y() - size * 1.05, size, size)
-        draw_logo(p, logo, QColor(255, 255, 255, 60))
-        p.setPen(QColor("white"))
-        p.setFont(app_font(max(14.0, min(28.0, r.width() / 32)), QFont.Weight.Light))
-        p.drawText(QRectF(r.left(), logo.bottom() + 8, r.width(), 50), Qt.AlignmentFlag.AlignHCenter, self.headline)
-        p.setPen(QColor(255, 255, 255, 150))
-        p.setFont(app_font(10))
-        p.drawText(QRectF(r.left(), logo.bottom() + 58, r.width(), 30), Qt.AlignmentFlag.AlignHCenter, self.subline)
+        size = min(r.width(), r.height()) * 0.16
+        logo = QRectF(r.center().x() - size / 2, r.center().y() - size * 1.1, size, size)
+        draw_logo(p, logo, QColor(255, 255, 255, 34))
+        p.setPen(qcolor(P.text))
+        p.setFont(app_font(max(14.0, min(26.0, r.width() / 34)), QFont.Weight.Light))
+        p.drawText(QRectF(r.left(), logo.bottom() + 10, r.width(), 50), Qt.AlignmentFlag.AlignHCenter, self.headline)
+        p.setPen(qcolor(P.text_faint))
+        p.setFont(app_font(9.5))
+        p.drawText(QRectF(r.left(), logo.bottom() + 58, r.width(), 30), Qt.AlignmentFlag.AlignHCenter, self.subline.upper())
 
 
 def fmt_time(ms: float) -> str:
@@ -810,6 +806,7 @@ class TrackSlider(QWidget):
 
     moved = Signal(float)  # while dragging (throttled by the caller if needed)
     released = Signal(float)  # drag finished / click
+    hoverAt = Signal(float)  # cursor fraction while hovering/dragging, -1 on leave
 
     def __init__(self, show_bubble: bool = False, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -853,13 +850,20 @@ class TrackSlider(QWidget):
         if self.dragging:
             self._value = self._frac_at(self._hover_x)
             self.moved.emit(self._value)
+        self.hoverAt.emit(self._value if self.dragging else self._frac_at(self._hover_x))
         self.update()
+
+    def x_for(self, frac: float) -> float:
+        t = self._track()
+        return t.left() + t.width() * frac
 
     def mouseReleaseEvent(self, e) -> None:  # noqa: N802
         if self.dragging:
             self.dragging = False
             self._value = self._frac_at(e.position().x())
             self.released.emit(self._value)
+            if not self._hover:
+                self.hoverAt.emit(-1.0)
             self.update()
 
     def keyPressEvent(self, e) -> None:  # noqa: N802
@@ -877,6 +881,8 @@ class TrackSlider(QWidget):
 
     def leaveEvent(self, e) -> None:  # noqa: N802
         self._hover = False
+        if not self.dragging:
+            self.hoverAt.emit(-1.0)
         self.update()
 
     def paintEvent(self, _e) -> None:  # noqa: N802
@@ -887,19 +893,56 @@ class TrackSlider(QWidget):
         if active:
             t = t.adjusted(0, -1, 0, 1)
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(255, 255, 255, 60))
+        p.setBrush(QColor(255, 255, 255, 40))
         p.drawRoundedRect(t, t.height() / 2, t.height() / 2)
+        if self._hover and not self.dragging:
+            hx = max(t.left(), min(t.right(), self._hover_x))
+            p.setBrush(QColor(255, 255, 255, 50))
+            p.drawRoundedRect(QRectF(t.left(), t.top(), hx - t.left(), t.height()), t.height() / 2, t.height() / 2)
+        lime = qcolor(P.accent)
         done = QRectF(t.left(), t.top(), t.width() * self._value, t.height())
-        p.setBrush(QColor("white"))
+        p.setBrush(lime if self.show_bubble else qcolor(P.text))
         p.drawRoundedRect(done, t.height() / 2, t.height() / 2)
-        if active:
-            if self._hover and not self.dragging:
-                hx = max(t.left(), min(t.right(), self._hover_x))
-                p.setBrush(QColor(255, 255, 255, 90))
-                p.drawRoundedRect(QRectF(t.left(), t.top(), hx - t.left(), t.height()), t.height() / 2, t.height() / 2)
-            x = t.left() + t.width() * self._value
-            p.setBrush(QColor("white"))
-            p.drawEllipse(QPointF(x, t.center().y()), 7, 7)
+        x = t.left() + t.width() * self._value
+        if self.show_bubble:
+            # Editor-style playhead: a thin lime bar that is always visible.
+            p.drawRoundedRect(QRectF(x - 1.5, 2, 3, self.height() - 4), 1.5, 1.5)
+        elif active:
+            p.setBrush(qcolor(P.text))
+            p.drawEllipse(QPointF(x, t.center().y()), 6, 6)
+
+
+class TimeBubble(QWidget):
+    """Lime time label that follows the timeline cursor while scrubbing."""
+
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.text = ""
+        self.setFixedHeight(24)
+        self.hide()
+
+    def show_at(self, x_center: float, y_bottom: int, text: str) -> None:
+        self.text = text
+        fm = QFontMetricsF(app_font(8.5, QFont.Weight.DemiBold))
+        w = int(fm.horizontalAdvance(text) + 20)
+        self.setFixedWidth(w)
+        parent = self.parentWidget()
+        x = int(max(0, min((parent.width() if parent else w) - w, x_center - w / 2)))
+        self.move(x, y_bottom - self.height())
+        self.show()
+        self.raise_()
+        self.update()
+
+    def paintEvent(self, _e) -> None:  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(qcolor(P.accent))
+        p.drawRoundedRect(QRectF(self.rect()), 12, 12)
+        p.setPen(qcolor(P.text_on_light))
+        p.setFont(app_font(8.5, QFont.Weight.DemiBold))
+        p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.text)
 
 
 class PlayerBar(QWidget):
@@ -923,6 +966,8 @@ class PlayerBar(QWidget):
             lbl.setMinimumWidth(48)
         self.time_total.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.timeline = TrackSlider(show_bubble=True)
+        self.timeline.hoverAt.connect(self._bubble)
+        self._time_bubble: TimeBubble | None = None
         tl.addWidget(self.time_cur)
         tl.addWidget(self.timeline, 1)
         tl.addWidget(self.time_total)
@@ -938,8 +983,7 @@ class PlayerBar(QWidget):
         self.snapshot_btn = CircleButton("snapshot", 42, tooltip="Save anonymized snapshot (Ctrl+S)")
         self.record_btn = CircleButton("record", 42, tooltip="Record anonymized video (Ctrl+R)", checkable=True)
         self.record_btn.accent = qcolor(P.danger)
-        self.enroll_btn = CircleButton("enroll", 42, tooltip="Enroll the largest face as a known identity")
-        for b in (self.snapshot_btn, self.record_btn, self.enroll_btn):
+        for b in (self.snapshot_btn, self.record_btn):
             ll.addWidget(b)
         ll.addStretch(1)
 
@@ -950,7 +994,6 @@ class PlayerBar(QWidget):
         self.back10_btn = CircleButton("skip-back", 42, tooltip="Back 10 seconds (J)")
         self.step_back_btn = CircleButton("step-back", 42, tooltip="Previous frame (,)")
         self.play_btn = CircleButton("play", 60, solid=True, tooltip="Play / pause (Space)")
-        soft_shadow(self.play_btn, 30, 120, 8)
         self.step_fwd_btn = CircleButton("step-fwd", 42, tooltip="Next frame (.)")
         self.fwd10_btn = CircleButton("skip-fwd", 42, tooltip="Forward 10 seconds (L)")
         self.stop_btn = CircleButton("stop", 42, tooltip="Stop (Esc)")
@@ -979,6 +1022,16 @@ class PlayerBar(QWidget):
         row.addWidget(self.right, 1)
         lay.addLayout(row)
         self.set_media_mode(False)
+
+    def _bubble(self, frac: float) -> None:
+        host = self.parentWidget() or self
+        if self._time_bubble is None or self._time_bubble.parentWidget() is not host:
+            self._time_bubble = TimeBubble(host)
+        if frac < 0 or self.timeline.duration_ms <= 0:
+            self._time_bubble.hide()
+            return
+        pos = self.timeline.mapTo(host, QPointF(self.timeline.x_for(frac), 0).toPoint())
+        self._time_bubble.show_at(pos.x(), pos.y() - 6, fmt_time(frac * self.timeline.duration_ms))
 
     def set_media_mode(self, seekable: bool, has_audio: bool = False) -> None:
         """Files get the timeline and transport; live sources only play/stop."""
@@ -1064,3 +1117,72 @@ class MasonryLayout(QLayout):
                 item.setGeometry(QRect(rect.x() + col * (self._cw + self._sp), rect.y() + heights[col], self._cw, h))
             heights[col] += h + self._sp
         return max(heights) - self._sp if any(heights) else 0
+
+
+class ProgressPill(QAbstractButton):
+    """Header pill that fills with lime as an export progresses; clickable."""
+
+    def __init__(self, height: int = 44, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._progress = 0.0
+        self._busy = False
+        self.setFixedHeight(height)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFont(app_font(9.5, QFont.Weight.Medium))
+        self._anim = QPropertyAnimation(self, b"progress", self)
+        self._anim.setDuration(380)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+    def _get_progress(self) -> float:
+        return self._progress
+
+    def _set_progress(self, v: float) -> None:
+        self._progress = v
+        self.update()
+
+    progress = Property(float, _get_progress, _set_progress)
+
+    def set_state(self, text: str, frac: float, busy: bool) -> None:
+        self.setText(text)
+        self._busy = busy
+        frac = max(0.0, min(1.0, frac))
+        if frac < self._progress:
+            self._anim.stop()
+            self._set_progress(frac)
+        elif frac > self._progress:
+            self._anim.stop()
+            self._anim.setStartValue(self._progress)
+            self._anim.setEndValue(frac)
+            self._anim.start()
+        fm = QFontMetricsF(self.font())
+        self.setFixedWidth(int(fm.horizontalAdvance(text) + 2 * self.height() * 0.5 + 8))
+        self.update()
+
+    def sizeHint(self) -> QSize:  # noqa: N802
+        return QSize(self.width(), self.height())
+
+    def paintEvent(self, _e) -> None:  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = QRectF(self.rect())
+        rad = r.height() / 2
+        clip = QPainterPath()
+        clip.addRoundedRect(r, rad, rad)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(qcolor(P.surface2))
+        p.drawPath(clip)
+        fill = QPainterPath()
+        fill.addRect(QRectF(0, 0, r.width() * self._progress, r.height()))
+        p.setBrush(qcolor(P.accent) if not self._busy else qcolor(P.accent_dim))
+        p.drawPath(fill.intersected(clip))
+        if self._busy:
+            # Bright leading edge so progress reads even at low percentages.
+            p.setBrush(qcolor(P.accent))
+            x = r.width() * self._progress
+            edge = QPainterPath()
+            edge.addRect(QRectF(max(0.0, x - 3), 0, 3, r.height()))
+            p.drawPath(edge.intersected(clip))
+        done = not self._busy and self._progress >= 0.999
+        p.setPen(qcolor(P.text_on_light) if done else qcolor(P.text))
+        p.setFont(self.font())
+        p.drawText(r, Qt.AlignmentFlag.AlignCenter, self.text())

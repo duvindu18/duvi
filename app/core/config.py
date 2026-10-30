@@ -110,6 +110,10 @@ class AnonymizeConfig:
     box_color: tuple[int, int, int] = (0, 0, 0)
     fail_closed: bool = True  # anonymize faces that have not been identified yet
     persist_lost_frames: int = 8  # keep blurring a briefly-occluded face to avoid flicker
+    # Expected number of faces: 0 = any. With 1 or 2, only the N strongest,
+    # anatomically plausible faces are blurred - stray false detections are ignored.
+    max_faces: int = 2
+    strict_score: float = 0.5  # minimum confidence for a face to count in 1/2-face mode
     show_boxes: bool = True
     show_labels: bool = True
 

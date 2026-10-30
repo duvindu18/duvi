@@ -128,6 +128,37 @@ def refine_geometry(det: Detection) -> Detection:
     return Detection(det.bbox, det.score, det.kps, geom)
 
 
+def plausible_landmarks(det: Detection) -> bool:
+    """Anatomical sanity check used by the strict 1/2-face mode.
+
+    In the face's own frame (undoing its roll) the eyes must sit above the
+    nose and the nose above the mouth, with eye and mouth spacing in human
+    proportions relative to the face box. Textures, logos and leaves that fool
+    the detector rarely produce such a consistent layout. Profiles pass: the
+    bounds are loose and only reject impossible geometry.
+    """
+    if det.kps is None or len(det.kps) < 5:
+        return True
+    roll = landmark_roll(det.kps)
+    if roll is None:
+        return False
+    r = math.radians(-roll)
+    rot = np.array([[math.cos(r), -math.sin(r)], [math.sin(r), math.cos(r)]])
+    k = (det.kps.astype(np.float64) - det.kps.mean(axis=0)) @ rot.T
+    le, re_, nose, ml, mr = k
+    eye_y, mouth_y = (le[1] + re_[1]) / 2, (ml[1] + mr[1]) / 2
+    geom = det.oriented
+    size = max(1.0, float(min(geom[2], geom[3])))
+    eye_dist = abs(re_[0] - le[0])
+    face_h = mouth_y - eye_y
+    return (
+        face_h > 0.12 * size
+        and eye_y - 0.05 * size < nose[1] < mouth_y + 0.05 * size
+        and 0.08 * size < eye_dist < 0.9 * size
+        and abs(mr[0] - ml[0]) < 1.4 * eye_dist + 0.1 * size
+    )
+
+
 def _overlap(a: np.ndarray, b: np.ndarray) -> tuple[float, float]:
     """(IoU, intersection over the smaller box)."""
     iw = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))

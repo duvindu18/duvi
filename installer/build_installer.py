@@ -143,13 +143,13 @@ def stage_mediamtx(cache: Path, dest: Path) -> None:
 
 
 def render_artwork(stage: Path) -> None:
-    """App icon and installer bitmaps in the Ember theme (Qt draws, Pillow encodes)."""
+    """App icon and installer bitmaps in the Noir theme (Qt draws, Pillow encodes)."""
     log("rendering icon and installer artwork")
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     sys.path.insert(0, str(REPO))
     from PIL import Image
-    from PySide6.QtCore import QPointF, QRectF, Qt
-    from PySide6.QtGui import QColor, QFont, QImage, QLinearGradient, QPainter, QRadialGradient
+    from PySide6.QtCore import QRectF, Qt
+    from PySide6.QtGui import QColor, QFont, QImage, QPainter
     from PySide6.QtWidgets import QApplication
 
     from app.gui.icons import draw_logo
@@ -161,19 +161,7 @@ def render_artwork(stage: Path) -> None:
         return Image.frombuffer("RGBA", (img.width(), img.height()), bytes(img.constBits()), "raw", "RGBA", 0, 1)
 
     def ember(p: QPainter, w: int, h: int) -> None:
-        g = QLinearGradient(0, 0, w * 0.6, h)
-        g.setColorAt(0, QColor("#E2502A"))
-        g.setColorAt(0.5, QColor("#9C2A14"))
-        g.setColorAt(1, QColor("#22080A"))
-        p.fillRect(QRectF(0, 0, w, h), g)
-        glow = QRadialGradient(QPointF(w * 0.85, h * 0.1), max(w, h) * 0.7)
-        c0 = QColor("#FF7A4A")
-        c0.setAlphaF(0.6)
-        c1 = QColor("#FF7A4A")
-        c1.setAlphaF(0)
-        glow.setColorAt(0, c0)
-        glow.setColorAt(1, c1)
-        p.fillRect(QRectF(0, 0, w, h), glow)
+        p.fillRect(QRectF(0, 0, w, h), QColor("#0B0B0C"))
 
     # Icon
     frames = []
@@ -182,14 +170,11 @@ def render_artwork(stage: Path) -> None:
         img.fill(Qt.GlobalColor.transparent)
         p = QPainter(img)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        g = QLinearGradient(0, 0, size, size)
-        g.setColorAt(0, QColor("#FF7A4A"))
-        g.setColorAt(1, QColor("#8E2410"))
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(g)
+        p.setBrush(QColor("#141416"))
         p.drawRoundedRect(QRectF(0, 0, size, size), size * 0.26, size * 0.26)
         pad = size * 0.2
-        draw_logo(p, QRectF(pad, pad, size - 2 * pad, size - 2 * pad), QColor("white"))
+        draw_logo(p, QRectF(pad, pad, size - 2 * pad, size - 2 * pad), QColor("#E4F17A"))
         p.end()
         frames.append(qimage_to_pil(img))
     frames[-1].save(stage / "veil.ico", sizes=[(f.width, f.height) for f in frames], append_images=frames[:-1])
@@ -201,7 +186,7 @@ def render_artwork(stage: Path) -> None:
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         ember(p, w, h)
         if title:
-            draw_logo(p, QRectF(w / 2 - 34, 70, 68, 68), QColor("white"))
+            draw_logo(p, QRectF(w / 2 - 34, 70, 68, 68), QColor("#E4F17A"))
             f = QFont()
             f.setPixelSize(30)
             f.setWeight(QFont.Weight.Light)

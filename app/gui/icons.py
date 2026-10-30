@@ -272,22 +272,17 @@ def make_icon(name: str, size: int = 24, color: str | QColor = "#FFFFFF") -> QIc
 
 
 def app_icon() -> QIcon:
-    from PySide6.QtGui import QLinearGradient
-
     icon = QIcon()
     for size in (16, 24, 32, 48, 64, 128, 256):
         pm = QPixmap(size, size)
         pm.fill(Qt.GlobalColor.transparent)
         p = QPainter(pm)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        grad = QLinearGradient(0, 0, size, size)
-        grad.setColorAt(0, QColor("#FF7A4A"))
-        grad.setColorAt(1, QColor("#8E2410"))
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(grad)
+        p.setBrush(QColor("#141416"))
         p.drawRoundedRect(QRectF(0, 0, size, size), size * 0.26, size * 0.26)
         pad = size * 0.2
-        draw_logo(p, QRectF(pad, pad, size - 2 * pad, size - 2 * pad), QColor("white"))
+        draw_logo(p, QRectF(pad, pad, size - 2 * pad, size - 2 * pad), QColor("#E4F17A"))
         p.end()
         icon.addPixmap(pm)
     return icon

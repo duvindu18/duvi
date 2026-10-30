@@ -98,6 +98,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--policy", choices=["all", "unknown", "targets", "whitelist", "none"])
     p.add_argument("--style", choices=["gaussian", "pixelate", "blackbox", "mask"])
     p.add_argument("--intensity", type=int, help="1-100")
+    p.add_argument("--max-faces", type=int, help="hide only the N most certain faces (1, 2; 0 = every face)")
     p.add_argument("--mask", help="PNG used by --style mask")
     p.add_argument("--whitelist", nargs="*", help="identities that stay visible (policy whitelist)")
     p.add_argument("--targets", nargs="*", help="identities to hide (policy targets)")
@@ -115,6 +116,8 @@ def _apply_overrides(cfg, args: argparse.Namespace) -> None:
 
     if args.policy:
         cfg.anonymize.policy = Policy(args.policy)
+    if args.max_faces is not None:
+        cfg.anonymize.max_faces = max(0, args.max_faces)
     if args.style:
         cfg.anonymize.style = Style(args.style)
     if args.intensity is not None:

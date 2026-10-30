@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from app.core.config import AppConfig
+from app.core.config import AppConfig, Policy
 from app.core.face_db import FaceDatabase
 
 log = logging.getLogger(__name__)
@@ -27,6 +27,11 @@ class AppContext(QObject):
     def __init__(self, cfg: AppConfig) -> None:
         super().__init__()
         self.cfg = cfg
+        # Identity-based policies were removed from the UI: every face is hidden
+        # (or anonymization is off), so recognition is never needed.
+        cfg.recognition.enabled = False
+        if cfg.anonymize.policy != Policy.NONE:
+            cfg.anonymize.policy = Policy.ALL
         self.face_db = FaceDatabase(cfg.recognition.faces_dir)
         # Slider drags produce dozens of edits per second; persist them lazily.
         self._save_timer = QTimer(self)

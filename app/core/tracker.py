@@ -128,6 +128,8 @@ class FaceTrack:
     frame_id: int
     state: TrackState = TrackState.NEW
     hits: int = 1
+    score_ema: float = 0.0  # smoothed confidence; ranks faces in 1/2-face mode
+    peak_ema: float = 0.0  # best smoothed confidence ever reached
     activated: bool = False
     detection: Detection | None = None  # detection matched in the current frame
     last_bbox: np.ndarray = field(default_factory=lambda: np.zeros(4, np.float32))
@@ -193,6 +195,7 @@ class ByteTracker:
             last_geom=det.oriented.copy(),
         )
         self._next_id += 1
+        track.score_ema = track.peak_ema = det.score
         track.state = TrackState.TRACKED
         track.activated = self.frame_id == 1 or self.cfg.min_hits <= 1
         return track
@@ -203,6 +206,8 @@ class ByteTracker:
         track.last_bbox = det.bbox.copy()
         track.last_geom = det.oriented.copy()
         track.score = det.score
+        track.score_ema = 0.8 * track.score_ema + 0.2 * det.score
+        track.peak_ema = max(track.peak_ema, track.score_ema)
         track.frame_id = self.frame_id
         track.hits += 1
         track.state = TrackState.TRACKED

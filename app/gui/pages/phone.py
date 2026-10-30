@@ -125,7 +125,7 @@ class QrCode(QWidget):
             return
         n = len(self._matrix)
         cell = (self.width() - 16) / n
-        p.setBrush(QColor("#2A0D07"))
+        p.setBrush(QColor(P.text_on_light))
         for y, row in enumerate(self._matrix):
             for x, on in enumerate(row):
                 if on:

@@ -94,3 +94,16 @@ def default_faces_dir() -> Path:
 def default_export_dir() -> Path:
     videos = Path.home() / "Videos"
     return _ensure(videos / APP_DIR_NAME) if videos.parent.exists() else _ensure(cache_dir() / "exports")
+
+
+def open_path(path: Path) -> None:
+    """Reveal a folder in the platform file manager (creating it if needed)."""
+    import subprocess
+
+    path.mkdir(parents=True, exist_ok=True)
+    if sys.platform == "win32":
+        os.startfile(str(path))  # type: ignore[attr-defined]
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", str(path)])
+    else:
+        subprocess.Popen(["xdg-open", str(path)])

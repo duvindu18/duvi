@@ -1,4 +1,4 @@
-"""Windows 11 native touches: dark, ember-tinted title bar and taskbar identity.
+"""Windows 11 native touches: dark title bar and taskbar identity.
 
 Every call is guarded - on Windows 10 or other platforms these are no-ops.
 """
@@ -35,7 +35,7 @@ def set_app_user_model_id(app_id: str = "Veil.FaceAnonymizer.1") -> None:
         log.debug("AppUserModelID not set: %s", exc)
 
 
-def style_window(win_id: int, caption: str = "#5A170A", text: str = "#FFFFFF") -> None:
+def style_window(win_id: int, caption: str = "#0B0B0C", text: str = "#FFFFFF") -> None:
     if sys.platform != "win32":
         return
     try:

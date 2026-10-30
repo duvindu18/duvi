@@ -1,5 +1,6 @@
-"""Live preview: source picker, video stage with transport controls and the
-inspector panel (anonymization, recognition, overlay and performance)."""
+"""Live preview: source picker, video stage with transport controls, direct
+export of the selected video file and the inspector panel (anonymization,
+overlay and performance)."""
 
 from __future__ import annotations
 
@@ -7,9 +8,8 @@ import getpass
 import time
 from pathlib import Path
 
-import cv2
-from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QColor, QKeySequence, QShortcut
+from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, QSize, Qt, Signal
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.core.config import Policy, Shape, Style
+from app.core.config import AnonymizeConfig, Policy, Shape, Style
 from app.core.pipeline import PipelineStats
 from app.core.sources import SourceInfo, SourceKind, SourceSpec, VIDEO_EXTENSIONS, probe_webcams
 from app.core import mediamtx
@@ -43,6 +43,7 @@ from app.gui.widgets import (
     GlassCard,
     GlassSlider,
     PillGroup,
+    ProgressPill,
     StatTile,
     ToggleRow,
     VideoView,
@@ -52,15 +53,18 @@ from app.gui.widgets import (
     two_tone,
 )
 from app.utils.imageio import imwrite
-from app.utils.paths import default_export_dir
+from app.utils.paths import default_export_dir, open_path
 
-POLICY_TEXT = {
-    Policy.ALL: "Hiding everyone",
-    Policy.UNKNOWN: "Hiding strangers",
-    Policy.TARGETS: "Hiding targets",
-    Policy.ALL_EXCEPT_WHITELIST: "Whitelist visible",
-    Policy.NONE: "Anonymization off",
-}
+FACES_TEXT = {1: "1 face", 2: "Up to 2 faces", 0: "Any number of faces"}
+
+
+def policy_text(a: AnonymizeConfig) -> str:
+    """Short caption for the current anonymization settings."""
+    if a.policy == Policy.NONE:
+        return "Anonymization off"
+    return f"{FACES_TEXT.get(a.max_faces, f'Up to {a.max_faces} faces')} · {a.style.value.replace('_', ' ').capitalize()}"
+
+
 NARROW_WIDTH = 1180
 PHONE = "phone"  # source-picker value for the built-in phone receiver
 
@@ -89,6 +93,8 @@ class VideoStage(QWidget):
         tl.setSpacing(8)
         self.state_chip = Chip("Ready", dot=P.text_faint)
         self.engine_chip = Chip("Engine idle")
+        for chip in (self.state_chip, self.engine_chip):
+            chip.overlay_alpha = 0.72
         tl.addWidget(self.state_chip)
         tl.addWidget(self.engine_chip)
 
@@ -96,7 +102,8 @@ class VideoStage(QWidget):
         cap = QVBoxLayout(self.caption)
         cap.setContentsMargins(0, 0, 0, 0)
         cap.setSpacing(4)
-        self.policy_chip = Chip("Hiding everyone")
+        self.policy_chip = Chip("Up to 2 faces")
+        self.policy_chip.overlay_alpha = 0.72
         cap.addWidget(self.policy_chip, 0, Qt.AlignmentFlag.AlignLeft)
         self.title = label("No source", "title")
         cap.addWidget(self.title)
@@ -105,7 +112,7 @@ class VideoStage(QWidget):
 
         self.bar = PlayerBar(self)
         b = self.bar
-        self.snapshot_btn, self.record_btn, self.enroll_btn = b.snapshot_btn, b.record_btn, b.enroll_btn
+        self.snapshot_btn, self.record_btn = b.snapshot_btn, b.record_btn
         self.play_btn, self.stop_btn = b.play_btn, b.stop_btn
 
     def resizeEvent(self, e) -> None:  # noqa: N802
@@ -143,12 +150,21 @@ class Inspector(QScrollArea):
 
 
 class LivePage(QWidget):
-    manageIdentities = Signal()
+    exportRequested = Signal(str, str)  # source video, output path
 
-    def __init__(self, ctx: AppContext, controller: PipelineController, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        ctx: AppContext,
+        controller: PipelineController,
+        export_ctrl: PipelineController | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.ctx = ctx
         self.ctrl = controller
+        self.export_ctrl = export_ctrl
+        self._export_out = ""
+        self._export_t0 = 0.0
         self._narrow = False
         self._inspector_open = True
         self._started_at = 0.0
@@ -168,8 +184,15 @@ class LivePage(QWidget):
         self._refresh_greeting()
         header.addWidget(self.greeting)
         header.addStretch(1)
-        self.db_chip = Chip("0 identities", dot=P.ok, height=44)  # same height as the round buttons
-        header.addWidget(self.db_chip)
+        self.export_pill = ProgressPill(44)
+        self.export_pill.clicked.connect(self._on_export_pill)
+        self.export_pill.hide()
+        header.addWidget(self.export_pill)
+        self.export_cancel = CircleButton("close", 44, tooltip="Cancel export")
+        self.export_cancel.clicked.connect(lambda: self.export_ctrl and self.export_ctrl.stop())
+        self.export_cancel.hide()
+        header.addWidget(self.export_cancel)
+        header.addSpacing(4)
         self.inspector_btn = CircleButton("more", 44, tooltip="Show / hide controls panel")
         self.inspector_btn.clicked.connect(self._toggle_inspector)
         header.addWidget(self.inspector_btn)
@@ -220,7 +243,11 @@ class LivePage(QWidget):
         self.file_edit = QLineEdit()
         self.file_edit.setPlaceholderText("Choose an MP4, AVI or MKV file…")
         fl.addWidget(self.file_edit, 1)
-        fl.addWidget(button("Browse", icon=make_icon("folder", 16), on_click=self._browse_file))
+        self.browse_btn = button("Browse", icon=make_icon("folder", 16), on_click=self._browse_file)
+        fl.addWidget(self.browse_btn)
+        self.export_btn = button("Export", "primary", make_icon("export", 16, P.text_on_light), self._export_file)
+        self.export_btn.setToolTip("Write an anonymized copy of this video (every frame analysed, audio kept)")
+        fl.addWidget(self.export_btn)
         self.source_inputs.addWidget(file_w)
 
         phone_w = QWidget()
@@ -249,7 +276,7 @@ class LivePage(QWidget):
         self._build_inspector()
         self.body.addWidget(self.inspector)
         root.addLayout(self.body, 1)
-        self.drawer = GlassCard(parent=self, tint="rgba(40, 10, 8, 0.96)", padding=14)
+        self.drawer = GlassCard(parent=self, tint=P.surface, padding=14)
         self.drawer.hide()
         soft_shadow(self.drawer, 60, 170, 10)
 
@@ -259,7 +286,6 @@ class LivePage(QWidget):
         st.stop_btn.clicked.connect(self.ctrl.stop)
         st.record_btn.toggled.connect(self._on_record)
         st.snapshot_btn.clicked.connect(self._on_snapshot)
-        st.enroll_btn.clicked.connect(self._on_enroll)
         st.view.resized.connect(lambda size: self.ctrl.set_target_size(size, st.view.devicePixelRatioF()))
         bar = st.bar
         self._pos_ms = 0.0
@@ -294,12 +320,14 @@ class LivePage(QWidget):
         self.ctrl.stateChanged.connect(self._on_state)
         self.ctrl.sourceInfo.connect(self._on_source_info)
         self.ctrl.finished.connect(self._on_finished)
-        self.ctx.facesChanged.connect(self._refresh_db_chip)
         self.ctx.configChanged.connect(self._refresh_greeting)
         self._restore_source()
         self._load_from_config()
         self._on_state(RunState.IDLE.value)
-        self._refresh_db_chip()
+        if export_ctrl is not None:
+            export_ctrl.progress.connect(self._on_export_progress)
+            export_ctrl.finished.connect(self._on_export_finished)
+            export_ctrl.stateChanged.connect(self._on_export_state)
 
     # ======================================================================
     # Inspector
@@ -307,30 +335,27 @@ class LivePage(QWidget):
     def _build_inspector(self) -> None:
         lay = self.inspector.lay
 
-        anon = GlassCard("Anonymization", "Who gets hidden, and how")
-        anon.body.addWidget(label("Policy", "caption"))
-        self.policy = PillGroup(
-            [
-                (Policy.ALL, "Everyone"),
-                (Policy.UNKNOWN, "Strangers"),
-                (Policy.TARGETS, "Targets only"),
-                (Policy.ALL_EXCEPT_WHITELIST, "All but whitelist"),
-                (Policy.NONE, "Off"),
-            ],
+        anon = GlassCard("Anonymization", "Blur every face in the frame")
+        self.enabled = ToggleRow("Anonymize faces", True)
+        anon.body.addWidget(self.enabled)
+        anon.body.addWidget(label("Faces in video", "caption"))
+        self.faces_pills = PillGroup(
+            [(1, "1"), (2, "2"), (0, "Any")],
             tooltips={
-                Policy.ALL: "Hide every detected face",
-                Policy.UNKNOWN: "Hide faces that are not in your identity database",
-                Policy.TARGETS: "Hide only identities marked as 'Hide'",
-                Policy.ALL_EXCEPT_WHITELIST: "Hide everyone except identities marked as 'Visible'",
-                Policy.NONE: "Detect and recognise only",
+                1: "Only the single most certain face is hidden",
+                2: "At most the two most certain faces are hidden (recommended for interviews)",
+                0: "Hide every face found, crowds included",
             },
         )
-        anon.body.addWidget(self.policy)
+        anon.body.addWidget(self.faces_pills)
+        self.faces_hint = label("", "faint", wrap=True)
+        anon.body.addWidget(self.faces_hint)
         anon.body.addWidget(label("Style", "caption"))
         self.style_pills = PillGroup(
             [(Style.GAUSSIAN, "Gaussian"), (Style.PIXELATE, "Pixelate"), (Style.BLACK_BOX, "Black box"), (Style.MASK, "Mask")]
         )
         anon.body.addWidget(self.style_pills)
+        anon.body.addWidget(label("Shape", "caption"))
         self.shape_pills = PillGroup([(Shape.ELLIPSE, "Ellipse"), (Shape.RECTANGLE, "Rectangle")])
         anon.body.addWidget(self.shape_pills)
         self.mask_row = QWidget()
@@ -347,25 +372,13 @@ class LivePage(QWidget):
         anon.body.addWidget(self.coverage)
         self.persist = GlassSlider("Hold after loss", 0, 30, 8, fmt=lambda v: f"{v:.0f} fr")
         anon.body.addWidget(self.persist)
-        self.fail_closed = ToggleRow("Privacy-safe start", True, "Hide new faces until they are identified")
-        anon.body.addWidget(self.fail_closed)
         self.feather = ToggleRow("Soft edges", True)
         anon.body.addWidget(self.feather)
         lay.addWidget(anon)
 
-        rec = GlassCard("Recognition", "Match faces against your identity folder")
-        self.rec_enabled = ToggleRow("Recognise identities", True)
-        rec.body.addWidget(self.rec_enabled)
-        self.threshold = GlassSlider("Match threshold", 0.20, 0.80, 0.40, 0.01, fmt=lambda v: f"{v:.2f}")
-        self.threshold.setToolTip("Cosine similarity. ArcFace (InsightFace) ≈ 0.40, SFace (YuNet) ≈ 0.36")
-        rec.body.addWidget(self.threshold)
-        manage = button("Manage identities", icon=make_icon("faces", 16), on_click=self.manageIdentities.emit)
-        rec.body.addWidget(manage)
-        lay.addWidget(rec)
-
         ov = GlassCard("Overlay", "Preview only, never written to exports")
         self.show_boxes = ToggleRow("Tracking boxes", True)
-        self.show_labels = ToggleRow("Names and track IDs", True)
+        self.show_labels = ToggleRow("Face numbers", True)
         ov.body.addWidget(self.show_boxes)
         ov.body.addWidget(self.show_labels)
         lay.addWidget(ov)
@@ -391,34 +404,29 @@ class LivePage(QWidget):
         lay.addStretch(1)
 
         # Changes
-        self.policy.changed.connect(lambda v: self._edit("policy", v))
+        self.enabled.toggled.connect(lambda v: self._edit("policy", Policy.ALL if v else Policy.NONE))
+        self.faces_pills.changed.connect(lambda v: self._edit("max_faces", int(v)))
         self.style_pills.changed.connect(lambda v: self._edit("style", v))
         self.shape_pills.changed.connect(lambda v: self._edit("shape", v))
         self.intensity.valueChanged.connect(lambda v: self._edit("intensity", int(v)))
         self.coverage.valueChanged.connect(lambda v: self._edit("padding", v / 100.0))
         self.persist.valueChanged.connect(lambda v: self._edit("persist_lost_frames", int(v)))
-        self.fail_closed.toggled.connect(lambda v: self._edit("fail_closed", v))
         self.feather.toggled.connect(lambda v: self._edit("feather", v))
         self.show_boxes.toggled.connect(lambda v: self._edit("show_boxes", v))
         self.show_labels.toggled.connect(lambda v: self._edit("show_labels", v))
-        self.rec_enabled.toggled.connect(lambda v: self._edit_rec("enabled", v))
-        self.threshold.valueChanged.connect(lambda v: self._edit_rec("match_threshold", round(v, 2)))
 
     def _load_from_config(self) -> None:
         a = self.ctx.cfg.anonymize
-        r = self.ctx.cfg.recognition
-        self.policy.set_value(a.policy)
+        self.enabled.setChecked(a.policy != Policy.NONE)
+        self.faces_pills.set_value(a.max_faces if a.max_faces in (0, 1, 2) else 0)
         self.style_pills.set_value(a.style)
         self.shape_pills.set_value(a.shape)
         self.intensity.setValue(a.intensity)
         self.coverage.setValue(a.padding * 100)
         self.persist.setValue(a.persist_lost_frames)
-        self.fail_closed.setChecked(a.fail_closed)
         self.feather.setChecked(a.feather)
         self.show_boxes.setChecked(a.show_boxes)
         self.show_labels.setChecked(a.show_labels)
-        self.rec_enabled.setChecked(r.enabled)
-        self.threshold.setValue(r.match_threshold)
         self._sync_dependent()
 
     def reload_config(self) -> None:
@@ -428,17 +436,21 @@ class LivePage(QWidget):
         a = self.ctx.cfg.anonymize
         self.mask_row.setVisible(a.style == Style.MASK)
         self.mask_label.setText(Path(a.mask_path).name if a.mask_path else "Built-in mask")
-        self.stage.policy_chip.setText(POLICY_TEXT[a.policy])
+        self.faces_hint.setText(
+            {
+                1: "Only the single most certain face is hidden. Anything weaker is ignored, so no stray blur.",
+                2: "Only the two most certain faces are hidden. Weak or brief detections never get blurred.",
+            }.get(a.max_faces, "Every detection is hidden, including small background faces.")
+        )
+        for w in (self.faces_pills, self.style_pills, self.shape_pills, self.intensity, self.coverage, self.persist, self.feather):
+            w.setEnabled(a.policy != Policy.NONE)
+        self.stage.policy_chip.setText(policy_text(a))
         self.stage.policy_chip.adjustSize()
         self.stage.relayout()
 
     def _edit(self, key: str, value) -> None:
         setattr(self.ctx.cfg.anonymize, key, value)
         self._sync_dependent()
-        self.ctx.commit()
-
-    def _edit_rec(self, key: str, value) -> None:
-        setattr(self.ctx.cfg.recognition, key, value)
         self.ctx.commit()
 
     def _choose_mask(self) -> None:
@@ -480,9 +492,20 @@ class LivePage(QWidget):
     def _show_inspector(self) -> None:
         if self._narrow:
             self.inspector.setVisible(True)
-            self.drawer.setVisible(self._inspector_open)
             if self._inspector_open:
+                # Slide in from the right edge.
+                end = self.drawer.pos()
+                anim = QPropertyAnimation(self.drawer, b"pos", self)
+                anim.setStartValue(QPoint(end.x() + 48, end.y()))
+                anim.setEndValue(end)
+                anim.setDuration(220)
+                anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+                self.drawer.move(anim.startValue())
+                self.drawer.show()
                 self.drawer.raise_()
+                anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+            else:
+                self.drawer.hide()
         else:
             self.drawer.setVisible(False)
             self.inspector.setVisible(self._inspector_open)
@@ -600,7 +623,6 @@ class LivePage(QWidget):
         self.stage.view.headline = "Connecting…"
         self.stage.view.subline = spec.label()
         self.stage.view.clear()
-        self.ctrl.face_db = self.ctx.face_db
         self.ctrl.set_target_size(self.stage.view.target_size(), self.stage.view.devicePixelRatioF())
         self.ctrl.start(self.ctx.cfg.snapshot(), spec, realtime=True)
 
@@ -631,41 +653,6 @@ class LivePage(QWidget):
             self.ctx.notify.emit(f"Anonymized snapshot saved: {path}", "info")
         else:
             self.ctx.notify.emit(f"Could not write {path}", "error")
-
-    def _on_enroll(self) -> None:
-        snap = self.ctrl.snapshot()
-        if snap is None or not snap.faces:
-            self.ctx.notify.emit("No face visible to enroll. Start a source and face the camera.", "warn")
-            return
-        live = [f for f in snap.faces if not f.lost]
-        if not live:
-            self.ctx.notify.emit("No face visible to enroll.", "warn")
-            return
-        face = max(live, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
-        names = self.ctx.face_db.person_names()
-        name, ok = QInputDialog.getItem(
-            self, "Enroll identity", f"Who is face #{face.track_id}?", names or [""], 0, True
-        )
-        name = name.strip()
-        if not ok or not name:
-            return
-        h, w = snap.frame.shape[:2]
-        x1, y1, x2, y2 = face.bbox
-        mx, my = (x2 - x1) * 0.6, (y2 - y1) * 0.6
-        crop = snap.frame[int(max(0, y1 - my)) : int(min(h, y2 + my)), int(max(0, x1 - mx)) : int(min(w, x2 + mx))]
-        if crop.size == 0:
-            return
-        if max(crop.shape[:2]) > 800:
-            s = 800 / max(crop.shape[:2])
-            crop = cv2.resize(crop, None, fx=s, fy=s, interpolation=cv2.INTER_AREA)
-        try:
-            self.ctx.face_db.save_crop(name, crop)
-        except (OSError, ValueError) as exc:
-            self.ctx.notify.emit(f"Could not save face: {exc}", "error")
-            return
-        self.ctrl.reload_face_db()
-        self.ctx.facesChanged.emit()
-        self.ctx.notify.emit(f"Enrolled a new photo of {name}.", "info")
 
     # ======================================================================
     # Controller signals
@@ -745,7 +732,6 @@ class LivePage(QWidget):
             f"{s.inference_fps:.1f} fps  ·  {s.latency_ms:.0f} ms  ·  {s.faces} face{'s' if s.faces != 1 else ''}"
             + ("  ·  ● REC" if s.recording else "")
         )
-        self.db_chip.setText(f"{s.identities} identit{'y' if s.identities == 1 else 'ies'}")
 
     def _on_status(self, text: str) -> None:
         self.stage.view.subline = text
@@ -771,8 +757,7 @@ class LivePage(QWidget):
             st.play_btn.setEnabled(True)
             st.stop_btn.setEnabled(True)
             self._set_state_chip("Live", P.ok)
-            self.source_pills.setEnabled(False)
-            self.source_inputs.setEnabled(False)
+            self._lock_inputs(True)
         elif state == RunState.STOPPING.value:
             st.play_btn.setEnabled(False)
             st.stop_btn.setEnabled(False)
@@ -786,13 +771,16 @@ class LivePage(QWidget):
             st.record_btn.blockSignals(False)
             st.bar.set_media_mode(False)
             self._set_state_chip("Ready", P.text_faint)
-            self.source_pills.setEnabled(True)
-            self.source_inputs.setEnabled(True)
+            self._lock_inputs(False)
         live = state == RunState.RUNNING.value
         st.record_btn.setEnabled(live)
         st.snapshot_btn.setEnabled(live)
-        st.enroll_btn.setEnabled(live)
         st.relayout()
+
+    def _lock_inputs(self, locked: bool) -> None:
+        # The Export button stays usable while the same file is previewing.
+        for w in (self.source_pills, self.cam_combo, self.cam_refresh, self.url_edit, self.file_edit, self.browse_btn):
+            w.setEnabled(not locked)
 
     def _on_finished(self, reason: str) -> None:
         self._started_at = 0.0
@@ -808,6 +796,77 @@ class LivePage(QWidget):
             view.headline = "Protect every face."
             view.subline = "Choose a source and press play"
         view.update()
+
+    # ---- direct export --------------------------------------------------------
+    def _export_file(self) -> None:
+        path = self.file_edit.text().strip().strip('"')
+        if not path or not Path(path).is_file():
+            self.ctx.notify.emit("Choose an existing video file first.", "warn")
+            return
+        if self.export_ctrl is not None and self.export_ctrl.state != RunState.IDLE:
+            self.ctx.notify.emit("An export is already running. It has been queued on the Export page.", "info")
+        src = Path(path)
+        out_dir = Path(self.ctx.cfg.output.export_dir or default_export_dir())
+        suggested = out_dir / f"{src.stem}_anonymized.mp4"
+        n = 1
+        while suggested.exists():
+            suggested = out_dir / f"{src.stem}_anonymized_{n}.mp4"
+            n += 1
+        out, _ = QFileDialog.getSaveFileName(
+            self, "Export anonymized video", str(suggested), "MP4 video (*.mp4);;Matroska (*.mkv);;AVI (*.avi)"
+        )
+        if not out:
+            return
+        if Path(out).suffix.lower() not in (".mp4", ".mkv", ".avi"):
+            out += ".mp4"
+        self.ctx.cfg.last_source_kind = SourceKind.FILE.value
+        self.ctx.cfg.last_source_value = str(src)
+        self.ctx.commit()
+        self.exportRequested.emit(str(src), out)
+
+    def _on_export_state(self, state: str) -> None:
+        if state == RunState.RUNNING.value:
+            self._export_t0 = time.monotonic()
+            self._export_out = getattr(self.export_ctrl, "output_path", "") or self._export_out
+            self.export_pill.set_state("Exporting · 0%", 0.0, True)
+            self.export_pill.setToolTip("Export in progress")
+            self.export_pill.show()
+            self.export_cancel.show()
+
+    def _on_export_progress(self, done: int, total: int) -> None:
+        if total <= 0:
+            return
+        frac = done / total
+        text = f"Exporting · {int(frac * 100)}%"
+        elapsed = time.monotonic() - self._export_t0
+        if done > 10 and elapsed > 1:
+            m, s = divmod(int(elapsed * (total - done) / done), 60)
+            text += f" · {m}:{s:02d} left"
+        self.export_pill.set_state(text, frac, True)
+
+    def _on_export_finished(self, reason: str) -> None:
+        self.export_cancel.hide()
+        if reason == "completed":
+            self.export_pill.set_state("Saved · Open folder", 1.0, False)
+            self.export_pill.setToolTip(self._export_out or "Open the export folder")
+        elif reason == "error":
+            self.export_pill.set_state("Export failed", 0.0, False)
+        else:
+            self.export_pill.set_state("Export cancelled", 0.0, False)
+        self.export_pill.show()
+
+    def set_export_target(self, out: str) -> None:
+        self._export_out = out
+
+    def _on_export_pill(self) -> None:
+        if self.export_cancel.isVisible():
+            return  # still running; the X button cancels
+        folder = Path(self._export_out).parent if self._export_out else Path(self.ctx.cfg.output.export_dir or default_export_dir())
+        try:
+            open_path(folder)
+        except OSError as exc:
+            self.ctx.notify.emit(f"Could not open {folder}: {exc}", "error")
+        self.export_pill.hide()
 
     # ---- phone receiver -----------------------------------------------------
     def open_phone_dialog(self) -> None:
@@ -840,11 +899,6 @@ class LivePage(QWidget):
         if ok:
             self.ctx.cfg.display_name = name.strip()[:40]
             self.ctx.commit()
-
-    def _refresh_db_chip(self) -> None:
-        persons = self.ctx.face_db.persons()
-        n = len(persons)
-        self.db_chip.setText(f"{n} identit{'y' if n == 1 else 'ies'}")
 
     def sizeHint(self) -> QSize:  # noqa: N802
         return QSize(1280, 820)

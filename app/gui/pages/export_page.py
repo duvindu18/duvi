@@ -25,11 +25,10 @@ from app.core.sources import SourceInfo, SourceKind, SourceSpec, VIDEO_EXTENSION
 from app.gui.bridge import PipelineController, RunState
 from app.gui.context import AppContext
 from app.gui.icons import make_icon
-from app.gui.pages.identities_page import _open_path
-from app.gui.pages.live_page import POLICY_TEXT
+from app.gui.pages.live_page import policy_text
 from app.gui.theme import P
-from app.gui.widgets import CircleButton, GlassCard, PillGroup, StatTile, button, label, soft_shadow, two_tone
-from app.utils.paths import default_export_dir
+from app.gui.widgets import CircleButton, GlassCard, PillGroup, StatTile, button, label, two_tone
+from app.utils.paths import default_export_dir, open_path
 
 STATUS_QUEUED, STATUS_RUNNING, STATUS_DONE, STATUS_FAILED, STATUS_CANCELLED = (
     "Queued", "Processing", "Done", "Failed", "Cancelled",
@@ -132,7 +131,6 @@ class ExportPage(QWidget):
         controls = QHBoxLayout()
         controls.addStretch(1)
         self.start_btn = CircleButton("play", 60, solid=True, tooltip="Start export")
-        soft_shadow(self.start_btn, 30, 120, 8)
         self.cancel_btn = CircleButton("stop", 46, tooltip="Cancel")
         self.open_btn = CircleButton("folder", 46, tooltip="Open output folder")
         controls.addWidget(self.cancel_btn, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -148,7 +146,7 @@ class ExportPage(QWidget):
 
         self.start_btn.clicked.connect(self._start)
         self.cancel_btn.clicked.connect(self._cancel)
-        self.open_btn.clicked.connect(lambda: _open_path(Path(self.out_edit.text() or default_export_dir())))
+        self.open_btn.clicked.connect(lambda: open_path(Path(self.out_edit.text() or default_export_dir())))
         self.out_edit.editingFinished.connect(self._out_changed)
         self.ctrl.progress.connect(self._on_progress)
         self.ctrl.stats.connect(self._on_stats)
@@ -169,9 +167,18 @@ class ExportPage(QWidget):
             self.add_job(Path(f))
         self._update_buttons()
 
-    def add_job(self, path: Path) -> None:
+    def export_file(self, src: str, out: str) -> None:
+        """Queue one file with a chosen output path and start if idle (Live page Export)."""
+        self.add_job(Path(src), out)
+        self._update_buttons()
+        if self.ctrl.state == RunState.IDLE and self._current is None:
+            self._start()
+
+    def add_job(self, path: Path, output: str = "") -> None:
         item = QListWidgetItem()
-        item.setData(Qt.ItemDataRole.UserRole, {"path": str(path), "status": STATUS_QUEUED, "output": ""})
+        item.setData(
+            Qt.ItemDataRole.UserRole, {"path": str(path), "status": STATUS_QUEUED, "output": "", "preset": output}
+        )
         item.setIcon(make_icon("file", 18))
         self._render_item(item)
         self.list.addItem(item)
@@ -213,7 +220,7 @@ class ExportPage(QWidget):
     def _refresh_note(self) -> None:
         a = self.ctx.cfg.anonymize
         self.settings_note.setText(
-            f"Uses the current Live settings: {POLICY_TEXT[a.policy].lower()}, {a.style.value} style, "
+            f"Uses the current Live settings: {policy_text(a).lower()}, "
             f"intensity {a.intensity}. Overlays are never burned into exports."
         )
 
@@ -246,7 +253,12 @@ class ExportPage(QWidget):
         except OSError as exc:
             self.ctx.notify.emit(f"Cannot create output folder: {exc}", "error")
             return
-        out = unique_output(out_dir, src, self.container.value() or ".mp4")
+        out = Path(d["preset"]) if d.get("preset") else unique_output(out_dir, src, self.container.value() or ".mp4")
+        try:
+            out.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            self.ctx.notify.emit(f"Cannot create output folder: {exc}", "error")
+            return
         d.update(status=STATUS_RUNNING, output=str(out))
         item.setData(Qt.ItemDataRole.UserRole, d)
         self._render_item(item)
@@ -255,7 +267,6 @@ class ExportPage(QWidget):
         self._t0 = time.monotonic()
         self.bar.setValue(0)
         self.current_label.setText(src.name)
-        self.ctrl.face_db = self.ctx.face_db
         self.ctrl.start(self.ctx.cfg.snapshot(), SourceSpec(SourceKind.FILE, str(src)), realtime=False, output_path=str(out))
         self._update_buttons()
 
@@ -289,6 +300,10 @@ class ExportPage(QWidget):
 
     def _on_finished(self, reason: str) -> None:
         item, self._current = self._current, None
+        if item is None:
+            # Not one of this queue's runs: never start the next job from it.
+            self._update_buttons()
+            return
         if item is not None:
             d = dict(item.data(Qt.ItemDataRole.UserRole))
             if reason == "completed":

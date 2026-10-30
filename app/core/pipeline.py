@@ -42,6 +42,7 @@ from typing import Any, Callable
 
 import numpy as np
 
+from app.core.angles import plausible_landmarks
 from app.core.anonymizer import Anonymizer, should_anonymize
 from app.core.audio import AudioPlayer, mux_audio, open_audio
 from app.core.clock import MediaClock
@@ -507,9 +508,15 @@ class Pipeline:
         """Detect, track, recognise and decide for one frame."""
         tracker.cfg = cfg.tracker
         detections = self.engine.detect(frame)
+        max_faces = cfg.anonymize.max_faces
+        if max_faces > 0:
+            # Strict mode: anatomically implausible detections never start or feed a track.
+            detections = [d for d in detections if plausible_landmarks(d)]
         tracks = tracker.update(detections)
         self._recognize(frame, tracks, tracker.frame_id, cfg)
         lingering = tracker.recently_lost(cfg.anonymize.persist_lost_frames)
+        if max_faces > 0:
+            tracks, lingering = self._strongest(tracks, lingering, max_faces, cfg.anonymize.strict_score)
 
         views: list[TrackView] = []
         hidden: list[TrackView] = []
@@ -531,8 +538,9 @@ class Pipeline:
             if hide:
                 hidden.append(view)
         self._prev_geoms = seen
-        # Unconfirmed new faces are hidden too when failing closed.
-        if cfg.anonymize.fail_closed and cfg.anonymize.policy != Policy.NONE:
+        # Unconfirmed new faces are hidden too when failing closed (not in strict
+        # mode, where only the ranked faces above count).
+        if cfg.anonymize.fail_closed and cfg.anonymize.policy != Policy.NONE and max_faces == 0:
             active = {id(t) for t in tracks}
             for t in tracker.tracked:
                 if not t.activated and id(t) not in active:
@@ -540,6 +548,28 @@ class Pipeline:
         with self._snapshot_lock:
             self._snapshot = Snapshot(frame, views)
         return Analysis(index, views, hidden)
+
+    @staticmethod
+    def _strongest(
+        tracks: list[FaceTrack], lingering: list[FaceTrack], n: int, min_score: float
+    ) -> tuple[list[FaceTrack], list[FaceTrack]]:
+        """Keep the ``n`` most credible faces (1/2-face mode).
+
+        A face qualifies when its smoothed confidence reaches ``min_score``;
+        once it has, it keeps qualifying while it dips (motion blur, partial
+        occlusion, turning away) down to 60 % of that. Faces that never reached
+        the bar - tiny background faces, logos, textures - never count. The
+        strongest qualified faces win, so a brief false positive can never
+        displace a face that is already tracked.
+        """
+        def qualifies(t: FaceTrack) -> bool:
+            return t.score_ema >= min_score or (t.peak_ema >= min_score and t.score_ema >= 0.6 * min_score)
+
+        pool = [(t, False) for t in tracks] + [(t, True) for t in lingering]
+        pool = [(t, lost) for t, lost in pool if qualifies(t)]
+        pool.sort(key=lambda p: (min(p[0].hits, 10), p[0].score_ema, p[0].last_geom[2] * p[0].last_geom[3]), reverse=True)
+        keep = pool[:n]
+        return [t for t, lost in keep if not lost], [t for t, lost in keep if lost]
 
     def _compose(self, packet: FramePacket, analysis: Analysis, anonymizer: Anonymizer) -> ProcessedFrame:
         frames_ahead = min(MAX_EXTRAPOLATE_FRAMES, max(0, packet.index - analysis.index))

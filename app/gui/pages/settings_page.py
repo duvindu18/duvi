@@ -1,12 +1,10 @@
-"""Engine, tracker, recognition and storage settings plus a hardware report."""
+"""Engine, detection, tracking and general settings plus a hardware report."""
 
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
-    QFileDialog,
-    QHBoxLayout,
     QLineEdit,
     QScrollArea,
     QVBoxLayout,
@@ -171,6 +169,15 @@ class SettingsPage(QWidget):
         self.min_face = GlassSlider("Minimum face", 8, 120, cfg.engine.min_face_px, fmt=lambda v: f"{v:.0f} px")
         self.min_face.valueChanged.connect(lambda v: self._set(cfg.engine, "min_face_px", int(v)))
         det.body.addWidget(self.min_face)
+        self.strict = GlassSlider(
+            "Face certainty (1-2 face mode)", 0.3, 0.9, cfg.anonymize.strict_score, 0.01, fmt=lambda v: f"{v:.2f}"
+        )
+        self.strict.setToolTip(
+            "When Live is set to 1 or 2 faces, a face must keep at least this average confidence to be hidden. "
+            "Raise it if blur appears where there is no face; lower it if a real face is missed."
+        )
+        self.strict.valueChanged.connect(lambda v: self._set(cfg.anonymize, "strict_score", round(v, 2)))
+        det.body.addWidget(self.strict)
 
         # ---- tracking -------------------------------------------------------------
         trk = card("Tracking", "ByteTrack association parameters")
@@ -186,28 +193,6 @@ class SettingsPage(QWidget):
         self.min_hits = GlassSlider("Confirm after", 1, 5, cfg.tracker.min_hits, fmt=lambda v: f"{v:.0f} hits")
         self.min_hits.valueChanged.connect(lambda v: self._set(cfg.tracker, "min_hits", int(v)))
         trk.body.addWidget(self.min_hits)
-
-        # ---- recognition -----------------------------------------------------------
-        rec = card("Recognition", "Scheduling keeps recognition cheap in crowded scenes")
-        frow = QHBoxLayout()
-        self.faces_dir = QLineEdit(cfg.recognition.faces_dir)
-        self.faces_dir.editingFinished.connect(lambda: self.ctx.set_faces_dir(self.faces_dir.text().strip()))
-        frow.addWidget(self.faces_dir, 1)
-        frow.addWidget(button("Browse", icon=make_icon("folder", 16), on_click=self._browse_faces))
-        rec.body.addWidget(label("Identity folder", "caption"))
-        rec.body.addLayout(frow)
-        self.rec_every = GlassSlider("Retry unknown every", 1, 30, cfg.recognition.recognize_every_n, fmt=lambda v: f"{v:.0f} fr")
-        self.rec_every.valueChanged.connect(lambda v: self._set(cfg.recognition, "recognize_every_n", int(v)))
-        rec.body.addWidget(self.rec_every)
-        self.reverify = GlassSlider("Re-verify known every", 10, 300, cfg.recognition.reverify_every_n, fmt=lambda v: f"{v:.0f} fr")
-        self.reverify.valueChanged.connect(lambda v: self._set(cfg.recognition, "reverify_every_n", int(v)))
-        rec.body.addWidget(self.reverify)
-        self.per_frame = GlassSlider("Max faces per frame", 1, 16, cfg.recognition.max_per_frame)
-        self.per_frame.valueChanged.connect(lambda v: self._set(cfg.recognition, "max_per_frame", int(v)))
-        rec.body.addWidget(self.per_frame)
-        self.votes = GlassSlider("Vote window", 1, 15, cfg.recognition.vote_window, fmt=lambda v: f"{v:.0f} votes")
-        self.votes.valueChanged.connect(lambda v: self._set(cfg.recognition, "vote_window", int(v)))
-        rec.body.addWidget(self.votes)
 
         # ---- hardware ---------------------------------------------------------------
         hw = card("Hardware", "What this PC can accelerate")
@@ -228,21 +213,12 @@ class SettingsPage(QWidget):
         rec = InsightFaceBackend if backend == Backend.INSIGHTFACE else YuNetBackend
         self.ctx.cfg.recognition.match_threshold = rec.recommended_threshold
         self.ctx.commit()
-        self.ctx.notify.emit(
-            f"Match threshold reset to {rec.recommended_threshold:.2f} for {backend.value}. Re-index identities after switching.",
-            "info",
-        )
 
     def _det_thr_changed(self, v: float) -> None:
         self.ctx.cfg.engine.det_threshold = round(v, 2)
         self.ctx.cfg.tracker.high_threshold = round(v, 2)
         self.ctx.commit()
 
-    def _browse_faces(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, "Identity folder", self.faces_dir.text())
-        if folder:
-            self.faces_dir.setText(folder)
-            self.ctx.set_faces_dir(folder)
 
     def probe(self) -> None:
         self.hw_text.setText("Probing…")

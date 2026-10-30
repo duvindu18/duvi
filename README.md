@@ -1,25 +1,25 @@
 # Veil: real-time face anonymization for Windows
 
-Veil detects, tracks and recognises faces in webcam, RTSP and video-file
-sources, then blurs, pixelates, boxes or masks them according to a policy you
-choose:
+Veil detects and tracks faces in webcam, phone (Blackmagic Camera), RTSP and
+video-file sources and blurs, pixelates, boxes or masks every one of them.
 
-| Policy | What gets hidden |
-| --- | --- |
-| **Everyone** | every detected face |
-| **Strangers** *(Option A)* | faces that are not in your identity folder |
-| **Targets only** *(Option A)* | only identities marked **Hide** |
-| **All but whitelist** *(Option B)* | everyone except identities marked **Visible** |
-| **Off** | nothing (detection and recognition only) |
+**Faces in video: 1 / 2 / Any.** Most recordings show one or two people, so
+Veil defaults to **2**: only the two most certain faces are hidden. A face
+must stay confidently detected (average score ≥ *Face certainty*, 0.50 by
+default) with plausible eye/nose/mouth geometry, so short false detections
+(a patterned shirt, a poster, a reflection) never get a blur patch. Choose
+**1** for single-presenter clips or **Any** to hide every face, crowds
+included.
 
 Styles: **Gaussian blur**, **pixelation**, **black box** and **custom PNG
 mask**, each with an elliptical or rectangular shape, feathered edges and
 adjustable strength and coverage.
 
-The UI follows the warm "ember" glass design of the reference mock-ups and is
-adapted for desktop: a navigation rail instead of the tab bar, a resizable
-video stage with floating transport controls, and an inspector panel that turns
-into a slide-over drawer on narrow windows.
+The UI is dark, flat and borderless ("Noir"): near-black surfaces separated by
+tone instead of outlines, light display type with small uppercase labels, white
+primary actions and a single lime accent for anything active (the timeline
+playhead, toggles, face brackets). Pages fade and rise in, the inspector
+slides in as a drawer on narrow windows, and notifications fade.
 
 ---
 
@@ -77,7 +77,7 @@ python installer/build_installer.py --version 1.0.0
 
 The build stages the official Python 3.11.9 x64 runtime (NuGet), the app, an
 offline wheelhouse (Qt, OpenCV, NumPy, SciPy, ONNX Runtime CPU + DirectML),
-component lists, the `Veil.exe` launcher and the ember-theme installer artwork,
+component lists, the `Veil.exe` launcher and the dark-theme installer artwork,
 then compiles `installer/veil.nsi`. The `Build Windows installer` GitHub
 Actions workflow does the same on every `v*` tag and uploads the exe as an
 artifact.
@@ -135,7 +135,7 @@ Setup adds a firewall rule for private networks only.
 
 ```
 ┌──────────────────────────────── GUI thread (PySide6) ───────────────────────────────┐
-│  MainWindow ─ NavRail ─ LivePage · IdentitiesPage · ExportPage · SettingsPage        │
+│  MainWindow ─ NavRail ─ LivePage · ExportPage · SettingsPage                     │
 │        ▲ frameReady (coalesced)    ▲ stats / status / warnings / errors (queued)     │
 │        │                           │                                                 │
 │  PipelineController (Qt bridge: latest-frame mailbox, signals, start/stop/record)    │
@@ -174,15 +174,15 @@ app/
 │   ├── writer.py           background encoder, codec fallback, disk-space guard
 │   └── pipeline.py         thread orchestration, recognition scheduling, stats
 ├── gui/
-│   ├── theme.py            Ember palette, QSS, fonts
+│   ├── theme.py            Noir palette, QSS, fonts
 │   ├── widgets.py          glass cards, pills, circle buttons, glass slider, video view, flow layout
 │   ├── icons.py            QPainter vector icons + app icon
 │   ├── bridge.py           PipelineController + overlay painter
 │   ├── context.py          shared config / face DB, debounced saving
 │   ├── tasks.py            QThreadPool helper for blocking jobs
-│   ├── winstyle.py         Windows 11 DWM dark/ember title bar, taskbar identity
+│   ├── winstyle.py         Windows 11 DWM dark title bar, taskbar identity
 │   ├── main_window.py
-│   └── pages/              live, identities, export, settings
+│   └── pages/              live, export, settings, phone
 └── utils/                  paths, logging, errors, Unicode-safe image I/O, rate meters
 tests/                      unit + pipeline + offscreen GUI tests (run without models)
 installer/                  VeilSetup.exe build (NSIS script, launcher, provisioning, pinned component lists)
@@ -232,7 +232,7 @@ few frames after the detector loses it to avoid one-frame "flashes".
 End users don't need this section. Use VeilSetup.exe (section 0).
 
 Tested target: **Windows 11 23H2/24H2 x64, Python 3.11**. Windows 10 22H2
-works too, but the ember-tinted title bar needs Windows 11.
+works too, but the dark title bar needs Windows 11.
 
 ### 2.1 Base tools
 
@@ -358,26 +358,28 @@ python main.py                    # GUI, if the venv is active and PATH is alrea
 
 ### GUI workflow
 
-1. **Identities** (`Ctrl+2`): click *Add person* and pick 3–10 photos, or
-   *Import folder*. Mark each person **Visible** (whitelist), **Neutral** or
-   **Hide** (target). You can also enroll the largest face straight from the
-   live view with the *enroll* button.
-2. **Live** (`Ctrl+1`): choose *Webcam*, *RTSP stream* or *Video file* and
-   press ▶ (`Space`). Pick a policy and style in the inspector. Changes apply
+1. **Live** (`Ctrl+1`): choose *Webcam*, *Phone / Blackmagic*, *RTSP stream*
+   or *Video file* and press ▶ (`Space`). In the inspector set **Faces in
+   video** (1 / 2 / Any), style, shape, intensity and coverage. Changes apply
    instantly while running. Use ● (`Ctrl+R`) to record the anonymized stream,
    📷 (`Ctrl+S`) for a snapshot, ■ (`Esc`) to stop.
-3. **Export** (`Ctrl+3`): queue files (or drag and drop them) and press ▶.
-   Every frame is processed with the current Live settings. Overlays are never
-   burned in.
-4. **Settings** (`Ctrl+4`): backend, accelerator, VRAM cap, detector size,
-   tracking and recognition scheduling, and the hardware report.
+   With a video file selected, **Export** (next to *Browse*) asks where to
+   save and writes an anonymized copy (every frame analysed, audio kept). The
+   header pill shows progress and time left; click it when done to open the
+   folder.
+2. **Export** (`Ctrl+2`): queue several files (or drag and drop them) and
+   press ▶. Every frame is processed with the current Live settings.
+   Overlays are never burned in.
+3. **Settings** (`Ctrl+3`): backend, accelerator, VRAM cap, detector size,
+   face angles, face certainty for 1/2-face mode, tracking and the hardware
+   report.
 
 ### Headless / batch
 
 ```powershell
-# Anonymize a file at full speed (every frame), whitelist two people:
-python main.py --headless -i "D:\clips\lobby.mp4" -o "D:\out\lobby_anon.mp4" `
-    --policy whitelist --whitelist Alice Bob --style pixelate --intensity 80
+# Anonymize an interview at full speed (every frame), at most two faces:
+python main.py --headless -i "D:\clips\interview.mp4" -o "D:\out\interview_anon.mp4" `
+    --max-faces 2 --style pixelate --intensity 80
 
 # Record an anonymized RTSP stream until Ctrl+C:
 python main.py --headless -i "rtsp://user:pass@10.0.0.20:554/stream1" -o cam.mp4 --policy all

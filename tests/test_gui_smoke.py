@@ -49,7 +49,7 @@ def test_window_runs_preview(qapp, tmp_path, monkeypatch):
         win.resize(*size)
         win.show()
         qapp.processEvents()
-    for i in range(4):
+    for i in range(3):
         win.go(i)
         qapp.processEvents()
     win.go(0)
@@ -57,4 +57,11 @@ def test_window_runs_preview(qapp, tmp_path, monkeypatch):
     assert _spin(qapp, lambda: win.live.stage.view.has_image)
     win.live_ctrl.stop()
     assert _spin(qapp, lambda: win.live_ctrl.state == RunState.IDLE)
+
+    # Direct export from the Live page runs through the Export queue.
+    out = tmp_path / "out_anonymized.mp4"
+    win._export_from_live(str(video), str(out))
+    assert _spin(qapp, lambda: win.export_ctrl.state != RunState.IDLE or out.exists(), 5.0)
+    assert _spin(qapp, lambda: win.export_ctrl.state == RunState.IDLE and win.live.export_pill.text().startswith("Saved"), 60.0)
+    assert out.exists() and out.stat().st_size > 0
     win.close()

@@ -24,7 +24,7 @@ from app.core.config import AppConfig
 from app.core.face_db import FaceDatabase
 from app.core.pipeline import Pipeline, PipelineCallbacks, PipelineStats, ProcessedFrame, Snapshot
 from app.core.sources import SourceInfo, SourceSpec
-from app.gui.theme import ROLE_COLORS, app_font
+from app.gui.theme import P, ROLE_COLORS, app_font
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def bgr_to_qimage(frame: np.ndarray) -> QImage:
 
 
 class OverlayPainter:
-    """Draws tracking boxes and identity labels in the Ember style."""
+    """Draws tilt-following corner brackets and face numbers."""
 
     def __init__(self) -> None:
         self.show_boxes = True
@@ -81,14 +81,7 @@ class OverlayPainter:
                 else:
                     self._corners(p, rect, min(rect.width(), rect.height()) * 0.22)
             if self.show_labels:
-                name = face.identity or ("Identifying…" if face.role == "pending" else "Unknown")
-                parts = [name]
-                if face.identity:
-                    parts.append(f"{face.similarity * 100:.0f}%")
-                parts.append(f"#{face.track_id}")
-                if face.anonymized:
-                    parts.append("hidden")
-                text = "  ·  ".join(parts)
+                text = f"FACE {face.track_id}" + ("  ·  LOST" if face.lost else "")
                 pad = 7 * dpr
                 tw = fm.horizontalAdvance(text) + pad * 2
                 th = fm.height() + pad
@@ -103,7 +96,7 @@ class OverlayPainter:
                 p.setPen(Qt.PenStyle.NoPen)
                 p.setBrush(fill)
                 p.drawPath(path)
-                p.setPen(QColor("#2A0D07"))
+                p.setPen(QColor(P.text_on_light))
                 p.drawText(pill, Qt.AlignmentFlag.AlignCenter, text)
         p.end()
 
@@ -136,6 +129,7 @@ class PipelineController(QObject):
         super().__init__(parent)
         self.face_db = face_db
         self.display = display
+        self.output_path = ""
         self.overlay = OverlayPainter()
         self._pipeline: Pipeline | None = None
         self._state = RunState.IDLE
@@ -164,6 +158,7 @@ class PipelineController(QObject):
     def start(self, cfg: AppConfig, spec: SourceSpec, realtime: bool = True, output_path: str | None = None) -> bool:
         if self._state != RunState.IDLE:
             return False
+        self.output_path = output_path or ""
         self.overlay.show_boxes = cfg.anonymize.show_boxes
         self.overlay.show_labels = cfg.anonymize.show_labels
         cb = PipelineCallbacks(
