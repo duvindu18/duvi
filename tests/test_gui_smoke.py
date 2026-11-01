@@ -1,7 +1,6 @@
 """Offscreen GUI smoke test: builds every page and runs a short file preview."""
 
 import os
-from pathlib import Path
 
 import pytest
 
@@ -55,6 +54,23 @@ def test_window_runs_preview(qapp, tmp_path, monkeypatch):
     win.go(0)
     win.live.toggle_play()
     assert _spin(qapp, lambda: win.live.stage.view.has_image)
+
+    # Manual fix: pause, remove one blur, the paused frame is redrawn without it.
+    from app.core.edits import REMOVE
+
+    live = win.live
+    live.stage.edit_btn.setChecked(True)
+    assert _spin(qapp, lambda: live.ctrl.paused)
+    assert _spin(qapp, lambda: any(f.anonymized for f in (live.ctrl.last_processed().faces)))
+    face = next(f for f in live.ctrl.last_processed().faces if f.anonymized)
+    live._add_edits([(REMOVE, face.bbox)])
+    assert win.ctx.fix_count(str(video)) == 1
+    assert _spin(qapp, lambda: any(f.suppressed for f in live.ctrl.last_processed().faces), 10.0)
+    live.undo_edit()
+    assert win.ctx.fix_count(str(video)) == 0
+    assert _spin(qapp, lambda: not any(f.suppressed for f in live.ctrl.last_processed().faces), 10.0)
+    live.stage.edit_btn.setChecked(False)
+
     win.live_ctrl.stop()
     assert _spin(qapp, lambda: win.live_ctrl.state == RunState.IDLE)
 

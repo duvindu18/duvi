@@ -983,7 +983,9 @@ class PlayerBar(QWidget):
         self.snapshot_btn = CircleButton("snapshot", 42, tooltip="Save anonymized snapshot (Ctrl+S)")
         self.record_btn = CircleButton("record", 42, tooltip="Record anonymized video (Ctrl+R)", checkable=True)
         self.record_btn.accent = qcolor(P.danger)
-        for b in (self.snapshot_btn, self.record_btn):
+        self.edit_btn = CircleButton("edit", 42, tooltip="Fix blur by hand (E): remove, move or add blur boxes", checkable=True)
+        self.edit_btn.accent = qcolor(P.accent)
+        for b in (self.snapshot_btn, self.record_btn, self.edit_btn):
             ll.addWidget(b)
         ll.addStretch(1)
 

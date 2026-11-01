@@ -247,6 +247,10 @@ def draw_icon(p: QPainter, name: str, r: QRectF, color: QColor) -> None:
         p.drawLine(pt(16, 5), pt(19, 8))
         p.drawLine(pt(19, 8), pt(8.8, 18.2))
         p.drawLine(pt(8.8, 18.2), pt(5, 19))
+    elif name == "undo":
+        p.drawArc(QRectF(pt(6, 7), pt(19, 19)), 90 * 16, -250 * 16)
+        p.drawLine(pt(12.5, 7), pt(8.5, 4))
+        p.drawLine(pt(12.5, 7), pt(9, 10.5))
     elif name == "chip":
         p.drawRoundedRect(QRectF(pt(6, 6), pt(18, 18)), 2 * u, 2 * u)
         for v in (9, 12, 15):

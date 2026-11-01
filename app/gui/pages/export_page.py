@@ -10,12 +10,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
-    QGridLayout,
     QHBoxLayout,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
     QProgressBar,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -25,9 +25,9 @@ from app.core.sources import SourceInfo, SourceKind, SourceSpec, VIDEO_EXTENSION
 from app.gui.bridge import PipelineController, RunState
 from app.gui.context import AppContext
 from app.gui.icons import make_icon
-from app.gui.pages.live_page import policy_text
+from app.gui.panels import AnonymizationCard, policy_text
 from app.gui.theme import P
-from app.gui.widgets import CircleButton, GlassCard, PillGroup, StatTile, button, label, two_tone
+from app.gui.widgets import CircleButton, GlassCard, PillGroup, StatTile, VideoView, button, label, two_tone
 from app.utils.paths import default_export_dir, open_path
 
 STATUS_QUEUED, STATUS_RUNNING, STATUS_DONE, STATUS_FAILED, STATUS_CANCELLED = (
@@ -52,6 +52,8 @@ class ExportPage(QWidget):
         self._current: QListWidgetItem | None = None
         self._cancel_all = False
         self._t0 = 0.0
+        self._paused_at = 0.0
+        self._paused = False
         self._last_error = ""
 
         root = QVBoxLayout(self)
@@ -59,23 +61,65 @@ class ExportPage(QWidget):
         root.setSpacing(14)
         root.addWidget(label(two_tone("Export an", "anonymized copy"), "display", wrap=True))
         root.addWidget(
-            label("Files are processed in the background at full speed: every frame is analysed, none are dropped.", "dim", wrap=True)
+            label(
+                "Every frame is analysed, none are dropped. Watch the result as it is written and adjust the "
+                "blur on the right; changes apply to the running export at once. Manual blur fixes made on the "
+                "Live page are applied to that video.",
+                "dim",
+                wrap=True,
+            )
         )
 
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(18)
-        grid.setVerticalSpacing(18)
+        body = QHBoxLayout()
+        body.setSpacing(18)
+        left = QVBoxLayout()
+        left.setSpacing(18)
+
+        # ---- preview + transport ------------------------------------------------
+        stage = GlassCard(padding=14)
+        self.view = VideoView()
+        self.view.headline = "Nothing exporting"
+        self.view.subline = "Add videos and press play"
+        self.view.setMinimumHeight(240)
+        stage.body.addWidget(self.view, 1)
+        info = QHBoxLayout()
+        info.setSpacing(12)
+        self.current_label = label("Idle", "h2")
+        info.addWidget(self.current_label, 1)
+        self.t_fps = StatTile("frames / s")
+        self.t_eta = StatTile("remaining")
+        self.t_faces = StatTile("faces in frame")
+        for t in (self.t_fps, self.t_eta, self.t_faces):
+            t.setMinimumWidth(96)
+            info.addWidget(t)
+        stage.body.addLayout(info)
+        self.bar = QProgressBar()
+        self.bar.setValue(0)
+        stage.body.addWidget(self.bar)
+        controls = QHBoxLayout()
+        controls.setSpacing(12)
+        controls.addStretch(1)
+        self.cancel_btn = CircleButton("stop", 46, tooltip="Cancel the export (the queue stops)")
+        self.start_btn = CircleButton("play", 60, solid=True, tooltip="Start / pause / resume")
+        self.open_btn = CircleButton("folder", 46, tooltip="Open output folder")
+        for b in (self.cancel_btn, self.start_btn, self.open_btn):
+            controls.addWidget(b, 0, Qt.AlignmentFlag.AlignVCenter)
+        controls.addStretch(1)
+        stage.body.addLayout(controls)
+        left.addWidget(stage, 5)
 
         # ---- queue -------------------------------------------------------------
-        queue_card = GlassCard("Queue", "Add MP4, AVI, MKV, MOV… files")
+        queue_card = GlassCard("Queue", "Add MP4, AVI, MKV, MOV… files or drop them here")
         self.list = QListWidget()
-        self.list.setMinimumHeight(220)
+        self.list.setMinimumHeight(110)
+        queue_card.setMaximumHeight(300)
         self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.list.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self.list.setWordWrap(True)
         queue_card.body.addWidget(self.list, 1)
         self.empty_hint = label("Drop video files here, or click “Add videos”.", "dim")
         self.empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_hint.setMinimumHeight(60)
         queue_card.body.addWidget(self.empty_hint, 1)
         self.setAcceptDrops(True)
         qb = QHBoxLayout()
@@ -84,9 +128,20 @@ class ExportPage(QWidget):
         qb.addWidget(button("Clear finished", on_click=self._clear_finished))
         qb.addStretch(1)
         queue_card.body.addLayout(qb)
-        grid.addWidget(queue_card, 0, 0, 2, 1)
+        left.addWidget(queue_card, 2)
+        body.addLayout(left, 1)
 
-        # ---- output -------------------------------------------------------------
+        # ---- control panel -------------------------------------------------------
+        panel = QScrollArea()
+        panel.setWidgetResizable(True)
+        panel.setFrameShape(QScrollArea.Shape.NoFrame)
+        panel.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        panel.setFixedWidth(372)
+        inner = QWidget()
+        pl = QVBoxLayout(inner)
+        pl.setContentsMargins(0, 0, 8, 0)
+        pl.setSpacing(14)
+        pl.addWidget(AnonymizationCard(ctx))
         out_card = GlassCard("Output", "Where and how anonymized copies are written")
         row = QHBoxLayout()
         self.out_edit = QLineEdit(self.ctx.cfg.output.export_dir or str(default_export_dir()))
@@ -112,42 +167,18 @@ class ExportPage(QWidget):
         out_card.body.addWidget(self.codec)
         self.settings_note = label("", "faint", wrap=True)
         out_card.body.addWidget(self.settings_note)
-        grid.addWidget(out_card, 0, 1)
+        pl.addWidget(out_card)
+        pl.addStretch(1)
+        panel.setWidget(inner)
+        body.addWidget(panel)
+        root.addLayout(body, 1)
 
-        # ---- progress ------------------------------------------------------------
-        prog = GlassCard("Progress")
-        self.current_label = label("Idle", "h2")
-        prog.body.addWidget(self.current_label)
-        self.bar = QProgressBar()
-        self.bar.setValue(0)
-        prog.body.addWidget(self.bar)
-        tiles = QHBoxLayout()
-        self.t_fps = StatTile("frames / s")
-        self.t_eta = StatTile("remaining")
-        self.t_faces = StatTile("faces in frame")
-        for t in (self.t_fps, self.t_eta, self.t_faces):
-            tiles.addWidget(t)
-        prog.body.addLayout(tiles)
-        controls = QHBoxLayout()
-        controls.addStretch(1)
-        self.start_btn = CircleButton("play", 60, solid=True, tooltip="Start export")
-        self.cancel_btn = CircleButton("stop", 46, tooltip="Cancel")
-        self.open_btn = CircleButton("folder", 46, tooltip="Open output folder")
-        controls.addWidget(self.cancel_btn, 0, Qt.AlignmentFlag.AlignVCenter)
-        controls.addWidget(self.start_btn, 0, Qt.AlignmentFlag.AlignVCenter)
-        controls.addWidget(self.open_btn, 0, Qt.AlignmentFlag.AlignVCenter)
-        controls.addStretch(1)
-        prog.body.addLayout(controls)
-        prog.body.addStretch(1)
-        grid.addWidget(prog, 1, 1)
-        grid.setColumnStretch(0, 3)
-        grid.setColumnStretch(1, 2)
-        root.addLayout(grid, 1)
-
-        self.start_btn.clicked.connect(self._start)
+        self.start_btn.clicked.connect(self._start_or_pause)
         self.cancel_btn.clicked.connect(self._cancel)
         self.open_btn.clicked.connect(lambda: open_path(Path(self.out_edit.text() or default_export_dir())))
         self.out_edit.editingFinished.connect(self._out_changed)
+        self.view.resized.connect(lambda size: self.ctrl.set_target_size(size, self.view.devicePixelRatioF()))
+        self.ctrl.frameReady.connect(self._on_frame)
         self.ctrl.progress.connect(self._on_progress)
         self.ctrl.stats.connect(self._on_stats)
         self.ctrl.status.connect(lambda s: self.current_label.setText(s) if self._current is None else None)
@@ -158,6 +189,23 @@ class ExportPage(QWidget):
         self.ctx.configChanged.connect(self._refresh_note)
         self._refresh_note()
         self._update_buttons()
+
+    def _on_frame(self) -> None:
+        img = self.ctrl.take_frame()
+        if img is not None:
+            self.view.set_image(img)
+
+    def _start_or_pause(self) -> None:
+        if self.ctrl.state == RunState.RUNNING and self._current is not None:
+            self._paused = not self._paused
+            self.ctrl.set_paused(self._paused)
+            if self._paused:
+                self._paused_at = time.monotonic()
+            else:
+                self._t0 += time.monotonic() - self._paused_at  # ETA ignores the pause
+            self._update_buttons()
+            return
+        self._start()
 
     # ---- queue management ------------------------------------------------
     def _add_files(self) -> None:
@@ -185,7 +233,9 @@ class ExportPage(QWidget):
 
     def _render_item(self, item: QListWidgetItem, extra: str = "") -> None:
         d = item.data(Qt.ItemDataRole.UserRole)
-        text = f"{Path(d['path']).name}\n{d['status']}{('  ·  ' + extra) if extra else ''}"
+        fixes = self.ctx.fix_count(d["path"])
+        name = Path(d["path"]).name + (f"  ·  {fixes} manual fix{'es' if fixes != 1 else ''}" if fixes else "")
+        text = f"{name}\n{d['status']}{('  ·  ' + extra) if extra else ''}"
         item.setText(text)
         item.setToolTip(d["output"] or d["path"])
 
@@ -220,7 +270,7 @@ class ExportPage(QWidget):
     def _refresh_note(self) -> None:
         a = self.ctx.cfg.anonymize
         self.settings_note.setText(
-            f"Uses the current Live settings: {policy_text(a).lower()}, "
+            f"Current settings: {policy_text(a).lower()}, "
             f"intensity {a.intensity}. Overlays are never burned into exports."
         )
 
@@ -267,11 +317,19 @@ class ExportPage(QWidget):
         self._t0 = time.monotonic()
         self.bar.setValue(0)
         self.current_label.setText(src.name)
-        self.ctrl.start(self.ctx.cfg.snapshot(), SourceSpec(SourceKind.FILE, str(src)), realtime=False, output_path=str(out))
+        self._paused = False
+        self.view.clear()
+        self.view.headline = "Starting…"
+        self.view.subline = src.name
+        self.ctrl.start(
+            self.ctx.cfg.snapshot(), SourceSpec(SourceKind.FILE, str(src)), realtime=False, output_path=str(out),
+            edits=self.ctx.edits(str(src)),
+        )
         self._update_buttons()
 
     def _cancel(self) -> None:
         self._cancel_all = True
+        self._paused = False
         self.ctrl.stop()
 
     def _on_source_info(self, info: SourceInfo) -> None:
@@ -304,19 +362,23 @@ class ExportPage(QWidget):
             # Not one of this queue's runs: never start the next job from it.
             self._update_buttons()
             return
-        if item is not None:
-            d = dict(item.data(Qt.ItemDataRole.UserRole))
-            if reason == "completed":
-                d["status"] = STATUS_DONE
-                self._render_item_after(item, d, f"saved as {Path(d['output']).name}")
-                self.bar.setValue(100)
-            elif reason == "error":
-                d["status"] = STATUS_FAILED
-                self._render_item_after(item, d, self._last_error)
-            else:
-                d["status"] = STATUS_CANCELLED
-                self._render_item_after(item, d, "partial file kept" if d["output"] else "")
+        d = dict(item.data(Qt.ItemDataRole.UserRole))
+        if reason == "completed":
+            d["status"] = STATUS_DONE
+            self._render_item_after(item, d, f"saved as {Path(d['output']).name}")
+            self.bar.setValue(100)
+        elif reason == "error":
+            d["status"] = STATUS_FAILED
+            self._render_item_after(item, d, self._last_error)
+        else:
+            d["status"] = STATUS_CANCELLED
+            self._render_item_after(item, d, "partial file kept" if d["output"] else "")
         self.t_eta.set("–")
+        self._paused = False
+        self.ctx.sounds.play({"completed": "done", "error": "error"}.get(reason, "stop"))
+        self.view.headline = {"completed": "Saved.", "error": "Export failed."}.get(reason, "Export stopped.")
+        self.view.subline = Path(item.data(Qt.ItemDataRole.UserRole)["path"]).name
+        self.view.update()
         self._run_next()
 
     def _render_item_after(self, item: QListWidgetItem, d: dict, extra: str) -> None:
@@ -344,5 +406,8 @@ class ExportPage(QWidget):
         self.list.setVisible(not empty)
         self.empty_hint.setVisible(empty)
         busy = self.ctrl.state != RunState.IDLE or self._current is not None
-        self.start_btn.setEnabled(not busy and self._next_job() is not None)
+        running = self.ctrl.state == RunState.RUNNING and self._current is not None
+        self.start_btn.setEnabled(running or (not busy and self._next_job() is not None))
+        self.start_btn.set_icon("play" if (not running or self._paused) else "pause")
+        self.start_btn.setToolTip("Resume" if self._paused else "Pause" if running else "Start the queue")
         self.cancel_btn.setEnabled(busy)

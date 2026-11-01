@@ -142,6 +142,26 @@ def stage_mediamtx(cache: Path, dest: Path) -> None:
                 shutil.copyfileobj(src, out)
 
 
+def write_notice_rtf(src: Path, dst: Path) -> None:
+    """Licence page text as RTF with light text, readable on the dark page."""
+    out = []
+    for ch in src.read_text(encoding="utf-8"):
+        if ch in "\\{}":
+            out.append("\\" + ch)
+        elif ch == "\n":
+            out.append("\\par\n")
+        elif ord(ch) > 127:
+            n = ord(ch) if ord(ch) < 32768 else ord(ch) - 65536
+            out.append(f"\\u{n}?")
+        else:
+            out.append(ch)
+    dst.write_text(
+        "{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Segoe UI;}}{\\colortbl;\\red244\\green244\\blue245;}"
+        "\\f0\\fs18\\cf1 " + "".join(out) + "}",
+        encoding="ascii",
+    )
+
+
 def render_artwork(stage: Path) -> None:
     """App icon and installer bitmaps in the Noir theme (Qt draws, Pillow encodes)."""
     log("rendering icon and installer artwork")
@@ -186,6 +206,7 @@ def render_artwork(stage: Path) -> None:
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         ember(p, w, h)
         if title:
+            p.fillRect(QRectF(0, 0, w, h), QColor("#141416"))
             draw_logo(p, QRectF(w / 2 - 34, 70, 68, 68), QColor("#E4F17A"))
             f = QFont()
             f.setPixelSize(30)
@@ -195,11 +216,16 @@ def render_artwork(stage: Path) -> None:
             p.drawText(QRectF(0, 150, w, 40), Qt.AlignmentFlag.AlignHCenter, "Veil")
             f.setPixelSize(11)
             p.setFont(f)
-            p.setPen(QColor(255, 255, 255, 180))
-            p.drawText(QRectF(10, 192, w - 20, 60), Qt.AlignmentFlag.AlignHCenter | Qt.TextFlag.TextWordWrap,
-                       "Protect every face.")
+            f.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.4)
+            f.setWeight(QFont.Weight.DemiBold)
+            f.setPixelSize(9)
+            p.setFont(f)
+            p.setPen(QColor("#A1A1AA"))
+            p.drawText(QRectF(10, 194, w - 20, 60), Qt.AlignmentFlag.AlignHCenter | Qt.TextFlag.TextWordWrap,
+                       "PROTECT EVERY FACE")
+            p.fillRect(QRectF(w / 2 - 12, 290, 24, 3), QColor("#E4F17A"))
         else:
-            draw_logo(p, QRectF(w - 50, 10, 38, 38), QColor("white"))
+            draw_logo(p, QRectF(w - 50, 10, 38, 38), QColor("#E4F17A"))
         p.end()
         qimage_to_pil(img).convert("RGB").save(stage / name, format="BMP")
 
@@ -237,14 +263,25 @@ def main() -> None:
     shutil.copytree(HERE / "requirements", payload / "requirements")
     shutil.copy2(HERE / "provision.py", payload / "provision.py")
     shutil.copy2(HERE / "NOTICE.txt", stage / "NOTICE.txt")
+    write_notice_rtf(HERE / "NOTICE.txt", stage / "NOTICE.rtf")
     shutil.copy2(HERE / "NOTICE.txt", payload / "NOTICE.txt")
     write_cli(payload)
     render_artwork(stage)
     shutil.copy2(stage / "veil.ico", payload / "veil.ico")
 
+    sys.path.insert(0, str(HERE))
+    import sign as signing
+
+    sign_args = []
+    if signing.configured():
+        sign_args = [f'-DSIGNCMD="{sys.executable}" "{HERE / "sign.py"}"']
+        log("code signing enabled: Veil.exe, the installer and its uninstaller will be signed")
+    else:
+        log("code signing not configured (see installer/sign.py): Windows SmartScreen will warn on first run")
+
     log("compiling launcher (Veil.exe)")
     subprocess.run(
-        [makensis, "-V2", f"-DOUTFILE={payload / 'Veil.exe'}", f"-DICON={stage / 'veil.ico'}",
+        [makensis, "-V2", *sign_args, f"-DOUTFILE={payload / 'Veil.exe'}", f"-DICON={stage / 'veil.ico'}",
          f"-DVERSION={version}", str(HERE / "launcher.nsi")],
         check=True,
     )
@@ -253,7 +290,8 @@ def main() -> None:
     exe = out / f"VeilSetup-{version}.exe"
     log(f"compiling installer ({exe.name}) - LZMA solid compression takes a few minutes")
     subprocess.run(
-        [makensis, "-V2", f"-DSTAGE={stage}", f"-DVERSION={version}", f"-DOUTFILE={exe}", str(HERE / "veil.nsi")],
+        [makensis, "-V2", *sign_args, f"-DSTAGE={stage}", f"-DVERSION={version}", f"-DOUTFILE={exe}",
+         str(HERE / "veil.nsi")],
         check=True,
     )
     digest = hashlib.sha256(exe.read_bytes()).hexdigest()

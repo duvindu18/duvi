@@ -1,6 +1,6 @@
 # Veil: real-time face anonymization for Windows
 
-Veil detects and tracks faces in webcam, phone (Blackmagic Camera), RTSP and
+Veil detects and tracks faces in webcam, phone camera, RTSP and
 video-file sources and blurs, pixelates, boxes or masks every one of them.
 
 **Faces in video: 1 / 2 / Any.** Most recordings show one or two people, so
@@ -89,6 +89,34 @@ artifact.
 | `installer/provision.py` | runs during setup: VC++ runtime, offline/online packages, models, verification, PATH |
 | `installer/requirements/*.txt` | pinned package sets per component |
 | `installer/build_installer.py` | stages everything and runs `makensis` |
+| `installer/dark.nsh` | dark wizard theme matching the app (window, pages, buttons, lists, progress) |
+| `installer/sign.py` | Authenticode signing hook (see below) |
+
+### Code signing (removes the "Windows protected your PC" prompt)
+
+SmartScreen warns about any download that is not signed by a certificate
+from a public code-signing CA. A self-signed certificate does **not** help;
+the certificate must be issued to you (it proves who the publisher is):
+
+* **Azure Trusted Signing** – about US$10/month, identity validation, no
+  hardware token. Build on Windows with the Windows SDK installed.
+* **OV code-signing certificate** (DigiCert, Sectigo, SSL.com, Certum …) –
+  delivered on a hardware token or cloud HSM.
+
+Set the matching environment variables and build as usual; `Veil.exe`, the
+installer and its uninstaller are signed and timestamped automatically:
+
+```powershell
+# Azure Trusted Signing
+$env:VEIL_SIGN_AZURE_DLIB = "C:\tools\Azure.CodeSigning.Dlib.dll"
+$env:VEIL_SIGN_AZURE_METADATA = "C:\tools\metadata.json"
+# or a certificate: $env:VEIL_SIGN_PFX + $env:VEIL_SIGN_PASSWORD, or $env:VEIL_SIGN_THUMBPRINT
+python installer/build_installer.py
+```
+
+On Linux a `.pfx` is signed with `osslsigncode`. SmartScreen reputation is
+built per certificate, so the very first downloads of a newly signed build
+can still show the prompt for a short while.
 
 ### Preview player
 
@@ -105,17 +133,36 @@ Video files play in a full media player:
 | `←` / `→` | −5 s / +5 s |
 | `,` / `.` | previous / next frame |
 | `M` | mute |
+| `E` | fix blur by hand (edit mode) |
+| `Ctrl+Z` | undo the last blur fix |
+
+### Fixing the blur by hand
+
+If a blur appears where there is no face, or a face is missed or covered
+badly, pause on that frame and press the **pencil** button (`E`):
+
+* **click a blur** to remove it – the spot stays clear while it is tracked,
+  including flickering re-detections nearby; click a removed box to bring it back;
+* **drag a blur** to move it, **drag a corner** to resize it;
+* **drag on the video** to add a blur – it keeps following that face
+  (it locks onto the detector when it sees the face, and follows the picture
+  when it does not);
+* **undo** (`Ctrl+Z`) and **clear** sit in the floating edit bar.
+
+Fixes are saved per video file and are applied to the preview, to
+recordings and to every export of that file.
 | `Esc` | stop |
 | `Ctrl+S` / `Ctrl+R` | snapshot / record |
 
 **Smooth preview** (default) shows *every* frame at the source frame rate. Detection runs alongside as fast as the GPU allows, and each face is drawn at its predicted position between detections. After a start or a seek, the first frame waits for detection, so no face is shown before it is known. **Exact** mode (Settings → General) detects every displayed frame. Exports always process every frame exactly.
 
-### Phone / Blackmagic Camera over Wi-Fi
+### Phone camera over Wi-Fi
 
-Choose **Phone / Blackmagic** as the source and click **Connect phone…**. Veil starts its bundled MediaMTX receiver and shows:
+Choose **Phone** as the source and click **Connect phone…**. Veil starts its bundled MediaMTX receiver and shows:
 - the PC's address;
-- the **Server URL** and **Stream key** to paste into the Blackmagic Camera app's custom RTMP live-stream settings (or any RTMP/SRT app: Larix, OBS, …);
-- a QR code of the full URL;
+- a QR code that downloads **Veil.xml**, stream settings that camera apps with
+  *Import stream settings* can load directly;
+- under **Manual setup**, the **Server URL** and **Stream key** for any RTMP/SRT camera app;
 - live stream status.
 
 Once the phone is streaming, press **Start anonymized preview**. Typical delay is 0.5–1.5 s.
@@ -168,6 +215,7 @@ app/
 │   ├── scrfd_arcface.py    native SCRFD / ArcFace inference on ONNX Runtime (no insightface package)
 │   ├── angles.py           rotated detection passes, angle scheduler, merge (tilted/sideways faces)
 │   ├── tracker.py          ByteTrack (Kalman + two-stage IoU association)
+│   ├── edits.py            manual blur fixes: remove / restore / add-and-track, per-video storage
 │   ├── face_db.py          identity folder, embedding cache, cosine matching
 │   ├── anonymizer.py       policy decision + Gaussian / pixelate / box / mask rendering
 │   ├── sources.py          webcam / RTSP / file capture worker, reconnects, corrupt-frame skipping
@@ -175,10 +223,13 @@ app/
 │   └── pipeline.py         thread orchestration, recognition scheduling, stats
 ├── gui/
 │   ├── theme.py            Noir palette, QSS, fonts
-│   ├── widgets.py          glass cards, pills, circle buttons, glass slider, video view, flow layout
+│   ├── widgets.py          cards, pills, circle buttons, sliders, video view, timeline, flow layout
 │   ├── icons.py            QPainter vector icons + app icon
 │   ├── bridge.py           PipelineController + overlay painter
-│   ├── context.py          shared config / face DB, debounced saving
+│   ├── editor.py           on-video blur editor (click / drag / resize / draw) + edit bar
+│   ├── panels.py           anonymization panel shared by Live and Export
+│   ├── sounds.py           synthesised interface sounds (QSoundEffect)
+│   ├── context.py          shared config, manual fixes, sounds, debounced saving
 │   ├── tasks.py            QThreadPool helper for blocking jobs
 │   ├── winstyle.py         Windows 11 DWM dark title bar, taskbar identity
 │   ├── main_window.py
@@ -358,7 +409,7 @@ python main.py                    # GUI, if the venv is active and PATH is alrea
 
 ### GUI workflow
 
-1. **Live** (`Ctrl+1`): choose *Webcam*, *Phone / Blackmagic*, *RTSP stream*
+1. **Live** (`Ctrl+1`): choose *Webcam*, *Phone*, *RTSP stream*
    or *Video file* and press ▶ (`Space`). In the inspector set **Faces in
    video** (1 / 2 / Any), style, shape, intensity and coverage. Changes apply
    instantly while running. Use ● (`Ctrl+R`) to record the anonymized stream,
@@ -367,12 +418,18 @@ python main.py                    # GUI, if the venv is active and PATH is alrea
    save and writes an anonymized copy (every frame analysed, audio kept). The
    header pill shows progress and time left; click it when done to open the
    folder.
+   Pause and press the pencil (`E`) to fix any blur by hand.
 2. **Export** (`Ctrl+2`): queue several files (or drag and drop them) and
-   press ▶. Every frame is processed with the current Live settings.
+   press ▶. The preview shows the anonymized frames as they are written;
+   pause, resume or cancel below it, and adjust the blur in the panel on the
+   right while it runs. Manual blur fixes of each file are applied.
    Overlays are never burned in.
 3. **Settings** (`Ctrl+3`): backend, accelerator, VRAM cap, detector size,
-   face angles, face certainty for 1/2-face mode, tracking and the hardware
-   report.
+   face angles, face certainty for 1/2-face mode, tracking, sound effects
+   and the hardware report.
+
+Veil runs as a single instance: opening it again brings the existing window
+to the front.
 
 ### Headless / batch
 

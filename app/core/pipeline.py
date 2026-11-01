@@ -36,7 +36,7 @@ import queue
 import threading
 import time
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable
 
@@ -47,6 +47,7 @@ from app.core.anonymizer import Anonymizer, should_anonymize
 from app.core.audio import AudioPlayer, mux_audio, open_audio
 from app.core.clock import MediaClock
 from app.core.config import AppConfig, Policy
+from app.core.edits import EditState, FaceEdit
 from app.core.engine import FaceEngine
 from app.core.face_db import FaceDatabase
 from app.core.sources import CaptureWorker, FramePacket, SeekMarker, SourceInfo, SourceKind, SourceSpec, put_drop_oldest
@@ -58,6 +59,7 @@ from app.utils.rate import LatencyMeter, RateMeter
 log = logging.getLogger(__name__)
 
 MAX_EXTRAPOLATE_FRAMES = 12
+_REFRESH = object()  # q_in marker: redraw the last frame with fresh analysis
 
 
 @dataclass
@@ -74,6 +76,8 @@ class TrackView:
     role: str  # "whitelist" | "target" | "known" | "unknown" | "pending"
     geom: np.ndarray | None = None  # oriented face [cx, cy, w, h, angle]
     velocity: tuple[float, float] = (0.0, 0.0)  # px per frame
+    manual: bool = False  # drawn / adjusted by the user
+    suppressed: bool = False  # the user removed this blur
 
     def shifted(self, frames: float) -> "TrackView":
         if frames <= 0 or self.velocity == (0.0, 0.0):
@@ -85,10 +89,7 @@ class TrackView:
             geom[0] += dx
             geom[1] += dy
         bbox = self.bbox + np.array([dx, dy, dx, dy], np.float32)
-        return TrackView(
-            self.track_id, bbox, self.identity, self.similarity, self.recognized, self.anonymized,
-            self.lost, self.role, geom, self.velocity,
-        )
+        return replace(self, bbox=bbox, geom=geom)
 
 
 @dataclass
@@ -158,12 +159,22 @@ class Pipeline:
         renderer: Callable[[ProcessedFrame], Any] | None = None,
         face_db: FaceDatabase | None = None,
         engine_factory: Callable[..., Any] | None = None,
+        edits: list[FaceEdit] | None = None,
+        preview: bool = False,
     ) -> None:
         self.cfg = cfg.snapshot()
         self.source = source
         self.cb = callbacks
-        self.display = display
+        self.display = display or preview
         self.realtime = realtime
+        # Export with a preview: render a throttled copy of the frames being written.
+        self._preview_interval = 1 / 12 if (preview and not realtime) else 0.0
+        self._last_preview = 0.0
+        self._edits_lock = threading.Lock()
+        self._edits: list[FaceEdit] = list(edits or [])
+        self._edits_version = 0
+        self._last_packet: FramePacket | None = None
+        self._analysis_gen = 0
         self.renderer = renderer or (lambda pkt: pkt.frame)
         self.face_db = face_db
         self._engine_factory = engine_factory or (lambda c, on_warning: FaceEngine(c, on_warning=on_warning))
@@ -296,6 +307,25 @@ class Pipeline:
             self.cfg = snap
             self._cfg_version += 1
         self.loop = snap.loop
+
+    def set_edits(self, edits: list[FaceEdit]) -> None:
+        """Replace the manual face edits (any thread); a paused frame is redrawn."""
+        with self._edits_lock:
+            self._edits = list(edits)
+            self._edits_version += 1
+        self.refresh()
+
+    def _get_edits(self) -> tuple[list[FaceEdit], int]:
+        with self._edits_lock:
+            return self._edits, self._edits_version
+
+    def refresh(self) -> None:
+        """Re-analyse and redraw the frame on screen (used while paused)."""
+        if self._smooth:
+            try:
+                self.q_in.put_nowait(_REFRESH)
+            except queue.Full:
+                pass
 
     def reload_face_db(self) -> None:
         self._db_reload.set()
@@ -504,17 +534,40 @@ class Pipeline:
             elif top is None and top_n >= math.ceil(len(t.votes) / 2):
                 t.identity, t.identity_sim = None, sim
 
-    def _analyze(self, frame: np.ndarray, index: int, tracker: ByteTracker, cfg: AppConfig) -> Analysis:
-        """Detect, track, recognise and decide for one frame."""
+    def _frame_ms(self) -> float:
+        info = self.capture.info
+        return 1000.0 / info.fps if info and info.fps else 33.3
+
+    def _analyze(
+        self,
+        frame: np.ndarray,
+        index: int,
+        tracker: ByteTracker,
+        cfg: AppConfig,
+        pts_ms: float = 0.0,
+        edit_state: EditState | None = None,
+    ) -> Analysis:
+        """Detect, track, recognise, apply manual edits and decide for one frame."""
         tracker.cfg = cfg.tracker
-        detections = self.engine.detect(frame)
+        raw = self.engine.detect(frame)
         max_faces = cfg.anonymize.max_faces
+        detections = raw
         if max_faces > 0:
             # Strict mode: anatomically implausible detections never start or feed a track.
-            detections = [d for d in detections if plausible_landmarks(d)]
+            detections = [d for d in raw if plausible_landmarks(d)]
         tracks = tracker.update(detections)
         self._recognize(frame, tracks, tracker.frame_id, cfg)
         lingering = tracker.recently_lost(cfg.anonymize.persist_lost_frames)
+        suppressed: list[FaceTrack] = []
+        manual: list = []
+        if edit_state is not None:
+            edit_state.set_edits(*self._get_edits())
+            all_tracks = tracks
+            tracks, lingering = edit_state.process(
+                frame, index, pts_ms, self._frame_ms(), tracks, lingering, [d.bbox for d in raw]
+            )
+            suppressed = edit_state.suppressed_of(all_tracks)
+            manual = edit_state.manual
         if max_faces > 0:
             tracks, lingering = self._strongest(tracks, lingering, max_faces, cfg.anonymize.strict_score)
 
@@ -538,6 +591,17 @@ class Pipeline:
             if hide:
                 hidden.append(view)
         self._prev_geoms = seen
+        anonymize = cfg.anonymize.policy != Policy.NONE
+        for m in manual:
+            g = m.geom
+            view = TrackView(m.track_id, m.box.copy(), None, 0.0, True, anonymize, False, "unknown", g, m.velocity, manual=True)
+            views.append(view)
+            if anonymize:
+                hidden.append(view)
+        for t in suppressed:
+            views.append(
+                TrackView(t.track_id, t.bbox.copy(), None, 0.0, True, False, False, "unknown", t.geom.copy(), suppressed=True)
+            )
         # Unconfirmed new faces are hidden too when failing closed (not in strict
         # mode, where only the ranked faces above count).
         if cfg.anonymize.fail_closed and cfg.anonymize.policy != Policy.NONE and max_faces == 0:
@@ -563,6 +627,10 @@ class Pipeline:
         displace a face that is already tracked.
         """
         def qualifies(t: FaceTrack) -> bool:
+            # A single-frame detection only counts when it is very confident;
+            # flickering false positives rarely survive two detections.
+            if t.hits < 2 and t.score_ema < max(0.7, min_score):
+                return False
             return t.score_ema >= min_score or (t.peak_ema >= min_score and t.score_ema >= 0.6 * min_score)
 
         pool = [(t, False) for t in tracks] + [(t, True) for t in lingering]
@@ -583,6 +651,11 @@ class Pipeline:
         self._apply_record_request(processed.frame)
         if self._writer is not None:
             self._writer.submit(processed.frame, self._stop, block=self._writer_blocking)
+        if self._preview_interval:
+            now = time.perf_counter()
+            if now - self._last_preview < self._preview_interval:
+                return
+            self._last_preview = now
         if self.display:
             put_drop_oldest(self.q_render, processed)
 
@@ -601,6 +674,7 @@ class Pipeline:
                 return
             cfg, version = self._current_cfg(-1)
             tracker = ByteTracker(cfg.tracker, cfg.engine.det_low_threshold)
+            edit_state = EditState()
             anonymizer = Anonymizer(cfg.anonymize)
             info = self.capture.info
             total = info.frame_count if info else 0
@@ -618,7 +692,7 @@ class Pipeline:
                     break
                 if self._stop.is_set():
                     break
-                if isinstance(packet, SeekMarker):
+                if isinstance(packet, SeekMarker) or packet is _REFRESH:
                     continue
                 t0 = time.perf_counter()
                 self.capture_rate.tick()
@@ -627,7 +701,7 @@ class Pipeline:
                     cfg, version = new_cfg, new_version
                     anonymizer.set_config(cfg.anonymize)
                 self._maybe_resync()
-                analysis = self._analyze(packet.frame, packet.index, tracker, cfg)
+                analysis = self._analyze(packet.frame, packet.index, tracker, cfg, packet.pts_ms, edit_state)
                 processed = self._compose(packet, analysis, anonymizer)
                 self._output(processed)
                 self.latency.add(time.perf_counter() - t0)
@@ -670,6 +744,25 @@ class Pipeline:
                     self._scene_reset = True
                 need_sync = True
                 continue
+            if packet is _REFRESH:
+                packet = self._last_packet
+                if packet is None or not self.capture.paused.is_set():
+                    continue  # while playing, the next frame shows the change anyway
+                new_cfg, new_version = self._current_cfg(version)
+                if new_version != version:
+                    cfg, version = new_cfg, new_version
+                    anonymizer.set_config(cfg.anonymize)
+                with self._mail_cond:
+                    gen = self._analysis_gen
+                    self._mailbox = packet
+                    self._mail_cond.notify_all()
+                    while not self._stop.is_set() and self._analysis_gen == gen and not self._scene_reset:
+                        self._mail_cond.wait(0.1)
+                    analysis = self._latest
+                if analysis is not None and not self._stop.is_set():
+                    self._output(self._compose(packet, analysis, anonymizer))
+                continue
+            self._last_packet = packet
             self.capture_rate.tick()
             new_cfg, new_version = self._current_cfg(version)
             if new_version != version:
@@ -709,6 +802,7 @@ class Pipeline:
         try:
             cfg, version = self._current_cfg(-1)
             tracker = ByteTracker(cfg.tracker, cfg.engine.det_low_threshold)
+            edit_state = EditState()
             while not self._stop.is_set():
                 with self._mail_cond:
                     while self._mailbox is None and not self._stop.is_set():
@@ -719,6 +813,7 @@ class Pipeline:
                     break
                 if reset:
                     tracker.reset()
+                    edit_state.reset()
                     self._prev_geoms.clear()
                     reset_scene = getattr(self.engine, "reset_scene", None)
                     if reset_scene:
@@ -726,12 +821,13 @@ class Pipeline:
                 cfg, version = self._current_cfg(version)
                 self._maybe_resync()
                 t0 = time.perf_counter()
-                analysis = self._analyze(packet.frame, packet.index, tracker, cfg)
+                analysis = self._analyze(packet.frame, packet.index, tracker, cfg, packet.pts_ms, edit_state)
                 self.latency.add(time.perf_counter() - t0)
                 self.infer_rate.tick()
                 with self._mail_cond:
                     if not self._scene_reset:  # discard results from before a seek
                         self._latest = analysis
+                        self._analysis_gen += 1
                     self._mail_cond.notify_all()
         except Exception as exc:
             log.exception("Detector crashed")

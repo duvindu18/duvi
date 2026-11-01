@@ -24,6 +24,10 @@ VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "LegalCopyright" "See NOTICE.txt"
 
+!ifdef SIGNCMD
+  !finalize '${SIGNCMD} "%1"' = 0
+!endif
+
 Section
   ${GetParameters} $0
   IfFileExists "$EXEDIR\python\pythonw.exe" +3

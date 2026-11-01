@@ -137,6 +137,7 @@ class AppConfig:
     volume: float = 1.0
     muted: bool = False
     loop: bool = False
+    sounds: bool = True  # short interface sound effects
     last_source_kind: str = "webcam"
     last_source_value: str = "0"
     window_geometry: str = ""

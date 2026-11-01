@@ -86,6 +86,9 @@ class SettingsPage(QWidget):
         self.preview_mode.changed.connect(lambda v: self._set(cfg, "preview_mode", v))
         gen.body.addWidget(self.preview_mode)
         gen.body.addWidget(label("Exports always detect every frame, whatever this setting.", "faint", wrap=True))
+        self.sounds = ToggleRow("Sound effects", cfg.sounds, "Short cues for start, snapshot, recording, fixes and finished exports")
+        self.sounds.toggled.connect(lambda v: self._set(cfg, "sounds", v))
+        gen.body.addWidget(self.sounds)
 
         # ---- engine ----------------------------------------------------------
         eng = card("Face engine", "Detector, recognizer and hardware acceleration")

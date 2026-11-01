@@ -114,7 +114,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(QSize(960, 640))
 
         self.live_ctrl = PipelineController(ctx.face_db, display=True, parent=self)
-        self.export_ctrl = PipelineController(ctx.face_db, display=False, parent=self)
+        self.export_ctrl = PipelineController(ctx.face_db, display=False, parent=self, preview=True)
 
         bg = EmberBackground()
         self.setCentralWidget(bg)
@@ -173,6 +173,7 @@ class MainWindow(QMainWindow):
 
     def _push_config(self) -> None:
         self.live_ctrl.update_config(self.ctx.cfg)
+        self.export_ctrl.update_config(self.ctx.cfg)  # the Export page panel adjusts a running export
 
     def _restore_geometry(self) -> None:
         geo = self.ctx.cfg.window_geometry

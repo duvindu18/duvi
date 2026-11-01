@@ -193,7 +193,7 @@ def test_blackmagic_settings_file_and_share():
 
     from app.core import mediamtx
 
-    root = ET.fromstring(mediamtx.blackmagic_xml("10.0.0.7"))
+    root = ET.fromstring(mediamtx.stream_settings_xml("10.0.0.7"))
     assert root.find("service/name").text == "Veil"
     assert root.find("service/servers/server/url").text == "rtmp://10.0.0.7:1935/live"
     assert root.find("service/key").text == "phone"

@@ -144,7 +144,7 @@ class MediaMTXServer:
         if self.exe is None:
             raise FileNotFoundError(
                 "MediaMTX is not installed. Re-run VeilSetup.exe and select "
-                "'Phone & Blackmagic Camera receiver', or set VEIL_MEDIAMTX to mediamtx.exe."
+                "'Phone camera receiver', or set VEIL_MEDIAMTX to mediamtx.exe."
             )
         if self._api_alive():
             log.info("A MediaMTX instance is already running; reusing it.")
@@ -232,7 +232,7 @@ _PROFILES = (
 )
 
 
-def blackmagic_xml(ip: str) -> str:
+def stream_settings_xml(ip: str) -> str:
     from xml.sax.saxutils import escape
 
     server, key = STREAM_PATH.split("/", 1)
@@ -286,7 +286,7 @@ class SettingsShareServer:
         import http.server
         import threading
 
-        self.xml = blackmagic_xml(ip).encode("utf-8")
+        self.xml = stream_settings_xml(ip).encode("utf-8")
         if self._httpd is not None:
             return True
         owner = self
