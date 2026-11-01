@@ -65,11 +65,7 @@ ${StrStr}
 Var RadioSel
 Var GpuName
 
-; ---- look & feel: the app's dark "Noir" theme (bitmaps rendered by the build) ----
-!include "${__FILEDIR__}\dark.nsh"
-!define MUI_CUSTOMFUNCTION_GUIINIT NoirGuiInit
-!define MUI_CUSTOMFUNCTION_UNGUIINIT un.NoirGuiInit
-!define MUI_LICENSEPAGE_BGCOLOR ${NOIR_SURFACE}
+; ---- look & feel: standard Modern UI wizard with Veil artwork ----------------
 !define MUI_ICON "${STAGE}/veil.ico"
 !define MUI_UNICON "${STAGE}/veil.ico"
 !define MUI_HEADERIMAGE
@@ -83,22 +79,16 @@ Var GpuName
 
 ; ---- pages ------------------------------------------------------------------
 !define MUI_WELCOMEPAGE_TITLE "Welcome to Veil ${VERSION}"
-!define MUI_PAGE_CUSTOMFUNCTION_SHOW NoirDarkPage
 !define MUI_WELCOMEPAGE_TEXT "Veil finds and tracks faces in webcams, phone cameras, RTSP streams and video files and blurs them in real time.$\r$\n$\r$\nThis setup installs everything Veil needs - a private Python runtime, the application and the components you choose for your hardware. No separate Python, CUDA Toolkit or compiler is required.$\r$\n$\r$\nAn internet connection is needed for the GPU runtimes and face models you select.$\r$\n$\r$\nClick Next to continue."
 !insertmacro MUI_PAGE_WELCOME
-!define MUI_PAGE_CUSTOMFUNCTION_SHOW NoirDarkPage
-!insertmacro MUI_PAGE_LICENSE "${STAGE}/NOTICE.rtf"
+!insertmacro MUI_PAGE_LICENSE "${STAGE}/NOTICE.txt"
 !define MUI_COMPONENTSPAGE_TEXT_TOP "Detected graphics: $GpuName$\r$\nThe recommended setup type is pre-selected. Choose exactly one inference runtime."
 !define MUI_COMPONENTSPAGE_TEXT_COMPLIST "Or select the components to install:"
-!define MUI_PAGE_CUSTOMFUNCTION_SHOW NoirDarkPage
 !insertmacro MUI_PAGE_COMPONENTS
-!define MUI_PAGE_CUSTOMFUNCTION_SHOW NoirDarkPage
 !insertmacro MUI_PAGE_DIRECTORY
-!define MUI_PAGE_CUSTOMFUNCTION_SHOW NoirDarkPage
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_TITLE "Veil is ready"
-!define MUI_FINISHPAGE_TEXT "Veil has been installed.$\r$\n$\r$\nOpen a video, press play and every face is blurred. Pause and use the pencil button to fix any blur by hand.$\r$\n$\r$\nTo add or change components later, run this setup again."
-!define MUI_PAGE_CUSTOMFUNCTION_SHOW NoirDarkPage
+!define MUI_FINISHPAGE_TEXT "Veil has been installed.$\r$\n$\r$\nOpen a video, press play and every face is blurred.$\r$\n$\r$\nTo add or change components later, run this setup again."
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_TEXT "Launch Veil now"
 !define MUI_FINISHPAGE_RUN_FUNCTION LaunchUnelevated
@@ -107,9 +97,7 @@ Var GpuName
 !define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
 !insertmacro MUI_PAGE_FINISH
 
-!define MUI_PAGE_CUSTOMFUNCTION_SHOW un.NoirDarkPage
 !insertmacro MUI_UNPAGE_CONFIRM
-!define MUI_PAGE_CUSTOMFUNCTION_SHOW un.NoirDarkPage
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
 
@@ -363,14 +351,6 @@ Function .onSelChange
   ${EndIf}
 FunctionEnd
 
-Function NoirGuiInit
-  !insertmacro NOIR_DARK_TITLEBAR
-FunctionEnd
-
-Function un.NoirGuiInit
-  !insertmacro NOIR_DARK_TITLEBAR
-FunctionEnd
-
 Function LaunchUnelevated
   ; Start through Explorer so Veil runs as the normal (non-admin) user.
   Exec '"$WINDIR\explorer.exe" "$INSTDIR\Veil.exe"'
@@ -407,7 +387,7 @@ Section "Uninstall"
   DeleteRegKey HKLM "${REGKEY}"
 
   SetShellVarContext current
-  MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 "Also delete Veil's settings, manual blur fixes, logs and model cache for this user?" /SD IDNO IDNO keep
+  MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 "Also delete Veil's settings, logs and model cache for this user?" /SD IDNO IDNO keep
     RMDir /r "$APPDATA\Veil"
     RMDir /r "$LOCALAPPDATA\Veil"
   keep:

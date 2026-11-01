@@ -20,6 +20,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 from enum import IntEnum
+from typing import Callable
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
@@ -179,12 +180,14 @@ class ByteTracker:
         self._next_id = 1
         self.tracked: list[FaceTrack] = []
         self.lost: list[FaceTrack] = []
+        self.selected: set[int] = set()  # faces holding a slot in 1/2-face mode
 
     def reset(self) -> None:
         self.frame_id = 0
         self._next_id = 1
         self.tracked.clear()
         self.lost.clear()
+        self.selected.clear()
 
     # ------------------------------------------------------------------
     def _activate(self, det: Detection) -> FaceTrack:
@@ -226,8 +229,35 @@ class ByteTracker:
             return np.zeros((0, 4), np.float32)
         return np.stack([d.bbox for d in dets])
 
-    def update(self, detections: list[Detection]) -> list[FaceTrack]:
-        """Advance one frame. Returns confirmed tracks visible in this frame."""
+    @staticmethod
+    def _motion_match(
+        tracks: list[FaceTrack], dets: list[Detection], max_dist: float = 1.0
+    ) -> tuple[list[tuple[int, int]], list[int], list[int]]:
+        """Fallback association by centre distance (in face widths) for fast
+        motion, where the boxes of consecutive detections barely overlap.
+        Sizes must agree, so a neighbouring face is never taken over."""
+        if not tracks or not dets:
+            return [], list(range(len(tracks))), list(range(len(dets)))
+        tb = ByteTracker._boxes(tracks)
+        db = ByteTracker._det_boxes(dets)
+        tc = (tb[:, None, :2] + tb[:, None, 2:]) / 2
+        dc = (db[None, :, :2] + db[None, :, 2:]) / 2
+        tsize = np.maximum(tb[:, 2] - tb[:, 0], tb[:, 3] - tb[:, 1])[:, None]
+        dist = np.linalg.norm(tc - dc, axis=2) / np.maximum(tsize, 1.0)
+        ta = ((tb[:, 2] - tb[:, 0]) * (tb[:, 3] - tb[:, 1]))[:, None]
+        da = ((db[:, 2] - db[:, 0]) * (db[:, 3] - db[:, 1]))[None, :]
+        ratio = da / np.maximum(ta, 1.0)
+        cost = np.where((ratio > 0.45) & (ratio < 2.2), dist, 1e6)
+        return _assign(cost, max_dist)
+
+    def update(
+        self, detections: list[Detection], can_start: Callable[[Detection], bool] | None = None
+    ) -> list[FaceTrack]:
+        """Advance one frame. Returns confirmed tracks visible in this frame.
+
+        ``can_start`` limits which detections may open a NEW track; any
+        detection can still continue an existing one (1/2-face mode lets an
+        unusual-looking profile keep a known face, never start a new one)."""
         self.frame_id += 1
         high = [d for d in detections if d.score >= self.cfg.high_threshold]
         low = [d for d in detections if self.low_threshold <= d.score < self.cfg.high_threshold]
@@ -240,20 +270,37 @@ class ByteTracker:
         unconfirmed = [t for t in self.tracked if not t.activated]
         pool = confirmed + self.lost
 
-        # Stage 1: high-score detections vs every confirmed / lost track.
+        # Stage 1: high-score detections vs every confirmed / lost track. Overlap
+        # gates the match; confidence only breaks ties, so side / tilted faces
+        # with modest scores keep their track instead of spawning a new one.
         ious = iou_matrix(self._boxes(pool), self._det_boxes(high))
         scores = np.array([d.score for d in high], dtype=np.float32)
-        cost = 1.0 - ious * scores[None, :] if len(high) else 1.0 - ious  # ByteTrack score fusion
-        matches, u_pool, u_high = _assign(cost, 1.0 - self.cfg.match_iou)
+        cost = 1.0 - ious * (0.5 + 0.5 * scores[None, :]) if len(high) else 1.0 - ious
+        cost = np.where(ious >= self.cfg.match_iou, cost, 1e6)
+        matches, u_pool, u_high = _assign(cost, 1.0)
         for ti, di in matches:
             self._update(pool[ti], high[di])
+        # Stage 1b: fast motion - remaining tracks vs remaining detections by distance.
+        rest_t = [pool[i] for i in u_pool]
+        rest_d = [high[i] for i in u_high]
+        mm, u_t, u_d = self._motion_match(rest_t, rest_d)
+        for ti, di in mm:
+            self._update(rest_t[ti], rest_d[di])
+        u_pool = [u_pool[i] for i in u_t]
+        u_high = [u_high[i] for i in u_d]
 
         # Stage 2: low-score detections vs still-unmatched *tracked* tracks.
         remain = [pool[i] for i in u_pool if pool[i].state == TrackState.TRACKED]
         ious = iou_matrix(self._boxes(remain), self._det_boxes(low))
-        matches, u_remain, _ = _assign(1.0 - ious, 1.0 - self.cfg.low_match_iou)
+        matches, u_remain, u_low = _assign(1.0 - ious, 1.0 - self.cfg.low_match_iou)
         for ti, di in matches:
             self._update(remain[ti], low[di])
+        rest_t = [remain[i] for i in u_remain]
+        rest_d = [low[i] for i in u_low]
+        mm, u_t, _ = self._motion_match(rest_t, rest_d, max_dist=0.6)  # stricter for weak detections
+        for ti, di in mm:
+            self._update(rest_t[ti], rest_d[di])
+        u_remain = [u_remain[i] for i in u_t]
         for i in u_remain:
             remain[i].state = TrackState.LOST
 
@@ -268,7 +315,8 @@ class ByteTracker:
 
         # Stage 4: spawn new tracks.
         new_tracks = [
-            self._activate(left_high[i]) for i in u_new if left_high[i].score >= self.cfg.new_track_threshold
+            self._activate(left_high[i]) for i in u_new
+            if left_high[i].score >= self.cfg.new_track_threshold and (can_start is None or can_start(left_high[i]))
         ]
 
         everyone = pool + unconfirmed + new_tracks

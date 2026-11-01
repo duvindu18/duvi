@@ -63,8 +63,7 @@ class ExportPage(QWidget):
         root.addWidget(
             label(
                 "Every frame is analysed, none are dropped. Watch the result as it is written and adjust the "
-                "blur on the right; changes apply to the running export at once. Manual blur fixes made on the "
-                "Live page are applied to that video.",
+                "blur on the right; changes apply to the running export at once.",
                 "dim",
                 wrap=True,
             )
@@ -233,9 +232,7 @@ class ExportPage(QWidget):
 
     def _render_item(self, item: QListWidgetItem, extra: str = "") -> None:
         d = item.data(Qt.ItemDataRole.UserRole)
-        fixes = self.ctx.fix_count(d["path"])
-        name = Path(d["path"]).name + (f"  ·  {fixes} manual fix{'es' if fixes != 1 else ''}" if fixes else "")
-        text = f"{name}\n{d['status']}{('  ·  ' + extra) if extra else ''}"
+        text = f"{Path(d['path']).name}\n{d['status']}{('  ·  ' + extra) if extra else ''}"
         item.setText(text)
         item.setToolTip(d["output"] or d["path"])
 
@@ -322,8 +319,7 @@ class ExportPage(QWidget):
         self.view.headline = "Starting…"
         self.view.subline = src.name
         self.ctrl.start(
-            self.ctx.cfg.snapshot(), SourceSpec(SourceKind.FILE, str(src)), realtime=False, output_path=str(out),
-            edits=self.ctx.edits(str(src)),
+            self.ctx.cfg.snapshot(), SourceSpec(SourceKind.FILE, str(src)), realtime=False, output_path=str(out)
         )
         self._update_buttons()
 

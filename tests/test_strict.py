@@ -58,3 +58,44 @@ def test_tracked_face_survives_a_confidence_dip():
     dipping = _track(1, 0.33, 0.8, 20)  # turned away / motion blur
     kept, _ = Pipeline._strongest([dipping], [], 1, 0.5)
     assert kept == [dipping]
+
+
+def _t(tid, ema, hits, x=0.0):
+    from app.core.tracker import FaceTrack, KalmanFilter, _tlbr_to_xyah
+    mean, cov = KalmanFilter().initiate(_tlbr_to_xyah(np.array([x, 0, x + 50, 50], np.float32)))
+    t = FaceTrack(tid, mean, cov, ema, 0, 0)
+    t.score_ema = t.peak_ema = ema
+    t.hits = hits
+    t.last_bbox = np.array([x, 0, x + 50, 50], np.float32)
+    t.last_geom = np.array([x + 25, 25, 50, 50, 0], np.float32)
+    t.detection = type("D", (), {"bbox": t.last_bbox})()
+    return t
+
+
+def test_slots_are_sticky():
+    sel: set[int] = set()
+    a, b = _t(1, 0.62, 10), _t(2, 0.70, 3, x=200)
+    keep, _ = Pipeline._strongest([a], [], 1, 0.5, sel)
+    assert [t.track_id for t in keep] == [1]
+    keep, _ = Pipeline._strongest([a, b], [], 1, 0.5, sel)  # slightly stronger newcomer
+    assert [t.track_id for t in keep] == [1]
+
+
+def test_clearly_stronger_face_displaces_a_weak_holder():
+    sel: set[int] = set()
+    fp = _t(1, 0.55, 3)
+    Pipeline._strongest([fp], [], 1, 0.5, sel)
+    face = _t(2, 0.85, 6, x=200)
+    keep, _ = Pipeline._strongest([fp, face], [], 1, 0.5, sel)
+    assert [t.track_id for t in keep] == [2]
+
+
+def test_reacquired_face_inherits_the_slot():
+    sel: set[int] = set()
+    a = _t(1, 0.8, 10)
+    Pipeline._strongest([a], [], 1, 0.5, sel)
+    a.detection = None  # lost this frame, still held
+    other = _t(3, 0.9, 10, x=300)
+    again = _t(2, 0.6, 1)  # same place, new id
+    keep, lingering = Pipeline._strongest([again, other], [a], 1, 0.5, sel)
+    assert [t.track_id for t in keep] == [2] and sel == {2}

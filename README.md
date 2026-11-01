@@ -89,7 +89,6 @@ artifact.
 | `installer/provision.py` | runs during setup: VC++ runtime, offline/online packages, models, verification, PATH |
 | `installer/requirements/*.txt` | pinned package sets per component |
 | `installer/build_installer.py` | stages everything and runs `makensis` |
-| `installer/dark.nsh` | dark wizard theme matching the app (window, pages, buttons, lists, progress) |
 | `installer/sign.py` | Authenticode signing hook (see below) |
 
 ### Code signing (removes the "Windows protected your PC" prompt)
@@ -133,28 +132,6 @@ Video files play in a full media player:
 | `←` / `→` | −5 s / +5 s |
 | `,` / `.` | previous / next frame |
 | `M` | mute |
-| `E` | fix blur by hand (edit mode) |
-| `Ctrl+Z` | undo the last blur fix |
-
-### Fixing the blur by hand
-
-If a blur appears where there is no face, or a face is missed or covered
-badly, pause on that frame and press the **pencil** button (`E`):
-
-* **click a blur** to remove it – the spot stays clear while it is tracked,
-  including flickering re-detections nearby; click a removed box to bring it back;
-* **drag a blur** to move it, **drag a corner** to resize it;
-* **drag on the video** to add a blur – it keeps following that face
-  (it locks onto the detector when it sees the face, and follows the picture
-  when it does not);
-* **undo** (`Ctrl+Z`) and **clear** sit in the floating edit bar.
-
-Fixes are saved per video file and are applied to the preview, to
-recordings and to every export of that file.
-| `Esc` | stop |
-| `Ctrl+S` / `Ctrl+R` | snapshot / record |
-
-**Smooth preview** (default) shows *every* frame at the source frame rate. Detection runs alongside as fast as the GPU allows, and each face is drawn at its predicted position between detections. After a start or a seek, the first frame waits for detection, so no face is shown before it is known. **Exact** mode (Settings → General) detects every displayed frame. Exports always process every frame exactly.
 
 ### Phone camera over Wi-Fi
 
@@ -214,8 +191,7 @@ app/
 │   ├── engine.py           SCRFD+ArcFace and YuNet+SFace backends; device fallback / OOM recovery
 │   ├── scrfd_arcface.py    native SCRFD / ArcFace inference on ONNX Runtime (no insightface package)
 │   ├── angles.py           rotated detection passes, angle scheduler, merge (tilted/sideways faces)
-│   ├── tracker.py          ByteTrack (Kalman + two-stage IoU association)
-│   ├── edits.py            manual blur fixes: remove / restore / add-and-track, per-video storage
+│   ├── tracker.py          ByteTrack (Kalman, IoU + motion-distance association, low-score recovery)
 │   ├── face_db.py          identity folder, embedding cache, cosine matching
 │   ├── anonymizer.py       policy decision + Gaussian / pixelate / box / mask rendering
 │   ├── sources.py          webcam / RTSP / file capture worker, reconnects, corrupt-frame skipping
@@ -226,10 +202,9 @@ app/
 │   ├── widgets.py          cards, pills, circle buttons, sliders, video view, timeline, flow layout
 │   ├── icons.py            QPainter vector icons + app icon
 │   ├── bridge.py           PipelineController + overlay painter
-│   ├── editor.py           on-video blur editor (click / drag / resize / draw) + edit bar
 │   ├── panels.py           anonymization panel shared by Live and Export
 │   ├── sounds.py           synthesised interface sounds (QSoundEffect)
-│   ├── context.py          shared config, manual fixes, sounds, debounced saving
+│   ├── context.py          shared config, sounds, debounced saving
 │   ├── tasks.py            QThreadPool helper for blocking jobs
 │   ├── winstyle.py         Windows 11 DWM dark title bar, taskbar identity
 │   ├── main_window.py
@@ -418,11 +393,10 @@ python main.py                    # GUI, if the venv is active and PATH is alrea
    save and writes an anonymized copy (every frame analysed, audio kept). The
    header pill shows progress and time left; click it when done to open the
    folder.
-   Pause and press the pencil (`E`) to fix any blur by hand.
 2. **Export** (`Ctrl+2`): queue several files (or drag and drop them) and
    press ▶. The preview shows the anonymized frames as they are written;
    pause, resume or cancel below it, and adjust the blur in the panel on the
-   right while it runs. Manual blur fixes of each file are applied.
+   right while it runs.
    Overlays are never burned in.
 3. **Settings** (`Ctrl+3`): backend, accelerator, VRAM cap, detector size,
    face angles, face certainty for 1/2-face mode, tracking, sound effects
@@ -496,6 +470,16 @@ false positive only blurs a patch of background.
   - **Duplicate regions** of one face are drawn once.
   - **Briefly lost faces** keep their last size and only move with their motion.
   - **One-frame false positives** are not held on screen.
+* **Stable tracking.** Faces are associated by overlap, with confidence only
+  breaking ties, so side and tilted faces (lower scores) keep their track. When
+  boxes stop overlapping (fast motion, a detection skipped by the preview), a
+  size-checked distance match keeps the same face. In 1/2-face mode the chosen
+  faces hold their slots: an unusual-looking detection may continue a known
+  face but never start a new one, a re-found face inherits its slot, and only
+  a clearly stronger, established face can take a slot over. On a stress clip
+  built from real photos (±70° tilt, fast sway with jumps, zoom, motion blur),
+  coverage went from 87.8 % to 99.3 % of face-frames and identity switches
+  from 39 to 9.
 
 
 | Knob | Where | Effect |
@@ -503,8 +487,6 @@ false positive only blurs a patch of background.
 | Accelerator → TensorRT + FP16 | Settings | fastest on RTX (≈2× CUDA) |
 | Model pack `buffalo_s` | Settings | ~3× faster than `buffalo_l`, slightly less accurate |
 | Detector input 320/640 | Settings | big speed-up; misses very small / distant faces |
-| Max faces per frame | Settings → Recognition | caps recognition cost in crowds |
-| Retry / re-verify intervals | Settings → Recognition | fewer embeddings per second |
 | VRAM limit | Settings | leave memory for games/other apps; OOM still falls back gracefully |
 
 Throughput depends heavily on GPU, resolution and face count. Check the

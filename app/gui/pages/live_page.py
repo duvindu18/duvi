@@ -24,7 +24,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.core.edits import ADD, REMOVE, RESTORE, FaceEdit, normalize_box
 from app.core.pipeline import PipelineStats
 from app.core.sources import SourceInfo, SourceKind, SourceSpec, VIDEO_EXTENSIONS, probe_webcams
 from app.core import mediamtx
@@ -32,7 +31,6 @@ from app.gui.bridge import PipelineController, RunState
 from app.gui.pages.phone import PhoneDialog, PhoneReceiver
 from app.gui.pages.phone import describe as phone_describe
 from app.gui.context import AppContext
-from app.gui.editor import BlurEditor, EditToolbar
 from app.gui.panels import AnonymizationCard, policy_text
 from app.gui.icons import make_icon
 from app.gui.tasks import run_task
@@ -76,8 +74,6 @@ class VideoStage(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.view = VideoView(self)
-        self.editor = BlurEditor(self)
-        self.editor.hide()
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self.top_left = QWidget(self)
@@ -103,14 +99,10 @@ class VideoStage(QWidget):
         self.metrics = label("–", "dim")
         cap.addWidget(self.metrics)
 
-        for w in (self.top_left, self.caption):
-            w.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.edit_bar = EditToolbar(self)
-        self.edit_bar.hide()
 
         self.bar = PlayerBar(self)
         b = self.bar
-        self.snapshot_btn, self.record_btn, self.edit_btn = b.snapshot_btn, b.record_btn, b.edit_btn
+        self.snapshot_btn, self.record_btn = b.snapshot_btn, b.record_btn
         self.play_btn, self.stop_btn = b.play_btn, b.stop_btn
 
     def resizeEvent(self, e) -> None:  # noqa: N802
@@ -121,11 +113,9 @@ class VideoStage(QWidget):
         """Position the floating overlays (also after chip / caption changes)."""
         w, h, m = self.width(), self.height(), self.MARGIN
         self.view.setGeometry(0, 0, w, h)
-        self.editor.setGeometry(0, 0, w, h)
         self.top_left.adjustSize()
         self.top_left.move(m, m)
-        self.edit_bar.adjustSize()
-        self.edit_bar.move(max(m, w - m - self.edit_bar.width()), m)
+
         bar_h = self.bar.sizeHint().height()
         self.bar.setGeometry(m, h - bar_h - m, w - 2 * m, bar_h)
         self.caption.setFixedWidth(max(200, min(620, w - 2 * m)))
@@ -287,16 +277,6 @@ class LivePage(QWidget):
         st.stop_btn.clicked.connect(self._stop)
         st.record_btn.toggled.connect(self._on_record)
         st.snapshot_btn.clicked.connect(self._on_snapshot)
-        st.edit_btn.toggled.connect(self._set_edit_mode)
-        st.editor.addBox.connect(lambda b: self._add_edits([(ADD, b)]))
-        st.editor.removeBox.connect(lambda b: self._add_edits([(REMOVE, b)]))
-        st.editor.restoreBox.connect(lambda b: self._add_edits([(RESTORE, b)]))
-        st.editor.adjustBox.connect(lambda old, new: self._add_edits([(REMOVE, old), (ADD, new)]))
-        st.edit_bar.undo_btn.clicked.connect(self.undo_edit)
-        st.edit_bar.clear_btn.clicked.connect(self._clear_edits)
-        st.edit_bar.done_btn.clicked.connect(lambda: st.edit_btn.setChecked(False))
-        self._edit_key = ""
-        self.ctx.editsChanged.connect(self._on_edits_changed)
         st.view.resized.connect(lambda size: self.ctrl.set_target_size(size, st.view.devicePixelRatioF()))
         bar = st.bar
         self._pos_ms = 0.0
@@ -323,8 +303,6 @@ class LivePage(QWidget):
             ("Left", lambda: self.skip(-5_000)), ("Right", lambda: self.skip(5_000)),
             (",", lambda: self.step(-1)), (".", lambda: self.step(1)),
             ("M", lambda: bar.mute_btn.toggle()),
-            ("E", lambda: st.edit_btn.toggle()),
-            ("Ctrl+Z", lambda: self.undo_edit()),
         ):
             QShortcut(QKeySequence(keys), self, activated=fn, context=Qt.ShortcutContext.WidgetWithChildrenShortcut)
         self.ctrl.frameReady.connect(self._on_frame)
@@ -555,7 +533,6 @@ class LivePage(QWidget):
         self.ctx.cfg.last_source_kind = PHONE if self.source_pills.value() == PHONE else spec.kind.value
         self.ctx.cfg.last_source_value = spec.value
         self.ctx.commit()
-        self._edit_key = spec.value if spec.kind == SourceKind.FILE else f"{spec.kind.value}:{spec.value}"
         self._source = spec
         self._paused = False
         self._started_at = time.monotonic()
@@ -564,7 +541,7 @@ class LivePage(QWidget):
         self.stage.view.subline = spec.label()
         self.stage.view.clear()
         self.ctrl.set_target_size(self.stage.view.target_size(), self.stage.view.devicePixelRatioF())
-        self.ctrl.start(self.ctx.cfg.snapshot(), spec, realtime=True, edits=self.ctx.edits(self._edit_key))
+        self.ctrl.start(self.ctx.cfg.snapshot(), spec, realtime=True)
         self.ctx.sounds.play("start")
 
     def _stop(self) -> None:
@@ -609,60 +586,6 @@ class LivePage(QWidget):
         img = self.ctrl.take_frame()
         if img is not None:
             self.stage.view.set_image(img)
-            if self.stage.editor.isVisible():
-                pkt = self.ctrl.last_processed()
-                if pkt is not None:
-                    self.stage.editor.set_frame(pkt.frame.shape[1], pkt.frame.shape[0], pkt.faces)
-
-    # ---- manual blur fixes ----------------------------------------------------
-    def _set_edit_mode(self, on: bool) -> None:
-        st = self.stage
-        if on and self.ctrl.state != RunState.RUNNING:
-            st.edit_btn.blockSignals(True)
-            st.edit_btn.setChecked(False)
-            st.edit_btn.blockSignals(False)
-            self.ctx.notify.emit("Play the video, then pause where a blur is wrong and fix it here.", "info")
-            return
-        if on and self.ctrl.seekable and not self._paused:
-            self._on_play()  # pause so the frame holds still
-        st.editor.setVisible(on)
-        st.edit_bar.setVisible(on)
-        st.edit_bar.set_count(self.ctx.fix_count(self._edit_key))
-        if on:
-            st.editor.raise_()
-            for w in (st.top_left, st.caption, st.edit_bar, st.bar):
-                w.raise_()
-            pkt = self.ctrl.last_processed()
-            if pkt is not None:
-                st.editor.set_frame(pkt.frame.shape[1], pkt.frame.shape[0], pkt.faces)
-            st.editor.setFocus()
-        st.relayout()
-
-    def _add_edits(self, items) -> None:
-        pkt = self.ctrl.last_processed()
-        if pkt is None or not self._edit_key:
-            return
-        h, w = pkt.frame.shape[:2]
-        edits = [FaceEdit(kind, pkt.pts_ms, normalize_box(box, w, h)) for kind, box in items]
-        self.ctx.add_edits(self._edit_key, edits)
-        self.ctx.sounds.play("tap")
-
-    def undo_edit(self) -> None:
-        if self._edit_key and self.ctx.undo_edit(self._edit_key):
-            self.ctx.sounds.play("tap")
-
-    def _clear_edits(self) -> None:
-        n = self.ctx.clear_edits(self._edit_key)
-        if n:
-            self.ctx.notify.emit("All manual blur fixes for this video were removed.", "info")
-
-    def _on_edits_changed(self, source: str) -> None:
-        if source != self._edit_key:
-            return
-        self.stage.edit_bar.set_count(self.ctx.fix_count(source))
-        self.stage.relayout()
-        if self.ctrl.state == RunState.RUNNING:
-            self.ctrl.set_edits(self.ctx.edits(source))
 
     # ---- player ------------------------------------------------------------
     def skip(self, delta_ms: float) -> None:
@@ -774,11 +697,9 @@ class LivePage(QWidget):
             st.bar.set_media_mode(False)
             self._set_state_chip("Ready", P.text_faint)
             self._lock_inputs(False)
-            st.edit_btn.setChecked(False)
         live = state == RunState.RUNNING.value
         st.record_btn.setEnabled(live)
         st.snapshot_btn.setEnabled(live)
-        st.edit_btn.setEnabled(live)
         st.relayout()
 
     def _lock_inputs(self, locked: bool) -> None:

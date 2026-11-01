@@ -142,28 +142,8 @@ def stage_mediamtx(cache: Path, dest: Path) -> None:
                 shutil.copyfileobj(src, out)
 
 
-def write_notice_rtf(src: Path, dst: Path) -> None:
-    """Licence page text as RTF with light text, readable on the dark page."""
-    out = []
-    for ch in src.read_text(encoding="utf-8"):
-        if ch in "\\{}":
-            out.append("\\" + ch)
-        elif ch == "\n":
-            out.append("\\par\n")
-        elif ord(ch) > 127:
-            n = ord(ch) if ord(ch) < 32768 else ord(ch) - 65536
-            out.append(f"\\u{n}?")
-        else:
-            out.append(ch)
-    dst.write_text(
-        "{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Segoe UI;}}{\\colortbl;\\red244\\green244\\blue245;}"
-        "\\f0\\fs18\\cf1 " + "".join(out) + "}",
-        encoding="ascii",
-    )
-
-
 def render_artwork(stage: Path) -> None:
-    """App icon and installer bitmaps in the Noir theme (Qt draws, Pillow encodes)."""
+    """App icon and installer bitmaps (Veil branding on the standard wizard) (Qt draws, Pillow encodes)."""
     log("rendering icon and installer artwork")
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     sys.path.insert(0, str(REPO))
@@ -225,7 +205,8 @@ def render_artwork(stage: Path) -> None:
                        "PROTECT EVERY FACE")
             p.fillRect(QRectF(w / 2 - 12, 290, 24, 3), QColor("#E4F17A"))
         else:
-            draw_logo(p, QRectF(w - 50, 10, 38, 38), QColor("#E4F17A"))
+            p.fillRect(QRectF(0, 0, w, h), QColor("white"))  # sits on the standard white header
+            draw_logo(p, QRectF(w - 50, 10, 38, 38), QColor("#0B0B0C"))
         p.end()
         qimage_to_pil(img).convert("RGB").save(stage / name, format="BMP")
 
@@ -263,7 +244,6 @@ def main() -> None:
     shutil.copytree(HERE / "requirements", payload / "requirements")
     shutil.copy2(HERE / "provision.py", payload / "provision.py")
     shutil.copy2(HERE / "NOTICE.txt", stage / "NOTICE.txt")
-    write_notice_rtf(HERE / "NOTICE.txt", stage / "NOTICE.rtf")
     shutil.copy2(HERE / "NOTICE.txt", payload / "NOTICE.txt")
     write_cli(payload)
     render_artwork(stage)

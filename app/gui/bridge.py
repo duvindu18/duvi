@@ -61,15 +61,11 @@ class OverlayPainter:
         for face in pkt.faces:
             x1, y1, x2, y2 = (float(v) * scale for v in face.bbox)
             color = QColor(ROLE_COLORS.get(face.role, "#FFFFFF"))
-            if face.suppressed:
-                color = QColor(P.text_faint)
-            elif face.manual:
-                color = QColor(P.text)
             rect = QRectF(x1, y1, x2 - x1, y2 - y1)
             if self.show_boxes:
                 pen = QPen(color, max(1.5, 2.0 * dpr))
                 pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-                if face.lost or face.role == "pending" or face.suppressed:
+                if face.lost or face.role == "pending":
                     pen.setStyle(Qt.PenStyle.DashLine)
                 p.setPen(pen)
                 p.setBrush(Qt.BrushStyle.NoBrush)
@@ -85,12 +81,7 @@ class OverlayPainter:
                 else:
                     self._corners(p, rect, min(rect.width(), rect.height()) * 0.22)
             if self.show_labels:
-                if face.suppressed:
-                    text = "BLUR OFF"
-                elif face.manual:
-                    text = "MANUAL"
-                else:
-                    text = f"FACE {face.track_id}" + ("  ·  LOST" if face.lost else "")
+                text = f"FACE {face.track_id}" + ("  ·  LOST" if face.lost else "")
                 pad = 7 * dpr
                 tw = fm.horizontalAdvance(text) + pad * 2
                 th = fm.height() + pad
@@ -168,7 +159,7 @@ class PipelineController(QObject):
 
     # ---- control -----------------------------------------------------------
     def start(
-        self, cfg: AppConfig, spec: SourceSpec, realtime: bool = True, output_path: str | None = None, edits=None
+        self, cfg: AppConfig, spec: SourceSpec, realtime: bool = True, output_path: str | None = None
     ) -> bool:
         if self._state != RunState.IDLE:
             return False
@@ -196,7 +187,6 @@ class PipelineController(QObject):
             output_path=output_path,
             renderer=self._render if (self.display or self.preview) else None,
             face_db=self.face_db,
-            edits=edits,
             preview=self.preview,
         )
         self._set_state(RunState.RUNNING)
@@ -223,14 +213,6 @@ class PipelineController(QObject):
         self.overlay.show_labels = cfg.anonymize.show_labels
         if self._pipeline:
             self._pipeline.update_config(cfg)
-
-    def set_edits(self, edits) -> None:
-        if self._pipeline:
-            self._pipeline.set_edits(edits)
-
-    def refresh(self) -> None:
-        if self._pipeline:
-            self._pipeline.refresh()
 
     def start_recording(self, path: str) -> None:
         if self._pipeline:
