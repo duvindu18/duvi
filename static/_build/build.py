@@ -218,7 +218,7 @@ def home():
   <div class="track" data-track>
 
     <div class="panel intro" data-snap>
-      <p class="label" data-animate="fade" style="--d:.6s">[ Selected works 2020 — 2026 ]</p>
+      <p class="label kicker" data-animate="fade" style="--d:.6s">Selected works 2020 — 2026</p>
       <h1 class="display">{reveal(["Rooms shaped", "by <em>mass,</em> light", "&amp; slow time."], 0.15)}</h1>
       <div class="intro__facts" data-animate style="--d:.7s">
         <p>{SITE['description']}</p>
@@ -252,7 +252,7 @@ def home():
     </div>
 
     <div class="panel end" data-snap>
-      <p class="label">[ Continue ]</p>
+      <p class="label kicker">Continue</p>
       <a class="serif" href="archive.html" data-cursor="Open index">The full<br><em>index</em><span class="arrow">→</span></a>
       <p class="tiny muted">Every built work, competition and study since {SITE['founded']}, with drawings and material notes.</p>
     </div>
@@ -295,7 +295,7 @@ def archive():
 <div class="container">
   <header class="archive-head">
     <div>
-      <p class="label">[ Index of works ]</p>
+      <p class="label kicker">Index of works</p>
       <h1 class="display">{reveal(["Index"], 0.4)}</h1>
     </div>
     <div class="archive-head__aside">
@@ -357,7 +357,7 @@ def project(i, p):
         <span class="label tabular">{p['index']} / {len(PROJECTS):02d}</span>
       </div>
       <div>
-        <p class="label label--wide">[ {p['title']} ]</p>
+        <p class="label kicker label--wide">{p['title']}</p>
         <h1 class="display mono__title">{reveal(lines, 0.45)}</h1>
         <p class="mono__lead" data-animate style="--d:.8s">{p['lead']}</p>
       </div>
@@ -371,10 +371,10 @@ def project(i, p):
   </div>
 
   <section class="spread" aria-label="Project text">
-    <div class="spread__meta"><p class="label">[ Monograph ]</p><p class="label">pp. {int(p['index']) * 12} — {int(p['index']) * 12 + 1}</p></div>
+    <div class="spread__meta"><p class="label kicker">Monograph</p><p class="label">pp. {int(p['index']) * 12} — {int(p['index']) * 12 + 1}</p></div>
     <div class="spread__book" data-animate>
       <div class="spread__page">
-        <p class="spread__kicker">[ {p['title']} ]</p>
+        <p class="spread__kicker">{p['title']}</p>
         <div class="spread__inset">{frame(root, inset[0], inset[1], inset[2], alt=inset[3])}</div>
         <hr>
         <div class="spread__text">{paras}</div>
@@ -408,7 +408,7 @@ def studio():
 <div class="container">
   <header class="studio-head">
     <div>
-      <p class="label">[ The studio ]</p>
+      <p class="label kicker">The studio</p>
       <h1 class="display">{reveal(["A small office for", "buildings that <em>take</em>", "their time."], 0.4)}</h1>
     </div>
     <div class="studio-head__text" data-animate style="--d:.7s">
@@ -447,7 +447,7 @@ def contact():
     body = f"""
 <div class="container contact">
   <div>
-    <p class="label">[ Contact ]</p>
+    <p class="label kicker">Contact</p>
     <h1 class="display">{reveal(["Begin with", "<em>a conversation.</em>"], 0.4)}</h1>
   </div>
   <div class="contact__grid" data-animate style="--d:.7s">
@@ -470,7 +470,7 @@ def contact():
 def not_found():
     body = """
 <div class="container notfound">
-  <p class="label">[ 404 ]</p>
+  <p class="label kicker">404</p>
   <h1 class="display">This room <em>was never built.</em></h1>
   <a class="hairline-link small" href="/archive.html">Return to the index →</a>
 </div>"""
