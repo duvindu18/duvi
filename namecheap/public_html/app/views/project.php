@@ -7,9 +7,11 @@
 defined('MORFIS') || exit;
 $words = preg_split('/\s+/u', trim($p['title'])) ?: [$p['title']];
 $titleLines = array_map(function ($chunk) { return implode(' ', $chunk); }, array_chunk($words, 2));
+$showClient = !empty($c['site']['show_client']);
+$showMaterials = !empty($c['site']['show_materials']);
 $specs = array_filter([
     'Year' => $p['year'], 'Location' => trim($p['city'] . ', ' . $p['country'], ', '), 'Typology' => $p['typology'],
-    'Status' => $p['status'], 'Area' => $p['area'], 'Client' => $p['client'],
+    'Status' => $p['status'], 'Area' => $p['area'], 'Client' => $showClient ? $p['client'] : '',
 ], function ($v) { return (string) $v !== ''; });
 $figs = $p['figures'];
 $inset = $figs[1] ?? ($figs[0] ?? null);
@@ -31,7 +33,7 @@ $nextFig = $next ? cover($next) : null;
       </div>
       <div data-animate style="--d:.9s">
         <dl class="specs"><?php foreach ($specs as $k => $v): ?><div><dt class="label"><?= e($k) ?></dt><dd><?= e($v) ?></dd></div><?php endforeach; ?></dl>
-        <?php if ($p['materials']): ?>
+        <?php if ($showMaterials && $p['materials']): ?>
         <div class="materials"><p class="label">Materials</p><ul><?php foreach ($p['materials'] as $m): ?><li><span class="swatch" style="background:<?= is_hex_color($m['swatch'] ?? '') ? e($m['swatch']) : '#cccccc' ?>"></span><span><?= e($m['name']) ?></span><span class="note"><?= e($m['note']) ?></span></li><?php endforeach; ?></ul></div>
         <?php endif; ?>
       </div>

@@ -35,6 +35,9 @@ function normalize_content(array $c): array
         'name' => 'Studio Morfis', 'tagline' => '', 'description' => '', 'descriptor' => 'Architecture Office',
         'founded' => '', 'email' => '', 'phone' => '', 'logo' => ['src' => 'images/logo.png', 'w' => 1546, 'h' => 503],
         'social' => [],
+        // Optional project facts. Off for a visualization studio; switch on in
+        // Admin > Site & home for an architectural practice.
+        'show_client' => false, 'show_materials' => false,
     ];
     $c['home'] += [
         'kicker' => '', 'headline' => [], 'practice' => '', 'chapter_word' => 'Works', 'chapter_number' => '',

@@ -331,12 +331,9 @@ def project(i, p):
     words = p["title"].split()
     lines = [" ".join(words[j:j + 2]) for j in range(0, len(words), 2)]
     specs = [("Year", p["year"]), ("Location", f"{p['city']}, {p['country']}"), ("Typology", p["typology"]),
-             ("Status", p["status"]), ("Area", p["area"]), ("Client", p["client"])]
+             ("Status", p["status"]), ("Area", p["area"])]
     spec_html = "".join(f'<div><dt class="label">{k}</dt><dd>{v}</dd></div>' for k, v in specs)
-    mats = "".join(
-        f'<li><span class="swatch" style="background:{s}"></span><span>{n}</span><span class="note">{note}</span></li>'
-        for n, note, s in p["materials"]
-    )
+    # Client and materials stay in content.py but are not shown (visualization studio).
     plates = ""
     for n, (f, w, h, cap) in enumerate(p["figures"]):
         plates += f"""
@@ -363,7 +360,6 @@ def project(i, p):
       </div>
       <div data-animate style="--d:.9s">
         <dl class="specs">{spec_html}</dl>
-        <div class="materials"><p class="label">Materials</p><ul>{mats}</ul></div>
       </div>
     </header>
     <div class="mono__plates">{plates}

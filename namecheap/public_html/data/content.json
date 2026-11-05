@@ -28,7 +28,9 @@
         "short": "AR",
         "url": "https://are.na"
       }
-    ]
+    ],
+    "show_client": false,
+    "show_materials": false
   },
   "home": {
     "kicker": "Selected works 2020 — 2026",

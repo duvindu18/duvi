@@ -41,6 +41,8 @@ if (admin_post_guard()) {
         }
     }
     $site['social'] = $social;
+    $site['show_client'] = !empty($_POST['show_client']);
+    $site['show_materials'] = !empty($_POST['show_materials']);
 
     $logoFiles = files_list('logo_new');
     if ($logoFiles) {
@@ -106,6 +108,13 @@ admin_head('Site & home', 'site'); ?>
         <?= f_text('email', 'Email', $site['email'], '', ['type' => 'email']) ?>
         <?= f_text('phone', 'Phone', $site['phone']) ?>
       </div>
+    </section>
+
+    <section class="card">
+      <h2>Project pages</h2>
+      <p class="hint">Choose which optional facts appear on project pages. The information stays saved in each project either way, so you can switch it back on at any time.</p>
+      <label class="switch"><input type="checkbox" name="show_client" value="1"<?= !empty($site['show_client']) ? ' checked' : '' ?>><span class="switch__ui" aria-hidden="true"></span><span>Show client</span></label>
+      <label class="switch"><input type="checkbox" name="show_materials" value="1"<?= !empty($site['show_materials']) ? ' checked' : '' ?>><span class="switch__ui" aria-hidden="true"></span><span>Show materials</span></label>
     </section>
 
     <section class="card">

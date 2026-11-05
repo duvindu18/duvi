@@ -124,7 +124,7 @@ admin_head($isNew ? 'New project' : $p['title'], 'projects'); ?>
           <?= f_text('area', 'Area', $p['area'], 'For example: 412 m²') ?>
         </div>
         <div class="row2">
-          <?= f_text('client', 'Client', $p['client']) ?>
+          <?= f_text('client', 'Client', $p['client'], empty($c['site']['show_client']) ? 'Not shown on the website. Turn on under <a href="' . e(url('admin/site.php')) . '">Site &amp; home</a>.' : '') ?>
           <?= f_text('team', 'Team', $p['team'], 'Shown as the credit in the book spread.') ?>
         </div>
       </section>
@@ -140,7 +140,9 @@ admin_head($isNew ? 'New project' : $p['title'], 'projects'); ?>
       </section>
 
       <section class="card">
-        <?= f_repeater('materials', 'Materials', ['name' => ['Material', 'text', 'w-4'], 'note' => ['Note', 'text', 'w-5'], 'swatch' => ['Colour', 'color', 'w-1']], $p['materials'], 'Add material', 'Listed under the project facts, each with a colour dot.') ?>
+        <?= f_repeater('materials', 'Materials', ['name' => ['Material', 'text', 'w-4'], 'note' => ['Note', 'text', 'w-5'], 'swatch' => ['Colour', 'color', 'w-1']], $p['materials'], 'Add material', empty($c['site']['show_materials'])
+            ? 'Not shown on the website at the moment. Turn on under <a href="' . e(url('admin/site.php')) . '">Site &amp; home</a>.'
+            : 'Listed under the project facts, each with a colour dot.') ?>
       </section>
     </div>
 
