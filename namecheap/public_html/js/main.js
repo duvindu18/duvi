@@ -5,7 +5,7 @@
    - "Ready" lifecycle that gates entrance animations
    - Line reveals / fade-ins on scroll (IntersectionObserver)
    - Image fade-in on load, scroll parallax
-   - Light / dark theme switch, mobile menu, cursor label
+   - Light / dark theme switch, live year values, mobile menu, cursor label
    ========================================================================== */
 (function () {
   "use strict";
@@ -192,6 +192,19 @@
     update();
   }
 
+  /* --------------------------------------------------------------------- Years */
+  // Keep "current year" and "years of experience" values up to date in pages
+  // that were generated earlier (e.g. 2020 — 2026, "6 years").
+  function initYears() {
+    var y = new Date().getFullYear();
+    document.querySelectorAll("[data-now-year]").forEach(function (el) { el.textContent = y; });
+    document.querySelectorAll("[data-now-yy]").forEach(function (el) { el.textContent = String(y).slice(-2); });
+    document.querySelectorAll("[data-years-since]").forEach(function (el) {
+      var from = parseInt(el.getAttribute("data-years-since"), 10);
+      if (from) el.textContent = Math.max(1, y - from);
+    });
+  }
+
   /* --------------------------------------------------------------------- Theme */
   // Light / dark switch. With no saved choice the page follows the system
   // (prefers-color-scheme); a click saves an explicit choice in localStorage.
@@ -279,6 +292,7 @@
   function boot() {
     initCurtain();
     initImages();
+    initYears();
     initTheme();
     initMenu();
     initCursor();

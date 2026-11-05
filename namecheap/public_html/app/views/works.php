@@ -16,7 +16,7 @@ $total = pad2(count($projects));
       <h1 class="display"><?= reveal(['Index'], 0.4) ?></h1>
     </div>
     <div class="archive-head__aside">
-      <p><?= e($c['works']['intro']) ?></p>
+      <p><?= txt($c['works']['intro']) ?></p>
       <span class="label tabular" data-count><?= $total ?> / <?= $total ?> entries</span>
     </div>
   </header>
@@ -25,14 +25,14 @@ $total = pad2(count($projects));
     <ul aria-label="Filter by typology"><li><button type="button" class="hairline-link" data-filter="" aria-pressed="true">All</button></li><?php foreach ($typologies as $t): ?><li><button type="button" class="hairline-link" data-filter="<?= e($t) ?>" aria-pressed="false"><?= e($t) ?></button></li><?php endforeach; ?></ul>
     <div class="archive-sort">
       <span class="label">Sort</span>
+      <button type="button" data-sort="title" aria-pressed="false">Name</button>
       <button type="button" data-sort="year" aria-pressed="true">Year</button>
-      <button type="button" data-sort="title" aria-pressed="false">Project</button>
-      <button type="button" data-sort="city" aria-pressed="false">Location</button>
+      <button type="button" data-sort="typology" aria-pressed="false">Project</button>
     </div>
   </div>
 
   <div class="archive-cols grid-12 label">
-    <span>No.</span><span>Project</span><span>Typology</span><span>Location</span><span>Status</span><span>Year</span>
+    <span>No.</span><span>Name</span><span>Project</span><span>Location</span><span>Status</span><span>Year</span>
   </div>
 
   <ul class="rows" data-rows>

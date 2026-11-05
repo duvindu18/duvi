@@ -105,7 +105,7 @@ admin_head('Site & home', 'site'); ?>
       <?= f_text('tagline', 'Tagline', $site['tagline'], 'Shown on the loading screen.') ?>
       <?= f_area('description', 'Short description', $site['description'], 'Shown on the home page and used by search engines.', 2) ?>
       <div class="row3">
-        <?= f_text('founded', 'Founded (year)', $site['founded']) ?>
+        <?= f_text('founded', 'Founded (year)', $site['founded'], 'Years of experience are counted from this year.') ?>
         <?= f_text('email', 'Email', $site['email'], '', ['type' => 'email']) ?>
         <?= f_text('phone', 'Phone', $site['phone']) ?>
       </div>
@@ -131,6 +131,7 @@ admin_head('Site & home', 'site'); ?>
 
     <section class="card">
       <h2>Home page</h2>
+      <p class="hint">You can write <code>{founded}</code>, <code>{year}</code>, <code>{yy}</code> or <code>{experience}</code>: they are filled in automatically and update every year.</p>
       <?= f_text('kicker', 'Small heading', $home['kicker'], 'Above the big headline, and on the loading screen.') ?>
       <?= f_area('headline', 'Headline', implode("\n", $home['headline']), 'One line per row. Wrap words in *asterisks* to set them in the light weight, e.g. <code>by *mass,* light</code>.', 3) ?>
       <div class="row2">

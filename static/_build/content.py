@@ -3,6 +3,9 @@
 Written for a 3D visualization studio. Client and material fields are kept in
 the data (for a later architectural practice) but are not shown on the pages.
 Text in headlines may use *asterisks* to set a word in the light weight.
+Page texts may use {founded}, {year}, {yy} and {experience}: they are filled in
+with the founding year, the current year, its last two digits and the number
+of years since founding, and keep themselves up to date in the browser.
 """
 
 SITE = {
@@ -10,36 +13,36 @@ SITE = {
     "full_name": "Studio Morfis",
     "descriptor": "3D Visualization Studio",
     "tagline": "Architectural images, films &amp; the slow making of light",
-    "description": "Studio Morfis is an independent 3D visualization studio making images, films and walkthroughs of architecture before it is built.",
+    "description": "Studio Morfis is an independent 3D visualization studio founded in 2020, handling local and international projects, from small houses to large infrastructure.",
     "email": "hello@studiomorfis.com",
     "phone": "+45 33 12 40 08",
-    "founded": 2011,
+    "founded": 2020,
     "year": 2026,
     "nav": [("archive.html", "Index", "archive"), ("studio.html", "Studio", "studio"), ("contact.html", "Contact", "contact")],
     "social": [("https://instagram.com", "Instagram", "IG"), ("https://linkedin.com", "LinkedIn", "LI"), ("https://vimeo.com", "Vimeo", "VI")],
 }
 
 HOME = {
-    "kicker": "Selected work 2020 — 2026",
+    "kicker": "Selected work {founded} — {year}",
     "headline": ["Buildings, seen", "*before* they", "are built."],
     "facts_label": "Services",
     "facts": "Stills, film, interactive tours",
     "chapter_word": "Works",
-    "chapter_number": "/26",
-    "chapter_text": "Six commissions across four countries: a house, a pavilion, a chapel, an archive and two places to live, all pictured before the first stone.",
-    "marquee": "Selected work / 2020 — 2026 / Stills / Film / Interactive /",
-    "end_text": "Every commission since 2011, built or still on paper, with notes on light, lens and time of day.",
+    "chapter_number": "/{yy}",
+    "chapter_text": "Six commissions across four countries, from a single house to a city archive, all pictured before the first stone.",
+    "marquee": "Selected work / {founded} — {year} / Local & international / Small houses to large infrastructure /",
+    "end_text": "Every commission since {founded}, local and international, built or still on paper.",
 }
 
 WORKS = {
-    "intro": "A register of every commission, built or still on paper. Hover a title to preview it; select to open the project.",
+    "intro": "Every commission since {founded}, local and international, from small houses to large infrastructure. Hover a title to preview it; select to open the project.",
 }
 
 STUDIO = {
     "headline": ["A small studio for", "buildings that *don't*", "exist yet."],
     "paragraphs": [
-        "Studio Morfis was founded in 2011 by Astrid Morfis. We are fourteen artists working with architects, developers and competition teams on a deliberately small number of commissions at a time.",
-        "We make still images, films and interactive walkthroughs. The tools change; the questions stay the same: where the light comes from, how a material feels, and how a room will be lived in.",
+        "Studio Morfis was founded in {founded}. In {experience} years we have handled local and international projects, from small private houses to large infrastructure, for architects, engineers, developers and public clients.",
+        "We make still images, films and interactive walkthroughs. The tools change; the questions stay the same: where the light comes from, how a material feels, and how a place will be used.",
     ],
     "figures": [
         ("studio-1.jpg", 1600, 2000, "The studio"),

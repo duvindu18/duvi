@@ -16,7 +16,7 @@ $ct = $c['contact'];
       <p class="label">New projects</p>
       <?php if ($site['email'] !== ''): ?><a class="contact__mail hairline-link" href="mailto:<?= e($site['email']) ?>"><?= e($site['email']) ?></a><?php endif; ?>
       <?php if ($site['phone'] !== ''): ?><p class="small" style="margin-top:12px"><?= e($site['phone']) ?></p><?php endif; ?>
-      <?php if ($ct['intro'] !== ''): ?><p class="small muted" style="margin-top:24px;max-width:360px"><?= e($ct['intro']) ?></p><?php endif; ?>
+      <?php if ($ct['intro'] !== ''): ?><p class="small muted" style="margin-top:24px;max-width:360px"><?= txt($ct['intro']) ?></p><?php endif; ?>
     </div>
     <?php foreach ($ct['contacts'] as $x): ?>
     <div><p class="label"><?= e($x['label']) ?></p><p class="serif"><?= e($x['email']) ?></p><?php if ($x['note'] !== ''): ?><p class="small muted" style="margin-top:8px"><?= e($x['note']) ?></p><?php endif; ?></div>

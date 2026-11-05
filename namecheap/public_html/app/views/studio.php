@@ -14,7 +14,7 @@ $fig2 = $s['figures'][1] ?? null;
       <h1 class="display"><?= reveal($s['headline'], 0.4) ?></h1>
     </div>
     <div class="studio-head__text" data-animate style="--d:.7s">
-      <?php foreach ($s['paragraphs'] as $para): ?><p><?= e($para) ?></p><?php endforeach; ?>
+      <?php foreach ($s['paragraphs'] as $para): ?><p><?= txt($para) ?></p><?php endforeach; ?>
     </div>
   </header>
 
@@ -28,10 +28,15 @@ $fig2 = $s['figures'][1] ?? null;
     <div><p class="label">Principles</p><ol class="list"><?php foreach ($s['principles'] as $i => $pr): ?><li class="principle"><span class="label label--ink tabular"><?= pad2($i + 1) ?></span><div><h2><?= e($pr['title']) ?></h2><p><?= e($pr['body']) ?></p></div></li><?php endforeach; ?></ol></div>
   </section>
 
+  <?php
+  $showPeople = !empty($s['show_people']) && $s['people'];
+  $showRecognition = !empty($s['show_recognition']) && $s['recognition'];
+  if ($showPeople || $showRecognition): ?>
   <section class="studio-sec">
-    <div><p class="label">People</p><ul class="list"><?php foreach ($s['people'] as $person): ?><li class="person"><span class="serif"><?= e($person['name']) ?></span><span class="label"><?= e($person['role']) ?></span></li><?php endforeach; ?></ul></div>
-    <div><p class="label">Recognition</p><ul class="list"><?php foreach ($s['recognition'] as $r): ?><li class="award"><span class="tabular"><?= e($r['year']) ?></span><span><?= e($r['award']) ?></span><span><?= e($r['project']) ?></span></li><?php endforeach; ?></ul></div>
+    <?php if ($showPeople): ?><div><p class="label">People</p><ul class="list"><?php foreach ($s['people'] as $person): ?><li class="person"><span class="serif"><?= e($person['name']) ?></span><span class="label"><?= e($person['role']) ?></span></li><?php endforeach; ?></ul></div><?php else: ?><div></div><?php endif; ?>
+    <?php if ($showRecognition): ?><div><p class="label">Recognition</p><ul class="list"><?php foreach ($s['recognition'] as $r): ?><li class="award"><span class="tabular"><?= e($r['year']) ?></span><span><?= e($r['award']) ?></span><span><?= e($r['project']) ?></span></li><?php endforeach; ?></ul></div><?php endif; ?>
   </section>
+  <?php endif; ?>
 
   <?php if ($fig2): ?>
   <figure class="plate" data-inview>

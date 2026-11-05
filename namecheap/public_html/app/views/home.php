@@ -7,19 +7,21 @@
 defined('MORFIS') || exit;
 $site = $c['site'];
 $home = $c['home'];
-$run = $home['marquee'] !== '' ? str_repeat(rtrim($home['marquee']) . ' ', 3) : '';
+$run = $home['marquee'] !== '' ? str_repeat(rtrim(tokens($home['marquee'])) . ' ', 3) : '';
+$experience = years_experience();
 ?>
 <section class="home" aria-label="Selected works">
   <div class="track" data-track>
 
     <div class="panel intro" data-snap>
-      <p class="label" data-animate="fade" style="--d:.6s"><?= e($home['kicker']) ?></p>
+      <p class="label" data-animate="fade" style="--d:.6s"><?= txt($home['kicker']) ?></p>
       <h1 class="display"><?= reveal($home['headline'], 0.15) ?></h1>
       <div class="intro__facts" data-animate style="--d:.7s">
-        <p><?= e($site['description']) ?></p>
+        <p><?= txt($site['description']) ?></p>
         <dl>
           <?php if ($site['founded'] !== ''): ?><dt class="label">Founded</dt><dd><?= e($site['founded']) ?></dd><?php endif; ?>
-          <?php if ($home['practice'] !== ''): ?><dt class="label"><?= e($home['practice_label'] ?: 'Practice') ?></dt><dd><?= e($home['practice']) ?></dd><?php endif; ?>
+          <?php if ($experience): ?><dt class="label">Experience</dt><dd><?= $experience ?> year<?= $experience === 1 ? '' : 's' ?></dd><?php endif; ?>
+          <?php if ($home['practice'] !== ''): ?><dt class="label"><?= e($home['practice_label'] ?: 'Practice') ?></dt><dd><?= txt($home['practice']) ?></dd><?php endif; ?>
         </dl>
       </div>
     </div>
@@ -35,8 +37,8 @@ $run = $home['marquee'] !== '' ? str_repeat(rtrim($home['marquee']) . ' ', 3) : 
       <div class="chapter__body">
         <p class="chapter__big"><?= e($home['chapter_word']) ?></p>
         <div class="chapter__row">
-          <p class="chapter__num"><?= e($home['chapter_number']) ?></p>
-          <p><?= e($home['chapter_text']) ?></p>
+          <p class="chapter__num"><?= txt($home['chapter_number']) ?></p>
+          <p><?= txt($home['chapter_text']) ?></p>
         </div>
       </div>
       <div class="chapter__foot"><span class="label">Chapter 01</span><span class="label"><?= pad2(count($projects)) ?> projects</span></div>
@@ -72,7 +74,7 @@ $run = $home['marquee'] !== '' ? str_repeat(rtrim($home['marquee']) . ' ', 3) : 
     <div class="panel end" data-snap>
       <p class="label">Continue</p>
       <a class="serif" href="<?= e(url('works')) ?>" data-cursor="Open index">The full<br><em>index</em><span class="arrow">→</span></a>
-      <p class="tiny muted"><?= e($home['end_text']) ?></p>
+      <p class="tiny muted"><?= txt($home['end_text']) ?></p>
     </div>
   </div>
 

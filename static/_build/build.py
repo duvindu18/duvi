@@ -12,8 +12,9 @@ re-running this script overwrites it.
 from pathlib import Path
 
 import re
+from datetime import date
 
-from content import CONTACT_PAGE, CONTACTS, HOME, PEOPLE, PRINCIPLES, PROJECTS, RECOGNITION, SITE, STUDIO, WORKS
+from content import CONTACT_PAGE, CONTACTS, HOME, PRINCIPLES, PROJECTS, SITE, STUDIO, WORKS
 
 OUT = Path(__file__).resolve().parent.parent
 FONTS = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=League+Spartan:wght@300;400;500;600;700;800;900&display=swap"
@@ -25,10 +26,26 @@ def wordmark(root="", alt="Studio Morfis."):
     return f'<img class="logo" src="{root}images/logo.png" width="1546" height="503" alt="{alt}">'
 
 
+THIS_YEAR = date.today().year
+
+
+def tok(text):
+    """Fill {founded}, {year}, {yy}, {experience} and escape bare "&".
+
+    The year values are wrapped in spans that js/main.js refreshes in the
+    browser, so the static pages stay current without a rebuild.
+    """
+    founded = int(SITE["founded"])
+    text = re.sub(r"&(?![a-zA-Z]+;|#\d+;)", "&amp;", str(text))
+    return (text.replace("{founded}", str(founded))
+                .replace("{year}", f'<span data-now-year>{THIS_YEAR}</span>')
+                .replace("{yy}", f'<span data-now-yy>{str(THIS_YEAR)[-2:]}</span>')
+                .replace("{experience}", f'<span data-years-since="{founded}">{max(1, THIS_YEAR - founded)}</span>'))
+
+
 def rich(text):
-    """*word* -> light-weight accent; "&" -> "&amp;" (content may already contain entities)."""
-    text = re.sub(r"&(?![a-zA-Z]+;|#\d+;)", "&amp;", text)
-    return re.sub(r"\*(.+?)\*", r"<em>\1</em>", text)
+    """tok() plus *word* -> light-weight accent."""
+    return re.sub(r"\*(.+?)\*", r"<em>\1</em>", tok(text))
 
 
 def reveal(lines, delay=0.0, tag="span"):
@@ -71,7 +88,7 @@ def splash(root):
     return f"""
 <div id="splash" role="status" aria-label="Loading {SITE['full_name']}">
 {bands}  <div class="splash-foot">
-    <div><p class="label">Loading</p><p class="label">{HOME['kicker']}</p></div>
+    <div><p class="label">Loading</p><p class="label">{tok(HOME['kicker'])}</p></div>
     <div class="counter" aria-hidden="true">{digits}<span class="counter-unit">%</span></div>
   </div>
   <div class="splash-resolved">
@@ -107,7 +124,7 @@ def rail(root, current):
   </nav>
   <div>
     <div class="rail__theme"><button class="theme-toggle" type="button" aria-pressed="false" data-theme-toggle><span class="dot" aria-hidden="true"></span><span data-theme-label>Dark mode</span></button></div>
-    <div class="rail__foot"><ul>{social}</ul><span class="label">© {SITE['year']}</span></div>
+    <div class="rail__foot"><ul>{social}</ul><span class="label">© {tok('{year}')}</span></div>
   </div>
 </aside>"""
 
@@ -220,19 +237,20 @@ def home():
         <p class="label">{p['city']}, {p['country']} — {p['typology']}</p>
       </a>"""
 
-    run = (HOME["marquee"].rstrip() + " ") * 3
+    run = (tok(HOME["marquee"]).rstrip() + " ") * 3
     body = f"""
 <section class="home" aria-label="Selected work">
   <div class="track" data-track>
 
     <div class="panel intro" data-snap>
-      <p class="label" data-animate="fade" style="--d:.6s">{HOME['kicker']}</p>
+      <p class="label" data-animate="fade" style="--d:.6s">{tok(HOME['kicker'])}</p>
       <h1 class="display">{reveal(HOME["headline"], 0.15)}</h1>
       <div class="intro__facts" data-animate style="--d:.7s">
         <p>{SITE['description']}</p>
         <dl>
           <dt class="label">Founded</dt><dd>{SITE['founded']}</dd>
-          <dt class="label">{HOME['facts_label']}</dt><dd>{HOME['facts']}</dd>
+          <dt class="label">Experience</dt><dd>{tok('{experience} years')}</dd>
+          <dt class="label">{HOME['facts_label']}</dt><dd>{tok(HOME['facts'])}</dd>
         </dl>
       </div>
     </div>
@@ -246,8 +264,8 @@ def home():
       <div class="chapter__body">
         <p class="chapter__big">{HOME['chapter_word']}</p>
         <div class="chapter__row">
-          <p class="chapter__num">{HOME['chapter_number']}</p>
-          <p>{HOME['chapter_text']}</p>
+          <p class="chapter__num">{tok(HOME['chapter_number'])}</p>
+          <p>{tok(HOME['chapter_text'])}</p>
         </div>
       </div>
       <div class="chapter__foot"><span class="label">Chapter 01</span><span class="label">{len(P):02d} projects</span></div>
@@ -262,7 +280,7 @@ def home():
     <div class="panel end" data-snap>
       <p class="label">Continue</p>
       <a class="serif" href="archive.html" data-cursor="Open index">The full<br><em>index</em><span class="arrow">→</span></a>
-      <p class="tiny muted">{HOME['end_text']}</p>
+      <p class="tiny muted">{tok(HOME['end_text'])}</p>
     </div>
   </div>
 
@@ -307,7 +325,7 @@ def archive():
       <h1 class="display">{reveal(["Index"], 0.4)}</h1>
     </div>
     <div class="archive-head__aside">
-      <p>{WORKS['intro']}</p>
+      <p>{tok(WORKS['intro'])}</p>
       <span class="label tabular" data-count>{len(PROJECTS):02d} / {len(PROJECTS):02d} entries</span>
     </div>
   </header>
@@ -316,14 +334,14 @@ def archive():
     <ul aria-label="Filter by typology">{filters}</ul>
     <div class="archive-sort">
       <span class="label">Sort</span>
+      <button type="button" data-sort="title" aria-pressed="false">Name</button>
       <button type="button" data-sort="year" aria-pressed="true">Year</button>
-      <button type="button" data-sort="title" aria-pressed="false">Project</button>
-      <button type="button" data-sort="city" aria-pressed="false">Location</button>
+      <button type="button" data-sort="typology" aria-pressed="false">Project</button>
     </div>
   </div>
 
   <div class="archive-cols grid-12 label">
-    <span>No.</span><span>Project</span><span>Typology</span><span>Location</span><span>Status</span><span>Year</span>
+    <span>No.</span><span>Name</span><span>Project</span><span>Location</span><span>Status</span><span>Year</span>
   </div>
 
   <ul class="rows" data-rows>{rows}
@@ -406,9 +424,8 @@ def studio():
         f'<li class="principle"><span class="label label--ink tabular">0{i + 1}</span><div><h2>{t}</h2><p>{b}</p></div></li>'
         for i, (t, b) in enumerate(PRINCIPLES)
     )
-    people = "".join(f'<li class="person"><span class="serif">{n}</span><span class="label">{r}</span></li>' for n, r in PEOPLE)
+    # People and Recognition stay in content.py but are not shown for now.
     f1, f2 = STUDIO["figures"]
-    awards = "".join(f'<li class="award"><span class="tabular">{y}</span><span>{a}</span><span>{p}</span></li>' for y, a, p in RECOGNITION)
     body = f"""
 <div class="container">
   <header class="studio-head">
@@ -417,7 +434,7 @@ def studio():
       <h1 class="display">{reveal(STUDIO["headline"], 0.4)}</h1>
     </div>
     <div class="studio-head__text" data-animate style="--d:.7s">
-      {"".join(f"<p>{t}</p>" for t in STUDIO["paragraphs"])}
+      {"".join(f"<p>{tok(t)}</p>" for t in STUDIO["paragraphs"])}
     </div>
   </header>
 
@@ -429,10 +446,6 @@ def studio():
     <div><p class="label">Principles</p><ol class="list">{principles}</ol></div>
   </section>
 
-  <section class="studio-sec">
-    <div><p class="label">People</p><ul class="list">{people}</ul></div>
-    <div><p class="label">Recognition</p><ul class="list">{awards}</ul></div>
-  </section>
 
   <figure class="plate" data-inview>
     <div class="frame" style="aspect-ratio:{f2[1]}/{f2[2]}">{img_tag('', f2[0], f2[1], f2[2], alt=f2[3], parallax=6)}</div>
@@ -459,11 +472,11 @@ def contact():
       <p class="label">New projects</p>
       <a class="contact__mail hairline-link" href="mailto:{SITE['email']}">{SITE['email']}</a>
       <p class="small" style="margin-top:12px">{SITE['phone']}</p>
-      <p class="small muted" style="margin-top:24px;max-width:360px">{CONTACT_PAGE['intro']}</p>
+      <p class="small muted" style="margin-top:24px;max-width:360px">{tok(CONTACT_PAGE['intro'])}</p>
     </div>
     {extra}
     <div class="contact__foot">
-      <p class="label">© {SITE['year']} {SITE['full_name']}</p>
+      <p class="label">© {tok('{year}')} {SITE['full_name']}</p>
       <ul>{social}</ul>
     </div>
   </div>

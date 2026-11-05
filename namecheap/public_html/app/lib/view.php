@@ -71,7 +71,7 @@ function layout(string $body, array $meta): string
     $c = content();
     $site = $c['site'];
     $title = ($meta['title'] ?? '') !== '' ? $meta['title'] . ' — ' . $site['name'] : $site['name'];
-    $description = $meta['description'] ?? $site['description'];
+    $description = tokens($meta['description'] ?? $site['description']);
     $current = $meta['current'] ?? '';
     $scripts = array_merge(['js/main.js'], $meta['scripts'] ?? []);
     $ogImage = $meta['image'] ?? null;
@@ -158,7 +158,7 @@ function splash_html(): string
     return '
 <div id="splash" role="status" aria-label="Loading ' . e($site['name']) . '">
 ' . $bands . '  <div class="splash-foot">
-    <div><p class="label">Loading</p><p class="label">' . e($c['home']['kicker']) . '</p></div>
+    <div><p class="label">Loading</p><p class="label">' . txt($c['home']['kicker']) . '</p></div>
     <div class="counter" aria-hidden="true">' . $digits . '<span class="counter-unit">%</span></div>
   </div>
   <div class="splash-resolved">

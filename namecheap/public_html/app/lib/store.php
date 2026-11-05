@@ -45,7 +45,8 @@ function normalize_content(array $c): array
         'chapter_text' => '', 'marquee' => '', 'end_text' => '',
     ];
     $c['works'] += ['intro' => ''];
-    $c['studio'] += ['headline' => [], 'paragraphs' => [], 'principles' => [], 'people' => [], 'recognition' => [], 'figures' => []];
+    $c['studio'] += ['headline' => [], 'paragraphs' => [], 'principles' => [], 'people' => [], 'recognition' => [], 'figures' => [],
+        'show_people' => false, 'show_recognition' => false];
     $c['contact'] += ['headline' => [], 'intro' => '', 'contacts' => []];
     foreach ($c['projects'] as $i => $p) {
         $c['projects'][$i] = normalize_project(is_array($p) ? $p : []);

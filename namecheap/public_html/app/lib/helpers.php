@@ -15,10 +15,38 @@ function e($value): string
     return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+/** Years since the studio was founded (at least 1), or null if no year is set. */
+function years_experience(): ?int
+{
+    $founded = (int) (content()['site']['founded'] ?? 0);
+    return $founded > 1900 ? max(1, (int) date('Y') - $founded) : null;
+}
+
+/** Fill {founded}, {year}, {yy} and {experience} in page texts. */
+function tokens(string $text): string
+{
+    if (strpos($text, '{') === false) {
+        return $text;
+    }
+    $year = date('Y');
+    return strtr($text, [
+        '{founded}' => (string) (content()['site']['founded'] ?? ''),
+        '{year}' => $year,
+        '{yy}' => substr($year, -2),
+        '{experience}' => (string) (years_experience() ?? ''),
+    ]);
+}
+
+/** Escaped page text with tokens filled in. */
+function txt($text): string
+{
+    return e(tokens((string) $text));
+}
+
 /** Escape, then turn *word* into a light-weight accent (<em>). */
 function rich(string $text): string
 {
-    return preg_replace('/\*(.+?)\*/u', '<em>$1</em>', e($text));
+    return preg_replace('/\*(.+?)\*/u', '<em>$1</em>', txt($text));
 }
 
 /** Two-digit index: 1 -> "01". */
