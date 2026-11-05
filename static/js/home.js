@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Halde — home page: inertia horizontal track
+   Studio Morfis — home page: inertia horizontal track
    Desktop (≥1024px): vertical wheel / trackpad input is mapped to horizontal
    travel, eased with a lerp, and snapped to the nearest [data-snap] panel when
    input settles. Arrow keys / PageUp / PageDown / Space step between panels.
@@ -13,7 +13,7 @@
     if (!track) return;
 
     var desktop = window.matchMedia("(min-width: 1024px)");
-    var reduce = window.Halde && window.Halde.reduceMotion;
+    var reduce = window.Morfis && window.Morfis.reduceMotion;
     var bar = document.querySelector("[data-progress]");
     var cols = document.querySelectorAll(".mosaic__col");
     var panels = document.querySelectorAll(".p-panel");

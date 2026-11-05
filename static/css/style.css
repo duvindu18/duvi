@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Halde — Architecture Office
+   Studio Morfis — Architecture Office
    Ultra-minimalist editorial stylesheet (no framework, no build step)
    ========================================================================== */
 
@@ -83,6 +83,10 @@ address { font-style: normal; }
 .muted { color: var(--muted); }
 .small { font-size: 13px; line-height: 1.65; }
 .tiny { font-size: 12px; line-height: 1.6; }
+
+/* Studio logo (PNG, black on transparent). Inverted on dark grounds. */
+.logo { display: block; width: auto; max-width: none; height: auto; }
+.logo--invert, .band:not(.band--light) .logo { filter: invert(1); }
 
 .wordmark {
   display: inline-flex;
@@ -195,7 +199,8 @@ html[data-splash-seen] #splash { display: none; }
 }
 .band--light { background: var(--canvas); color: var(--charcoal); }
 @keyframes band-in { to { opacity: 1; } }
-.band span { padding: 0 3vw; font-size: clamp(56px, 17vh, 200px); }
+.band span { display: block; padding: 0 3vw; }
+.band .logo { height: clamp(52px, 15vh, 170px); }
 #splash.is-settle .band:nth-child(1) { transform: translateY(-100%); }
 #splash.is-settle .band:nth-child(3) { transform: translateY(100%); }
 
@@ -241,8 +246,8 @@ html[data-splash-seen] #splash { display: none; }
   transition: clip-path 0.9s var(--curtain), opacity 0.4s;
 }
 #splash.is-settle .splash-resolved { opacity: 1; clip-path: inset(0 0 0 0); }
-.splash-resolved .wordmark {
-  font-size: clamp(56px, 11vw, 176px);
+.splash-resolved .logo {
+  width: clamp(240px, 52vw, 820px);
   opacity: 0; transform: translateY(20px);
   transition: all 1s var(--ease) 0.2s;
 }
@@ -251,7 +256,7 @@ html[data-splash-seen] #splash { display: none; }
   text-align: center; line-height: 20px;
   opacity: 0; transition: opacity 0.8s 0.45s;
 }
-#splash.is-settle .splash-resolved .wordmark,
+#splash.is-settle .splash-resolved .logo,
 #splash.is-settle .splash-resolved p { opacity: 1; transform: none; }
 
 @media (min-width: 768px) {
@@ -281,7 +286,7 @@ html[data-splash-seen] #curtain { } /* curtain still runs on repeat visits */
   border-right: 1px solid var(--hairline);
   background: var(--canvas);
 }
-.rail__brand .wordmark { font-size: 30px; }
+.rail__brand .logo { width: 156px; }
 .rail__brand .label { margin-top: 12px; }
 .rail__nav li { display: flex; align-items: center; gap: 12px; }
 .rail__nav li + li { margin-top: 16px; }
@@ -308,7 +313,7 @@ html[data-splash-seen] #curtain { } /* curtain still runs on repeat visits */
   background: rgba(250, 250, 250, 0.9);
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
 }
-.mobile-bar .wordmark { font-size: 22px; }
+.mobile-bar .logo { height: 30px; }
 .menu-btn { display: flex; align-items: center; gap: 12px; height: 40px; font-family: var(--display); font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
 .menu-btn .bars { position: relative; width: 20px; height: 8px; }
 .menu-btn .bars i {

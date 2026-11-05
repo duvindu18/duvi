@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Halde — shared behaviour for every page (vanilla JS, no dependencies)
+   Studio Morfis — shared behaviour for every page (vanilla JS, no dependencies)
    - Splash screen (marquee bands + rolling counter, once per session)
    - Page curtain transitions between internal links
    - "Ready" lifecycle that gates entrance animations
@@ -14,15 +14,15 @@
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   var TIME_ZONE = "Europe/Copenhagen";
-  var SPLASH_KEY = "halde:splash";
+  var SPLASH_KEY = "morfis:splash";
 
   /* ---------------------------------------------------------------------
-     Ready lifecycle: other scripts call Halde.onReady(fn). It fires once the
+     Ready lifecycle: other scripts call Morfis.onReady(fn). It fires once the
      splash has lifted (or immediately if the splash was already seen).
      ------------------------------------------------------------------- */
   var ready = false;
   var readyQueue = [];
-  window.Halde = {
+  window.Morfis = {
     onReady: function (fn) {
       if (ready) fn();
       else readyQueue.push(fn);
@@ -272,7 +272,7 @@
     initParallax();
     runSplash();
     // Entrance animations wait until the splash is gone.
-    window.Halde.onReady(initReveals);
+    window.Morfis.onReady(initReveals);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);

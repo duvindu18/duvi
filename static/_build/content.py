@@ -1,14 +1,14 @@
 """All site content in one place. Edit here, then run:  python3 _build/build.py"""
 
 SITE = {
-    "name": "Halde",
-    "full_name": "Halde Architecture Office",
+    "name": "Studio Morfis",
+    "full_name": "Studio Morfis",
     "tagline": "Architecture, landscape &amp; the slow making of rooms",
-    "description": "Halde is an independent architecture office in Copenhagen working across houses, cultural buildings and public space.",
+    "description": "Studio Morfis is an independent architecture office in Copenhagen working across houses, cultural buildings and public space.",
     "city": "Copenhagen",
     "time_zone": "Europe/Copenhagen",
     "coordinates": "55.68° N — 12.57° E",
-    "email": "studio@halde.archi",
+    "email": "hello@studiomorfis.com",
     "phone": "+45 33 12 40 08",
     "address": ["Strandgade 27B", "1401 Copenhagen K", "Denmark"],
     "founded": 2011,
@@ -22,7 +22,7 @@ PROJECTS = [
     {
         "slug": "the-monolithic-void", "index": "01", "title": "The Monolithic Void",
         "typology": "Private Residence", "city": "Sintra", "country": "Portugal", "year": 2024,
-        "status": "Completed", "area": "412 m²", "client": "Private", "team": "A. Halde, M. Sørensen, J. Pires",
+        "status": "Completed", "area": "412 m²", "client": "Private", "team": "A. Morfis, M. Sørensen, J. Pires",
         "lead": "A single mass of board-formed concrete, carved open by one vertical cut of light.",
         "narrative": [
             "Set into a granite slope above the Atlantic fog line, the house is conceived as one continuous casting. Its rooms are not built so much as subtracted, a sequence of hollows pressed into the hill.",
@@ -35,7 +35,7 @@ PROJECTS = [
     {
         "slug": "timber-pavilion", "index": "02", "title": "Timber Pavilion",
         "typology": "Cultural Pavilion", "city": "Vejle", "country": "Denmark", "year": 2023,
-        "status": "Completed", "area": "260 m²", "client": "Vejle Fjord Foundation", "team": "A. Halde, L. Kragh, T. Ono",
+        "status": "Completed", "area": "260 m²", "client": "Vejle Fjord Foundation", "team": "A. Morfis, L. Kragh, T. Ono",
         "lead": "Two hundred and forty spruce fins, tuned to the angle of the northern sun.",
         "narrative": [
             "The pavilion is a single gallery, sixty metres long, that runs along the fjord's edge. Its walls are a rhythm of vertical fins in cross-laminated spruce, spaced so that walking its length reads like turning the pages of a book.",
@@ -48,7 +48,7 @@ PROJECTS = [
     {
         "slug": "house-of-clay", "index": "03", "title": "House of Clay",
         "typology": "Rural Retreat", "city": "Évora", "country": "Portugal", "year": 2022,
-        "status": "Completed", "area": "188 m²", "client": "Private", "team": "A. Halde, J. Pires",
+        "status": "Completed", "area": "188 m²", "client": "Private", "team": "A. Morfis, J. Pires",
         "lead": "Walls of rammed earth dug from the site itself, half a metre thick and cool at noon.",
         "narrative": [
             "In the Alentejo plain, summer heat is the defining condition. The house answers with mass: rammed-earth walls fifty centimetres thick, compacted in layers from soil excavated for the foundations.",
@@ -61,7 +61,7 @@ PROJECTS = [
     {
         "slug": "basalt-archive", "index": "04", "title": "Basalt Archive",
         "typology": "Library &amp; Archive", "city": "Reykjavík", "country": "Iceland", "year": 2025,
-        "status": "In progress", "area": "3,400 m²", "client": "City of Reykjavík", "team": "A. Halde, M. Sørensen, E. Gunnarsdóttir",
+        "status": "In progress", "area": "3,400 m²", "client": "City of Reykjavík", "team": "A. Morfis, M. Sørensen, E. Gunnarsdóttir",
         "lead": "A municipal archive wrapped in a deep screen of cast basalt fins.",
         "narrative": [
             "The archive holds four centuries of civic records in a climate-stable core, surrounded by a public reading hall that rings the building at street level.",
@@ -74,7 +74,7 @@ PROJECTS = [
     {
         "slug": "chapel-of-still-light", "index": "05", "title": "Chapel of Still Light",
         "typology": "Sacred Space", "city": "Ticino", "country": "Switzerland", "year": 2021,
-        "status": "Completed", "area": "96 m²", "client": "Parish of Valle Maggia", "team": "A. Halde, R. Bianchi",
+        "status": "Completed", "area": "96 m²", "client": "Parish of Valle Maggia", "team": "A. Morfis, R. Bianchi",
         "lead": "A room for forty people, lit only from above.",
         "narrative": [
             "A small chapel on a valley floor, replacing a nineteenth-century oratory lost to a flood. The brief asked only for a room for forty people and a bell.",
@@ -86,7 +86,7 @@ PROJECTS = [
     {
         "slug": "courtyard-houses", "index": "06", "title": "Courtyard Houses",
         "typology": "Housing", "city": "Palma", "country": "Spain", "year": 2020,
-        "status": "Completed", "area": "2,150 m²", "client": "IBAVI Housing Institute", "team": "A. Halde, L. Kragh, C. Ferrer",
+        "status": "Completed", "area": "2,150 m²", "client": "IBAVI Housing Institute", "team": "A. Morfis, L. Kragh, C. Ferrer",
         "lead": "Eighteen social homes, each organised around its own walled garden.",
         "narrative": [
             "Eighteen affordable homes arranged as a low carpet of walled courtyards, a contemporary reading of the Mallorcan patio.",
@@ -105,7 +105,7 @@ PRINCIPLES = [
 ]
 
 PEOPLE = [
-    ("Astrid Halde", "Founding Partner"), ("Mads Sørensen", "Partner"), ("Joana Pires", "Associate, Lisbon"),
+    ("Astrid Morfis", "Founding Partner"), ("Mads Sørensen", "Partner"), ("Joana Pires", "Associate, Lisbon"),
     ("Lea Kragh", "Associate"), ("Takeshi Ono", "Architect"), ("Eva Gunnarsdóttir", "Architect, Reykjavík"),
 ]
 

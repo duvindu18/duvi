@@ -1,4 +1,4 @@
-# Halde — static HTML / CSS / JS version
+# Studio Morfis — static HTML / CSS / JS version
 
 The same minimalist architecture site as `../web` (Next.js), rebuilt with
 **no framework and no build step**: plain HTML pages, one stylesheet and three

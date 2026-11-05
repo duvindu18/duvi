@@ -18,8 +18,9 @@ FONTS = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&fam
 
 
 # ---------------------------------------------------------------- helpers
-def wordmark():
-    return '<span class="wordmark">Halde.</span>'
+def wordmark(root="", alt="Studio Morfis."):
+    """The studio logo (black on transparent; inverted with CSS on dark grounds)."""
+    return f'<img class="logo" src="{root}images/logo.png" width="1546" height="503" alt="{alt}">'
 
 
 def reveal(lines, delay=0.0, tag="span"):
@@ -45,12 +46,12 @@ def proj_href(root, p):
     return f"{root}projects/{p['slug']}.html"
 
 
-def splash():
+def splash(root):
     bands = ""
     for i in range(3):
         light = " band--light" if i == 1 else ""
         direction = "r" if i == 1 else "l"
-        marks = "".join(f"<span>{wordmark()}</span>" for _ in range(10))
+        marks = "".join(f"<span>{wordmark(root, alt='')}</span>" for _ in range(10))
         bands += (
             f'<div class="band{light}" style="--i:{i}">'
             f'<div class="marquee marquee--{direction}" style="--dur:{18 + i * 4}s">{marks}</div></div>\n'
@@ -66,7 +67,7 @@ def splash():
     <div class="counter" aria-hidden="true">{digits}<span class="counter-unit">%</span></div>
   </div>
   <div class="splash-resolved">
-    {wordmark()}
+    {wordmark(root)}
     <p class="label">{SITE['tagline']}<br>{SITE['city']} — Est. {SITE['founded']}</p>
   </div>
   <div class="splash-meta"><span class="label">{SITE['full_name']}</span><span class="label">{SITE['coordinates']}</span></div>
@@ -88,7 +89,7 @@ def rail(root, current):
     return f"""
 <aside class="rail">
   <div class="rail__brand" data-animate>
-    <a href="{root}index.html" aria-label="{SITE['full_name']}, home">{wordmark()}</a>
+    <a href="{root}index.html" aria-label="{SITE['full_name']}, home">{wordmark(root)}</a>
     <p class="label">Architecture Office</p>
   </div>
   <nav class="rail__nav" aria-label="Primary">
@@ -115,7 +116,7 @@ def mobile(root):
     )
     return f"""
 <header class="mobile-bar">
-  <a href="{root}index.html" aria-label="{SITE['full_name']}, home">{wordmark()}</a>
+  <a href="{root}index.html" aria-label="{SITE['full_name']}, home">{wordmark(root)}</a>
   <button class="menu-btn" type="button" aria-expanded="false" aria-controls="mobile-menu" data-menu-toggle>
     <span data-menu-label>Menu</span><span class="bars"><i></i><i></i></span>
   </button>
@@ -147,13 +148,13 @@ def page(filename, *, title, description, body, current="", root="", scripts=())
 <link rel="stylesheet" href="{root}css/style.css">
 <script>
   /* Skip the splash for the rest of the session once seen (runs before paint). */
-  try {{ if (sessionStorage.getItem("halde:splash")) document.documentElement.setAttribute("data-splash-seen", ""); }} catch (e) {{}}
+  try {{ if (sessionStorage.getItem("morfis:splash")) document.documentElement.setAttribute("data-splash-seen", ""); }} catch (e) {{}}
 </script>
 {js}
 </head>
 <body data-page="{current or 'home'}">
 <a class="sr-only" href="#main">Skip to content</a>
-{splash()}
+{splash(root)}
 <div id="curtain" aria-hidden="true"></div>
 {rail(root, current)}
 {mobile(root)}
@@ -322,7 +323,7 @@ def archive():
   </ul>
 </div>
 <div class="preview" aria-hidden="true" data-preview-box>{previews}<span class="tag" data-preview-tag></span></div>"""
-    page("archive.html", title="Index", description="Index of works by Halde Architecture Office.", body=body, current="archive", scripts=("archive.js",))
+    page("archive.html", title="Index", description="Index of works by Studio Morfis.", body=body, current="archive", scripts=("archive.js",))
 
 
 def project(i, p):
@@ -378,7 +379,7 @@ def project(i, p):
         <div class="spread__inset">{frame(root, inset[0], inset[1], inset[2], alt=inset[3])}</div>
         <hr>
         <div class="spread__text">{paras}</div>
-        <p class="spread__credit">{p['title']} by Halde Architecture Office — {p['team']}</p>
+        <p class="spread__credit">{p['title']} by Studio Morfis — {p['team']}</p>
       </div>
       <div class="spread__plate">{frame(root, plate[0], plate[1], plate[2], alt=plate[3])}</div>
       <div class="spread__gutter"></div>
@@ -412,7 +413,7 @@ def studio():
       <h1 class="display">{reveal(["A small office for", "buildings that <em>take</em>", "their time."], 0.4)}</h1>
     </div>
     <div class="studio-head__text" data-animate style="--d:.7s">
-      <p>Halde was founded in {SITE['city']} in {SITE['founded']} by Astrid Halde. We are fourteen people working between Copenhagen and Lisbon, on a deliberately small number of projects at a time.</p>
+      <p>Studio Morfis was founded in {SITE['city']} in {SITE['founded']} by Astrid Morfis. We are fourteen people working between Copenhagen and Lisbon, on a deliberately small number of projects at a time.</p>
       <p>Our work spans private houses, cultural and sacred buildings, and public housing. The scale changes; the questions stay the same: mass, light, and how a room will feel in forty years.</p>
     </div>
   </header>
@@ -435,7 +436,7 @@ def studio():
     <figcaption><b>Fig. 02</b><span>Model workshop, winter</span></figcaption>
   </figure>
 </div>"""
-    page("studio.html", title="Studio", description="About Halde Architecture Office.", body=body, current="studio")
+    page("studio.html", title="Studio", description="About Studio Morfis.", body=body, current="studio")
 
 
 def contact():
@@ -464,7 +465,7 @@ def contact():
     </div>
   </div>
 </div>"""
-    page("contact.html", title="Contact", description="Contact Halde Architecture Office.", body=body, current="contact")
+    page("contact.html", title="Contact", description="Contact Studio Morfis.", body=body, current="contact")
 
 
 def not_found():
