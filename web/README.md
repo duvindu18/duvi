@@ -1,8 +1,8 @@
 # Halde — architecture studio website
 
 An ultra-minimalist editorial site for a (fictional) architecture office, built
-like an architectural monograph: Swiss-grid layouts, hairline rules, a serif /
-grotesk pairing and slow, inertia-based motion.
+like an architectural monograph: Swiss-grid layouts, hairline rules, heavy uppercase League Spartan headings over Inter body text
+and slow, inertia-based motion.
 
 **Stack:** Next.js 14 (App Router) · React 18 · Tailwind CSS 3 · Framer Motion 11 · Zustand
 

@@ -22,7 +22,7 @@ export default function Rail() {
         animate={ready ? { opacity: 1, y: 0 } : {}}
         transition={{ duration: 1, ease: EASE_EDITORIAL }}
       >
-        <Link href="/" aria-label={`${site.fullName}, home`} className="text-[34px]">
+        <Link href="/" aria-label={`${site.fullName}, home`} className="text-[30px]">
           <Wordmark />
         </Link>
         <p className="label mt-3 max-w-[180px] leading-[15px]">Architecture Office</p>
@@ -46,7 +46,7 @@ export default function Rail() {
                 <Link
                   href={item.href}
                   aria-current={active ? "page" : undefined}
-                  className={`text-[13px] transition-colors duration-500 ease-editorial ${
+                  className={`caps text-[12px] transition-colors duration-500 ease-editorial ${
                     active ? "text-charcoal" : "text-mutedText hover:text-charcoal"
                   }`}
                 >
@@ -58,7 +58,7 @@ export default function Rail() {
         </ul>
         <Link
           href="/contact"
-          className="mt-10 inline-flex h-9 items-center bg-charcoal px-5 text-[11px] font-medium tracking-wide text-canvas transition-all duration-500 ease-editorial hover:px-7"
+          className="caps mt-10 inline-flex h-9 items-center bg-charcoal px-5 text-[11px] tracking-[0.1em] text-canvas transition-all duration-500 ease-editorial hover:px-7"
         >
           Start a project
         </Link>

@@ -32,7 +32,26 @@
 @layer components {
   /* Spaced metadata label: "[ THE MONOLITHIC VOID ]" */
   .label {
-    @apply font-sans text-micro uppercase text-mutedText;
+    @apply font-display text-micro font-semibold uppercase text-mutedText;
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+  }
+
+  /* Heavy uppercase display face (League Spartan). Accents inside are light, not italic. */
+  .font-display {
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+  }
+  .font-display em {
+    font-style: normal;
+    font-weight: 300;
+  }
+
+  /* Small bold caps for nav, buttons and controls */
+  .caps {
+    @apply font-display font-semibold uppercase;
+    letter-spacing: 0.08em;
   }
 
   .hairline-link {

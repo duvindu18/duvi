@@ -52,7 +52,7 @@ export default function ParallaxFigure({
       </motion.div>
       {caption && (
         <figcaption className="mt-3 flex gap-4 text-[11px] text-mutedText">
-          {number && <span className="tabular-nums text-charcoal">Fig. {number}</span>}
+          {number && <span className="caps tabular-nums text-charcoal">Fig. {number}</span>}
           <span>{caption}</span>
         </figcaption>
       )}

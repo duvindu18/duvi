@@ -49,10 +49,10 @@ export default function ProjectPage({ params }: Props) {
 
           <div>
             <p className="label mb-6 tracking-[0.3em]">[ {p.title} ]</p>
-            <h1 className="font-serif text-[clamp(52px,5.6vw,96px)] leading-[0.92] tracking-[-0.02em]">
+            <h1 className="font-display text-[clamp(40px,3.6vw,72px)] leading-[0.9] tracking-[-0.02em]">
               <Reveal lines={p.title.split(" ").reduce<string[]>((acc, w, i, a) => (i % 2 ? acc : [...acc, a.slice(i, i + 2).join(" ")]), [])} delay={0.45} />
             </h1>
-            <p className="mt-8 max-w-[440px] font-serif text-[22px] italic leading-snug text-charcoal/80">{p.lead}</p>
+            <p className="mt-7 max-w-[420px] text-[17px] leading-normal text-charcoal/80">{p.lead}</p>
           </div>
 
           <div className="space-y-8">
@@ -105,7 +105,7 @@ export default function ProjectPage({ params }: Props) {
       >
         <div className="flex flex-col justify-between gap-16 px-4 py-14 sm:px-6 lg:col-span-7 lg:px-14 lg:py-20">
           <span className="label">Next project — {next.index}</span>
-          <span className="font-serif text-[clamp(48px,6.4vw,112px)] leading-[0.92] tracking-[-0.02em] transition-transform duration-700 ease-editorial group-hover:translate-x-4">
+          <span className="font-display text-[clamp(40px,5vw,96px)] leading-[0.9] tracking-[-0.02em] transition-transform duration-700 ease-editorial group-hover:translate-x-4">
             {next.title} <span className="inline-block">→</span>
           </span>
           <span className="label">

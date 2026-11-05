@@ -14,12 +14,12 @@ from pathlib import Path
 from content import OFFICES, PEOPLE, PRINCIPLES, PROJECTS, RECOGNITION, SITE
 
 OUT = Path(__file__).resolve().parent.parent
-FONTS = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap"
+FONTS = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=League+Spartan:wght@300;400;500;600;700;800;900&display=swap"
 
 
 # ---------------------------------------------------------------- helpers
 def wordmark():
-    return '<span class="wordmark">Halde<sup>®</sup></span>'
+    return '<span class="wordmark">Halde.</span>'
 
 
 def reveal(lines, delay=0.0, tag="span"):

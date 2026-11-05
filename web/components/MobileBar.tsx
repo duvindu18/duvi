@@ -28,7 +28,7 @@ export default function MobileBar() {
   return (
     <>
       <header className="fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b bg-canvas/90 px-4 backdrop-blur-md sm:px-6 lg:hidden">
-        <Link href="/" className="text-[26px]" aria-label={`${site.fullName}, home`}>
+        <Link href="/" className="text-[22px]" aria-label={`${site.fullName}, home`}>
           <Wordmark />
         </Link>
         <button
@@ -36,7 +36,7 @@ export default function MobileBar() {
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-controls="mobile-menu"
-          className="flex h-10 items-center gap-3 text-[12px]"
+          className="caps flex h-10 items-center gap-3 text-[12px]"
         >
           <span>{open ? "Close" : "Menu"}</span>
           <span className="relative block h-2 w-5">
@@ -68,7 +68,7 @@ export default function MobileBar() {
                     className="border-b"
                   >
                     <Link href={item.href} className="flex items-baseline justify-between py-4">
-                      <span className="font-serif text-5xl">{item.label}</span>
+                      <span className="font-display text-[40px] leading-none">{item.label}</span>
                       <span className="label">0{i + 1}</span>
                     </Link>
                   </motion.li>

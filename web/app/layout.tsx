@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Instrument_Serif } from "next/font/google";
+import { Inter, League_Spartan } from "next/font/google";
 
 import "./globals.css";
 import { site } from "@/lib/site";
@@ -10,11 +10,11 @@ import CursorLabel from "@/components/CursorLabel";
 import Providers from "@/components/Providers";
 
 const sans = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
-const serif = Instrument_Serif({
+// Heavy geometric sans for headings, wordmark, labels and navigation.
+const display = League_Spartan({
   subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
-  variable: "--font-serif",
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-display",
   display: "swap",
 });
 
@@ -31,7 +31,7 @@ const splashGate = `try{if(sessionStorage.getItem("halde:splash"))document.docum
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${sans.variable} ${serif.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${sans.variable} ${display.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: splashGate }} />
       </head>

@@ -44,7 +44,7 @@ static/
 └── README.md
 ```
 
-External dependency: Google Fonts (Instrument Serif + Inter), loaded from
+External dependency: Google Fonts (League Spartan for headings, labels and navigation; Inter for body text), loaded from
 `fonts.googleapis.com`. Everything else is local.
 
 ## Editing content

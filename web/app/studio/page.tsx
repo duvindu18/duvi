@@ -38,13 +38,13 @@ export default function StudioPage() {
       <header className="grid gap-12 border-b pb-16 lg:grid-cols-12">
         <div className="lg:col-span-8">
           <p className="label mb-6">[ The studio ]</p>
-          <h1 className="font-serif text-[clamp(44px,5.8vw,96px)] leading-[0.98] tracking-[-0.02em]">
+          <h1 className="font-display text-[clamp(38px,4.6vw,84px)] leading-[0.92] tracking-[-0.02em]">
             <Reveal
               delay={0.4}
               lines={[
                 "A small office for",
                 <>
-                  buildings that <em className="italic">take</em>
+                  buildings that <em>take</em>
                 </>,
                 "their time.",
               ]}
@@ -74,7 +74,7 @@ export default function StudioPage() {
               <li key={title} className="grid grid-cols-12 gap-4 border-b py-7">
                 <span className="label col-span-2 tabular-nums text-charcoal">0{i + 1}</span>
                 <div className="col-span-10">
-                  <h2 className="font-serif text-3xl leading-tight">{title}</h2>
+                  <h2 className="font-display text-[22px] leading-[1.1]">{title}</h2>
                   <p className="mt-2 max-w-[460px] text-[13px] leading-relaxed text-mutedText">{body}</p>
                 </div>
               </li>
@@ -89,7 +89,7 @@ export default function StudioPage() {
           <ul className="border-t">
             {people.map(([name, role]) => (
               <li key={name} className="flex items-baseline justify-between border-b py-4">
-                <span className="font-serif text-2xl">{name}</span>
+                <span className="font-display text-lg font-bold">{name}</span>
                 <span className="label">{role}</span>
               </li>
             ))}

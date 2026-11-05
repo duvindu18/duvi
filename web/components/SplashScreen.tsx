@@ -116,7 +116,7 @@ export default function SplashScreen() {
               initial={{ y: 20, opacity: 0 }}
               animate={phase === "settle" ? { y: 0, opacity: 1 } : {}}
               transition={{ duration: 1, delay: 0.2, ease: EASE_EDITORIAL }}
-              className="text-[clamp(64px,13vw,200px)]"
+              className="text-[clamp(56px,11vw,176px)]"
             >
               <Wordmark />
             </motion.div>
@@ -175,7 +175,7 @@ function Band({
         style={{ ["--marquee-duration" as string]: `${18 + index * 4}s` }}
       >
         {Array.from({ length: 10 }).map((_, i) => (
-          <span key={i} className="px-[3vw] text-[clamp(56px,19vh,220px)] leading-none">
+          <span key={i} className="px-[3vw] text-[clamp(56px,17vh,200px)] leading-none">
             <Wordmark />
           </span>
         ))}
@@ -188,7 +188,7 @@ function Band({
 function Counter({ value }: { value: number }) {
   const digits = String(value).padStart(3, "0").split("");
   return (
-    <div className="flex font-sans text-[clamp(48px,6vw,88px)] font-light leading-none tabular-nums tracking-tight">
+    <div className="flex font-display text-[clamp(48px,6vw,88px)] font-extrabold leading-none tabular-nums tracking-tight">
       {digits.map((d, i) => (
         <span key={i} className="relative inline-block h-[1em] w-[0.62em] overflow-hidden">
           <span

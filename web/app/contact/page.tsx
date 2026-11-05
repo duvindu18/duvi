@@ -16,8 +16,8 @@ export default function ContactPage() {
     <div className="flex min-h-[calc(100svh-3.5rem)] flex-col justify-between px-4 pb-12 pt-12 sm:px-6 lg:min-h-[100svh] lg:px-14 lg:pt-16">
       <div>
         <p className="label mb-6">[ Contact ]</p>
-        <h1 className="font-serif text-[clamp(48px,7vw,120px)] leading-[0.95] tracking-[-0.02em]">
-          <Reveal delay={0.4} lines={["Begin with", <em key="c" className="italic">a conversation.</em>]} />
+        <h1 className="font-display text-[clamp(42px,6vw,108px)] leading-[0.9] tracking-[-0.02em]">
+          <Reveal delay={0.4} lines={["Begin with", <em key="c">a conversation.</em>]} />
         </h1>
       </div>
 
@@ -26,7 +26,7 @@ export default function ContactPage() {
           <p className="label mb-3">New projects</p>
           <a
             href={`mailto:${site.email}`}
-            className="hairline-link font-serif text-[clamp(28px,3vw,44px)] leading-tight"
+            className="hairline-link font-display text-[clamp(24px,2.4vw,38px)] normal-case leading-tight"
           >
             {site.email}
           </a>
@@ -40,7 +40,7 @@ export default function ContactPage() {
         {offices.map((o) => (
           <div key={o.city} className="md:col-span-3">
             <p className="label mb-3">{o.note}</p>
-            <p className="font-serif text-2xl">{o.city}</p>
+            <p className="mt-1 font-display text-xl font-bold">{o.city}</p>
             <address className="mt-2 text-[13px] not-italic leading-relaxed text-charcoal/75">
               {o.lines.map((l) => (
                 <span key={l} className="block">
@@ -58,7 +58,7 @@ export default function ContactPage() {
           <ul className="flex gap-6">
             {site.social.map((s) => (
               <li key={s.label}>
-                <a href={s.href} target="_blank" rel="noreferrer" className="hairline-link text-[12px]">
+                <a href={s.href} target="_blank" rel="noreferrer" className="caps hairline-link text-[11px]">
                   {s.label}
                 </a>
               </li>

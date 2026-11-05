@@ -13,7 +13,7 @@ const config: Config = {
         hairline: "rgba(0,0,0,0.08)",
       },
       fontFamily: {
-        serif: ["var(--font-serif)", "Georgia", "serif"],
+        display: ["var(--font-display)", "Helvetica Neue", "Arial", "sans-serif"],
         sans: ["var(--font-sans)", "Helvetica Neue", "Arial", "sans-serif"],
       },
       fontSize: {

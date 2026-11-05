@@ -48,7 +48,7 @@ export default function CursorLabel() {
         {label && (
           <motion.span
             key={label}
-            className="absolute ml-4 mt-4 whitespace-nowrap bg-charcoal px-2.5 py-1.5 text-[10px] uppercase tracking-[0.14em] text-canvas"
+            className="absolute ml-4 mt-4 whitespace-nowrap bg-charcoal px-2.5 py-1.5 caps text-[10px] tracking-[0.12em] text-canvas"
             initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.85 }}

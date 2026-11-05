@@ -27,19 +27,19 @@ export default function BookSpread({ project: p }: { project: Project }) {
       >
         {/* Left page */}
         <div className="flex flex-col px-6 py-10 sm:px-12 md:px-[7%] md:py-[6%]">
-          <p className="mb-8 text-center text-[9px] uppercase tracking-[0.4em] text-mutedText">[ {p.title} ]</p>
+          <p className="mb-8 text-center font-display text-[9px] font-bold uppercase tracking-[0.4em] text-mutedText">[ {p.title} ]</p>
           <div className="relative mx-auto aspect-[4/5] w-[62%] overflow-hidden">
             <Image src={inset.src} alt={inset.caption} fill sizes="(min-width:768px) 25vw, 60vw" placeholder="blur" className="object-cover" />
           </div>
           <hr className="my-8 border-black/20" />
-          <div className="gap-8 font-serif text-[15px] leading-[1.55] text-charcoal/85 [hyphens:auto] sm:columns-2" style={{ textAlign: "justify" }}>
+          <div className="gap-8 text-[12.5px] leading-[1.7] text-charcoal/85 [hyphens:auto] sm:columns-2" style={{ textAlign: "justify" }}>
             {p.narrative.map((para, i) => (
               <p key={i} className={i ? "mt-3 indent-6" : ""}>
                 {para}
               </p>
             ))}
           </div>
-          <p className="mt-8 text-center font-serif text-[12px] italic text-mutedText">
+          <p className="caps mt-8 text-center text-[9.5px] tracking-[0.1em] text-mutedText">
             {p.title} by Halde Architecture Office — {p.team}
           </p>
         </div>

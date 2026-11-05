@@ -90,14 +90,14 @@ function IntroPanel({ ready }: { ready: boolean }) {
         [ Selected works 2020 — 2026 ]
       </motion.p>
 
-      <h1 className="my-16 font-serif text-[clamp(48px,6.2vw,104px)] leading-[0.95] tracking-[-0.02em] lg:my-0">
+      <h1 className="my-16 font-display text-[clamp(40px,4.4vw,76px)] leading-[0.9] tracking-[-0.02em] lg:my-0">
         <Reveal
           play={ready}
           delay={0.15}
           lines={[
             "Rooms shaped",
             <>
-              by <em className="italic">mass,</em> light
+              by <em>mass,</em> light
             </>,
             "& slow time.",
           ]}
@@ -201,11 +201,11 @@ function ChapterPanel() {
       </div>
 
       <div className="px-4 py-16 sm:px-6 lg:px-12 lg:py-0">
-        <p className="font-sans text-[clamp(64px,8.4vw,150px)] font-medium uppercase leading-[0.82] tracking-[-0.055em]">
+        <p className="font-display text-[clamp(64px,8.4vw,150px)] leading-[0.82] tracking-[-0.04em]">
           Works
         </p>
         <div className="mt-4 flex items-end justify-between gap-6">
-          <p className="font-sans text-[clamp(40px,4.6vw,84px)] font-light leading-none tracking-[-0.04em]">/26</p>
+          <p className="font-display text-[clamp(40px,4.6vw,84px)] !font-light leading-none tracking-[-0.04em]">/26</p>
           <p className="max-w-[220px] text-[12px] leading-relaxed text-mutedText">
             Six projects across four countries: a house, a pavilion, a chapel, an archive and two places to live.
           </p>
@@ -257,7 +257,7 @@ function ProjectPanel({ project: p, active, onActivate }: { project: Project; ac
       >
         <div className="flex items-start gap-2">
           <span
-            className={`font-sans text-[clamp(72px,6.4vw,112px)] font-semibold leading-[0.8] tracking-[-0.05em] transition-colors duration-700 ease-editorial ${
+            className={`font-display text-[clamp(72px,6.4vw,112px)] leading-[0.8] tracking-[-0.04em] transition-colors duration-700 ease-editorial ${
               active ? "text-canvas" : "text-stoneSubtle"
             }`}
           >
@@ -268,16 +268,16 @@ function ProjectPanel({ project: p, active, onActivate }: { project: Project; ac
           </span>
         </div>
 
-        <div className={`mt-4 space-y-0.5 text-[10px] font-medium uppercase tracking-[0.12em] ${active ? "text-canvas/90" : "text-stoneDeep"}`}>
-          <p>
+        <div className={`mt-4 space-y-0.5 font-display text-[10px] font-medium uppercase tracking-[0.12em] ${active ? "text-canvas/90" : "text-stoneDeep"}`}>
+          <p className="font-bold">
             {p.city} / {p.country}
           </p>
-          <p className="font-normal">{p.typology}</p>
-          <p className="font-normal">{p.year}</p>
+          <p>{p.typology}</p>
+          <p>{p.year}</p>
         </div>
 
         <h2
-          className={`mt-auto font-serif text-[clamp(28px,2.3vw,40px)] leading-[1] transition-colors duration-700 ease-editorial ${
+          className={`mt-auto font-display text-[clamp(22px,1.8vw,30px)] leading-[1] transition-colors duration-700 ease-editorial ${
             active ? "text-canvas" : "text-stoneDeep"
           }`}
         >
@@ -285,10 +285,10 @@ function ProjectPanel({ project: p, active, onActivate }: { project: Project; ac
         </h2>
 
         <div className="mt-10 flex items-center justify-between">
-          <span className={`text-[10px] uppercase tracking-[0.12em] ${active ? "text-canvas/80" : "text-stoneDeep"}`}>
+          <span className={`caps text-[10px] tracking-[0.12em] ${active ? "text-canvas/80" : "text-stoneDeep"}`}>
             {p.status}
           </span>
-          <span className={`flex items-center gap-3 text-[11px] transition-opacity duration-500 ${active ? "opacity-100" : "opacity-0"}`}>
+          <span className={`caps flex items-center gap-3 text-[11px] transition-opacity duration-500 ${active ? "opacity-100" : "opacity-0"}`}>
             See project
             <span className="grid h-6 w-6 place-items-center rounded-full bg-canvas text-[10px] text-charcoal transition-transform duration-500 ease-editorial group-hover:translate-x-1">
               →
@@ -307,10 +307,10 @@ function MobileCard({ project: p }: { project: Project }) {
     <Link href={`/projects/${p.slug}`} className="group block">
       <div className="relative aspect-[4/5] overflow-hidden bg-stoneSubtle">
         <Image src={p.cover} alt={p.title} fill sizes="(min-width:640px) 50vw, 100vw" placeholder="blur" className="object-cover" />
-        <span className="absolute left-4 top-3 font-sans text-6xl font-semibold tracking-[-0.05em] text-canvas">{p.index}</span>
+        <span className="absolute left-4 top-4 font-display text-6xl leading-[0.8] tracking-[-0.04em] text-canvas">{p.index}</span>
       </div>
       <div className="mt-4 flex items-baseline justify-between gap-4 border-t pt-3">
-        <h2 className="font-serif text-3xl leading-none">{p.title}</h2>
+        <h2 className="font-display text-2xl leading-none">{p.title}</h2>
         <span className="label shrink-0">{p.year}</span>
       </div>
       <p className="label mt-2">
@@ -327,10 +327,10 @@ function EndPanel() {
     <div data-snap className="flex shrink-0 flex-col justify-between border-t px-4 py-14 sm:px-6 lg:w-[min(34vw,520px)] lg:border-t-0 lg:px-12">
       <p className="label">[ Continue ]</p>
       <Link href="/archive" data-cursor="Open index" className="group my-12 block">
-        <span className="font-serif text-[clamp(48px,5vw,88px)] leading-[0.95]">
+        <span className="font-display text-[clamp(40px,3.8vw,68px)] leading-[0.92]">
           The full
           <br />
-          <em className="italic">index</em>
+          <em>index</em>
           <span className="ml-3 inline-block transition-transform duration-500 ease-editorial group-hover:translate-x-3">→</span>
         </span>
       </Link>

@@ -50,7 +50,7 @@ export default function ArchiveIndex() {
       <header className="grid gap-10 border-b pb-10 lg:grid-cols-12 lg:items-end">
         <div className="lg:col-span-7">
           <p className="label mb-6">[ Index of works ]</p>
-          <h1 className="font-serif text-[clamp(64px,10vw,168px)] leading-[0.85] tracking-[-0.02em]">
+          <h1 className="font-display text-[clamp(64px,10vw,168px)] leading-[0.82] tracking-[-0.02em]">
             <Reveal lines={["Index"]} delay={0.4} />
           </h1>
         </div>
@@ -73,7 +73,7 @@ export default function ArchiveIndex() {
                 type="button"
                 onClick={() => setFilter(t)}
                 aria-pressed={filter === t}
-                className={`hairline-link text-[12px] transition-colors duration-500 ease-editorial ${
+                className={`caps hairline-link text-[11px] transition-colors duration-500 ease-editorial ${
                   filter === t ? "text-charcoal" : "text-mutedText hover:text-charcoal"
                 }`}
                 aria-current={filter === t ? "page" : undefined}
@@ -91,7 +91,7 @@ export default function ArchiveIndex() {
               type="button"
               onClick={() => setSort(s)}
               aria-pressed={sort === s}
-              className={`text-[12px] transition-colors duration-500 ease-editorial ${
+              className={`caps text-[11px] transition-colors duration-500 ease-editorial ${
                 sort === s ? "text-charcoal" : "text-mutedText hover:text-charcoal"
               }`}
             >
@@ -136,7 +136,7 @@ export default function ArchiveIndex() {
                   }`}
                 >
                   <span className="label col-span-2 tabular-nums text-charcoal md:col-span-1">{p.index}</span>
-                  <span className="col-span-10 font-serif text-[clamp(30px,3.6vw,56px)] leading-[1] transition-transform duration-700 ease-editorial group-hover:translate-x-3 md:col-span-5">
+                  <span className="col-span-10 font-display text-[clamp(24px,2.8vw,44px)] leading-[1] tracking-[-0.015em] transition-transform duration-700 ease-editorial group-hover:translate-x-3 md:col-span-5">
                     {p.title}
                   </span>
                   <span className="col-span-6 col-start-3 text-[12px] text-mutedText md:col-span-2 md:col-start-auto">{p.typology}</span>
@@ -181,7 +181,7 @@ export default function ArchiveIndex() {
                   className={`object-cover transition-opacity duration-300 ${hovered === i ? "opacity-100" : "opacity-0"}`}
                 />
               ))}
-              <span className="absolute bottom-3 left-3 bg-canvas px-2 py-1 text-[10px] uppercase tracking-[0.14em]">
+              <span className="absolute bottom-3 left-3 caps bg-canvas px-2 py-1 text-[10px] tracking-[0.12em]">
                 {preview.index} — {preview.city}
               </span>
             </motion.div>
