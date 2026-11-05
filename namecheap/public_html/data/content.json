@@ -1,9 +1,9 @@
 {
   "site": {
     "name": "Studio Morfis",
-    "tagline": "Architecture, landscape & the slow making of rooms",
-    "description": "Studio Morfis is an independent architecture office working across houses, cultural buildings and public space.",
-    "descriptor": "Architecture Office",
+    "descriptor": "3D Visualization Studio",
+    "tagline": "Architectural images, films & the slow making of light",
+    "description": "Studio Morfis is an independent 3D visualization studio making images, films and walkthroughs of architecture before it is built.",
     "founded": 2011,
     "email": "hello@studiomorfis.com",
     "phone": "+45 33 12 40 08",
@@ -24,110 +24,111 @@
         "url": "https://linkedin.com"
       },
       {
-        "label": "Are.na",
-        "short": "AR",
-        "url": "https://are.na"
+        "label": "Vimeo",
+        "short": "VI",
+        "url": "https://vimeo.com"
       }
     ],
     "show_client": false,
     "show_materials": false
   },
   "home": {
-    "kicker": "Selected works 2020 — 2026",
+    "kicker": "Selected work 2020 — 2026",
     "headline": [
-      "Rooms shaped",
-      "by *mass,* light",
-      "& slow time."
+      "Buildings, seen",
+      "*before* they",
+      "are built."
     ],
-    "practice": "Houses, culture, public space",
+    "practice_label": "Services",
+    "practice": "Stills, film, interactive tours",
     "chapter_word": "Works",
     "chapter_number": "/26",
-    "chapter_text": "Six projects across four countries: a house, a pavilion, a chapel, an archive and two places to live.",
-    "marquee": "Selected works / 2020 — 2026 / Six buildings / Four countries /",
-    "end_text": "Every built work, competition and study since 2011, with drawings and material notes."
+    "chapter_text": "Six commissions across four countries: a house, a pavilion, a chapel, an archive and two places to live, all pictured before the first stone.",
+    "marquee": "Selected work / 2020 — 2026 / Stills / Film / Interactive /",
+    "end_text": "Every commission since 2011, built or still on paper, with notes on light, lens and time of day."
   },
   "works": {
-    "intro": "A complete register of built and ongoing work. Hover a title to preview it; select to open the monograph."
+    "intro": "A register of every commission, built or still on paper. Hover a title to preview it; select to open the project."
   },
   "studio": {
     "headline": [
-      "A small office for",
-      "buildings that *take*",
-      "their time."
+      "A small studio for",
+      "buildings that *don't*",
+      "exist yet."
     ],
     "paragraphs": [
-      "Studio Morfis was founded in 2011 by Astrid Morfis. We are fourteen people working on a deliberately small number of projects at a time.",
-      "Our work spans private houses, cultural and sacred buildings, and public housing. The scale changes; the questions stay the same: mass, light, and how a room will feel in forty years."
+      "Studio Morfis was founded in 2011 by Astrid Morfis. We are fourteen artists working with architects, developers and competition teams on a deliberately small number of commissions at a time.",
+      "We make still images, films and interactive walkthroughs. The tools change; the questions stay the same: where the light comes from, how a material feels, and how a room will be lived in."
     ],
     "principles": [
       {
-        "title": "Subtract before adding",
-        "body": "We begin by asking what a building can do without. Most of our best rooms are made by removing."
+        "title": "Start from the drawings",
+        "body": "Every image is built from the architect's own plans, sections and models. We do not invent what has not been designed."
       },
       {
-        "title": "Let structure finish",
-        "body": "Where the structure can be the surface, we let it. Fewer layers age more honestly."
+        "title": "Light before detail",
+        "body": "We set the sun, the sky and the hour before placing a single object. Most of an image is decided by its light."
       },
       {
-        "title": "Draw with light",
-        "body": "Every plan is also a drawing of the sun's path. Openings are placed for an hour, not an elevation."
+        "title": "One image, one idea",
+        "body": "Each view should say one thing about the building. A few precise images serve a project better than many."
       },
       {
-        "title": "Build near",
-        "body": "Materials are sourced as close to site as practical: earth from the excavation, stone from the valley."
+        "title": "Honest materials",
+        "body": "Concrete, timber and stone keep their real grain, weathering and imperfection, so a design can be judged as it will be built."
       }
     ],
     "people": [
       {
         "name": "Astrid Morfis",
-        "role": "Founding Partner"
+        "role": "Founder, Creative Director"
       },
       {
         "name": "Mads Sørensen",
-        "role": "Partner"
+        "role": "Partner, Lighting"
       },
       {
         "name": "Joana Pires",
-        "role": "Associate, Lisbon"
+        "role": "Lead 3D Artist"
       },
       {
         "name": "Lea Kragh",
-        "role": "Associate"
+        "role": "Film & Animation"
       },
       {
         "name": "Takeshi Ono",
-        "role": "Architect"
+        "role": "3D Artist"
       },
       {
         "name": "Eva Gunnarsdóttir",
-        "role": "Architect, Reykjavík"
+        "role": "Technical Director"
       }
     ],
     "recognition": [
       {
         "year": "2025",
-        "award": "Nordic Architecture Prize — shortlist",
+        "award": "Architectural Image of the Year — shortlist",
         "project": "Basalt Archive"
       },
       {
         "year": "2024",
-        "award": "Mies van der Rohe Award — nominee",
+        "award": "Visualization Film Award — winner",
         "project": "Timber Pavilion"
       },
       {
         "year": "2023",
-        "award": "Wallpaper* Design Awards — Best New Public Building",
-        "project": "Timber Pavilion"
-      },
-      {
-        "year": "2022",
-        "award": "FAD Award — Architecture",
+        "award": "Interior Image Award — honourable mention",
         "project": "House of Clay"
       },
       {
+        "year": "2022",
+        "award": "Competition Image Prize",
+        "project": "Basalt Archive"
+      },
+      {
         "year": "2021",
-        "award": "Swiss Art Award — Architecture",
-        "project": "Chapel of Still Light"
+        "award": "Emerging Studio of the Year",
+        "project": "Studio Morfis"
       }
     ],
     "figures": [
@@ -141,7 +142,7 @@
         "src": "images/studio-2.jpg",
         "w": 2000,
         "h": 1334,
-        "caption": "Model workshop, winter"
+        "caption": "Lighting tests, winter"
       }
     ]
   },
@@ -150,17 +151,17 @@
       "Begin with",
       "*a conversation.*"
     ],
-    "intro": "We take on four to six new commissions a year. Tell us about the site, the people who will use it, and the timeframe you have in mind.",
+    "intro": "We take on a small number of commissions each month. Send drawings or a model, the views you need and your deadline, and we will reply with a proposal.",
     "contacts": [
       {
         "label": "Press",
         "email": "press@studiomorfis.com",
-        "note": "Images, drawings and project texts for publication."
+        "note": "Images, films and project texts for publication."
       },
       {
         "label": "Careers",
         "email": "careers@studiomorfis.com",
-        "note": "Portfolios of up to 10 pages, as a single PDF."
+        "note": "Showreels and portfolios of up to 10 pages, as a single link or PDF."
       }
     ]
   },
@@ -173,15 +174,15 @@
       "city": "Sintra",
       "country": "Portugal",
       "year": 2024,
-      "status": "Completed",
+      "status": "Delivered",
       "area": "412 m²",
       "client": "Private",
       "team": "A. Morfis, M. Sørensen, J. Pires",
-      "lead": "A single mass of board-formed concrete, carved open by one vertical cut of light.",
+      "lead": "Stills and a short film for a concrete house above the Atlantic, built around a single cut of light.",
       "narrative": [
-        "Set into a granite slope above the Atlantic fog line, the house is conceived as one continuous casting. Its rooms are not built so much as subtracted, a sequence of hollows pressed into the hill.",
-        "A single slot, nine metres tall and forty centimetres wide, is the only opening on the entrance façade. Over the course of a day its blade of light travels across the hall, the stair and the dining table, a slow sundial for the household.",
-        "Every surface carries the grain of the pine boards it was cast against. Nothing is cladded, nothing is painted; the structure is the finish."
+        "The architects needed images of an idea most clients find hard to picture: a house made almost entirely of one material, with a single opening on its entrance façade.",
+        "We modelled the board-formed concrete from the shuttering drawings, plank by plank, and spent most of the commission on one question: where the nine-metre slot of light falls at each hour of the day.",
+        "The final set is eight stills and a ninety-second film that follows the blade of light from the hall to the dining table, from morning to dusk."
       ],
       "materials": [
         {
@@ -217,7 +218,7 @@
           "src": "images/monolith-3.jpg",
           "w": 2000,
           "h": 1334,
-          "caption": "The house seen from the lower terrace"
+          "caption": "The house from the lower terrace"
         }
       ],
       "published": true
@@ -230,15 +231,15 @@
       "city": "Vejle",
       "country": "Denmark",
       "year": 2023,
-      "status": "Completed",
+      "status": "Delivered",
       "area": "260 m²",
       "client": "Vejle Fjord Foundation",
       "team": "A. Morfis, L. Kragh, T. Ono",
-      "lead": "Two hundred and forty spruce fins, tuned to the angle of the northern sun.",
+      "lead": "Interior stills and a walkthrough film for a sixty-metre gallery of spruce fins beside a fjord.",
       "narrative": [
-        "The pavilion is a single gallery, sixty metres long, that runs along the fjord's edge. Its walls are a rhythm of vertical fins in cross-laminated spruce, spaced so that walking its length reads like turning the pages of a book.",
-        "On the south the fins close into a solid wall; on the north they open toward the water, admitting only reflected light. Exhibitions are lit by the fjord itself.",
-        "The building was prefabricated in eleven sections and assembled on site in nine days, sitting lightly on screw piles that leave the shoreline untouched."
+        "The pavilion is a single long room whose character comes from rhythm: two hundred and forty fins that open and close as you walk along it.",
+        "Still images could not show that, so the centrepiece of the commission is a slow walkthrough film, timed to a visitor's pace, with the fjord light shifting through the fins.",
+        "Six stills accompany the film. They were used in the planning application and later in the foundation's fundraising campaign."
       ],
       "materials": [
         {
@@ -287,15 +288,15 @@
       "city": "Évora",
       "country": "Portugal",
       "year": 2022,
-      "status": "Completed",
+      "status": "Delivered",
       "area": "188 m²",
       "client": "Private",
       "team": "A. Morfis, J. Pires",
-      "lead": "Walls of rammed earth dug from the site itself, half a metre thick and cool at noon.",
+      "lead": "A series of quiet interior images for a rammed-earth house on the Alentejo plain.",
       "narrative": [
-        "In the Alentejo plain, summer heat is the defining condition. The house answers with mass: rammed-earth walls fifty centimetres thick, compacted in layers from soil excavated for the foundations.",
-        "Openings are few and deep. Each frames a single element of the landscape: a cork oak, a well, the horizon line.",
-        "Inside, natural clay plaster regulates humidity, and the floors are laid in handmade terracotta fired twenty kilometres away."
+        "Rammed earth is hard to render convincingly. Its layers, colour shifts and soft edges give away any shortcut.",
+        "We photographed test walls on site with the builder and built the material from those references, so the images show the walls the house will actually have.",
+        "The commission ended with five stills at different hours, from the cool blue of early morning to the warm light of late afternoon."
       ],
       "materials": [
         {
@@ -344,15 +345,15 @@
       "city": "Reykjavík",
       "country": "Iceland",
       "year": 2025,
-      "status": "In progress",
+      "status": "In production",
       "area": "3,400 m²",
       "client": "City of Reykjavík",
       "team": "A. Morfis, M. Sørensen, E. Gunnarsdóttir",
-      "lead": "A municipal archive wrapped in a deep screen of cast basalt fins.",
+      "lead": "Competition and design-stage images for a public archive wrapped in a screen of basalt fins.",
       "narrative": [
-        "The archive holds four centuries of civic records in a climate-stable core, surrounded by a public reading hall that rings the building at street level.",
-        "The façade is a screen of cast basalt fins whose depth varies with orientation, deepest to the south and west, so that the reading hall is evenly lit through every season, including the low winter sun.",
-        "Construction began in 2025; the building opens in the spring of 2027."
+        "The archive began as a competition entry. Our first image was made in nine days and helped the design team win.",
+        "Since then we have followed the design through each stage, updating the façade study as the fins changed depth and spacing to suit the low northern sun.",
+        "The final film and street-level stills are in production for the building's opening in 2027."
       ],
       "materials": [
         {
@@ -401,14 +402,14 @@
       "city": "Ticino",
       "country": "Switzerland",
       "year": 2021,
-      "status": "Completed",
+      "status": "Delivered",
       "area": "96 m²",
       "client": "Parish of Valle Maggia",
       "team": "A. Morfis, R. Bianchi",
-      "lead": "A room for forty people, lit only from above.",
+      "lead": "Two images and a year-long light study for a small stone chapel lit only from above.",
       "narrative": [
-        "A small chapel on a valley floor, replacing a nineteenth-century oratory lost to a flood. The brief asked only for a room for forty people and a bell.",
-        "The walls are local gneiss, laid dry by two masons over one summer. The roof is a single concrete plate held clear of the walls by a band of glass, so that light falls down the stone surfaces rather than into the room."
+        "The brief was modest: one exterior and one interior image for the parish's fundraising leaflet.",
+        "The interior became a study of its own. We tested the roof glazing in every month of the year to show how light would slide down the dry-laid stone, and the architects used the results to adjust the width of the glass band."
       ],
       "materials": [
         {
@@ -457,14 +458,14 @@
       "city": "Palma",
       "country": "Spain",
       "year": 2020,
-      "status": "Completed",
+      "status": "Delivered",
       "area": "2,150 m²",
       "client": "IBAVI Housing Institute",
       "team": "A. Morfis, L. Kragh, C. Ferrer",
-      "lead": "Eighteen social homes, each organised around its own walled garden.",
+      "lead": "Aerial and courtyard views for eighteen social homes arranged around walled gardens.",
       "narrative": [
-        "Eighteen affordable homes arranged as a low carpet of walled courtyards, a contemporary reading of the Mallorcan patio.",
-        "Each house turns inward to a private garden planted with a single tree, and outward to a shared lane shaded by pergolas. Walls are built in marès sandstone quarried on the island."
+        "Housing images are often bright, busy and generic. The brief asked for the opposite: calm views that show what daily life in a shaded courtyard would feel like.",
+        "We produced one aerial of the whole carpet of courtyards and a set of eye-level views, each planted with the single tree its future residents will inherit."
       ],
       "materials": [
         {

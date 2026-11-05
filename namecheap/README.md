@@ -1,6 +1,6 @@
 # Studio Morfis website: Namecheap hosting package
 
-This folder is the complete website plus its admin panel, ready for Namecheap
+This folder is the complete website (set up for a 3D visualization studio) plus its admin panel, ready for Namecheap
 shared hosting (Stellar, Stellar Plus or Stellar Business). It needs **PHP 8.0
 or newer** and nothing else: no database, no build step, no command line.
 

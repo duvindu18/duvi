@@ -60,6 +60,7 @@ if (admin_post_guard()) {
     $home = $c['home'];
     $home['kicker'] = mb_substr(post_str('kicker'), 0, 80);
     $home['headline'] = array_slice(lines(post_str('headline')), 0, 5);
+    $home['practice_label'] = mb_substr(post_str('practice_label'), 0, 30);
     $home['practice'] = mb_substr(post_str('practice'), 0, 120);
     $home['chapter_word'] = mb_substr(post_str('chapter_word'), 0, 20);
     $home['chapter_number'] = mb_substr(post_str('chapter_number'), 0, 10);
@@ -132,7 +133,10 @@ admin_head('Site & home', 'site'); ?>
       <h2>Home page</h2>
       <?= f_text('kicker', 'Small heading', $home['kicker'], 'Above the big headline, and on the loading screen.') ?>
       <?= f_area('headline', 'Headline', implode("\n", $home['headline']), 'One line per row. Wrap words in *asterisks* to set them in the light weight, e.g. <code>by *mass,* light</code>.', 3) ?>
-      <?= f_text('practice', 'Practice', $home['practice'], 'Short list beside the description, e.g. Houses, culture, public space.') ?>
+      <div class="row2">
+        <?= f_text('practice_label', 'Facts heading', $home['practice_label'], 'e.g. Services or Practice.') ?>
+        <?= f_text('practice', 'Facts', $home['practice'], 'Short list beside the description, e.g. Stills, film, interactive tours.') ?>
+      </div>
       <div class="row3">
         <?= f_text('chapter_word', 'Chapter word', $home['chapter_word'], 'The very large word, e.g. Works.') ?>
         <?= f_text('chapter_number', 'Chapter number', $home['chapter_number'], 'e.g. /26') ?>

@@ -4,7 +4,8 @@
  */
 defined('MORFIS') || exit;
 
-const PROJECT_STATUSES = ['Completed', 'In progress', 'Competition', 'Study'];
+// Visualization statuses first; the architectural ones stay available for later.
+const PROJECT_STATUSES = ['Delivered', 'In production', 'Completed', 'In progress', 'Competition', 'Study'];
 
 function content_file(): string
 {
@@ -40,7 +41,7 @@ function normalize_content(array $c): array
         'show_client' => false, 'show_materials' => false,
     ];
     $c['home'] += [
-        'kicker' => '', 'headline' => [], 'practice' => '', 'chapter_word' => 'Works', 'chapter_number' => '',
+        'kicker' => '', 'headline' => [], 'practice_label' => 'Practice', 'practice' => '', 'chapter_word' => 'Works', 'chapter_number' => '',
         'chapter_text' => '', 'marquee' => '', 'end_text' => '',
     ];
     $c['works'] += ['intro' => ''];
@@ -56,7 +57,7 @@ function normalize_project(array $p): array
 {
     $p += [
         'id' => bin2hex(random_bytes(6)), 'slug' => '', 'title' => 'Untitled', 'typology' => '', 'city' => '',
-        'country' => '', 'year' => (int) date('Y'), 'status' => 'Completed', 'area' => '', 'client' => '',
+        'country' => '', 'year' => (int) date('Y'), 'status' => PROJECT_STATUSES[0], 'area' => '', 'client' => '',
         'team' => '', 'lead' => '', 'narrative' => [], 'materials' => [], 'figures' => [], 'published' => false,
         'updated' => '',
     ];

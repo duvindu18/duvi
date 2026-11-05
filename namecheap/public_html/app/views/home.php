@@ -19,7 +19,7 @@ $run = $home['marquee'] !== '' ? str_repeat(rtrim($home['marquee']) . ' ', 3) : 
         <p><?= e($site['description']) ?></p>
         <dl>
           <?php if ($site['founded'] !== ''): ?><dt class="label">Founded</dt><dd><?= e($site['founded']) ?></dd><?php endif; ?>
-          <?php if ($home['practice'] !== ''): ?><dt class="label">Practice</dt><dd><?= e($home['practice']) ?></dd><?php endif; ?>
+          <?php if ($home['practice'] !== ''): ?><dt class="label"><?= e($home['practice_label'] ?: 'Practice') ?></dt><dd><?= e($home['practice']) ?></dd><?php endif; ?>
         </dl>
       </div>
     </div>

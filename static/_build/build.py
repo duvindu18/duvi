@@ -11,7 +11,9 @@ re-running this script overwrites it.
 """
 from pathlib import Path
 
-from content import CONTACTS, PEOPLE, PRINCIPLES, PROJECTS, RECOGNITION, SITE
+import re
+
+from content import CONTACT_PAGE, CONTACTS, HOME, PEOPLE, PRINCIPLES, PROJECTS, RECOGNITION, SITE, STUDIO, WORKS
 
 OUT = Path(__file__).resolve().parent.parent
 FONTS = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=League+Spartan:wght@300;400;500;600;700;800;900&display=swap"
@@ -23,8 +25,14 @@ def wordmark(root="", alt="Studio Morfis."):
     return f'<img class="logo" src="{root}images/logo.png" width="1546" height="503" alt="{alt}">'
 
 
+def rich(text):
+    """*word* -> light-weight accent; "&" -> "&amp;" (content may already contain entities)."""
+    text = re.sub(r"&(?![a-zA-Z]+;|#\d+;)", "&amp;", text)
+    return re.sub(r"\*(.+?)\*", r"<em>\1</em>", text)
+
+
 def reveal(lines, delay=0.0, tag="span"):
-    inner = "".join(f'<span class="line"><span style="--i:{i}">{l}</span></span>' for i, l in enumerate(lines))
+    inner = "".join(f'<span class="line"><span style="--i:{i}">{rich(l)}</span></span>' for i, l in enumerate(lines))
     return f'<{tag} class="reveal" data-reveal style="--d:{delay}s">{inner}</{tag}>'
 
 
@@ -63,14 +71,14 @@ def splash(root):
     return f"""
 <div id="splash" role="status" aria-label="Loading {SITE['full_name']}">
 {bands}  <div class="splash-foot">
-    <div><p class="label">Loading</p><p class="label">Selected works 2020 — 2026</p></div>
+    <div><p class="label">Loading</p><p class="label">{HOME['kicker']}</p></div>
     <div class="counter" aria-hidden="true">{digits}<span class="counter-unit">%</span></div>
   </div>
   <div class="splash-resolved">
     {wordmark(root)}
     <p class="label">{SITE['tagline']}<br>Est. {SITE['founded']}</p>
   </div>
-  <div class="splash-meta"><span class="label">{SITE['full_name']}</span><span class="label">Architecture Office</span></div>
+  <div class="splash-meta"><span class="label">{SITE['full_name']}</span><span class="label">{SITE['descriptor']}</span></div>
 </div>"""
 
 
@@ -90,7 +98,7 @@ def rail(root, current):
 <aside class="rail">
   <div class="rail__brand" data-animate>
     <a href="{root}index.html" aria-label="{SITE['full_name']}, home">{wordmark(root)}</a>
-    <p class="label">Architecture Office</p>
+    <p class="label">{SITE['descriptor']}</p>
   </div>
   <nav class="rail__nav" aria-label="Primary">
     <ul>
@@ -212,19 +220,19 @@ def home():
         <p class="label">{p['city']}, {p['country']} — {p['typology']}</p>
       </a>"""
 
-    run = "Selected works / 2020 — 2026 / Six buildings / Four countries / " * 3
+    run = (HOME["marquee"].rstrip() + " ") * 3
     body = f"""
-<section class="home" aria-label="Selected works">
+<section class="home" aria-label="Selected work">
   <div class="track" data-track>
 
     <div class="panel intro" data-snap>
-      <p class="label" data-animate="fade" style="--d:.6s">Selected works 2020 — 2026</p>
-      <h1 class="display">{reveal(["Rooms shaped", "by <em>mass,</em> light", "&amp; slow time."], 0.15)}</h1>
+      <p class="label" data-animate="fade" style="--d:.6s">{HOME['kicker']}</p>
+      <h1 class="display">{reveal(HOME["headline"], 0.15)}</h1>
       <div class="intro__facts" data-animate style="--d:.7s">
         <p>{SITE['description']}</p>
         <dl>
           <dt class="label">Founded</dt><dd>{SITE['founded']}</dd>
-          <dt class="label">Practice</dt><dd>Houses, culture, public space</dd>
+          <dt class="label">{HOME['facts_label']}</dt><dd>{HOME['facts']}</dd>
         </dl>
       </div>
     </div>
@@ -236,10 +244,10 @@ def home():
     <div class="panel chapter" data-snap>
       <div class="chapter__run"><div class="marquee marquee--l" style="--dur:40s"><span class="label">{run}</span><span class="label">{run}</span></div></div>
       <div class="chapter__body">
-        <p class="chapter__big">Works</p>
+        <p class="chapter__big">{HOME['chapter_word']}</p>
         <div class="chapter__row">
-          <p class="chapter__num">/26</p>
-          <p>Six projects across four countries: a house, a pavilion, a chapel, an archive and two places to live.</p>
+          <p class="chapter__num">{HOME['chapter_number']}</p>
+          <p>{HOME['chapter_text']}</p>
         </div>
       </div>
       <div class="chapter__foot"><span class="label">Chapter 01</span><span class="label">{len(P):02d} projects</span></div>
@@ -254,7 +262,7 @@ def home():
     <div class="panel end" data-snap>
       <p class="label">Continue</p>
       <a class="serif" href="archive.html" data-cursor="Open index">The full<br><em>index</em><span class="arrow">→</span></a>
-      <p class="tiny muted">Every built work, competition and study since {SITE['founded']}, with drawings and material notes.</p>
+      <p class="tiny muted">{HOME['end_text']}</p>
     </div>
   </div>
 
@@ -299,7 +307,7 @@ def archive():
       <h1 class="display">{reveal(["Index"], 0.4)}</h1>
     </div>
     <div class="archive-head__aside">
-      <p>A complete register of built and ongoing work. Hover a title to preview it; select to open the monograph.</p>
+      <p>{WORKS['intro']}</p>
       <span class="label tabular" data-count>{len(PROJECTS):02d} / {len(PROJECTS):02d} entries</span>
     </div>
   </header>
@@ -399,24 +407,24 @@ def studio():
         for i, (t, b) in enumerate(PRINCIPLES)
     )
     people = "".join(f'<li class="person"><span class="serif">{n}</span><span class="label">{r}</span></li>' for n, r in PEOPLE)
+    f1, f2 = STUDIO["figures"]
     awards = "".join(f'<li class="award"><span class="tabular">{y}</span><span>{a}</span><span>{p}</span></li>' for y, a, p in RECOGNITION)
     body = f"""
 <div class="container">
   <header class="studio-head">
     <div>
       <p class="label">The studio</p>
-      <h1 class="display">{reveal(["A small office for", "buildings that <em>take</em>", "their time."], 0.4)}</h1>
+      <h1 class="display">{reveal(STUDIO["headline"], 0.4)}</h1>
     </div>
     <div class="studio-head__text" data-animate style="--d:.7s">
-      <p>Studio Morfis was founded in {SITE['founded']} by Astrid Morfis. We are fourteen people working on a deliberately small number of projects at a time.</p>
-      <p>Our work spans private houses, cultural and sacred buildings, and public housing. The scale changes; the questions stay the same: mass, light, and how a room will feel in forty years.</p>
+      {"".join(f"<p>{t}</p>" for t in STUDIO["paragraphs"])}
     </div>
   </header>
 
   <section class="studio-sec">
     <figure class="plate" data-inview>
-      <div class="frame" style="aspect-ratio:1600/2000">{img_tag('', 'studio-1.jpg', 1600, 2000, alt='The studio on Strandgade', parallax=9)}</div>
-      <figcaption><b>Fig. 01</b><span>The studio, Strandgade 27B</span></figcaption>
+      <div class="frame" style="aspect-ratio:{f1[1]}/{f1[2]}">{img_tag('', f1[0], f1[1], f1[2], alt=f1[3], parallax=9)}</div>
+      <figcaption><b>Fig. 01</b><span>{f1[3]}</span></figcaption>
     </figure>
     <div><p class="label">Principles</p><ol class="list">{principles}</ol></div>
   </section>
@@ -427,8 +435,8 @@ def studio():
   </section>
 
   <figure class="plate" data-inview>
-    <div class="frame" style="aspect-ratio:2000/1334">{img_tag('', 'studio-2.jpg', 2000, 1334, alt='Model workshop', parallax=6)}</div>
-    <figcaption><b>Fig. 02</b><span>Model workshop, winter</span></figcaption>
+    <div class="frame" style="aspect-ratio:{f2[1]}/{f2[2]}">{img_tag('', f2[0], f2[1], f2[2], alt=f2[3], parallax=6)}</div>
+    <figcaption><b>Fig. 02</b><span>{f2[3]}</span></figcaption>
   </figure>
 </div>"""
     page("studio.html", title="Studio", description="About Studio Morfis.", body=body, current="studio")
@@ -444,14 +452,14 @@ def contact():
 <div class="container contact">
   <div>
     <p class="label">Contact</p>
-    <h1 class="display">{reveal(["Begin with", "<em>a conversation.</em>"], 0.4)}</h1>
+    <h1 class="display">{reveal(CONTACT_PAGE["headline"], 0.4)}</h1>
   </div>
   <div class="contact__grid" data-animate style="--d:.7s">
     <div>
       <p class="label">New projects</p>
       <a class="contact__mail hairline-link" href="mailto:{SITE['email']}">{SITE['email']}</a>
       <p class="small" style="margin-top:12px">{SITE['phone']}</p>
-      <p class="small muted" style="margin-top:24px;max-width:360px">We take on four to six new commissions a year. Tell us about the site, the people who will use it, and the timeframe you have in mind.</p>
+      <p class="small muted" style="margin-top:24px;max-width:360px">{CONTACT_PAGE['intro']}</p>
     </div>
     {extra}
     <div class="contact__foot">
