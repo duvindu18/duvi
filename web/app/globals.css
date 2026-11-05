@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --rail: clamp(220px, 17vw, 280px);
+    --ease-editorial: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-charcoal;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  ::selection {
+    @apply bg-charcoal text-canvas;
+  }
+
+  :focus-visible {
+    outline: 1px solid #0a0a0a;
+    outline-offset: 3px;
+  }
+}
+
+@layer components {
+  /* Spaced metadata label: "[ THE MONOLITHIC VOID ]" */
+  .label {
+    @apply font-sans text-micro uppercase text-mutedText;
+  }
+
+  .hairline-link {
+    @apply relative inline-block;
+  }
+  .hairline-link::after {
+    content: "";
+    @apply absolute -bottom-0.5 left-0 h-px w-full origin-right scale-x-0 bg-current;
+    transition: transform 500ms var(--ease-editorial);
+  }
+  .hairline-link:hover::after,
+  .hairline-link[aria-current="page"]::after {
+    @apply origin-left scale-x-100;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .ease-editorial-500 {
+    transition-duration: 500ms;
+    transition-timing-function: var(--ease-editorial);
+  }
+}
+
+@keyframes marquee-l {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+@keyframes marquee-r {
+  from { transform: translate3d(-50%, 0, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+.marquee-l { animation: marquee-l var(--marquee-duration, 30s) linear infinite; }
+.marquee-r { animation: marquee-r var(--marquee-duration, 30s) linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-l,
+  .marquee-r { animation: none; }
+}
+
+/* Splash already seen this session: never paint it (set before hydration). */
+html[data-splash-seen] #splash { display: none; }
