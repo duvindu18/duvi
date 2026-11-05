@@ -3,45 +3,48 @@
 Written for a 3D visualization studio. Client and material fields are kept in
 the data (for a later architectural practice) but are not shown on the pages.
 Text in headlines may use *asterisks* to set a word in the light weight.
-Page texts may use {founded}, {year}, {yy} and {experience}: they are filled in
-with the founding year, the current year, its last two digits and the number
-of years since founding, and keep themselves up to date in the browser.
+Page texts may use {founded}, {year}, {yy}, {experience} and {experience_words}:
+they are filled in with the founding year, the current year, its last two digits
+and the years since founding (as a number, or as a word such as "six"), and keep
+themselves up to date in the browser.
 """
 
 SITE = {
     "name": "Studio Morfis",
     "full_name": "Studio Morfis",
     "descriptor": "3D Visualization Studio",
-    "tagline": "Architectural images, films &amp; the slow making of light",
-    "description": "Studio Morfis is an independent 3D visualization studio founded in 2020, handling local and international projects, from small houses to large infrastructure.",
+    "tagline": "Visualizing architecture since {founded}",
+    "based": "Sri Lanka",
+    "description": "Studio Morfis is an independent 3D visualization studio based in Sri Lanka. Since 2020 we have handled local and international projects, from small houses to large infrastructure.",
     "email": "hello@studiomorfis.com",
-    "phone": "+45 33 12 40 08",
+    "phone": "+94 11 000 0000",  # placeholder: replace with the studio's number
     "founded": 2020,
     "year": 2026,
     "nav": [("archive.html", "Index", "archive"), ("studio.html", "Studio", "studio"), ("contact.html", "Contact", "contact")],
-    "social": [("https://instagram.com", "Instagram", "IG"), ("https://linkedin.com", "LinkedIn", "LI"), ("https://vimeo.com", "Vimeo", "VI")],
+    # Behance, Instagram and Facebook links are shown with their icons.
+    "social": [("https://www.behance.net/", "Behance", "BE"), ("https://www.instagram.com/", "Instagram", "IG"), ("https://www.facebook.com/", "Facebook", "FB")],
 }
 
 HOME = {
     "kicker": "Selected work {founded} — {year}",
-    "headline": ["Buildings, seen", "*before* they", "are built."],
+    "headline": ["See it", "*before*", "you build it."],
     "facts_label": "Services",
     "facts": "Stills, film, interactive tours",
     "chapter_word": "Works",
     "chapter_number": "/{yy}",
-    "chapter_text": "Six commissions across four countries, from a single house to a city archive, all pictured before the first stone.",
+    "chapter_text": "A selection from {experience_words} years of work.",
     "marquee": "Selected work / {founded} — {year} / Local & international / Small houses to large infrastructure /",
     "end_text": "Every commission since {founded}, local and international, built or still on paper.",
 }
 
 WORKS = {
-    "intro": "Every commission since {founded}, local and international, from small houses to large infrastructure. Hover a title to preview it; select to open the project.",
+    "intro": "Every commission since {founded}, local and international, from small houses to large infrastructure.",
 }
 
 STUDIO = {
-    "headline": ["A small studio for", "buildings that *don't*", "exist yet."],
+    "headline": ["We picture", "*places* before", "they exist."],
     "paragraphs": [
-        "Studio Morfis was founded in {founded}. In {experience} years we have handled local and international projects, from small private houses to large infrastructure, for architects, engineers, developers and public clients.",
+        "Studio Morfis was founded in {founded} and is based in Sri Lanka. In {experience} years we have handled local and international projects, from small private houses to large infrastructure, for architects, engineers, developers and public clients.",
         "We make still images, films and interactive walkthroughs. The tools change; the questions stay the same: where the light comes from, how a material feels, and how a place will be used.",
     ],
     "figures": [
@@ -52,6 +55,7 @@ STUDIO = {
 
 CONTACT_PAGE = {
     "headline": ["Begin with", "*a conversation.*"],
+    "based_note": "Working with clients in Sri Lanka and abroad, across time zones.",
     "intro": "We take on a small number of commissions each month. Send drawings or a model, the views you need and your deadline, and we will reply with a proposal.",
 }
 

@@ -34,7 +34,7 @@ function normalize_content(array $c): array
     $c += ['site' => [], 'home' => [], 'works' => [], 'studio' => [], 'contact' => [], 'projects' => []];
     $c['site'] += [
         'name' => 'Studio Morfis', 'tagline' => '', 'description' => '', 'descriptor' => 'Architecture Office',
-        'founded' => '', 'email' => '', 'phone' => '', 'logo' => ['src' => 'images/logo.png', 'w' => 1546, 'h' => 503],
+        'founded' => '', 'based' => '', 'email' => '', 'phone' => '', 'logo' => ['src' => 'images/logo.png', 'w' => 1546, 'h' => 503],
         'social' => [],
         // Optional project facts. Off for a visualization studio; switch on in
         // Admin > Site & home for an architectural practice.
@@ -47,7 +47,7 @@ function normalize_content(array $c): array
     $c['works'] += ['intro' => ''];
     $c['studio'] += ['headline' => [], 'paragraphs' => [], 'principles' => [], 'people' => [], 'recognition' => [], 'figures' => [],
         'show_people' => false, 'show_recognition' => false];
-    $c['contact'] += ['headline' => [], 'intro' => '', 'contacts' => []];
+    $c['contact'] += ['headline' => [], 'intro' => '', 'based_note' => '', 'contacts' => []];
     foreach ($c['projects'] as $i => $p) {
         $c['projects'][$i] = normalize_project(is_array($p) ? $p : []);
     }

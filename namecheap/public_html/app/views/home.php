@@ -20,6 +20,7 @@ $experience = years_experience();
         <p><?= txt($site['description']) ?></p>
         <dl>
           <?php if ($site['founded'] !== ''): ?><dt class="label">Founded</dt><dd><?= e($site['founded']) ?></dd><?php endif; ?>
+          <?php if ($site['based'] !== ''): ?><dt class="label">Based</dt><dd><?= e($site['based']) ?></dd><?php endif; ?>
           <?php if ($experience): ?><dt class="label">Experience</dt><dd><?= $experience ?> year<?= $experience === 1 ? '' : 's' ?></dd><?php endif; ?>
           <?php if ($home['practice'] !== ''): ?><dt class="label"><?= e($home['practice_label'] ?: 'Practice') ?></dt><dd><?= txt($home['practice']) ?></dd><?php endif; ?>
         </dl>

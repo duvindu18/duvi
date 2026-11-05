@@ -199,9 +199,13 @@
     var y = new Date().getFullYear();
     document.querySelectorAll("[data-now-year]").forEach(function (el) { el.textContent = y; });
     document.querySelectorAll("[data-now-yy]").forEach(function (el) { el.textContent = String(y).slice(-2); });
+    var words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+      "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"];
     document.querySelectorAll("[data-years-since]").forEach(function (el) {
       var from = parseInt(el.getAttribute("data-years-since"), 10);
-      if (from) el.textContent = Math.max(1, y - from);
+      if (!from) return;
+      var n = Math.max(1, y - from);
+      el.textContent = el.hasAttribute("data-words") && words[n] ? words[n] : n;
     });
   }
 

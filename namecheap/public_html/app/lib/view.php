@@ -5,6 +5,23 @@
  */
 defined('MORFIS') || exit;
 
+const SOCIAL_ICONS = [
+    'behance.net' => '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7.2 5.5c.7 0 1.3.1 1.9.2.6.1 1 .3 1.4.6.4.3.7.6.9 1.1.2.5.3 1 .3 1.7 0 .7-.2 1.3-.5 1.8-.3.5-.8.9-1.4 1.2.9.3 1.5.7 1.9 1.3.4.6.6 1.3.6 2.2 0 .7-.1 1.3-.4 1.8-.3.5-.6.9-1.1 1.2-.5.3-1 .6-1.6.7-.6.2-1.2.2-1.8.2H1V5.5h6.2zm-.4 5.3c.5 0 1-.1 1.3-.4.3-.3.5-.7.5-1.2 0-.3-.1-.6-.2-.8-.1-.2-.3-.4-.5-.5-.2-.1-.4-.2-.7-.2-.3-.1-.5-.1-.8-.1H3.8v3.2h3zm.2 5.5c.3 0 .6 0 .8-.1.3-.1.5-.2.7-.3.2-.1.4-.3.5-.5.1-.2.2-.5.2-.9 0-.7-.2-1.2-.6-1.5-.4-.3-.9-.4-1.6-.4H3.8v3.7H7zm9.6 0c.4.4 1 .6 1.7.6.5 0 1-.1 1.4-.4.4-.3.6-.6.7-.9h2.4c-.4 1.2-1 2-1.8 2.6-.8.5-1.8.8-2.9.8-.8 0-1.5-.1-2.1-.4-.6-.3-1.2-.6-1.6-1.1-.4-.5-.8-1-1-1.6-.2-.6-.4-1.3-.4-2.1 0-.7.1-1.4.4-2.1.2-.6.6-1.2 1-1.6.5-.5 1-.8 1.6-1.1.6-.3 1.3-.4 2-.4.8 0 1.6.2 2.2.5.6.3 1.1.8 1.5 1.3.4.6.7 1.2.9 1.9.2.7.2 1.4.2 2.2h-7.2c0 .8.3 1.5.7 1.8zm3.1-5.2c-.3-.3-.8-.5-1.5-.5-.4 0-.8.1-1 .2-.3.1-.5.3-.6.5-.2.2-.3.4-.3.6-.1.2-.1.4-.1.6h4.4c-.2-.6-.5-1.1-.9-1.4zm-4.3-4.7h5.6v1.4h-5.6V6.4z"/></svg>',
+    'instagram.com' => '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5.2" fill="none" stroke="currentColor" stroke-width="1.9"/><circle cx="12" cy="12" r="4.1" fill="none" stroke="currentColor" stroke-width="1.9"/><circle cx="17.3" cy="6.7" r="1.25" fill="currentColor"/></svg>',
+    'facebook.com' => '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.4 21.5v-8.2h2.8l.4-3.2h-3.2v-2c0-.9.3-1.6 1.6-1.6h1.7V3.6c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3v2.4H7.2v3.2H10v8.2h3.4z"/></svg>',
+];
+
+/** Icon for a social link (Behance, Instagram, Facebook), or its short label. */
+function social_icon(array $s): string
+{
+    foreach (SOCIAL_ICONS as $host => $svg) {
+        if (stripos($s['url'], $host) !== false) {
+            return $svg;
+        }
+    }
+    return '<span class="label">' . e($s['short']) . '</span>';
+}
+
 const FONTS_URL = 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=League+Spartan:wght@300;400;500;600;700;800;900&display=swap';
 
 /** Render app/views/<name>.php with variables and return the HTML. */
@@ -153,7 +170,7 @@ function splash_html(): string
         $strip .= '<span>' . $n . '</span>';
     }
     $digits = str_repeat('<span class="digit"><span class="strip">' . $strip . '</span></span>', 3);
-    $founded = $site['founded'] !== '' ? '<br>Est. ' . e($site['founded']) : '';
+    $place = $site['based'] !== '' ? '<br>' . e($site['based']) : ($site['founded'] !== '' ? '<br>Est. ' . e($site['founded']) : '');
 
     return '
 <div id="splash" role="status" aria-label="Loading ' . e($site['name']) . '">
@@ -163,7 +180,7 @@ function splash_html(): string
   </div>
   <div class="splash-resolved">
     ' . logo_img() . '
-    <p class="label">' . e($site['tagline']) . $founded . '</p>
+    <p class="label">' . txt($site['tagline']) . $place . '</p>
   </div>
   <div class="splash-meta"><span class="label">' . e($site['name']) . '</span><span class="label">' . e($site['descriptor']) . '</span></div>
 </div>';
@@ -185,7 +202,7 @@ function rail_html(string $current): string
     }
     $social = '';
     foreach ($site['social'] as $s) {
-        $social .= '<li><a class="label hairline-link" href="' . e($s['url']) . '" target="_blank" rel="noreferrer" aria-label="' . e($s['label']) . '">' . e($s['short']) . '</a></li>';
+        $social .= '<li><a class="social-link" href="' . e($s['url']) . '" target="_blank" rel="noreferrer" aria-label="' . e($s['label']) . '" title="' . e($s['label']) . '">' . social_icon($s) . '</a></li>';
     }
     return '
 <aside class="rail">
@@ -196,7 +213,7 @@ function rail_html(string $current): string
   <nav class="rail__nav" aria-label="Primary">
     <ul>
 ' . $items . '    </ul>
-    <a class="btn-dark" href="' . e(url('contact')) . '">Start a project</a>
+    <a class="btn-dark" href="' . e(url('contact')) . '"><span class="btn-roll"><span data-label="Start a project">Start a project</span></span><i class="btn-arrow" aria-hidden="true">→</i></a>
   </nav>
   <div>
     <div class="rail__theme">' . theme_toggle() . '</div>

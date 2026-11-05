@@ -22,7 +22,15 @@ function years_experience(): ?int
     return $founded > 1900 ? max(1, (int) date('Y') - $founded) : null;
 }
 
-/** Fill {founded}, {year}, {yy} and {experience} in page texts. */
+/** "six" for 6 (up to twenty), digits beyond that. */
+function number_word(?int $n): string
+{
+    $words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven',
+        'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
+    return $n === null ? '' : ($words[$n] ?? (string) $n);
+}
+
+/** Fill {founded}, {year}, {yy}, {experience} and {experience_words} in page texts. */
 function tokens(string $text): string
 {
     if (strpos($text, '{') === false) {
@@ -33,6 +41,7 @@ function tokens(string $text): string
         '{founded}' => (string) (content()['site']['founded'] ?? ''),
         '{year}' => $year,
         '{yy}' => substr($year, -2),
+        '{experience_words}' => number_word(years_experience()),
         '{experience}' => (string) (years_experience() ?? ''),
     ]);
 }

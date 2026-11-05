@@ -16,6 +16,7 @@ if (admin_post_guard()) {
     $site['tagline'] = mb_substr(post_str('tagline'), 0, 160);
     $site['description'] = mb_substr(post_str('description'), 0, 300);
     $site['founded'] = mb_substr(post_str('founded'), 0, 10);
+    $site['based'] = mb_substr(post_str('based'), 0, 60);
     $email = post_str('email');
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = '"' . $email . '" does not look like an email address, so the previous one was kept.';
@@ -104,8 +105,11 @@ admin_head('Site & home', 'site'); ?>
       </div>
       <?= f_text('tagline', 'Tagline', $site['tagline'], 'Shown on the loading screen.') ?>
       <?= f_area('description', 'Short description', $site['description'], 'Shown on the home page and used by search engines.', 2) ?>
-      <div class="row3">
+      <div class="row2">
         <?= f_text('founded', 'Founded (year)', $site['founded'], 'Years of experience are counted from this year.') ?>
+        <?= f_text('based', 'Based in', $site['based'], 'Shown on the home page, the loading screen and the Contact page.') ?>
+      </div>
+      <div class="row2">
         <?= f_text('email', 'Email', $site['email'], '', ['type' => 'email']) ?>
         <?= f_text('phone', 'Phone', $site['phone']) ?>
       </div>
@@ -153,7 +157,7 @@ admin_head('Site & home', 'site'); ?>
     </section>
 
     <section class="card">
-      <?= f_repeater('social', 'Social links', ['label' => ['Name', 'text', 'w-3'], 'short' => ['Short', 'text', 'w-1'], 'url' => ['Address (https://…)', 'url', 'w-6']], $site['social'], 'Add link', 'The short form (2 letters) is shown in the side column; the full name on the Contact page.') ?>
+      <?= f_repeater('social', 'Social links', ['label' => ['Name', 'text', 'w-3'], 'short' => ['Short', 'text', 'w-1'], 'url' => ['Address (https://…)', 'url', 'w-6']], $site['social'], 'Add link', 'Behance, Instagram and Facebook links show their icon automatically; other links show the short form. The full name appears on the Contact page.') ?>
     </section>
   </div>
 </form>

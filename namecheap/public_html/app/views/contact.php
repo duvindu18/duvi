@@ -18,12 +18,15 @@ $ct = $c['contact'];
       <?php if ($site['phone'] !== ''): ?><p class="small" style="margin-top:12px"><?= e($site['phone']) ?></p><?php endif; ?>
       <?php if ($ct['intro'] !== ''): ?><p class="small muted" style="margin-top:24px;max-width:360px"><?= txt($ct['intro']) ?></p><?php endif; ?>
     </div>
+    <?php if ($site['based'] !== ''): ?>
+    <div><p class="label">Studio</p><p class="serif contact__based"><?= e($site['based']) ?></p><?php if ($ct['based_note'] !== ''): ?><p class="small muted" style="margin-top:8px"><?= txt($ct['based_note']) ?></p><?php endif; ?></div>
+    <?php endif; ?>
     <?php foreach ($ct['contacts'] as $x): ?>
     <div><p class="label"><?= e($x['label']) ?></p><p class="serif"><?= e($x['email']) ?></p><?php if ($x['note'] !== ''): ?><p class="small muted" style="margin-top:8px"><?= e($x['note']) ?></p><?php endif; ?></div>
     <?php endforeach; ?>
     <div class="contact__foot">
       <p class="label">© <?= date('Y') ?> <?= e($site['name']) ?></p>
-      <ul><?php foreach ($site['social'] as $s): ?><li><a class="hairline-link" href="<?= e($s['url']) ?>" target="_blank" rel="noreferrer"><?= e($s['label']) ?></a></li><?php endforeach; ?></ul>
+      <ul><?php foreach ($site['social'] as $s): ?><li><a class="social-link social-link--named" href="<?= e($s['url']) ?>" target="_blank" rel="noreferrer"><?= social_icon($s) ?><span><?= e($s['label']) ?></span></a></li><?php endforeach; ?></ul>
     </div>
   </div>
 </div>

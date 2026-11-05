@@ -28,9 +28,33 @@ def wordmark(root="", alt="Studio Morfis."):
 
 THIS_YEAR = date.today().year
 
+# Monochrome social icons (24px grid, currentColor), chosen by the link's site.
+SOCIAL_ICONS = {
+    "behance.net": '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7.2 5.5c.7 0 1.3.1 1.9.2.6.1 1 .3 1.4.6.4.3.7.6.9 1.1.2.5.3 1 .3 1.7 0 .7-.2 1.3-.5 1.8-.3.5-.8.9-1.4 1.2.9.3 1.5.7 1.9 1.3.4.6.6 1.3.6 2.2 0 .7-.1 1.3-.4 1.8-.3.5-.6.9-1.1 1.2-.5.3-1 .6-1.6.7-.6.2-1.2.2-1.8.2H1V5.5h6.2zm-.4 5.3c.5 0 1-.1 1.3-.4.3-.3.5-.7.5-1.2 0-.3-.1-.6-.2-.8-.1-.2-.3-.4-.5-.5-.2-.1-.4-.2-.7-.2-.3-.1-.5-.1-.8-.1H3.8v3.2h3zm.2 5.5c.3 0 .6 0 .8-.1.3-.1.5-.2.7-.3.2-.1.4-.3.5-.5.1-.2.2-.5.2-.9 0-.7-.2-1.2-.6-1.5-.4-.3-.9-.4-1.6-.4H3.8v3.7H7zm9.6 0c.4.4 1 .6 1.7.6.5 0 1-.1 1.4-.4.4-.3.6-.6.7-.9h2.4c-.4 1.2-1 2-1.8 2.6-.8.5-1.8.8-2.9.8-.8 0-1.5-.1-2.1-.4-.6-.3-1.2-.6-1.6-1.1-.4-.5-.8-1-1-1.6-.2-.6-.4-1.3-.4-2.1 0-.7.1-1.4.4-2.1.2-.6.6-1.2 1-1.6.5-.5 1-.8 1.6-1.1.6-.3 1.3-.4 2-.4.8 0 1.6.2 2.2.5.6.3 1.1.8 1.5 1.3.4.6.7 1.2.9 1.9.2.7.2 1.4.2 2.2h-7.2c0 .8.3 1.5.7 1.8zm3.1-5.2c-.3-.3-.8-.5-1.5-.5-.4 0-.8.1-1 .2-.3.1-.5.3-.6.5-.2.2-.3.4-.3.6-.1.2-.1.4-.1.6h4.4c-.2-.6-.5-1.1-.9-1.4zm-4.3-4.7h5.6v1.4h-5.6V6.4z"/></svg>',
+    "instagram.com": '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5.2" fill="none" stroke="currentColor" stroke-width="1.9"/><circle cx="12" cy="12" r="4.1" fill="none" stroke="currentColor" stroke-width="1.9"/><circle cx="17.3" cy="6.7" r="1.25" fill="currentColor"/></svg>',
+    "facebook.com": '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.4 21.5v-8.2h2.8l.4-3.2h-3.2v-2c0-.9.3-1.6 1.6-1.6h1.7V3.6c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3v2.4H7.2v3.2H10v8.2h3.4z"/></svg>',
+}
+
+
+def social_icon(url, short):
+    for host, svg in SOCIAL_ICONS.items():
+        if host in url:
+            return svg
+    return f'<span class="label">{short}</span>'
+
+
+NUMBER_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+                "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
+                "nineteen", "twenty"]
+
+
+def number_word(n):
+    return NUMBER_WORDS[n] if 0 <= n < len(NUMBER_WORDS) else str(n)
+
+
 
 def tok(text):
-    """Fill {founded}, {year}, {yy}, {experience} and escape bare "&".
+    """Fill {founded}, {year}, {yy}, {experience}, {experience_words}; escape bare "&".
 
     The year values are wrapped in spans that js/main.js refreshes in the
     browser, so the static pages stay current without a rebuild.
@@ -40,6 +64,7 @@ def tok(text):
     return (text.replace("{founded}", str(founded))
                 .replace("{year}", f'<span data-now-year>{THIS_YEAR}</span>')
                 .replace("{yy}", f'<span data-now-yy>{str(THIS_YEAR)[-2:]}</span>')
+                .replace("{experience_words}", f'<span data-years-since="{founded}" data-words>{number_word(max(1, THIS_YEAR - founded))}</span>')
                 .replace("{experience}", f'<span data-years-since="{founded}">{max(1, THIS_YEAR - founded)}</span>'))
 
 
@@ -93,7 +118,7 @@ def splash(root):
   </div>
   <div class="splash-resolved">
     {wordmark(root)}
-    <p class="label">{SITE['tagline']}<br>Est. {SITE['founded']}</p>
+    <p class="label">{tok(SITE['tagline'])}<br>{SITE['based']}</p>
   </div>
   <div class="splash-meta"><span class="label">{SITE['full_name']}</span><span class="label">{SITE['descriptor']}</span></div>
 </div>"""
@@ -108,7 +133,7 @@ def rail(root, current):
             f'<span class="tick"></span><a href="{root}{href}"{" aria-current=\"page\"" if cur else ""}>{label}</a></li>\n'
         )
     social = "".join(
-        f'<li><a class="label hairline-link" href="{h}" target="_blank" rel="noreferrer" aria-label="{n}">{s}</a></li>'
+        f'<li><a class="social-link" href="{h}" target="_blank" rel="noreferrer" aria-label="{n}" title="{n}">{social_icon(h, s)}</a></li>'
         for h, n, s in SITE["social"]
     )
     return f"""
@@ -120,7 +145,7 @@ def rail(root, current):
   <nav class="rail__nav" aria-label="Primary">
     <ul>
 {items}    </ul>
-    <a class="btn-dark" href="{root}contact.html">Start a project</a>
+    <a class="btn-dark" href="{root}contact.html"><span class="btn-roll"><span data-label="Start a project">Start a project</span></span><i class="btn-arrow" aria-hidden="true">→</i></a>
   </nav>
   <div>
     <div class="rail__theme"><button class="theme-toggle" type="button" aria-pressed="false" data-theme-toggle><span class="dot" aria-hidden="true"></span><span data-theme-label>Dark mode</span></button></div>
@@ -249,6 +274,7 @@ def home():
         <p>{SITE['description']}</p>
         <dl>
           <dt class="label">Founded</dt><dd>{SITE['founded']}</dd>
+          <dt class="label">Based</dt><dd>{SITE['based']}</dd>
           <dt class="label">Experience</dt><dd>{tok('{experience} years')}</dd>
           <dt class="label">{HOME['facts_label']}</dt><dd>{tok(HOME['facts'])}</dd>
         </dl>
@@ -403,7 +429,6 @@ def project(i, p):
         <p class="spread__credit">{p['title']} by Studio Morfis — {p['team']}</p>
       </div>
       <div class="spread__plate">{frame(root, plate[0], plate[1], plate[2], alt=plate[3])}</div>
-      <div class="spread__gutter"></div>
     </div>
   </section>
 
@@ -460,7 +485,7 @@ def contact():
         f'<div><p class="label">{label}</p><p class="serif">{mail}</p><p class="small muted" style="margin-top:8px">{note}</p></div>'
         for label, mail, note in CONTACTS
     )
-    social = "".join(f'<li><a class="hairline-link" href="{h}" target="_blank" rel="noreferrer">{n}</a></li>' for h, n, _ in SITE["social"])
+    social = "".join(f'<li><a class="social-link social-link--named" href="{h}" target="_blank" rel="noreferrer">{social_icon(h, s)}<span>{n}</span></a></li>' for h, n, s in SITE["social"])
     body = f"""
 <div class="container contact">
   <div>
@@ -474,6 +499,7 @@ def contact():
       <p class="small" style="margin-top:12px">{SITE['phone']}</p>
       <p class="small muted" style="margin-top:24px;max-width:360px">{tok(CONTACT_PAGE['intro'])}</p>
     </div>
+    <div><p class="label">Studio</p><p class="serif contact__based">{SITE['based']}</p><p class="small muted" style="margin-top:8px">{CONTACT_PAGE['based_note']}</p></div>
     {extra}
     <div class="contact__foot">
       <p class="label">© {tok('{year}')} {SITE['full_name']}</p>

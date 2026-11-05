@@ -60,7 +60,6 @@ $nextFig = $next ? cover($next) : null;
         <p class="spread__credit"><?= e($p['title']) ?> by <?= e($c['site']['name']) ?><?= $p['team'] !== '' ? ' — ' . e($p['team']) : '' ?></p>
       </div>
       <div class="spread__plate"><?= frame($plate, $plate['caption']) ?></div>
-      <div class="spread__gutter"></div>
     </div>
   </section>
 <?php endif; ?>

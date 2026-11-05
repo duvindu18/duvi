@@ -2,11 +2,12 @@
   "site": {
     "name": "Studio Morfis",
     "descriptor": "3D Visualization Studio",
-    "tagline": "Architectural images, films & the slow making of light",
-    "description": "Studio Morfis is an independent 3D visualization studio founded in 2020, handling local and international projects, from small houses to large infrastructure.",
+    "tagline": "Visualizing architecture since {founded}",
+    "description": "Studio Morfis is an independent 3D visualization studio based in Sri Lanka. Since 2020 we have handled local and international projects, from small houses to large infrastructure.",
     "founded": 2020,
+    "based": "Sri Lanka",
     "email": "hello@studiomorfis.com",
-    "phone": "+45 33 12 40 08",
+    "phone": "+94 11 000 0000",
     "logo": {
       "src": "images/logo.png",
       "w": 1546,
@@ -14,19 +15,19 @@
     },
     "social": [
       {
+        "label": "Behance",
+        "short": "BE",
+        "url": "https://www.behance.net/"
+      },
+      {
         "label": "Instagram",
         "short": "IG",
-        "url": "https://instagram.com"
+        "url": "https://www.instagram.com/"
       },
       {
-        "label": "LinkedIn",
-        "short": "LI",
-        "url": "https://linkedin.com"
-      },
-      {
-        "label": "Vimeo",
-        "short": "VI",
-        "url": "https://vimeo.com"
+        "label": "Facebook",
+        "short": "FB",
+        "url": "https://www.facebook.com/"
       }
     ],
     "show_client": false,
@@ -35,29 +36,29 @@
   "home": {
     "kicker": "Selected work {founded} — {year}",
     "headline": [
-      "Buildings, seen",
-      "*before* they",
-      "are built."
+      "See it",
+      "*before*",
+      "you build it."
     ],
     "practice_label": "Services",
     "practice": "Stills, film, interactive tours",
     "chapter_word": "Works",
     "chapter_number": "/{yy}",
-    "chapter_text": "Six commissions across four countries, from a single house to a city archive, all pictured before the first stone.",
+    "chapter_text": "A selection from {experience_words} years of work.",
     "marquee": "Selected work / {founded} — {year} / Local & international / Small houses to large infrastructure /",
     "end_text": "Every commission since {founded}, local and international, built or still on paper."
   },
   "works": {
-    "intro": "Every commission since {founded}, local and international, from small houses to large infrastructure. Hover a title to preview it; select to open the project."
+    "intro": "Every commission since {founded}, local and international, from small houses to large infrastructure."
   },
   "studio": {
     "headline": [
-      "A small studio for",
-      "buildings that *don't*",
-      "exist yet."
+      "We picture",
+      "*places* before",
+      "they exist."
     ],
     "paragraphs": [
-      "Studio Morfis was founded in {founded}. In {experience} years we have handled local and international projects, from small private houses to large infrastructure, for architects, engineers, developers and public clients.",
+      "Studio Morfis was founded in {founded} and is based in Sri Lanka. In {experience} years we have handled local and international projects, from small private houses to large infrastructure, for architects, engineers, developers and public clients.",
       "We make still images, films and interactive walkthroughs. The tools change; the questions stay the same: where the light comes from, how a material feels, and how a place will be used."
     ],
     "principles": [
@@ -154,6 +155,7 @@
       "*a conversation.*"
     ],
     "intro": "We take on a small number of commissions each month. Send drawings or a model, the views you need and your deadline, and we will reply with a proposal.",
+    "based_note": "Working with clients in Sri Lanka and abroad, across time zones.",
     "contacts": [
       {
         "label": "Press",

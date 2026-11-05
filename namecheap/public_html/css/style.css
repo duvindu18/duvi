@@ -158,14 +158,32 @@ address { font-style: normal; }
 .hairline-link[aria-current="page"]::after,
 .hairline-link[aria-pressed="true"]::after { transform: scaleX(1); transform-origin: left; }
 
+/* Primary button. On hover a page-coloured curtain rises from below (like the
+   page transitions) while the label rolls up and is replaced (like the line
+   reveals), and the arrow steps forward. */
 .btn-dark {
-  display: inline-flex; align-items: center;
-  height: 36px; padding: 0 20px;
+  position: relative; isolation: isolate; overflow: hidden;
+  display: inline-flex; align-items: center; gap: 14px;
+  height: 40px; padding: 0 16px 0 18px;
   background: var(--charcoal); color: var(--canvas);
+  border: 1px solid var(--charcoal);
   font-family: var(--display); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
-  transition: padding 500ms var(--ease);
 }
-.btn-dark:hover { padding: 0 28px; }
+.btn-dark::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: var(--canvas);
+  transform: translateY(101%);
+  transition: transform 650ms var(--curtain);
+}
+.btn-dark:hover::before, .btn-dark:focus-visible::before { transform: translateY(0); }
+/* The outgoing label keeps the light colour and the incoming copy is dark, so the
+   text stays readable at every frame while the curtain passes behind it. */
+.btn-roll { display: block; overflow: hidden; height: 1.3em; line-height: 1.3em; }
+.btn-roll > span { display: block; transition: transform 650ms var(--curtain) 60ms; }
+.btn-roll > span::after { content: attr(data-label); display: block; color: var(--charcoal); }
+.btn-dark:hover .btn-roll > span, .btn-dark:focus-visible .btn-roll > span { transform: translateY(-50%); }
+.btn-arrow { display: inline-block; font-style: normal; font-size: 13px; transition: transform 650ms var(--ease), color 300ms var(--ease) 200ms; }
+.btn-dark:hover .btn-arrow, .btn-dark:focus-visible .btn-arrow { transform: translateX(4px); color: var(--charcoal); }
 
 .round-btn {
   display: grid; place-items: center;
@@ -339,11 +357,10 @@ html[data-splash-seen] #curtain { } /* curtain still runs on repeat visits */
 .rail__nav a { font-family: var(--display); font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); transition: color 500ms var(--ease); }
 .rail__nav a:hover, .rail__nav a[aria-current="page"] { color: var(--charcoal); }
 .rail__nav a[aria-current="page"] ~ .tick, .rail__nav li.is-current .tick { width: 20px; }
-.rail__nav .btn-dark { margin-top: 40px; }
-/* Beat ".rail__nav a:hover" so the label stays light on the dark button */
+/* Beat ".rail__nav a:hover", which would turn the button label dark */
 .rail__nav .btn-dark,
 .rail__nav .btn-dark:hover,
-.rail__nav .btn-dark:focus-visible { color: var(--canvas); }
+.rail__nav .btn-dark:focus-visible { margin-top: 40px; color: var(--canvas); }
 /* Light / dark switch */
 .theme-toggle {
   display: inline-flex; align-items: center; gap: 10px;
@@ -364,8 +381,14 @@ html[data-splash-seen] #curtain { } /* curtain still runs on repeat visits */
 .theme-toggle[aria-pressed="true"] .dot::after { transform: translateX(14px); }
 .rail__theme { padding-top: 20px; border-top: 1px solid var(--hairline); }
 .rail__foot { display: flex; align-items: center; justify-content: space-between; margin-top: 24px; }
-.rail__foot ul { display: flex; gap: 16px; }
-.rail__foot a:hover { color: var(--charcoal); }
+.rail__foot ul { display: flex; align-items: center; gap: 14px; }
+
+/* Social icons */
+.social-link { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); transition: color 400ms var(--ease), transform 400ms var(--ease); }
+.social-link .icon { width: 16px; height: 16px; display: block; }
+.social-link:hover, .social-link:focus-visible { color: var(--charcoal); transform: translateY(-2px); }
+.social-link--named { color: var(--charcoal); }
+.social-link--named:hover { color: var(--muted); }
 /* Rail entrance after splash */
 .rail [data-animate] { transform: translateX(-10px); }
 .rail [data-animate].is-in { transform: none; }
@@ -730,16 +753,10 @@ html[data-splash-seen] #curtain { } /* curtain still runs on repeat visits */
 .spread__credit { margin-top: 32px; text-align: center; font-family: var(--display); font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; font-size: 9.5px; color: var(--muted); }
 .spread__plate { position: relative; min-height: 420px; }
 .spread__plate .frame { position: absolute; inset: 0; }
-.spread__gutter { display: none; }
 @media (min-width: 640px) { .spread__text { columns: 2; } .spread__page { padding: 48px var(--gutter); } }
 @media (min-width: 768px) {
   .spread__book { grid-template-columns: 1fr 1fr; }
   .spread__page { padding: 64px 6%; }
-  .spread__gutter {
-    display: block; position: absolute; top: 0; bottom: 0; left: 50%; width: 96px;
-    transform: translateX(-50%); pointer-events: none;
-    background: linear-gradient(to right, transparent, var(--hairline), transparent);
-  }
 }
 @media (min-width: 1024px) {
   .spread { padding-top: 112px; }
@@ -788,12 +805,14 @@ html[data-splash-seen] #curtain { } /* curtain still runs on repeat visits */
 .contact { display: flex; flex-direction: column; justify-content: space-between; min-height: calc(100svh - var(--bar)); padding-bottom: 48px; }
 .contact h1 { margin-top: 24px; font-size: clamp(42px, 6vw, 108px); }
 .contact__grid { display: grid; gap: 48px; margin-top: 80px; padding-top: 40px; border-top: 1px solid var(--hairline); }
-.contact__mail { font-family: var(--display); font-weight: 800; font-size: clamp(24px, 2.4vw, 38px); letter-spacing: -0.01em; line-height: 1.2; }
+.contact__mail { overflow-wrap: anywhere; font-family: var(--display); font-weight: 800; font-size: clamp(24px, 2.4vw, 38px); letter-spacing: -0.01em; line-height: 1.2; }
 .contact__grid .serif { font-size: 18px; margin-top: 4px; text-transform: none; }
+.contact__grid .contact__based { text-transform: uppercase; }
 .contact__foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding-top: 24px; border-top: 1px solid var(--hairline); }
 .contact__foot ul { display: flex; gap: 24px; font-family: var(--display); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; font-size: 11px; }
 @media (min-width: 768px) {
-  .contact__grid { grid-template-columns: 5fr 3fr 3fr; }
+  .contact__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .contact__grid > :first-child { grid-column: 1 / -1; }
   .contact__foot { grid-column: 1 / -1; }
 }
 @media (min-width: 1024px) { .contact { min-height: 100svh; } }
