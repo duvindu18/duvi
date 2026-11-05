@@ -4,13 +4,9 @@ SITE = {
     "name": "Studio Morfis",
     "full_name": "Studio Morfis",
     "tagline": "Architecture, landscape &amp; the slow making of rooms",
-    "description": "Studio Morfis is an independent architecture office in Copenhagen working across houses, cultural buildings and public space.",
-    "city": "Copenhagen",
-    "time_zone": "Europe/Copenhagen",
-    "coordinates": "55.68° N — 12.57° E",
+    "description": "Studio Morfis is an independent architecture office working across houses, cultural buildings and public space.",
     "email": "hello@studiomorfis.com",
     "phone": "+45 33 12 40 08",
-    "address": ["Strandgade 27B", "1401 Copenhagen K", "Denmark"],
     "founded": 2011,
     "year": 2026,
     "nav": [("archive.html", "Index", "archive"), ("studio.html", "Studio", "studio"), ("contact.html", "Contact", "contact")],
@@ -117,7 +113,8 @@ RECOGNITION = [
     ("2021", "Swiss Art Award — Architecture", "Chapel of Still Light"),
 ]
 
-OFFICES = [
-    ("Main studio", "Copenhagen", SITE["address"]),
-    ("Satellite office", "Lisbon", ["Rua da Boavista 84", "1200-066 Lisboa", "Portugal"]),
+# Secondary contact columns on the Contact page: (label, email, note)
+CONTACTS = [
+    ("Press", "press@studiomorfis.com", "Images, drawings and project texts for publication."),
+    ("Careers", "careers@studiomorfis.com", "Portfolios of up to 10 pages, as a single PDF."),
 ]

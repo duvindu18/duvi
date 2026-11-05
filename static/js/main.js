@@ -5,7 +5,7 @@
    - "Ready" lifecycle that gates entrance animations
    - Line reveals / fade-ins on scroll (IntersectionObserver)
    - Image fade-in on load, scroll parallax
-   - Live studio clock, mobile menu, cursor label
+   - Light / dark theme switch, mobile menu, cursor label
    ========================================================================== */
 (function () {
   "use strict";
@@ -13,7 +13,6 @@
   var root = document.documentElement;
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-  var TIME_ZONE = "Europe/Copenhagen";
   var SPLASH_KEY = "morfis:splash";
 
   /* ---------------------------------------------------------------------
@@ -193,24 +192,38 @@
     update();
   }
 
-  /* --------------------------------------------------------------------- Clock */
-  function initClock() {
-    var els = document.querySelectorAll("[data-clock]");
-    if (!els.length) return;
-    var fmt;
-    try {
-      fmt = new Intl.DateTimeFormat("en-GB", {
-        timeZone: TIME_ZONE, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  /* --------------------------------------------------------------------- Theme */
+  // Light / dark switch. With no saved choice the page follows the system
+  // (prefers-color-scheme); a click saves an explicit choice in localStorage.
+  function initTheme() {
+    var toggles = document.querySelectorAll("[data-theme-toggle]");
+    if (!toggles.length) return;
+    var system = window.matchMedia("(prefers-color-scheme: dark)");
+
+    function isDark() {
+      var t = root.getAttribute("data-theme");
+      return t ? t === "dark" : system.matches;
+    }
+    function sync() {
+      var dark = isDark();
+      toggles.forEach(function (btn) {
+        btn.setAttribute("aria-pressed", String(dark));
+        var label = btn.querySelector("[data-theme-label]");
+        if (label) label.textContent = dark ? "Light mode" : "Dark mode";
       });
-    } catch (e) {
-      fmt = { format: function (d) { return d.toTimeString().slice(0, 8); } };
     }
-    function update() {
-      var t = fmt.format(new Date());
-      els.forEach(function (el) { el.textContent = t; });
-    }
-    update();
-    setInterval(update, 1000);
+    toggles.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var next = isDark() ? "light" : "dark";
+        root.setAttribute("data-theme", next);
+        try { localStorage.setItem("morfis:theme", next); } catch (e) {}
+        sync();
+      });
+    });
+    if (system.addEventListener) system.addEventListener("change", sync);
+    // The host page may also set data-theme on the root; keep the labels honest.
+    new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    sync();
   }
 
   /* --------------------------------------------------------------------- Mobile menu */
@@ -266,7 +279,7 @@
   function boot() {
     initCurtain();
     initImages();
-    initClock();
+    initTheme();
     initMenu();
     initCursor();
     initParallax();

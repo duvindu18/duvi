@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Not found — Studio Morfis</title>
 <meta name="description" content="Page not found.">
-<meta name="theme-color" content="#FAFAFA">
+<meta name="theme-color" content="#FAFAFA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E0E0D" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,6 +15,8 @@
 <script>
   /* Skip the splash for the rest of the session once seen (runs before paint). */
   try { if (sessionStorage.getItem("morfis:splash")) document.documentElement.setAttribute("data-splash-seen", ""); } catch (e) {}
+  /* Apply a saved light/dark choice before paint; otherwise the system setting applies. */
+  try { var t = localStorage.getItem("morfis:theme"); if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t); } catch (e) {}
 </script>
 <script src="js/main.js" defer></script>
 </head>
@@ -30,9 +33,9 @@
   </div>
   <div class="splash-resolved">
     <img class="logo" src="images/logo.png" width="1546" height="503" alt="Studio Morfis.">
-    <p class="label">Architecture, landscape &amp; the slow making of rooms<br>Copenhagen — Est. 2011</p>
+    <p class="label">Architecture, landscape &amp; the slow making of rooms<br>Est. 2011</p>
   </div>
-  <div class="splash-meta"><span class="label">Studio Morfis</span><span class="label">55.68° N — 12.57° E</span></div>
+  <div class="splash-meta"><span class="label">Studio Morfis</span><span class="label">Architecture Office</span></div>
 </div>
 <div id="curtain" aria-hidden="true"></div>
 
@@ -50,11 +53,7 @@
     <a class="btn-dark" href="contact.html">Start a project</a>
   </nav>
   <div>
-    <div class="rail__ticker">
-      <p class="label">Copenhagen</p>
-      <time data-clock>--:--:--</time>
-      <p class="label">55.68° N — 12.57° E</p>
-    </div>
+    <div class="rail__theme"><button class="theme-toggle" type="button" aria-pressed="false" data-theme-toggle><span class="dot" aria-hidden="true"></span><span data-theme-label>Dark mode</span></button></div>
     <div class="rail__foot"><ul><li><a class="label hairline-link" href="https://instagram.com" target="_blank" rel="noreferrer" aria-label="Instagram">IG</a></li><li><a class="label hairline-link" href="https://linkedin.com" target="_blank" rel="noreferrer" aria-label="LinkedIn">LI</a></li><li><a class="label hairline-link" href="https://are.na" target="_blank" rel="noreferrer" aria-label="Are.na">AR</a></li></ul><span class="label">© 2026</span></div>
   </div>
 </aside>
@@ -68,7 +67,7 @@
 <div class="mobile-menu" id="mobile-menu">
   <nav aria-label="Primary"><ul><li><a href="index.html"><span class="serif">Home</span><span class="label">01</span></a></li><li><a href="archive.html"><span class="serif">Index</span><span class="label">02</span></a></li><li><a href="studio.html"><span class="serif">Studio</span><span class="label">03</span></a></li><li><a href="contact.html"><span class="serif">Contact</span><span class="label">04</span></a></li></ul></nav>
   <div class="mobile-menu__foot">
-    <div><p class="label">Copenhagen</p><time data-clock>--:--:--</time></div>
+    <button class="theme-toggle" type="button" aria-pressed="false" data-theme-toggle><span class="dot" aria-hidden="true"></span><span data-theme-label>Dark mode</span></button>
     <a href="mailto:hello@studiomorfis.com">hello@studiomorfis.com</a>
   </div>
 </div>

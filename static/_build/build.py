@@ -11,7 +11,7 @@ re-running this script overwrites it.
 """
 from pathlib import Path
 
-from content import OFFICES, PEOPLE, PRINCIPLES, PROJECTS, RECOGNITION, SITE
+from content import CONTACTS, PEOPLE, PRINCIPLES, PROJECTS, RECOGNITION, SITE
 
 OUT = Path(__file__).resolve().parent.parent
 FONTS = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=League+Spartan:wght@300;400;500;600;700;800;900&display=swap"
@@ -68,9 +68,9 @@ def splash(root):
   </div>
   <div class="splash-resolved">
     {wordmark(root)}
-    <p class="label">{SITE['tagline']}<br>{SITE['city']} — Est. {SITE['founded']}</p>
+    <p class="label">{SITE['tagline']}<br>Est. {SITE['founded']}</p>
   </div>
-  <div class="splash-meta"><span class="label">{SITE['full_name']}</span><span class="label">{SITE['coordinates']}</span></div>
+  <div class="splash-meta"><span class="label">{SITE['full_name']}</span><span class="label">Architecture Office</span></div>
 </div>"""
 
 
@@ -98,11 +98,7 @@ def rail(root, current):
     <a class="btn-dark" href="{root}contact.html">Start a project</a>
   </nav>
   <div>
-    <div class="rail__ticker">
-      <p class="label">{SITE['city']}</p>
-      <time data-clock>--:--:--</time>
-      <p class="label">{SITE['coordinates']}</p>
-    </div>
+    <div class="rail__theme"><button class="theme-toggle" type="button" aria-pressed="false" data-theme-toggle><span class="dot" aria-hidden="true"></span><span data-theme-label>Dark mode</span></button></div>
     <div class="rail__foot"><ul>{social}</ul><span class="label">© {SITE['year']}</span></div>
   </div>
 </aside>"""
@@ -124,7 +120,7 @@ def mobile(root):
 <div class="mobile-menu" id="mobile-menu">
   <nav aria-label="Primary"><ul>{items}</ul></nav>
   <div class="mobile-menu__foot">
-    <div><p class="label">{SITE['city']}</p><time data-clock>--:--:--</time></div>
+    <button class="theme-toggle" type="button" aria-pressed="false" data-theme-toggle><span class="dot" aria-hidden="true"></span><span data-theme-label>Dark mode</span></button>
     <a href="mailto:{SITE['email']}">{SITE['email']}</a>
   </div>
 </div>"""
@@ -140,7 +136,8 @@ def page(filename, *, title, description, body, current="", root="", scripts=())
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{full_title}</title>
 <meta name="description" content="{description}">
-<meta name="theme-color" content="#FAFAFA">
+<meta name="theme-color" content="#FAFAFA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E0E0D" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="{root}favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -149,6 +146,8 @@ def page(filename, *, title, description, body, current="", root="", scripts=())
 <script>
   /* Skip the splash for the rest of the session once seen (runs before paint). */
   try {{ if (sessionStorage.getItem("morfis:splash")) document.documentElement.setAttribute("data-splash-seen", ""); }} catch (e) {{}}
+  /* Apply a saved light/dark choice before paint; otherwise the system setting applies. */
+  try {{ var t = localStorage.getItem("morfis:theme"); if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t); }} catch (e) {{}}
 </script>
 {js}
 </head>
@@ -213,7 +212,7 @@ def home():
         <p class="label">{p['city']}, {p['country']} — {p['typology']}</p>
       </a>"""
 
-    run = "Selected works / 2020 — 2026 / Six buildings / Copenhagen — Lisbon — Reykjavík / " * 3
+    run = "Selected works / 2020 — 2026 / Six buildings / Four countries / " * 3
     body = f"""
 <section class="home" aria-label="Selected works">
   <div class="track" data-track>
@@ -224,7 +223,7 @@ def home():
       <div class="intro__facts" data-animate style="--d:.7s">
         <p>{SITE['description']}</p>
         <dl>
-          <dt class="label">Founded</dt><dd>{SITE['founded']}, {SITE['city']}</dd>
+          <dt class="label">Founded</dt><dd>{SITE['founded']}</dd>
           <dt class="label">Practice</dt><dd>Houses, culture, public space</dd>
         </dl>
       </div>
@@ -413,7 +412,7 @@ def studio():
       <h1 class="display">{reveal(["A small office for", "buildings that <em>take</em>", "their time."], 0.4)}</h1>
     </div>
     <div class="studio-head__text" data-animate style="--d:.7s">
-      <p>Studio Morfis was founded in {SITE['city']} in {SITE['founded']} by Astrid Morfis. We are fourteen people working between Copenhagen and Lisbon, on a deliberately small number of projects at a time.</p>
+      <p>Studio Morfis was founded in {SITE['founded']} by Astrid Morfis. We are fourteen people working on a deliberately small number of projects at a time.</p>
       <p>Our work spans private houses, cultural and sacred buildings, and public housing. The scale changes; the questions stay the same: mass, light, and how a room will feel in forty years.</p>
     </div>
   </header>
@@ -440,10 +439,10 @@ def studio():
 
 
 def contact():
-    offices = ""
-    for note, city, lines in OFFICES:
-        addr = "".join(f"{l}<br>" for l in lines)
-        offices += f'<div><p class="label">{note}</p><p class="serif">{city}</p><address class="small" style="margin-top:8px">{addr}</address></div>'
+    extra = "".join(
+        f'<div><p class="label">{label}</p><p class="serif">{mail}</p><p class="small muted" style="margin-top:8px">{note}</p></div>'
+        for label, mail, note in CONTACTS
+    )
     social = "".join(f'<li><a class="hairline-link" href="{h}" target="_blank" rel="noreferrer">{n}</a></li>' for h, n, _ in SITE["social"])
     body = f"""
 <div class="container contact">
@@ -458,9 +457,9 @@ def contact():
       <p class="small" style="margin-top:12px">{SITE['phone']}</p>
       <p class="small muted" style="margin-top:24px;max-width:360px">We take on four to six new commissions a year. Tell us about the site, the people who will use it, and the timeframe you have in mind.</p>
     </div>
-    {offices}
+    {extra}
     <div class="contact__foot">
-      <p class="label">Local time — <time class="label--ink" data-clock>--:--:--</time></p>
+      <p class="label">© {SITE['year']} {SITE['full_name']}</p>
       <ul>{social}</ul>
     </div>
   </div>
