@@ -1,0 +1,507 @@
+{
+  "site": {
+    "name": "Studio Morfis",
+    "tagline": "Architecture, landscape & the slow making of rooms",
+    "description": "Studio Morfis is an independent architecture office working across houses, cultural buildings and public space.",
+    "descriptor": "Architecture Office",
+    "founded": 2011,
+    "email": "hello@studiomorfis.com",
+    "phone": "+45 33 12 40 08",
+    "logo": {
+      "src": "images/logo.png",
+      "w": 1546,
+      "h": 503
+    },
+    "social": [
+      {
+        "label": "Instagram",
+        "short": "IG",
+        "url": "https://instagram.com"
+      },
+      {
+        "label": "LinkedIn",
+        "short": "LI",
+        "url": "https://linkedin.com"
+      },
+      {
+        "label": "Are.na",
+        "short": "AR",
+        "url": "https://are.na"
+      }
+    ]
+  },
+  "home": {
+    "kicker": "Selected works 2020 — 2026",
+    "headline": [
+      "Rooms shaped",
+      "by *mass,* light",
+      "& slow time."
+    ],
+    "practice": "Houses, culture, public space",
+    "chapter_word": "Works",
+    "chapter_number": "/26",
+    "chapter_text": "Six projects across four countries: a house, a pavilion, a chapel, an archive and two places to live.",
+    "marquee": "Selected works / 2020 — 2026 / Six buildings / Four countries /",
+    "end_text": "Every built work, competition and study since 2011, with drawings and material notes."
+  },
+  "works": {
+    "intro": "A complete register of built and ongoing work. Hover a title to preview it; select to open the monograph."
+  },
+  "studio": {
+    "headline": [
+      "A small office for",
+      "buildings that *take*",
+      "their time."
+    ],
+    "paragraphs": [
+      "Studio Morfis was founded in 2011 by Astrid Morfis. We are fourteen people working on a deliberately small number of projects at a time.",
+      "Our work spans private houses, cultural and sacred buildings, and public housing. The scale changes; the questions stay the same: mass, light, and how a room will feel in forty years."
+    ],
+    "principles": [
+      {
+        "title": "Subtract before adding",
+        "body": "We begin by asking what a building can do without. Most of our best rooms are made by removing."
+      },
+      {
+        "title": "Let structure finish",
+        "body": "Where the structure can be the surface, we let it. Fewer layers age more honestly."
+      },
+      {
+        "title": "Draw with light",
+        "body": "Every plan is also a drawing of the sun's path. Openings are placed for an hour, not an elevation."
+      },
+      {
+        "title": "Build near",
+        "body": "Materials are sourced as close to site as practical: earth from the excavation, stone from the valley."
+      }
+    ],
+    "people": [
+      {
+        "name": "Astrid Morfis",
+        "role": "Founding Partner"
+      },
+      {
+        "name": "Mads Sørensen",
+        "role": "Partner"
+      },
+      {
+        "name": "Joana Pires",
+        "role": "Associate, Lisbon"
+      },
+      {
+        "name": "Lea Kragh",
+        "role": "Associate"
+      },
+      {
+        "name": "Takeshi Ono",
+        "role": "Architect"
+      },
+      {
+        "name": "Eva Gunnarsdóttir",
+        "role": "Architect, Reykjavík"
+      }
+    ],
+    "recognition": [
+      {
+        "year": "2025",
+        "award": "Nordic Architecture Prize — shortlist",
+        "project": "Basalt Archive"
+      },
+      {
+        "year": "2024",
+        "award": "Mies van der Rohe Award — nominee",
+        "project": "Timber Pavilion"
+      },
+      {
+        "year": "2023",
+        "award": "Wallpaper* Design Awards — Best New Public Building",
+        "project": "Timber Pavilion"
+      },
+      {
+        "year": "2022",
+        "award": "FAD Award — Architecture",
+        "project": "House of Clay"
+      },
+      {
+        "year": "2021",
+        "award": "Swiss Art Award — Architecture",
+        "project": "Chapel of Still Light"
+      }
+    ],
+    "figures": [
+      {
+        "src": "images/studio-1.jpg",
+        "w": 1600,
+        "h": 2000,
+        "caption": "The studio"
+      },
+      {
+        "src": "images/studio-2.jpg",
+        "w": 2000,
+        "h": 1334,
+        "caption": "Model workshop, winter"
+      }
+    ]
+  },
+  "contact": {
+    "headline": [
+      "Begin with",
+      "*a conversation.*"
+    ],
+    "intro": "We take on four to six new commissions a year. Tell us about the site, the people who will use it, and the timeframe you have in mind.",
+    "contacts": [
+      {
+        "label": "Press",
+        "email": "press@studiomorfis.com",
+        "note": "Images, drawings and project texts for publication."
+      },
+      {
+        "label": "Careers",
+        "email": "careers@studiomorfis.com",
+        "note": "Portfolios of up to 10 pages, as a single PDF."
+      }
+    ]
+  },
+  "projects": [
+    {
+      "id": "8c9dc1e50189",
+      "slug": "the-monolithic-void",
+      "title": "The Monolithic Void",
+      "typology": "Private Residence",
+      "city": "Sintra",
+      "country": "Portugal",
+      "year": 2024,
+      "status": "Completed",
+      "area": "412 m²",
+      "client": "Private",
+      "team": "A. Morfis, M. Sørensen, J. Pires",
+      "lead": "A single mass of board-formed concrete, carved open by one vertical cut of light.",
+      "narrative": [
+        "Set into a granite slope above the Atlantic fog line, the house is conceived as one continuous casting. Its rooms are not built so much as subtracted, a sequence of hollows pressed into the hill.",
+        "A single slot, nine metres tall and forty centimetres wide, is the only opening on the entrance façade. Over the course of a day its blade of light travels across the hall, the stair and the dining table, a slow sundial for the household.",
+        "Every surface carries the grain of the pine boards it was cast against. Nothing is cladded, nothing is painted; the structure is the finish."
+      ],
+      "materials": [
+        {
+          "name": "Board-formed concrete",
+          "note": "Pine shuttering, 120 mm boards",
+          "swatch": "#9a958d"
+        },
+        {
+          "name": "Honed basalt",
+          "note": "Floors and thresholds",
+          "swatch": "#2f2d2b"
+        },
+        {
+          "name": "Oiled oak",
+          "note": "Joinery and window frames",
+          "swatch": "#a88763"
+        }
+      ],
+      "figures": [
+        {
+          "src": "images/monolith-1.jpg",
+          "w": 1600,
+          "h": 2000,
+          "caption": "Entrance hall, the nine-metre light slot"
+        },
+        {
+          "src": "images/monolith-2.jpg",
+          "w": 1600,
+          "h": 2000,
+          "caption": "Stair void, late afternoon"
+        },
+        {
+          "src": "images/monolith-3.jpg",
+          "w": 2000,
+          "h": 1334,
+          "caption": "The house seen from the lower terrace"
+        }
+      ],
+      "published": true
+    },
+    {
+      "id": "bb1318994372",
+      "slug": "timber-pavilion",
+      "title": "Timber Pavilion",
+      "typology": "Cultural Pavilion",
+      "city": "Vejle",
+      "country": "Denmark",
+      "year": 2023,
+      "status": "Completed",
+      "area": "260 m²",
+      "client": "Vejle Fjord Foundation",
+      "team": "A. Morfis, L. Kragh, T. Ono",
+      "lead": "Two hundred and forty spruce fins, tuned to the angle of the northern sun.",
+      "narrative": [
+        "The pavilion is a single gallery, sixty metres long, that runs along the fjord's edge. Its walls are a rhythm of vertical fins in cross-laminated spruce, spaced so that walking its length reads like turning the pages of a book.",
+        "On the south the fins close into a solid wall; on the north they open toward the water, admitting only reflected light. Exhibitions are lit by the fjord itself.",
+        "The building was prefabricated in eleven sections and assembled on site in nine days, sitting lightly on screw piles that leave the shoreline untouched."
+      ],
+      "materials": [
+        {
+          "name": "Cross-laminated spruce",
+          "note": "Primary structure and fins",
+          "swatch": "#cfae86"
+        },
+        {
+          "name": "Douglas fir",
+          "note": "Floor boards, 220 mm widths",
+          "swatch": "#b0855c"
+        },
+        {
+          "name": "Lime plaster",
+          "note": "End walls, hand-trowelled",
+          "swatch": "#ece6db"
+        }
+      ],
+      "figures": [
+        {
+          "src": "images/timber-1.jpg",
+          "w": 1600,
+          "h": 2000,
+          "caption": "The gallery, looking east"
+        },
+        {
+          "src": "images/timber-2.jpg",
+          "w": 2000,
+          "h": 1334,
+          "caption": "Reading room toward the fjord"
+        },
+        {
+          "src": "images/timber-3.jpg",
+          "w": 1600,
+          "h": 2000,
+          "caption": "North elevation, fin rhythm"
+        }
+      ],
+      "published": true
+    },
+    {
+      "id": "ca638271bdac",
+      "slug": "house-of-clay",
+      "title": "House of Clay",
+      "typology": "Rural Retreat",
+      "city": "Évora",
+      "country": "Portugal",
+      "year": 2022,
+      "status": "Completed",
+      "area": "188 m²",
+      "client": "Private",
+      "team": "A. Morfis, J. Pires",
+      "lead": "Walls of rammed earth dug from the site itself, half a metre thick and cool at noon.",
+      "narrative": [
+        "In the Alentejo plain, summer heat is the defining condition. The house answers with mass: rammed-earth walls fifty centimetres thick, compacted in layers from soil excavated for the foundations.",
+        "Openings are few and deep. Each frames a single element of the landscape: a cork oak, a well, the horizon line.",
+        "Inside, natural clay plaster regulates humidity, and the floors are laid in handmade terracotta fired twenty kilometres away."
+      ],
+      "materials": [
+        {
+          "name": "Rammed earth",
+          "note": "Site-excavated soil, 500 mm",
+          "swatch": "#b98d72"
+        },
+        {
+          "name": "Natural clay plaster",
+          "note": "Interior walls, unsealed",
+          "swatch": "#dcc2b0"
+        },
+        {
+          "name": "Terracotta",
+          "note": "Handmade floor tiles",
+          "swatch": "#9d5f45"
+        }
+      ],
+      "figures": [
+        {
+          "src": "images/clay-1.jpg",
+          "w": 1600,
+          "h": 2000,
+          "caption": "Living room, morning light on clay"
+        },
+        {
+          "src": "images/clay-2.jpg",
+          "w": 2000,
+          "h": 1334,
+          "caption": "Approach across the plain"
+        },
+        {
+          "src": "images/clay-3.jpg",
+          "w": 1600,
+          "h": 2000,
+          "caption": "Courtyard passage"
+        }
+      ],
+      "published": true
+    },
+    {
+      "id": "fbb9aafeaf9e",
+      "slug": "basalt-archive",
+      "title": "Basalt Archive",
+      "typology": "Library & Archive",
+      "city": "Reykjavík",
+      "country": "Iceland",
+      "year": 2025,
+      "status": "In progress",
+      "area": "3,400 m²",
+      "client": "City of Reykjavík",
+      "team": "A. Morfis, M. Sørensen, E. Gunnarsdóttir",
+      "lead": "A municipal archive wrapped in a deep screen of cast basalt fins.",
+      "narrative": [
+        "The archive holds four centuries of civic records in a climate-stable core, surrounded by a public reading hall that rings the building at street level.",
+        "The façade is a screen of cast basalt fins whose depth varies with orientation, deepest to the south and west, so that the reading hall is evenly lit through every season, including the low winter sun.",
+        "Construction began in 2025; the building opens in the spring of 2027."
+      ],
+      "materials": [
+        {
+          "name": "Cast basalt",
+          "note": "Façade fins, recycled aggregate",
+          "swatch": "#4c5253"
+        },
+        {
+          "name": "Polished concrete",
+          "note": "Reading hall floor",
+          "swatch": "#a5a9a8"
+        },
+        {
+          "name": "Birch plywood",
+          "note": "Shelving and carrels",
+          "swatch": "#d9c9a8"
+        }
+      ],
+      "figures": [
+        {
+          "src": "images/basalt-1.jpg",
+          "w": 1600,
+          "h": 2000,
+          "caption": "West façade, basalt screen"
+        },
+        {
+          "src": "images/basalt-2.jpg",
+          "w": 1600,
+          "h": 2000,
+          "caption": "Stack corridor"
+        },
+        {
+          "src": "images/basalt-3.jpg",
+          "w": 2000,
+          "h": 1334,
+          "caption": "Site study, Faxaflói bay"
+        }
+      ],
+      "published": true
+    },
+    {
+      "id": "2c30e22205d5",
+      "slug": "chapel-of-still-light",
+      "title": "Chapel of Still Light",
+      "typology": "Sacred Space",
+      "city": "Ticino",
+      "country": "Switzerland",
+      "year": 2021,
+      "status": "Completed",
+      "area": "96 m²",
+      "client": "Parish of Valle Maggia",
+      "team": "A. Morfis, R. Bianchi",
+      "lead": "A room for forty people, lit only from above.",
+      "narrative": [
+        "A small chapel on a valley floor, replacing a nineteenth-century oratory lost to a flood. The brief asked only for a room for forty people and a bell.",
+        "The walls are local gneiss, laid dry by two masons over one summer. The roof is a single concrete plate held clear of the walls by a band of glass, so that light falls down the stone surfaces rather than into the room."
+      ],
+      "materials": [
+        {
+          "name": "Maggia gneiss",
+          "note": "Dry-laid walls",
+          "swatch": "#b0aa9f"
+        },
+        {
+          "name": "White concrete",
+          "note": "Roof plate",
+          "swatch": "#e2dfd8"
+        },
+        {
+          "name": "Chestnut",
+          "note": "Benches and door",
+          "swatch": "#6f4e35"
+        }
+      ],
+      "figures": [
+        {
+          "src": "images/chapel-1.jpg",
+          "w": 1600,
+          "h": 2000,
+          "caption": "Light falling along the north wall"
+        },
+        {
+          "src": "images/chapel-2.jpg",
+          "w": 2000,
+          "h": 1334,
+          "caption": "The perimeter glass band"
+        },
+        {
+          "src": "images/chapel-3.jpg",
+          "w": 1600,
+          "h": 2000,
+          "caption": "Nave at dusk"
+        }
+      ],
+      "published": true
+    },
+    {
+      "id": "f601617f2ffe",
+      "slug": "courtyard-houses",
+      "title": "Courtyard Houses",
+      "typology": "Housing",
+      "city": "Palma",
+      "country": "Spain",
+      "year": 2020,
+      "status": "Completed",
+      "area": "2,150 m²",
+      "client": "IBAVI Housing Institute",
+      "team": "A. Morfis, L. Kragh, C. Ferrer",
+      "lead": "Eighteen social homes, each organised around its own walled garden.",
+      "narrative": [
+        "Eighteen affordable homes arranged as a low carpet of walled courtyards, a contemporary reading of the Mallorcan patio.",
+        "Each house turns inward to a private garden planted with a single tree, and outward to a shared lane shaded by pergolas. Walls are built in marès sandstone quarried on the island."
+      ],
+      "materials": [
+        {
+          "name": "Marès sandstone",
+          "note": "Load-bearing walls",
+          "swatch": "#d8cdb8"
+        },
+        {
+          "name": "Lime render",
+          "note": "Courtyard faces",
+          "swatch": "#efebe3"
+        },
+        {
+          "name": "Pine pergolas",
+          "note": "Shared lanes",
+          "swatch": "#b8946b"
+        }
+      ],
+      "figures": [
+        {
+          "src": "images/courtyard-1.jpg",
+          "w": 1600,
+          "h": 2000,
+          "caption": "A private courtyard"
+        },
+        {
+          "src": "images/courtyard-2.jpg",
+          "w": 2000,
+          "h": 1334,
+          "caption": "Lane elevation"
+        },
+        {
+          "src": "images/courtyard-3.jpg",
+          "w": 1600,
+          "h": 2000,
+          "caption": "Covered passage between houses"
+        }
+      ],
+      "published": true
+    }
+  ]
+}

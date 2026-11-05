@@ -1,0 +1,10 @@
+# Live data created on the server: never commit it.
+public_html/data/users.json
+public_html/data/throttle.json
+public_html/data/setup-code.txt
+public_html/data/error.log
+public_html/data/.content.lock
+public_html/data/content.json.tmp-*
+public_html/data/backups/*
+public_html/uploads/*
+!public_html/uploads/.htaccess
