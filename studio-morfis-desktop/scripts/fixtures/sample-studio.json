@@ -1,0 +1,2550 @@
+{
+  "settings": {
+    "accent": "#7C6CF0",
+    "appIcon": "",
+    "appName": "",
+    "business": {
+      "accName": "",
+      "accNo": "",
+      "address": "",
+      "bankName": "",
+      "branch": "",
+      "email": "",
+      "notes": "",
+      "phone": "",
+      "swift": "",
+      "tagline": "Architecture and interior design",
+      "taxLabel": "VAT",
+      "taxNo": "",
+      "taxPct": 0,
+      "website": ""
+    },
+    "codeFormat": {
+      "digits": 3,
+      "prefix": "MRF",
+      "sep": " I ",
+      "year": "YY"
+    },
+    "currency": "LKR",
+    "folderPattern": "{code} I {name}",
+    "namingV": 2,
+    "remind": {
+      "invoiceDays": 3,
+      "invoices": true,
+      "taskDays": 2,
+      "tasks": true
+    },
+    "reminders": [],
+    "retainPct": 5,
+    "root": "/Studio Morfis/Projects",
+    "studio": "Studio Morfis",
+    "sync": "local",
+    "team": [
+      {
+        "example": true,
+        "id": "tm-ayesha",
+        "name": "Ayesha M.",
+        "role": "Principal Architect",
+        "tone": "lav"
+      },
+      {
+        "example": true,
+        "id": "tm-kasun",
+        "name": "Kasun R.",
+        "role": "Project Architect",
+        "tone": "blue"
+      },
+      {
+        "example": true,
+        "id": "tm-nethmi",
+        "name": "Nethmi S.",
+        "role": "3D Visualiser",
+        "tone": "nude"
+      },
+      {
+        "example": true,
+        "id": "tm-tharindu",
+        "name": "Tharindu J.",
+        "role": "QS / Estimator",
+        "tone": "lav"
+      },
+      {
+        "example": true,
+        "id": "tm-imesh",
+        "name": "Imesh P.",
+        "role": "Site Architect",
+        "tone": "blue"
+      }
+    ],
+    "termsDays": 14,
+    "theme": "dark"
+  },
+  "projects": [
+    {
+      "budget": 3100000,
+      "client": {
+        "contact": "hello@fortroast.example",
+        "name": "Fort Roast Co."
+      },
+      "code": "MRF I 25 I 029",
+      "createdAt": "2026-10-24",
+      "currentStage": 6,
+      "example": true,
+      "folders": {
+        "01": {
+          "assignees": [],
+          "created": "2025-12-01",
+          "files": [
+            {
+              "added": "2025-12-03",
+              "id": "fgh6hkk18i6",
+              "name": "Site_Survey_Church_St.dwg",
+              "size": "9.2 MB"
+            },
+            {
+              "added": "2025-12-10",
+              "id": "fvx4q8318i6",
+              "name": "Heritage_Approval_Notes.pdf",
+              "size": "1.4 MB"
+            }
+          ],
+          "sync": ""
+        },
+        "02": {
+          "assignees": [
+            "tm-nethmi",
+            "tm-kasun"
+          ],
+          "created": "2025-12-01",
+          "files": [
+            {
+              "added": "2025-12-30",
+              "id": "fbyjxi618i6",
+              "name": "Concept_Boards_FortRoast.pdf",
+              "size": "21 MB"
+            },
+            {
+              "added": "2026-02-10",
+              "id": "f662jxg18i6",
+              "name": "Interior_Renders_Set.zip",
+              "size": "340 MB"
+            },
+            {
+              "added": "2026-02-18",
+              "id": "fzceblr18i6",
+              "name": "Walkthrough_4K_v3.mp4",
+              "size": "1.8 GB"
+            }
+          ],
+          "sync": ""
+        },
+        "03": {
+          "assignees": [
+            "tm-kasun",
+            "tm-ayesha"
+          ],
+          "created": "2025-12-01",
+          "files": [
+            {
+              "added": "2026-02-04",
+              "id": "fe54mqy18i6",
+              "name": "CCTV_Layout_Rev_A.pdf",
+              "size": "1.6 MB"
+            },
+            {
+              "added": "2026-02-06",
+              "id": "fivk7r618i6",
+              "name": "Lighting_Layout_Rev_C.pdf",
+              "size": "2.0 MB"
+            },
+            {
+              "added": "2026-04-10",
+              "id": "f59bm3e18i6",
+              "name": "A-100_Plans_IFC.dwg",
+              "size": "5.1 MB"
+            },
+            {
+              "added": "2026-04-12",
+              "id": "fslj86h18i6",
+              "name": "Structural_Details_Retrofit.pdf",
+              "size": "7.7 MB"
+            }
+          ],
+          "sync": ""
+        },
+        "04": {
+          "assignees": [
+            "tm-tharindu"
+          ],
+          "created": "2025-12-01",
+          "files": [
+            {
+              "added": "2026-02-12",
+              "id": "fapx21818i6",
+              "name": "Finishes_Schedule.xlsx",
+              "size": "190 KB"
+            },
+            {
+              "added": "2026-04-14",
+              "id": "ftuvhu818i6",
+              "name": "MEP_Schedules_IFC.xlsx",
+              "size": "240 KB"
+            },
+            {
+              "added": "2026-04-15",
+              "id": "fep0dnn18i6",
+              "name": "BOQ_Final.xlsx",
+              "size": "560 KB"
+            }
+          ],
+          "sync": ""
+        },
+        "05": {
+          "assignees": [
+            "tm-ayesha"
+          ],
+          "created": "2025-12-01",
+          "files": [
+            {
+              "added": "2025-12-02",
+              "id": "f69g8nt18i6",
+              "name": "Fee_Agreement_Signed.pdf",
+              "size": "905 KB"
+            },
+            {
+              "added": "2026-05-20",
+              "id": "fgpa1y218i6",
+              "name": "Contractor_Agreement.pdf",
+              "size": "2.4 MB"
+            }
+          ],
+          "sync": ""
+        },
+        "06": {
+          "assignees": [
+            "tm-imesh"
+          ],
+          "created": "2025-12-01",
+          "files": [
+            {
+              "added": "2026-10-08",
+              "id": "f2mt01b18i6",
+              "name": "Site_Meeting_Minutes_No9.pdf",
+              "size": "190 KB"
+            },
+            {
+              "added": "2026-08-30",
+              "id": "f5ktpls18i6",
+              "name": "Site_Photos_Aug.zip",
+              "size": "410 MB"
+            }
+          ],
+          "sync": ""
+        }
+      },
+      "foldersCreated": "",
+      "gfa": 210,
+      "id": "ex-galle",
+      "location": "Church Street, Galle Fort",
+      "map": null,
+      "milestones": [
+        {
+          "id": "m1",
+          "invoice": {
+            "due": "2025-12-15",
+            "issued": "2025-12-01",
+            "no": "MRF I 25 I 029 I INV 01"
+          },
+          "label": "Initial deposit",
+          "pct": 20,
+          "receipts": [
+            {
+              "amount": 620000,
+              "date": "2025-12-12",
+              "id": "rdhc1sz18i6",
+              "kind": "payment",
+              "method": "Bank transfer",
+              "ref": "TT-77120",
+              "retained": 31000
+            }
+          ],
+          "stage": 1
+        },
+        {
+          "id": "m2",
+          "invoice": {
+            "due": "2026-01-26",
+            "issued": "2026-01-12",
+            "no": "MRF I 25 I 029 I INV 02"
+          },
+          "label": "Schematic design",
+          "pct": 30,
+          "receipts": [
+            {
+              "amount": 930000,
+              "date": "2026-01-23",
+              "id": "rwohq9f18i6",
+              "kind": "payment",
+              "method": "Cheque",
+              "ref": "CHQ-004418",
+              "retained": 46500
+            }
+          ],
+          "stage": 2
+        },
+        {
+          "id": "m3",
+          "invoice": {
+            "due": "2026-03-09",
+            "issued": "2026-02-23",
+            "no": "MRF I 25 I 029 I INV 03"
+          },
+          "label": "Construction documentation",
+          "pct": 30,
+          "receipts": [
+            {
+              "amount": 930000,
+              "date": "2026-03-06",
+              "id": "r4ao87z18i6",
+              "kind": "payment",
+              "method": "Bank transfer",
+              "ref": "TT-82664",
+              "retained": 46500
+            }
+          ],
+          "stage": 4
+        },
+        {
+          "id": "m4",
+          "invoice": null,
+          "label": "Handover & closeout",
+          "pct": 20,
+          "receipts": [],
+          "stage": 7
+        }
+      ],
+      "name": "Galle Fort Boutique Caf\u00e9",
+      "releases": [],
+      "retainPct": 5,
+      "stages": [
+        {
+          "end": "2025-12-14",
+          "n": 1,
+          "start": "2025-12-01"
+        },
+        {
+          "end": "2026-01-11",
+          "n": 2,
+          "start": "2025-12-15"
+        },
+        {
+          "end": "2026-02-22",
+          "n": 3,
+          "start": "2026-01-12"
+        },
+        {
+          "end": "2026-04-19",
+          "n": 4,
+          "start": "2026-02-23"
+        },
+        {
+          "end": "2026-05-17",
+          "n": 5,
+          "start": "2026-04-20"
+        },
+        {
+          "end": "2026-11-01",
+          "n": 6,
+          "start": "2026-05-18"
+        },
+        {
+          "end": "2026-11-22",
+          "n": 7,
+          "start": "2026-11-02"
+        }
+      ],
+      "startDate": "2025-12-01",
+      "status": "active",
+      "tasks": [
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Site Survey",
+          "due": "2025-12-03",
+          "id": "tln75ds18i5",
+          "stage": 1,
+          "status": "done",
+          "title": "Site visit & measured survey"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2025-12-05",
+          "id": "tqf53ze18i5",
+          "stage": 1,
+          "status": "done",
+          "title": "Client brief workshop"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2025-12-07",
+          "id": "th7v8y418i5",
+          "stage": 1,
+          "status": "done",
+          "title": "Collect title plan, boundary & utilities data"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2025-12-09",
+          "id": "t6iinl718i5",
+          "stage": 1,
+          "status": "done",
+          "title": "Fee proposal & contract signed"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2025-12-11",
+          "id": "t8g45ey18i5",
+          "stage": 1,
+          "status": "done",
+          "title": "Initial deposit received"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2025-12-14",
+          "id": "tuadqzv18i5",
+          "stage": 1,
+          "status": "done",
+          "title": "Set up project folders & drawing register"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2025-12-20",
+          "id": "t9tljsu18i5",
+          "stage": 2,
+          "status": "done",
+          "title": "Concept sketches"
+        },
+        {
+          "assignee": "tm-nethmi",
+          "deliverable": "3D Model",
+          "due": "2025-12-25",
+          "id": "tzkl8re18i5",
+          "stage": 2,
+          "status": "done",
+          "title": "Massing study"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Floor Plans",
+          "due": "2025-12-31",
+          "id": "tco37ge18i5",
+          "stage": 2,
+          "status": "done",
+          "title": "Initial spatial layouts"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-01-05",
+          "id": "tih7gs518i5",
+          "stage": 2,
+          "status": "done",
+          "title": "Schematic presentation to client"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-01-11",
+          "id": "tuyw82t18i5",
+          "stage": 2,
+          "status": "done",
+          "title": "Client sign-off on concept"
+        },
+        {
+          "assignee": "tm-nethmi",
+          "deliverable": "3D Model",
+          "due": "2026-01-17",
+          "id": "tjlupbw18i5",
+          "stage": 3,
+          "status": "done",
+          "title": "3D model: interiors & exterior"
+        },
+        {
+          "assignee": "tm-nethmi",
+          "deliverable": "3D Renders",
+          "due": "2026-01-23",
+          "id": "t97omne18i5",
+          "stage": 3,
+          "status": "done",
+          "title": "Photoreal renders, key views"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Material Schedule",
+          "due": "2026-01-29",
+          "id": "tk8mipf18i5",
+          "stage": 3,
+          "status": "done",
+          "title": "Material & finish schedule"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Lighting Layout",
+          "due": "2026-02-04",
+          "id": "t7dsv2z18i5",
+          "stage": 3,
+          "status": "done",
+          "title": "Lighting layout"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "CCTV Layout",
+          "due": "2026-02-10",
+          "id": "t5q8lu318i5",
+          "stage": 3,
+          "status": "done",
+          "title": "CCTV & security layout"
+        },
+        {
+          "assignee": "tm-nethmi",
+          "deliverable": "4K Walkthrough",
+          "due": "2026-02-16",
+          "id": "twram7718i6",
+          "stage": 3,
+          "status": "done",
+          "title": "4K walkthrough video"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-02-22",
+          "id": "twngj1718i6",
+          "stage": 3,
+          "status": "done",
+          "title": "Design freeze approval"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Working Drawings",
+          "due": "2026-03-04",
+          "id": "tdc2xtl18i6",
+          "stage": 4,
+          "status": "done",
+          "title": "Working drawings: plans, sections, elevations"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Structural Details",
+          "due": "2026-03-13",
+          "id": "tguqbfd18i6",
+          "stage": 4,
+          "status": "done",
+          "title": "Structural details coordination"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "MEP Schedules",
+          "due": "2026-03-22",
+          "id": "t5cey9q18i6",
+          "stage": 4,
+          "status": "done",
+          "title": "MEP schedules"
+        },
+        {
+          "assignee": "tm-tharindu",
+          "deliverable": "BOQ Schedule",
+          "due": "2026-03-31",
+          "id": "tluzfpr18i6",
+          "stage": 4,
+          "status": "done",
+          "title": "Bill of quantities"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Authority Submission",
+          "due": "2026-04-09",
+          "id": "t2cylxc18i6",
+          "stage": 4,
+          "status": "done",
+          "title": "Authority submission set"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2026-04-19",
+          "id": "trrgols18i6",
+          "stage": 4,
+          "status": "done",
+          "title": "Drawing register issue"
+        },
+        {
+          "assignee": "tm-tharindu",
+          "deliverable": "",
+          "due": "2026-04-25",
+          "id": "tbr9m7f18i6",
+          "stage": 5,
+          "status": "done",
+          "title": "Tender documents compiled"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-04-30",
+          "id": "td2yze418i6",
+          "stage": 5,
+          "status": "done",
+          "title": "Contractor pre-qualification"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-05-06",
+          "id": "t7mxwqg18i6",
+          "stage": 5,
+          "status": "done",
+          "title": "Site tender briefing"
+        },
+        {
+          "assignee": "tm-tharindu",
+          "deliverable": "",
+          "due": "2026-05-11",
+          "id": "tx8i72k18i6",
+          "stage": 5,
+          "status": "done",
+          "title": "Tender evaluation report"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-05-17",
+          "id": "t8x3xr518i6",
+          "stage": 5,
+          "status": "done",
+          "title": "Contractor appointment"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2026-06-14",
+          "id": "t2pusl618i6",
+          "stage": 6,
+          "status": "done",
+          "title": "Inspection log: foundations"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2026-07-12",
+          "id": "tkjpf7418i6",
+          "stage": 6,
+          "status": "done",
+          "title": "Inspection log: structure"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2026-08-09",
+          "id": "tvptgwj18i6",
+          "stage": 6,
+          "status": "done",
+          "title": "Shop drawing reviews"
+        },
+        {
+          "assignee": "tm-tharindu",
+          "deliverable": "",
+          "due": "2026-09-06",
+          "id": "tn6jf1d18i6",
+          "stage": 6,
+          "status": "done",
+          "title": "Variation orders register"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2026-10-04",
+          "id": "tlq70qc18i6",
+          "stage": 6,
+          "status": "done",
+          "title": "Monthly site progress report"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2026-11-01",
+          "id": "tbsu12s18i6",
+          "stage": 6,
+          "status": "done",
+          "title": "Snagging inspection"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "As-built Drawings",
+          "due": "2026-11-06",
+          "id": "tvgahx518i6",
+          "stage": 7,
+          "status": "done",
+          "title": "As-built drawings"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2026-11-10",
+          "id": "t84mhh918i6",
+          "stage": 7,
+          "status": "done",
+          "title": "O&M manuals & warranties"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-11-14",
+          "id": "t5tjh1x18i6",
+          "stage": 7,
+          "status": "done",
+          "title": "Final payment settlement"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-11-18",
+          "id": "tpgv7c818i6",
+          "stage": 7,
+          "status": "done",
+          "title": "Client sign-off & handover certificate"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2026-11-22",
+          "id": "t1bkqnr18i6",
+          "stage": 7,
+          "status": "done",
+          "title": "Archive project files"
+        }
+      ],
+      "team": [
+        "tm-ayesha",
+        "tm-kasun",
+        "tm-nethmi",
+        "tm-tharindu",
+        "tm-imesh"
+      ],
+      "type": "Hospitality"
+    },
+    {
+      "budget": 7800000,
+      "client": {
+        "contact": "fernando.villa@example.com",
+        "name": "R. & S. Fernando"
+      },
+      "code": "MRF I 26 I 014",
+      "createdAt": "2026-10-24",
+      "currentStage": 2,
+      "example": true,
+      "folders": {
+        "01": {
+          "assignees": [
+            "tm-ayesha",
+            "tm-kasun"
+          ],
+          "created": "2026-09-14",
+          "files": [
+            {
+              "added": "2026-09-16",
+              "id": "fztu1o218i5",
+              "name": "Brief_Hillside_Villa.pdf",
+              "size": "2.1 MB"
+            },
+            {
+              "added": "2026-09-19",
+              "id": "fzlgk3818i5",
+              "name": "Topo_Survey_Hanthana.dwg",
+              "size": "11 MB"
+            },
+            {
+              "added": "2026-09-22",
+              "id": "fzguisy18i5",
+              "name": "Soil_Report.pdf",
+              "size": "3.6 MB"
+            }
+          ],
+          "sync": ""
+        },
+        "02": {
+          "assignees": [
+            "tm-nethmi",
+            "tm-kasun"
+          ],
+          "created": "2026-09-14",
+          "files": [
+            {
+              "added": "2026-10-06",
+              "id": "fnygrto18i5",
+              "name": "Concept_Sketches_Hillside.pdf",
+              "size": "18 MB"
+            },
+            {
+              "added": "2026-10-09",
+              "id": "fcd164818i5",
+              "name": "Massing_Terraces.skp",
+              "size": "52 MB"
+            },
+            {
+              "added": "2026-10-15",
+              "id": "fswf9us18i5",
+              "name": "Floor_Plans_Schematic_v2.dwg",
+              "size": "4.8 MB"
+            }
+          ],
+          "sync": ""
+        },
+        "03": {
+          "assignees": [
+            "tm-kasun",
+            "tm-ayesha"
+          ],
+          "created": "2026-09-14",
+          "files": [],
+          "sync": ""
+        },
+        "04": {
+          "assignees": [
+            "tm-tharindu"
+          ],
+          "created": "2026-09-14",
+          "files": [],
+          "sync": ""
+        },
+        "05": {
+          "assignees": [
+            "tm-ayesha"
+          ],
+          "created": "2026-09-14",
+          "files": [
+            {
+              "added": "2026-09-14",
+              "id": "fwnja0318i5",
+              "name": "Fee_Agreement_Signed.pdf",
+              "size": "910 KB"
+            },
+            {
+              "added": "2026-09-25",
+              "id": "f890kdp18i5",
+              "name": "INV-01_Receipt.pdf",
+              "size": "121 KB"
+            }
+          ],
+          "sync": ""
+        },
+        "06": {
+          "assignees": [
+            "tm-imesh"
+          ],
+          "created": "2026-09-14",
+          "files": [
+            {
+              "added": "2026-09-15",
+              "id": "fvj7yf918i5",
+              "name": "Site_Visit_Photos_Sep.zip",
+              "size": "188 MB"
+            }
+          ],
+          "sync": ""
+        }
+      },
+      "foldersCreated": "",
+      "gfa": 620,
+      "id": "ex-hanthana",
+      "location": "Hanthana Road, Kandy",
+      "map": null,
+      "milestones": [
+        {
+          "id": "m1",
+          "invoice": {
+            "due": "2026-09-28",
+            "issued": "2026-09-14",
+            "no": "MRF I 26 I 014 I INV 01"
+          },
+          "label": "Initial deposit",
+          "pct": 20,
+          "receipts": [
+            {
+              "amount": 1560000,
+              "date": "2026-09-25",
+              "id": "rpe8twx18i5",
+              "kind": "payment",
+              "method": "Bank transfer",
+              "ref": "TT-91440",
+              "retained": 78000
+            }
+          ],
+          "stage": 1
+        },
+        {
+          "id": "m2",
+          "invoice": {
+            "due": "2026-11-07",
+            "issued": "2026-10-24",
+            "no": "MRF I 26 I 014 I INV 02"
+          },
+          "label": "Schematic design",
+          "pct": 30,
+          "receipts": [],
+          "stage": 2
+        },
+        {
+          "id": "m3",
+          "invoice": null,
+          "label": "Construction documentation",
+          "pct": 30,
+          "receipts": [],
+          "stage": 4
+        },
+        {
+          "id": "m4",
+          "invoice": null,
+          "label": "Handover & closeout",
+          "pct": 20,
+          "receipts": [],
+          "stage": 7
+        }
+      ],
+      "name": "Hanthana Hillside Villa",
+      "releases": [],
+      "retainPct": 5,
+      "stages": [
+        {
+          "end": "2026-09-27",
+          "n": 1,
+          "start": "2026-09-14"
+        },
+        {
+          "end": "2026-10-25",
+          "n": 2,
+          "start": "2026-09-28"
+        },
+        {
+          "end": "2026-12-06",
+          "n": 3,
+          "start": "2026-10-26"
+        },
+        {
+          "end": "2027-01-31",
+          "n": 4,
+          "start": "2026-12-07"
+        },
+        {
+          "end": "2027-02-28",
+          "n": 5,
+          "start": "2027-02-01"
+        },
+        {
+          "end": "2027-08-15",
+          "n": 6,
+          "start": "2027-03-01"
+        },
+        {
+          "end": "2027-09-05",
+          "n": 7,
+          "start": "2027-08-16"
+        }
+      ],
+      "startDate": "2026-09-14",
+      "status": "active",
+      "tasks": [
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Site Survey",
+          "due": "2026-09-16",
+          "id": "tatcu3a18i5",
+          "stage": 1,
+          "status": "done",
+          "title": "Site visit & measured survey"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-09-18",
+          "id": "tessq9v18i5",
+          "stage": 1,
+          "status": "done",
+          "title": "Client brief workshop"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2026-09-20",
+          "id": "tuj9k0z18i5",
+          "stage": 1,
+          "status": "done",
+          "title": "Collect title plan, boundary & utilities data"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-09-22",
+          "id": "tf6x68018i5",
+          "stage": 1,
+          "status": "done",
+          "title": "Fee proposal & contract signed"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-09-24",
+          "id": "tec0t1p18i5",
+          "stage": 1,
+          "status": "done",
+          "title": "Initial deposit received"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2026-09-27",
+          "id": "tea7obo18i5",
+          "stage": 1,
+          "status": "done",
+          "title": "Set up project folders & drawing register"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-10-03",
+          "id": "t61rrk118i5",
+          "stage": 2,
+          "status": "done",
+          "title": "Concept sketches"
+        },
+        {
+          "assignee": "tm-nethmi",
+          "deliverable": "3D Model",
+          "due": "2026-10-08",
+          "id": "t1weqnc18i5",
+          "stage": 2,
+          "status": "done",
+          "title": "Massing study"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Floor Plans",
+          "due": "2026-10-14",
+          "id": "twhe9w218i5",
+          "stage": 2,
+          "status": "done",
+          "title": "Initial spatial layouts"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-10-19",
+          "id": "tveayn018i5",
+          "stage": 2,
+          "status": "done",
+          "title": "Schematic presentation to client"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-10-25",
+          "id": "tn9xsre18i5",
+          "stage": 2,
+          "status": "doing",
+          "title": "Client sign-off on concept"
+        },
+        {
+          "assignee": "tm-nethmi",
+          "deliverable": "3D Model",
+          "due": "2026-10-31",
+          "id": "tv2bsf518i5",
+          "stage": 3,
+          "status": "todo",
+          "title": "3D model: interiors & exterior"
+        },
+        {
+          "assignee": "tm-nethmi",
+          "deliverable": "3D Renders",
+          "due": "2026-11-06",
+          "id": "th9ef4d18i5",
+          "stage": 3,
+          "status": "todo",
+          "title": "Photoreal renders, key views"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Material Schedule",
+          "due": "2026-11-12",
+          "id": "tqombdx18i5",
+          "stage": 3,
+          "status": "todo",
+          "title": "Material & finish schedule"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Lighting Layout",
+          "due": "2026-11-18",
+          "id": "tu8bd1a18i5",
+          "stage": 3,
+          "status": "todo",
+          "title": "Lighting layout"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "CCTV Layout",
+          "due": "2026-11-24",
+          "id": "tldh0yh18i5",
+          "stage": 3,
+          "status": "todo",
+          "title": "CCTV & security layout"
+        },
+        {
+          "assignee": "tm-nethmi",
+          "deliverable": "4K Walkthrough",
+          "due": "2026-11-30",
+          "id": "tlmtbzg18i5",
+          "stage": 3,
+          "status": "todo",
+          "title": "4K walkthrough video"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-12-06",
+          "id": "tv73xg218i5",
+          "stage": 3,
+          "status": "todo",
+          "title": "Design freeze approval"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Working Drawings",
+          "due": "2026-12-16",
+          "id": "trscbj218i5",
+          "stage": 4,
+          "status": "todo",
+          "title": "Working drawings: plans, sections, elevations"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Structural Details",
+          "due": "2026-12-25",
+          "id": "td03dog18i5",
+          "stage": 4,
+          "status": "todo",
+          "title": "Structural details coordination"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "MEP Schedules",
+          "due": "2027-01-03",
+          "id": "tqkoimx18i5",
+          "stage": 4,
+          "status": "todo",
+          "title": "MEP schedules"
+        },
+        {
+          "assignee": "tm-tharindu",
+          "deliverable": "BOQ Schedule",
+          "due": "2027-01-12",
+          "id": "tsgbopu18i5",
+          "stage": 4,
+          "status": "todo",
+          "title": "Bill of quantities"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Authority Submission",
+          "due": "2027-01-21",
+          "id": "tev9r8t18i5",
+          "stage": 4,
+          "status": "todo",
+          "title": "Authority submission set"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2027-01-31",
+          "id": "tvued6b18i5",
+          "stage": 4,
+          "status": "todo",
+          "title": "Drawing register issue"
+        },
+        {
+          "assignee": "tm-tharindu",
+          "deliverable": "",
+          "due": "2027-02-06",
+          "id": "ttgfucg18i5",
+          "stage": 5,
+          "status": "todo",
+          "title": "Tender documents compiled"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2027-02-11",
+          "id": "tv9j20418i5",
+          "stage": 5,
+          "status": "todo",
+          "title": "Contractor pre-qualification"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2027-02-17",
+          "id": "tdqtada18i5",
+          "stage": 5,
+          "status": "todo",
+          "title": "Site tender briefing"
+        },
+        {
+          "assignee": "tm-tharindu",
+          "deliverable": "",
+          "due": "2027-02-22",
+          "id": "t3whbo918i5",
+          "stage": 5,
+          "status": "todo",
+          "title": "Tender evaluation report"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2027-02-28",
+          "id": "tubk0ak18i5",
+          "stage": 5,
+          "status": "todo",
+          "title": "Contractor appointment"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2027-03-28",
+          "id": "tywpn0g18i5",
+          "stage": 6,
+          "status": "todo",
+          "title": "Inspection log: foundations"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2027-04-25",
+          "id": "tvsckad18i5",
+          "stage": 6,
+          "status": "todo",
+          "title": "Inspection log: structure"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2027-05-23",
+          "id": "tusxgay18i5",
+          "stage": 6,
+          "status": "todo",
+          "title": "Shop drawing reviews"
+        },
+        {
+          "assignee": "tm-tharindu",
+          "deliverable": "",
+          "due": "2027-06-20",
+          "id": "tgmmevv18i5",
+          "stage": 6,
+          "status": "todo",
+          "title": "Variation orders register"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2027-07-18",
+          "id": "tqrtrv918i5",
+          "stage": 6,
+          "status": "todo",
+          "title": "Monthly site progress report"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2027-08-15",
+          "id": "t0s0u4f18i5",
+          "stage": 6,
+          "status": "todo",
+          "title": "Snagging inspection"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "As-built Drawings",
+          "due": "2027-08-20",
+          "id": "tupfibd18i5",
+          "stage": 7,
+          "status": "todo",
+          "title": "As-built drawings"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2027-08-24",
+          "id": "tocwtwa18i5",
+          "stage": 7,
+          "status": "todo",
+          "title": "O&M manuals & warranties"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2027-08-28",
+          "id": "t4x9ql518i5",
+          "stage": 7,
+          "status": "todo",
+          "title": "Final payment settlement"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2027-09-01",
+          "id": "t7v088118i5",
+          "stage": 7,
+          "status": "todo",
+          "title": "Client sign-off & handover certificate"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2027-09-05",
+          "id": "t6cd31t18i5",
+          "stage": 7,
+          "status": "todo",
+          "title": "Archive project files"
+        }
+      ],
+      "team": [
+        "tm-ayesha",
+        "tm-kasun",
+        "tm-nethmi",
+        "tm-tharindu",
+        "tm-imesh"
+      ],
+      "type": "Residential"
+    },
+    {
+      "budget": 2450000,
+      "client": {
+        "contact": "+94 71 555 0198",
+        "name": "Dr. Ratnayake"
+      },
+      "code": "MRF I 26 I 017",
+      "createdAt": "2026-10-24",
+      "currentStage": 1,
+      "example": true,
+      "folders": {
+        "01": {
+          "assignees": [
+            "tm-ayesha",
+            "tm-kasun"
+          ],
+          "created": "2026-10-12",
+          "files": [
+            {
+              "added": "2026-10-14",
+              "id": "f4b1acl18i6",
+              "name": "Clinic_Brief_Notes.pdf",
+              "size": "640 KB"
+            },
+            {
+              "added": "2026-10-15",
+              "id": "fe7mzd918i6",
+              "name": "Existing_Unit_Measured_Survey.dwg",
+              "size": "3.1 MB"
+            }
+          ],
+          "sync": ""
+        },
+        "02": {
+          "assignees": [
+            "tm-nethmi",
+            "tm-kasun"
+          ],
+          "created": "2026-10-12",
+          "files": [],
+          "sync": ""
+        },
+        "03": {
+          "assignees": [
+            "tm-kasun",
+            "tm-ayesha"
+          ],
+          "created": "2026-10-12",
+          "files": [],
+          "sync": ""
+        },
+        "04": {
+          "assignees": [
+            "tm-tharindu"
+          ],
+          "created": "2026-10-12",
+          "files": [],
+          "sync": ""
+        },
+        "05": {
+          "assignees": [
+            "tm-ayesha"
+          ],
+          "created": "2026-10-12",
+          "files": [
+            {
+              "added": "2026-10-19",
+              "id": "fj0nerq18i6",
+              "name": "Fee_Proposal_v3.pdf",
+              "size": "520 KB"
+            }
+          ],
+          "sync": ""
+        },
+        "06": {
+          "assignees": [
+            "tm-imesh"
+          ],
+          "created": "2026-10-12",
+          "files": [
+            {
+              "added": "2026-10-13",
+              "id": "fyw8ywy18i6",
+              "name": "Site_Visit_Photos_Oct.zip",
+              "size": "96 MB"
+            }
+          ],
+          "sync": ""
+        }
+      },
+      "foldersCreated": "",
+      "gfa": 140,
+      "id": "ex-ratnayake",
+      "location": "Main Street, Negombo",
+      "map": null,
+      "milestones": [
+        {
+          "id": "m1",
+          "invoice": {
+            "due": "2026-10-26",
+            "issued": "2026-10-12",
+            "no": "MRF I 26 I 017 I INV 01"
+          },
+          "label": "Initial deposit",
+          "pct": 20,
+          "receipts": [],
+          "stage": 1
+        },
+        {
+          "id": "m2",
+          "invoice": null,
+          "label": "Schematic design",
+          "pct": 30,
+          "receipts": [],
+          "stage": 2
+        },
+        {
+          "id": "m3",
+          "invoice": null,
+          "label": "Construction documentation",
+          "pct": 30,
+          "receipts": [],
+          "stage": 4
+        },
+        {
+          "id": "m4",
+          "invoice": null,
+          "label": "Handover & closeout",
+          "pct": 20,
+          "receipts": [],
+          "stage": 7
+        }
+      ],
+      "name": "Ratnayake Dental Clinic",
+      "releases": [],
+      "retainPct": 5,
+      "stages": [
+        {
+          "end": "2026-10-25",
+          "n": 1,
+          "start": "2026-10-12"
+        },
+        {
+          "end": "2026-11-22",
+          "n": 2,
+          "start": "2026-10-26"
+        },
+        {
+          "end": "2027-01-03",
+          "n": 3,
+          "start": "2026-11-23"
+        },
+        {
+          "end": "2027-02-28",
+          "n": 4,
+          "start": "2027-01-04"
+        },
+        {
+          "end": "2027-03-28",
+          "n": 5,
+          "start": "2027-03-01"
+        },
+        {
+          "end": "2027-09-12",
+          "n": 6,
+          "start": "2027-03-29"
+        },
+        {
+          "end": "2027-10-03",
+          "n": 7,
+          "start": "2027-09-13"
+        }
+      ],
+      "startDate": "2026-10-12",
+      "status": "active",
+      "tasks": [
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Site Survey",
+          "due": "2026-10-14",
+          "id": "tcbi5mh18i6",
+          "stage": 1,
+          "status": "done",
+          "title": "Site visit & measured survey"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-10-16",
+          "id": "t4edgly18i6",
+          "stage": 1,
+          "status": "done",
+          "title": "Client brief workshop"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2026-10-18",
+          "id": "td32w0a18i6",
+          "stage": 1,
+          "status": "done",
+          "title": "Collect title plan, boundary & utilities data"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-10-20",
+          "id": "t5jeud518i6",
+          "stage": 1,
+          "status": "doing",
+          "title": "Fee proposal & contract signed"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-10-22",
+          "id": "ts1vyxg18i6",
+          "stage": 1,
+          "status": "todo",
+          "title": "Initial deposit received"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2026-10-25",
+          "id": "t38gi0u18i6",
+          "stage": 1,
+          "status": "todo",
+          "title": "Set up project folders & drawing register"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-10-31",
+          "id": "tnnyd7x18i6",
+          "stage": 2,
+          "status": "todo",
+          "title": "Concept sketches"
+        },
+        {
+          "assignee": "tm-nethmi",
+          "deliverable": "3D Model",
+          "due": "2026-11-05",
+          "id": "t0eo2l818i6",
+          "stage": 2,
+          "status": "todo",
+          "title": "Massing study"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Floor Plans",
+          "due": "2026-11-11",
+          "id": "tljqzkp18i6",
+          "stage": 2,
+          "status": "todo",
+          "title": "Initial spatial layouts"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-11-16",
+          "id": "t04tirl18i6",
+          "stage": 2,
+          "status": "todo",
+          "title": "Schematic presentation to client"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-11-22",
+          "id": "twz0ue918i6",
+          "stage": 2,
+          "status": "todo",
+          "title": "Client sign-off on concept"
+        },
+        {
+          "assignee": "tm-nethmi",
+          "deliverable": "3D Model",
+          "due": "2026-11-28",
+          "id": "tpuk13d18i6",
+          "stage": 3,
+          "status": "todo",
+          "title": "3D model: interiors & exterior"
+        },
+        {
+          "assignee": "tm-nethmi",
+          "deliverable": "3D Renders",
+          "due": "2026-12-04",
+          "id": "tp0qf0g18i6",
+          "stage": 3,
+          "status": "todo",
+          "title": "Photoreal renders, key views"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Material Schedule",
+          "due": "2026-12-10",
+          "id": "twr3vis18i6",
+          "stage": 3,
+          "status": "todo",
+          "title": "Material & finish schedule"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Lighting Layout",
+          "due": "2026-12-16",
+          "id": "t6qotu718i6",
+          "stage": 3,
+          "status": "todo",
+          "title": "Lighting layout"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "CCTV Layout",
+          "due": "2026-12-22",
+          "id": "ted5j2b18i6",
+          "stage": 3,
+          "status": "todo",
+          "title": "CCTV & security layout"
+        },
+        {
+          "assignee": "tm-nethmi",
+          "deliverable": "4K Walkthrough",
+          "due": "2026-12-28",
+          "id": "tfw2qgp18i6",
+          "stage": 3,
+          "status": "todo",
+          "title": "4K walkthrough video"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2027-01-03",
+          "id": "tb5uigl18i6",
+          "stage": 3,
+          "status": "todo",
+          "title": "Design freeze approval"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Working Drawings",
+          "due": "2027-01-13",
+          "id": "t04634x18i6",
+          "stage": 4,
+          "status": "todo",
+          "title": "Working drawings: plans, sections, elevations"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Structural Details",
+          "due": "2027-01-22",
+          "id": "t5ebk4h18i6",
+          "stage": 4,
+          "status": "todo",
+          "title": "Structural details coordination"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "MEP Schedules",
+          "due": "2027-01-31",
+          "id": "ttb0jql18i6",
+          "stage": 4,
+          "status": "todo",
+          "title": "MEP schedules"
+        },
+        {
+          "assignee": "tm-tharindu",
+          "deliverable": "BOQ Schedule",
+          "due": "2027-02-09",
+          "id": "tzhtu8w18i6",
+          "stage": 4,
+          "status": "todo",
+          "title": "Bill of quantities"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Authority Submission",
+          "due": "2027-02-18",
+          "id": "trjbmmr18i6",
+          "stage": 4,
+          "status": "todo",
+          "title": "Authority submission set"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2027-02-28",
+          "id": "t6ny8ct18i6",
+          "stage": 4,
+          "status": "todo",
+          "title": "Drawing register issue"
+        },
+        {
+          "assignee": "tm-tharindu",
+          "deliverable": "",
+          "due": "2027-03-06",
+          "id": "trpqsnw18i6",
+          "stage": 5,
+          "status": "todo",
+          "title": "Tender documents compiled"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2027-03-11",
+          "id": "tqwcbip18i6",
+          "stage": 5,
+          "status": "todo",
+          "title": "Contractor pre-qualification"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2027-03-17",
+          "id": "twn9ity18i6",
+          "stage": 5,
+          "status": "todo",
+          "title": "Site tender briefing"
+        },
+        {
+          "assignee": "tm-tharindu",
+          "deliverable": "",
+          "due": "2027-03-22",
+          "id": "tsk3niz18i6",
+          "stage": 5,
+          "status": "todo",
+          "title": "Tender evaluation report"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2027-03-28",
+          "id": "t0qk4g918i6",
+          "stage": 5,
+          "status": "todo",
+          "title": "Contractor appointment"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2027-04-25",
+          "id": "t366lo918i6",
+          "stage": 6,
+          "status": "todo",
+          "title": "Inspection log: foundations"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2027-05-23",
+          "id": "t50778o18i6",
+          "stage": 6,
+          "status": "todo",
+          "title": "Inspection log: structure"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2027-06-20",
+          "id": "tewggts18i6",
+          "stage": 6,
+          "status": "todo",
+          "title": "Shop drawing reviews"
+        },
+        {
+          "assignee": "tm-tharindu",
+          "deliverable": "",
+          "due": "2027-07-18",
+          "id": "tjry98g18i6",
+          "stage": 6,
+          "status": "todo",
+          "title": "Variation orders register"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2027-08-15",
+          "id": "t57tu3r18i6",
+          "stage": 6,
+          "status": "todo",
+          "title": "Monthly site progress report"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2027-09-12",
+          "id": "tfcun2l18i6",
+          "stage": 6,
+          "status": "todo",
+          "title": "Snagging inspection"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "As-built Drawings",
+          "due": "2027-09-17",
+          "id": "t366ms318i6",
+          "stage": 7,
+          "status": "todo",
+          "title": "As-built drawings"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2027-09-21",
+          "id": "tiz0byz18i6",
+          "stage": 7,
+          "status": "todo",
+          "title": "O&M manuals & warranties"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2027-09-25",
+          "id": "t3hvl3s18i6",
+          "stage": 7,
+          "status": "todo",
+          "title": "Final payment settlement"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2027-09-29",
+          "id": "tph8pe418i6",
+          "stage": 7,
+          "status": "todo",
+          "title": "Client sign-off & handover certificate"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2027-10-03",
+          "id": "t1xbm2018i6",
+          "stage": 7,
+          "status": "todo",
+          "title": "Archive project files"
+        }
+      ],
+      "team": [
+        "tm-ayesha",
+        "tm-kasun",
+        "tm-nethmi",
+        "tm-tharindu",
+        "tm-imesh"
+      ],
+      "type": "Commercial"
+    },
+    {
+      "budget": 4200000,
+      "client": {
+        "contact": "+94 77 555 0142",
+        "name": "Wijesinghe family"
+      },
+      "code": "MRF I 26 I 011",
+      "createdAt": "2026-10-24",
+      "currentStage": 7,
+      "example": true,
+      "folders": {
+        "01": {
+          "assignees": [
+            "tm-ayesha",
+            "tm-kasun"
+          ],
+          "created": "2026-06-15",
+          "files": [
+            {
+              "added": "2026-06-17",
+              "id": "fy9pty418i5",
+              "name": "WR_Brief_v2.pdf",
+              "size": "1.2 MB"
+            },
+            {
+              "added": "2026-06-20",
+              "id": "fw7jr2718i5",
+              "name": "Site_Survey_Rajagiriya.dwg",
+              "size": "8.4 MB"
+            },
+            {
+              "added": "2026-06-18",
+              "id": "f3bn7ae18i5",
+              "name": "Title_Plan_Lot_14.pdf",
+              "size": "640 KB"
+            }
+          ],
+          "sync": ""
+        },
+        "02": {
+          "assignees": [
+            "tm-nethmi",
+            "tm-kasun"
+          ],
+          "created": "2026-06-15",
+          "files": [
+            {
+              "added": "2026-07-14",
+              "id": "fztpgm018i5",
+              "name": "Concept_Sketches_Set.pdf",
+              "size": "14 MB"
+            },
+            {
+              "added": "2026-07-20",
+              "id": "fgrmz2u18i5",
+              "name": "Massing_Options_A-C.skp",
+              "size": "46 MB"
+            },
+            {
+              "added": "2026-08-24",
+              "id": "f3w9uct18i5",
+              "name": "Material_Board.pdf",
+              "size": "9.1 MB"
+            },
+            {
+              "added": "2026-08-28",
+              "id": "fy74avx18i5",
+              "name": "Render_Living_Dusk.png",
+              "size": "5.8 MB"
+            },
+            {
+              "added": "2026-09-03",
+              "id": "fb87zlc18i5",
+              "name": "Walkthrough_v1_4K.mp4",
+              "size": "1.1 GB"
+            }
+          ],
+          "sync": "onedrive"
+        },
+        "03": {
+          "assignees": [
+            "tm-kasun",
+            "tm-ayesha"
+          ],
+          "created": "2026-06-15",
+          "files": [
+            {
+              "added": "2026-09-22",
+              "id": "fv9pryu18i5",
+              "name": "MRF-26-011_A-101_Ground_Floor_Plan.dwg",
+              "size": "2.9 MB"
+            },
+            {
+              "added": "2026-09-30",
+              "id": "fj9lsoj18i5",
+              "name": "MRF-26-011_A-201_Sections.dwg",
+              "size": "3.4 MB"
+            },
+            {
+              "added": "2026-10-08",
+              "id": "ftryt8818i5",
+              "name": "Structural_Details_Rev_B.pdf",
+              "size": "6.7 MB"
+            },
+            {
+              "added": "2026-10-11",
+              "id": "fabr8f718i5",
+              "name": "MEP_Coordination_Markup.pdf",
+              "size": "4.2 MB"
+            }
+          ],
+          "sync": ""
+        },
+        "04": {
+          "assignees": [
+            "tm-tharindu"
+          ],
+          "created": "2026-06-15",
+          "files": [
+            {
+              "added": "2026-10-09",
+              "id": "f1yrs6018i5",
+              "name": "MEP_Schedule_v1.xlsx",
+              "size": "220 KB"
+            },
+            {
+              "added": "2026-10-15",
+              "id": "f0764ja18i5",
+              "name": "BOQ_Draft_Elements_1-6.xlsx",
+              "size": "410 KB"
+            }
+          ],
+          "sync": ""
+        },
+        "05": {
+          "assignees": [
+            "tm-ayesha"
+          ],
+          "created": "2026-06-15",
+          "files": [
+            {
+              "added": "2026-06-19",
+              "id": "fbfnt0d18i5",
+              "name": "Fee_Agreement_Signed.pdf",
+              "size": "880 KB"
+            },
+            {
+              "added": "2026-06-26",
+              "id": "fo0wmnj18i5",
+              "name": "INV-01_Receipt.pdf",
+              "size": "120 KB"
+            },
+            {
+              "added": "2026-08-12",
+              "id": "f1f1xey18i5",
+              "name": "INV-02_Receipt.pdf",
+              "size": "118 KB"
+            }
+          ],
+          "sync": ""
+        },
+        "06": {
+          "assignees": [
+            "tm-imesh"
+          ],
+          "created": "2026-06-15",
+          "files": [
+            {
+              "added": "2026-06-16",
+              "id": "f7rdeoo18i5",
+              "name": "Site_Visit_Photos_Jun.zip",
+              "size": "212 MB"
+            },
+            {
+              "added": "2026-09-12",
+              "id": "fwioyel18i5",
+              "name": "Client_Meeting_Minutes_No3.pdf",
+              "size": "160 KB"
+            }
+          ],
+          "sync": ""
+        }
+      },
+      "foldersCreated": "",
+      "gfa": 380,
+      "id": "ex-wijesinghe",
+      "location": "Rajagiriya, Colombo",
+      "map": null,
+      "milestones": [
+        {
+          "id": "m1",
+          "invoice": {
+            "due": "2026-06-29",
+            "issued": "2026-06-15",
+            "no": "MRF I 26 I 011 I INV 01"
+          },
+          "label": "Initial deposit",
+          "pct": 20,
+          "receipts": [
+            {
+              "amount": 840000,
+              "date": "2026-06-26",
+              "id": "ri69vtz18i5",
+              "kind": "payment",
+              "method": "Bank transfer",
+              "ref": "TT-88213",
+              "retained": 42000
+            }
+          ],
+          "stage": 1
+        },
+        {
+          "id": "m2",
+          "invoice": {
+            "due": "2026-08-10",
+            "issued": "2026-07-27",
+            "no": "MRF I 26 I 011 I INV 02"
+          },
+          "label": "Schematic design",
+          "pct": 30,
+          "receipts": [
+            {
+              "amount": 1260000,
+              "date": "2026-08-12",
+              "id": "riewjoo18i5",
+              "kind": "payment",
+              "method": "Bank transfer",
+              "ref": "TT-90377",
+              "retained": 63000
+            }
+          ],
+          "stage": 2
+        },
+        {
+          "id": "m3",
+          "invoice": {
+            "due": "2026-10-19",
+            "issued": "2026-10-05",
+            "no": "MRF I 26 I 011 I INV 03"
+          },
+          "label": "Construction documentation",
+          "pct": 30,
+          "receipts": [],
+          "stage": 4
+        },
+        {
+          "id": "m4",
+          "invoice": {
+            "due": "2026-11-09",
+            "issued": "2026-10-26",
+            "no": "MRF I 26 I 011 I INV 04",
+            "note": "",
+            "ref": ""
+          },
+          "label": "Handover & closeout",
+          "pct": 20,
+          "receipts": [],
+          "stage": 7
+        }
+      ],
+      "name": "Wijesinghe Residence",
+      "releases": [],
+      "retainPct": 5,
+      "stages": [
+        {
+          "end": "2026-06-28",
+          "n": 1,
+          "start": "2026-06-15"
+        },
+        {
+          "end": "2026-07-26",
+          "n": 2,
+          "start": "2026-06-29"
+        },
+        {
+          "end": "2026-09-06",
+          "n": 3,
+          "start": "2026-07-27"
+        },
+        {
+          "end": "2026-11-01",
+          "n": 4,
+          "start": "2026-09-07"
+        },
+        {
+          "end": "2026-11-29",
+          "n": 5,
+          "start": "2026-11-02"
+        },
+        {
+          "end": "2027-05-16",
+          "n": 6,
+          "start": "2026-11-30"
+        },
+        {
+          "end": "2027-06-06",
+          "n": 7,
+          "start": "2027-05-17"
+        }
+      ],
+      "startDate": "2026-06-15",
+      "status": "active",
+      "tasks": [
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Site Survey",
+          "due": "2026-06-17",
+          "id": "te9wlra18i4",
+          "stage": 1,
+          "status": "done",
+          "title": "Site visit & measured survey"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-06-19",
+          "id": "t2u0s6s18i4",
+          "stage": 1,
+          "status": "done",
+          "title": "Client brief workshop"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2026-06-21",
+          "id": "tdwiaf618i4",
+          "stage": 1,
+          "status": "done",
+          "title": "Collect title plan, boundary & utilities data"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-06-23",
+          "id": "t7mtmd718i4",
+          "stage": 1,
+          "status": "done",
+          "title": "Fee proposal & contract signed"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-06-25",
+          "id": "t17g7s818i4",
+          "stage": 1,
+          "status": "done",
+          "title": "Initial deposit received"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2026-06-28",
+          "id": "tl3lwh118i4",
+          "stage": 1,
+          "status": "done",
+          "title": "Set up project folders & drawing register"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-07-04",
+          "id": "tahuovt18i4",
+          "stage": 2,
+          "status": "done",
+          "title": "Concept sketches"
+        },
+        {
+          "assignee": "tm-nethmi",
+          "deliverable": "3D Model",
+          "due": "2026-07-09",
+          "id": "tnpri2718i4",
+          "stage": 2,
+          "status": "done",
+          "title": "Massing study"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Floor Plans",
+          "due": "2026-07-15",
+          "id": "tjme88n18i4",
+          "stage": 2,
+          "status": "done",
+          "title": "Initial spatial layouts"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-07-20",
+          "id": "tqj5ric18i5",
+          "stage": 2,
+          "status": "done",
+          "title": "Schematic presentation to client"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-07-26",
+          "id": "t5kfxt018i5",
+          "stage": 2,
+          "status": "done",
+          "title": "Client sign-off on concept"
+        },
+        {
+          "assignee": "tm-nethmi",
+          "deliverable": "3D Model",
+          "due": "2026-08-01",
+          "id": "tfsnqeq18i5",
+          "stage": 3,
+          "status": "done",
+          "title": "3D model: interiors & exterior"
+        },
+        {
+          "assignee": "tm-nethmi",
+          "deliverable": "3D Renders",
+          "due": "2026-08-07",
+          "id": "tk4thuw18i5",
+          "stage": 3,
+          "status": "done",
+          "title": "Photoreal renders, key views"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Material Schedule",
+          "due": "2026-08-13",
+          "id": "tdshl9518i5",
+          "stage": 3,
+          "status": "done",
+          "title": "Material & finish schedule"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Lighting Layout",
+          "due": "2026-08-19",
+          "id": "tzotrvq18i5",
+          "stage": 3,
+          "status": "done",
+          "title": "Lighting layout"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "CCTV Layout",
+          "due": "2026-08-25",
+          "id": "tpiquzn18i5",
+          "stage": 3,
+          "status": "done",
+          "title": "CCTV & security layout"
+        },
+        {
+          "assignee": "tm-nethmi",
+          "deliverable": "4K Walkthrough",
+          "due": "2026-08-31",
+          "id": "t5n2epc18i5",
+          "stage": 3,
+          "status": "done",
+          "title": "4K walkthrough video"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-09-06",
+          "id": "tpgvk9818i5",
+          "stage": 3,
+          "status": "done",
+          "title": "Design freeze approval"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Working Drawings",
+          "due": "2026-09-16",
+          "id": "trhcku018i5",
+          "stage": 4,
+          "status": "done",
+          "title": "Working drawings: plans, sections, elevations"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Structural Details",
+          "due": "2026-09-25",
+          "id": "tbi88py18i5",
+          "stage": 4,
+          "status": "done",
+          "title": "Structural details coordination"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "MEP Schedules",
+          "due": "2026-10-04",
+          "id": "tuetbza18i5",
+          "stage": 4,
+          "status": "done",
+          "title": "MEP schedules"
+        },
+        {
+          "assignee": "tm-tharindu",
+          "deliverable": "BOQ Schedule",
+          "due": "2026-10-13",
+          "id": "tjspel318i5",
+          "stage": 4,
+          "status": "done",
+          "title": "Bill of quantities"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "Authority Submission",
+          "due": "2026-10-22",
+          "id": "t0izete18i5",
+          "stage": 4,
+          "status": "doing",
+          "title": "Authority submission set"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2026-11-01",
+          "id": "to6ie2u18i5",
+          "stage": 4,
+          "status": "todo",
+          "title": "Drawing register issue"
+        },
+        {
+          "assignee": "tm-tharindu",
+          "deliverable": "",
+          "due": "2026-11-07",
+          "id": "tok232318i5",
+          "stage": 5,
+          "status": "todo",
+          "title": "Tender documents compiled"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-11-12",
+          "id": "t4jzmqj18i5",
+          "stage": 5,
+          "status": "todo",
+          "title": "Contractor pre-qualification"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-11-18",
+          "id": "thuu1mx18i5",
+          "stage": 5,
+          "status": "todo",
+          "title": "Site tender briefing"
+        },
+        {
+          "assignee": "tm-tharindu",
+          "deliverable": "",
+          "due": "2026-11-23",
+          "id": "txntwi718i5",
+          "stage": 5,
+          "status": "todo",
+          "title": "Tender evaluation report"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2026-11-29",
+          "id": "txhgzz018i5",
+          "stage": 5,
+          "status": "todo",
+          "title": "Contractor appointment"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2026-12-27",
+          "id": "tv71m5p18i5",
+          "stage": 6,
+          "status": "todo",
+          "title": "Inspection log: foundations"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2027-01-24",
+          "id": "tk9ddvd18i5",
+          "stage": 6,
+          "status": "todo",
+          "title": "Inspection log: structure"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2027-02-21",
+          "id": "t6llj6j18i5",
+          "stage": 6,
+          "status": "todo",
+          "title": "Shop drawing reviews"
+        },
+        {
+          "assignee": "tm-tharindu",
+          "deliverable": "",
+          "due": "2027-03-21",
+          "id": "tozm70918i5",
+          "stage": 6,
+          "status": "todo",
+          "title": "Variation orders register"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2027-04-18",
+          "id": "tzxdbtx18i5",
+          "stage": 6,
+          "status": "todo",
+          "title": "Monthly site progress report"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2027-05-16",
+          "id": "tta110z18i5",
+          "stage": 6,
+          "status": "todo",
+          "title": "Snagging inspection"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "As-built Drawings",
+          "due": "2027-05-21",
+          "id": "thk6mch18i5",
+          "stage": 7,
+          "status": "todo",
+          "title": "As-built drawings"
+        },
+        {
+          "assignee": "tm-imesh",
+          "deliverable": "",
+          "due": "2027-05-25",
+          "id": "tzhafww18i5",
+          "stage": 7,
+          "status": "todo",
+          "title": "O&M manuals & warranties"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2027-05-29",
+          "id": "tj5pns218i5",
+          "stage": 7,
+          "status": "todo",
+          "title": "Final payment settlement"
+        },
+        {
+          "assignee": "tm-ayesha",
+          "deliverable": "",
+          "due": "2027-06-02",
+          "id": "tp6q0jd18i5",
+          "stage": 7,
+          "status": "todo",
+          "title": "Client sign-off & handover certificate"
+        },
+        {
+          "assignee": "tm-kasun",
+          "deliverable": "",
+          "due": "2027-06-06",
+          "id": "thj08ez18i5",
+          "stage": 7,
+          "status": "todo",
+          "title": "Archive project files"
+        }
+      ],
+      "team": [
+        "tm-ayesha",
+        "tm-kasun",
+        "tm-nethmi",
+        "tm-tharindu",
+        "tm-imesh"
+      ],
+      "type": "Residential"
+    }
+  ]
+}
