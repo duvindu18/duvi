@@ -17,6 +17,7 @@ from pathlib import Path
 import anthropic
 
 from .core import TASKS, build_task_prompt, run_turn
+from .paths import api_key
 
 
 def _print_events(client: anthropic.Anthropic, history: list) -> None:
@@ -38,7 +39,8 @@ def main() -> None:
     parser.add_argument("--file", help="Text file with a job post or your current listing")
     args = parser.parse_args()
 
-    client = anthropic.Anthropic()
+    key = api_key()
+    client = anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
     history: list = []
 
     if args.task:

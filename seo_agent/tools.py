@@ -8,6 +8,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+from .paths import reports_dir
 from .knowledge import (
     BANNED_CONTACT_PATTERNS,
     FIVERR_CATEGORY_CANDIDATES,
@@ -19,7 +20,7 @@ from .knowledge import (
     WEAK_WORDS,
 )
 
-REPORTS_DIR = Path(__file__).resolve().parent / "reports"
+REPORTS_DIR = reports_dir()
 
 
 def keyword_ideas(niche: str = "all", seed: str = "") -> str:

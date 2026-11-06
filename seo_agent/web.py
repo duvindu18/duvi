@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import threading
 import uuid
 from http import HTTPStatus
@@ -24,8 +25,9 @@ from pathlib import Path
 import anthropic
 
 from . import core
+from .paths import api_key, load_config, resource_dir, save_config
 
-STATIC = Path(__file__).resolve().parent / "static"
+STATIC = resource_dir() / "static"
 MAX_BODY = 200_000
 
 _sessions: dict[str, list] = {}
@@ -38,15 +40,24 @@ turn_runner = core.run_turn
 def _get_client() -> anthropic.Anthropic:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic()
+        key = api_key()
+        _client = anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
     return _client
+
+
+def _set_key(key: str) -> None:
+    global _client
+    cfg = load_config()
+    cfg["anthropic_api_key"] = key
+    save_config(cfg)
+    _client = None
 
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "ArchVizSEO/1.0"
 
     def log_message(self, fmt: str, *args) -> None:  # quieter console
-        if "/api/" in (args[0] if args else ""):
+        if "/api/" in str(args[0] if args else "") or "code" in fmt:
             super().log_message(fmt, *args)
 
     def do_GET(self) -> None:
@@ -59,10 +70,20 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
         elif self.path == "/api/tasks":
             self._json({"tasks": core.TASKS})
+        elif self.path == "/api/status":
+            self._json({"has_key": bool(api_key()), "model": core.MODEL})
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
 
+    def _same_origin(self) -> bool:
+        # Block cross-site pages in the user's browser from driving this local server.
+        origin = self.headers.get("Origin")
+        return origin is None or origin == f"http://{self.headers.get('Host', '')}"
+
     def do_POST(self) -> None:
+        if not self._same_origin():
+            self.send_error(HTTPStatus.FORBIDDEN, "cross-origin request")
+            return
         length = int(self.headers.get("Content-Length") or 0)
         if length > MAX_BODY:
             self.send_error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
@@ -74,6 +95,14 @@ class Handler(BaseHTTPRequestHandler):
             return
         session = str(data.get("session") or uuid.uuid4())
 
+        if self.path == "/api/key":
+            key = str(data.get("key", "")).strip()
+            if not key.startswith("sk-ant-"):
+                self._json({"ok": False, "error": "That doesn't look like an Anthropic API key (sk-ant-...)."})
+                return
+            _set_key(key)
+            self._json({"ok": True})
+            return
         if self.path == "/api/reset":
             _sessions.pop(session, None)
             self._json({"ok": True})
@@ -131,13 +160,18 @@ class Handler(BaseHTTPRequestHandler):
             del history[mark:]
         except anthropic.AuthenticationError:
             del history[mark:]
-            self._safe_emit({"type": "error", "text": "No valid API key. Set ANTHROPIC_API_KEY and restart."})
+            self._safe_emit({"type": "error", "text": "API key missing or invalid - open Settings and paste a valid key."})
         except anthropic.APIStatusError as e:
             del history[mark:]
             self._safe_emit({"type": "error", "text": f"API error {e.status_code}: {e.message}"})
         except anthropic.APIConnectionError:
             del history[mark:]
             self._safe_emit({"type": "error", "text": "Network error reaching the Claude API."})
+        except TypeError as e:  # raised by the SDK when no credentials are configured at all
+            del history[mark:]
+            msg = ("No API key set - open Settings and paste your Anthropic API key."
+                   if "api_key" in str(e) or "auth" in str(e).lower() else f"TypeError: {e}")
+            self._safe_emit({"type": "error", "text": msg})
         except Exception as e:  # surface anything else to the UI instead of a dead stream
             del history[mark:]
             self._safe_emit({"type": "error", "text": f"{type(e).__name__}: {e}"})
@@ -151,8 +185,14 @@ class Handler(BaseHTTPRequestHandler):
             pass
 
 
+class _Server(ThreadingHTTPServer):
+    daemon_threads = True
+    # On Windows SO_REUSEADDR lets two processes share a port; keep ports exclusive there.
+    allow_reuse_address = os.name != "nt"
+
+
 def serve(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPServer:
-    return ThreadingHTTPServer((host, port), Handler)
+    return _Server((host, port), Handler)
 
 
 def main() -> None:

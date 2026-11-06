@@ -71,13 +71,34 @@ textarea { resize: vertical; min-height: 110px; }
 .follow input { flex: 1; }
 .you { margin: 18px 0 8px; font-size: 13px; color: var(--muted); }
 .you b { color: var(--text); font-weight: 600; }
+@media (max-width: 860px) { header #settings { position: absolute; right: 16px; top: 14px; } header { position: relative; } }
+dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); padding: 22px; width: min(440px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgb(0 0 0 / .35); }
+dialog h2 { font-size: 16px; margin: 0 0 8px; }
+dialog p { margin: 0 0 12px; font-size: 14px; color: var(--muted); }
+dialog p.error { color: var(--err); min-height: 1em; margin: 8px 0 0; }
+.dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 </style>
 </head>
 <body>
 <header>
   <h1>ArchViz SEO Agent</h1>
   <span>Fiverr &amp; Upwork listings, keywords and proposals</span>
+  <button class="btn ghost" id="settings" type="button" style="margin-left:auto">Settings</button>
 </header>
+<dialog id="keydlg">
+  <form id="keyform" method="dialog">
+    <h2>Anthropic API key</h2>
+    <p>The agent runs on Claude. Paste an API key from <b>console.anthropic.com</b> &rarr; API Keys.
+       It is saved only on this computer.</p>
+    <input id="keyinput" type="password" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+    <p class="error" id="keyerr"></p>
+    <div class="dlg-actions">
+      <button class="btn ghost" value="cancel" type="button" id="keycancel">Cancel</button>
+      <button class="btn" type="submit">Save key</button>
+    </div>
+  </form>
+</dialog>
 <main>
   <form class="card" id="form" autocomplete="off">
     <div>
@@ -301,6 +322,21 @@ textarea { resize: vertical; min-height: 110px; }
     a.download = `archviz-${task}-${new Date().toISOString().slice(0, 10)}.md`; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
+  // ---------- API key settings ----------
+  const dlg = $("keydlg");
+  const openKey = () => { $("keyerr").textContent = ""; $("keyinput").value = ""; dlg.showModal(); $("keyinput").focus(); };
+  $("settings").addEventListener("click", openKey);
+  $("keycancel").addEventListener("click", () => dlg.close());
+  $("keyform").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const key = $("keyinput").value.trim();
+    try {
+      const r = await (await fetch("/api/key", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key }) })).json();
+      if (r.ok) { dlg.close(); setStatus("API key saved", false); } else $("keyerr").textContent = r.error || "Could not save the key.";
+    } catch { $("keyerr").textContent = "Could not reach the local server."; }
+  });
+  fetch("/api/status").then((r) => r.json()).then((st) => { if (!st.has_key) openKey(); }).catch(() => {});
+
   $("reset").addEventListener("click", () => {
     if (busy) return;
     if (session) fetch("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session }) });

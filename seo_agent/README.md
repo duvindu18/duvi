@@ -26,7 +26,48 @@ Tools the agent uses:
 
 The agent checks everything it writes and keeps rewriting until the score is 85 or higher.
 
-## Web interface
+## Requirements
+
+**To run the Windows app (`ArchVizSEO.exe`)**
+- Windows 10 or 11, 64-bit
+- An internet connection (the agent calls the Claude API and searches the web)
+- A modern browser (Edge, Chrome, Firefox); the app opens it for you
+- An Anthropic API key from console.anthropic.com > API Keys. API usage is billed by Anthropic to your account.
+- About 40 MB of disk space. No Python install is needed.
+
+**To run from source (any OS)**
+- Python 3.10 or newer
+- `pip install -r seo_agent/requirements.txt`: `anthropic` 2.6.0 and its pinned dependencies
+
+**To build the exe yourself**
+- Windows with Python 3.10 or newer
+- `pip install -r seo_agent/requirements-build.txt` (adds PyInstaller and pytest; `pip install pillow` is optional, for the app icon)
+
+## Windows app (.exe)
+
+1. Download `ArchVizSEO.exe` (see "Getting the exe" below) and double-click it.
+2. A small console window opens and the app opens in your browser at `http://127.0.0.1:8765`.
+   Keep the console window open while you work. Closing it quits the app.
+3. The first time, paste your Anthropic API key in the dialog. It is saved in
+   `%APPDATA%\ArchVizSEO\config.json` on your computer only. Change it later with **Settings**.
+4. Reports the agent saves go to `Documents\ArchViz SEO Reports`.
+
+The exe is not code-signed, so Windows SmartScreen may show "Windows protected your PC".
+Click **More info**, then **Run anyway**. Check the file against the `.sha256` hash that ships with it.
+
+**Getting the exe:** every push that changes `seo_agent/` runs the GitHub Actions workflow
+**Build ArchViz SEO exe**. It builds the exe on Windows, runs the tests, starts the exe to check that it
+works, and uploads `ArchVizSEO-windows` (the exe and its SHA256). Open the repo's **Actions** tab, select the
+latest run, and download the artifact. You can also start a build by hand with **Run workflow**.
+
+**Building locally on Windows:**
+```bat
+pip install -r seo_agent\requirements-build.txt pillow
+python seo_agent\packaging\build_exe.py
+dist\ArchVizSEO.exe
+```
+
+## Web interface (from source)
 
 ```bash
 pip install -r seo_agent/requirements.txt
@@ -42,11 +83,11 @@ download it as `.md`. It needs only the Python standard library plus `anthropic`
 and dark mode, and works on phones. Use `--host 0.0.0.0 --port 8080` to reach it from another device on your network
 (there is no login, so only do this on a network you trust).
 
-## Setup
+## Setup (from source)
 
 ```bash
 pip install -r seo_agent/requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...      # from console.anthropic.com
+export ANTHROPIC_API_KEY=sk-ant-...      # or save it in the web UI's Settings
 ```
 
 ## Command line (run from the repo root)
