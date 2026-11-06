@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ArchViz SEO Agent</title>
+<style>
+:root {
+  --bg: #fafaf9; --panel: #ffffff; --text: #1c1917; --muted: #78716c;
+  --line: #e7e5e4; --accent: #1c1917; --accent-text: #fafaf9; --soft: #f5f5f4;
+  --ok: #15803d; --err: #b91c1c;
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c0a09; --panel: #161412; --text: #e7e5e4; --muted: #a8a29e;
+    --line: #292524; --accent: #e7e5e4; --accent-text: #0c0a09; --soft: #1c1917;
+    --ok: #4ade80; --err: #f87171;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); }
+header { display: flex; align-items: baseline; gap: 12px; padding: 20px 24px 8px; }
+header h1 { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+header span { color: var(--muted); font-size: 13px; }
+main { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 20px; padding: 12px 24px 24px; align-items: start; }
+@media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px 16px; } header { padding: 16px 16px 4px; flex-direction: column; gap: 2px; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+form.card { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 14px; }
+@media (max-width: 860px) { form.card { position: static; } }
+label { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 6px; }
+input, textarea, select { width: 100%; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 9px 11px; outline: none; }
+input:focus, textarea:focus, select:focus { border-color: var(--muted); }
+textarea { resize: vertical; min-height: 110px; }
+.tasks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.tasks button { text-align: left; font: inherit; font-size: 13px; padding: 8px 10px; border-radius: 7px; border: 1px solid var(--line); background: transparent; color: var(--text); cursor: pointer; }
+.tasks button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.hidden { display: none !important; }
+.btn { font: inherit; font-weight: 600; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-text); border-radius: 7px; padding: 10px 14px; cursor: pointer; }
+.btn:disabled { opacity: .5; cursor: progress; }
+.btn.ghost { background: transparent; color: var(--text); border-color: var(--line); font-weight: 500; padding: 6px 10px; font-size: 13px; }
+.out-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.status { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; min-height: 22px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.running .dot { background: var(--text); animation: pulse 1s infinite ease-in-out; }
+@keyframes pulse { 50% { opacity: .25; } }
+.actions { display: flex; gap: 6px; }
+.log { font: 12px/1.6 var(--mono); color: var(--muted); border-left: 2px solid var(--line); padding-left: 10px; margin: 0 0 14px; max-height: 140px; overflow: auto; }
+.log:empty { display: none; }
+.empty { color: var(--muted); padding: 48px 8px; text-align: center; }
+.md { overflow-wrap: anywhere; }
+.md h1, .md h2, .md h3 { line-height: 1.3; letter-spacing: -0.01em; margin: 1.4em 0 .5em; }
+.md h1 { font-size: 21px; } .md h2 { font-size: 18px; border-bottom: 1px solid var(--line); padding-bottom: 6px; } .md h3 { font-size: 15.5px; }
+.md > :first-child { margin-top: 0; }
+.md p, .md ul, .md ol { margin: .5em 0 .8em; }
+.md ul, .md ol { padding-left: 1.3em; }
+.md code { font: 13px var(--mono); background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+.md pre { background: var(--soft); padding: 12px; border-radius: 7px; overflow: auto; }
+.md pre code { background: none; padding: 0; }
+.md blockquote { margin: .6em 0; padding: 2px 12px; border-left: 3px solid var(--line); color: var(--muted); }
+.md hr { border: 0; border-top: 1px solid var(--line); margin: 1.5em 0; }
+.tablewrap { overflow-x: auto; margin: .6em 0 1em; }
+.md table { border-collapse: collapse; font-size: 13.5px; min-width: 100%; }
+.md table { overflow-wrap: normal; }
+.md th, .md td { min-width: 90px; border: 1px solid var(--line); padding: 7px 9px; text-align: left; vertical-align: top; }
+.md th { background: var(--soft); font-weight: 600; }
+.notice { color: var(--muted); font-style: italic; }
+.error { color: var(--err); }
+.follow { display: flex; gap: 8px; margin-top: 16px; border-top: 1px solid var(--line); padding-top: 14px; }
+.follow input { flex: 1; }
+.you { margin: 18px 0 8px; font-size: 13px; color: var(--muted); }
+.you b { color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ArchViz SEO Agent</h1>
+  <span>Fiverr &amp; Upwork listings, keywords and proposals</span>
+</header>
+<main>
+  <form class="card" id="form" autocomplete="off">
+    <div>
+      <label>Task</label>
+      <div class="tasks" id="tasks">
+        <button type="button" data-task="full" aria-pressed="true">Full workflow</button>
+        <button type="button" data-task="fiverr">Fiverr gig</button>
+        <button type="button" data-task="proposal">Upwork proposal</button>
+        <button type="button" data-task="upwork_profile">Upwork profile</button>
+        <button type="button" data-task="audit">Audit listing</button>
+        <button type="button" data-task="keywords">Keywords</button>
+      </div>
+    </div>
+    <div id="f-platform" class="hidden">
+      <label for="platform">Platform</label>
+      <select id="platform"><option value="fiverr">Fiverr</option><option value="upwork">Upwork</option></select>
+    </div>
+    <div id="f-niche">
+      <label for="niche">Niche focus</label>
+      <input id="niche" placeholder="e.g. exterior architectural rendering">
+    </div>
+    <div>
+      <label for="about">About you <span style="text-transform:none;font-weight:400">(optional)</span></label>
+      <input id="about" placeholder="e.g. 6 yrs, 3ds Max + Corona, Unreal 5, mid-level pricing">
+    </div>
+    <div id="f-text">
+      <label for="text" id="text-label">Extra context <span style="text-transform:none;font-weight:400">(optional)</span></label>
+      <textarea id="text" placeholder="Paste a job post, your current listing, or notes"></textarea>
+    </div>
+    <button class="btn" id="run" type="submit">Generate</button>
+  </form>
+
+  <section class="card" aria-live="polite">
+    <div class="out-head">
+      <div class="status" id="status"><span class="dot"></span><span id="status-text">Ready</span></div>
+      <div class="actions">
+        <button class="btn ghost" id="copy" type="button" disabled>Copy</button>
+        <button class="btn ghost" id="download" type="button" disabled>Download .md</button>
+        <button class="btn ghost" id="reset" type="button">New</button>
+      </div>
+    </div>
+    <div class="log" id="log"></div>
+    <div id="out"><div class="empty">Pick a task, describe your niche, and press Generate.<br>A full workflow run takes one to three minutes.</div></div>
+    <form class="follow hidden" id="follow">
+      <input id="follow-input" placeholder="Refine it, e.g. &ldquo;make the Premium tier include a 30s walkthrough&rdquo;">
+      <button class="btn" type="submit">Send</button>
+    </form>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  };
+  let task = store.get("task") || "full";
+  let session = null;
+  let busy = false;
+  let lastMarkdown = "";
+
+  const TEXT_LABEL = {
+    proposal: "Job post", audit: "Current listing",
+  };
+
+  function selectTask(t) {
+    task = t;
+    store.set("task", t);
+    for (const b of $("tasks").children) b.setAttribute("aria-pressed", String(b.dataset.task === t));
+    $("f-platform").classList.toggle("hidden", t !== "audit");
+    $("f-niche").classList.toggle("hidden", t === "audit");
+    const req = TEXT_LABEL[t];
+    $("text-label").innerHTML = req ? req : 'Extra context <span style="text-transform:none;font-weight:400">(optional)</span>';
+    $("text").placeholder = t === "proposal" ? "Paste the full Upwork job post"
+      : t === "audit" ? "Paste your title, tags/skills and description"
+      : "Paste a job post, your current listing, or notes";
+  }
+  $("tasks").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) selectTask(b.dataset.task); });
+  for (const id of ["niche", "about"]) {
+    const v = store.get(id); if (v) $(id).value = v;
+    $(id).addEventListener("input", () => store.set(id, $(id).value));
+  }
+  selectTask(task);
+
+  // ---------- tiny, safe Markdown renderer ----------
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  function inline(s) {
+    s = esc(s);
+    s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+    s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/(^|[^*])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>");
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    return s;
+  }
+  const cells = (row) => row.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+  function md(src) {
+    const lines = src.replace(/\r/g, "").split("\n");
+    let html = "", i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (/^```/.test(line)) {
+        const buf = []; i++;
+        while (i < lines.length && !/^```/.test(lines[i])) buf.push(lines[i++]);
+        i++; html += `<pre><code>${esc(buf.join("\n"))}</code></pre>`; continue;
+      }
+      const h = line.match(/^(#{1,6})\s+(.*)$/);
+      if (h) { const n = Math.min(h[1].length, 3); html += `<h${n}>${inline(h[2])}</h${n}>`; i++; continue; }
+      if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) { html += "<hr>"; i++; continue; }
+      if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}/.test(lines[i + 1])) {
+        const head = cells(line); i += 2;
+        let t = "<div class='tablewrap'><table><thead><tr>" + head.map((c) => `<th>${inline(c)}</th>`).join("") + "</tr></thead><tbody>";
+        while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+          t += "<tr>" + cells(lines[i]).map((c) => `<td>${inline(c).replace(/&lt;br\s*\/?&gt;/g, "<br>")}</td>`).join("") + "</tr>"; i++;
+        }
+        html += t + "</tbody></table></div>"; continue;
+      }
+      if (/^\s*>/.test(line)) {
+        const buf = [];
+        while (i < lines.length && /^\s*>/.test(lines[i])) buf.push(lines[i++].replace(/^\s*>\s?/, ""));
+        html += `<blockquote>${md(buf.join("\n"))}</blockquote>`; continue;
+      }
+      const li = line.match(/^\s*([-*+]|\d+[.)])\s+(.*)$/);
+      if (li) {
+        const ordered = /\d/.test(li[1]); const tag = ordered ? "ol" : "ul"; let items = "";
+        while (i < lines.length) {
+          const m = lines[i].match(/^\s*([-*+]|\d+[.)])\s+(.*)$/);
+          if (!m) { if (/^\s{2,}\S/.test(lines[i])) { items = items.replace(/<\/li>$/, " " + inline(lines[i].trim()) + "</li>"); i++; continue; } break; }
+          items += `<li>${inline(m[2])}</li>`; i++;
+        }
+        html += `<${tag}>${items}</${tag}>`; continue;
+      }
+      if (!line.trim()) { i++; continue; }
+      const buf = [];
+      while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|```|\s*([-*+]|\d+[.)])\s|\s*>|\s*\|.*\|\s*$)/.test(lines[i])) buf.push(lines[i++]);
+      if (!buf.length) { buf.push(lines[i++]); }
+      html += `<p>${buf.map(inline).join("<br>")}</p>`;
+    }
+    return html;
+  }
+
+  // ---------- streaming ----------
+  function setStatus(text, running) {
+    $("status-text").textContent = text;
+    $("status").classList.toggle("running", !!running);
+  }
+  function logLine(t) { const d = document.createElement("div"); d.textContent = t; $("log").appendChild(d); $("log").scrollTop = 1e9; }
+
+  const TOOL_LABEL = {
+    keyword_ideas: "Keyword research", platform_guide: "Platform rules", audit_listing: "Auditing listing",
+    check_proposal: "Checking proposal", save_report: "Saving report", web_search: "Web search",
+  };
+
+  async function stream(url, payload, target) {
+    busy = true; $("run").disabled = true;
+    setStatus("Working…", true);
+    let text = "";
+    const started = Date.now();
+    const timer = setInterval(() => setStatus(`Working… ${Math.round((Date.now() - started) / 1000)}s`, true), 1000);
+    try {
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!res.ok || !res.body) throw new Error(`Server returned ${res.status}`);
+      const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
+      let failed = false;
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let nl;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const raw = buf.slice(0, nl); buf = buf.slice(nl + 1);
+          if (!raw.trim()) continue;
+          const ev = JSON.parse(raw);
+          if (ev.type === "text") { text += (text ? "\n\n" : "") + ev.text; target.innerHTML = md(text); }
+          else if (ev.type === "tool") logLine(`→ ${TOOL_LABEL[ev.name] || ev.name}${ev.detail ? ": " + ev.detail : ""}`);
+          else if (ev.type === "notice") target.insertAdjacentHTML("beforeend", `<p class="notice">${esc(ev.text)}</p>`);
+          else if (ev.type === "error") { failed = true; target.insertAdjacentHTML("beforeend", `<p class="error">${esc(ev.text)}</p>`); }
+          else if (ev.type === "done") { session = ev.session; lastMarkdown = ev.markdown || text; }
+        }
+      }
+      setStatus(failed ? "Failed" : `Done in ${Math.round((Date.now() - started) / 1000)}s`, false);
+      if (!failed) { $("copy").disabled = $("download").disabled = false; $("follow").classList.remove("hidden"); }
+    } catch (err) {
+      target.insertAdjacentHTML("beforeend", `<p class="error">${esc(String(err.message || err))}</p>`);
+      setStatus("Failed", false);
+    } finally {
+      clearInterval(timer); busy = false; $("run").disabled = false;
+    }
+  }
+
+  $("form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (busy) return;
+    const text = $("text").value;
+    if ((task === "proposal" || task === "audit") && !text.trim()) { $("text").focus(); return; }
+    session = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random();
+    $("log").innerHTML = ""; $("follow").classList.add("hidden");
+    $("copy").disabled = $("download").disabled = true;
+    const out = $("out"); out.innerHTML = '<div class="md"></div>';
+    stream("/api/run", { session, task, niche: $("niche").value, about: $("about").value, text, platform: $("platform").value }, out.firstChild);
+  });
+
+  $("follow").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const msg = $("follow-input").value.trim();
+    if (!msg || busy || !session) return;
+    $("follow-input").value = "";
+    $("out").insertAdjacentHTML("beforeend", `<div class="you"><b>You:</b> ${esc(msg)}</div><div class="md"></div>`);
+    stream("/api/chat", { session, message: msg }, $("out").lastElementChild);
+  });
+
+  // Copy / download give the latest response (the original result, or the newest refinement).
+  const allMarkdown = () => lastMarkdown;
+  $("copy").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(allMarkdown()); $("copy").textContent = "Copied"; setTimeout(() => ($("copy").textContent = "Copy"), 1200); }
+    catch { $("copy").textContent = "Copy failed"; }
+  });
+  $("download").addEventListener("click", () => {
+    const blob = new Blob([allMarkdown()], { type: "text/markdown" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = `archviz-${task}-${new Date().toISOString().slice(0, 10)}.md`; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  $("reset").addEventListener("click", () => {
+    if (busy) return;
+    if (session) fetch("/api/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session }) });
+    session = null; lastMarkdown = "";
+    $("log").innerHTML = ""; $("follow").classList.add("hidden");
+    $("copy").disabled = $("download").disabled = true;
+    $("out").innerHTML = '<div class="empty">Pick a task, describe your niche, and press Generate.</div>';
+    setStatus("Ready", false);
+  });
+})();
+</script>
+</body>
+</html>

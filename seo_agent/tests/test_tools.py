@@ -40,3 +40,28 @@ def test_keywords_and_report(tmp_path, monkeypatch):
     monkeypatch.setattr(T, "REPORTS_DIR", tmp_path)
     assert "Saved" in T.save_report("../evil name", "# hi")
     assert len(list(tmp_path.glob("*.md"))) == 1
+
+
+def test_fiverr_slug_and_first_150_words():
+    desc = ("word " * 160) + "exterior rendering. Message me to order."
+    r = json.loads(T.audit_listing("fiverr", "I will create stunning visuals for your next big project",
+                                   desc, ["a b", "c d", "e f", "g h", "i j"], ["exterior rendering"]))
+    text = " ".join(r["issues"])
+    assert "URL slug" in text and "first 150 words" in text
+
+
+def test_proposal_checker():
+    job = ("Need photorealistic exterior renders of a modern villa from Revit model. 3 camera views, "
+           "dusk lighting, landscaping. Corona or V-Ray preferred. Deadline 10 days.")
+    bad = json.loads(T.check_proposal("Dear Sir, I am an expert. I can do this job. Thanks.", job))
+    assert bad["score"] < 60 and any("Generic opener" in i for i in bad["issues"])
+    good = ("Your modern villa needs dusk exterior renders that keep the Revit design intent - I'd bring "
+            "the Revit model into 3ds Max via Datasmith and light it with Corona.\n"
+            "Plan for your 3 camera views: 1) clay renders of each view for your approval of framing, "
+            "2) materials, landscaping and dusk lighting draft, 3) final photorealistic renders in 4K with "
+            "post-production. Two revision rounds are included at each stage, so nothing is a surprise at "
+            "the end, and your 10 days deadline is covered with 2 days of buffer. You keep full rights to the "
+            "renders and receive layered files for your marketing team.\n"
+            "Do you already have landscaping references, or should I propose two planting moods for the views?")
+    g = json.loads(T.check_proposal(good, job))
+    assert g["score"] >= 85, g

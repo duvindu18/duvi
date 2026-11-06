@@ -4,17 +4,43 @@ An AI agent that writes and fixes Fiverr gigs and Upwork profiles for **architec
 visualization** freelancers: 3D exterior/interior rendering, floor plans, walkthrough
 animations, virtual tours, 3ds Max / Corona / V-Ray / Lumion / Enscape / D5 / Revit / SketchUp / Blender / Unreal.
 
-It runs on Claude and has these tools:
+It works as an ArchViz SEO strategist and runs a fixed workflow:
+
+1. **Market & keyword analysis**: a primary keyword plus long-tail keywords, with buyer intent and a rough competition estimate.
+2. **Fiverr gig package**: title (80 chars max) and the URL slug it produces, category path, 5 tags,
+   a Basic/Standard/Premium pricing table, description with the keyword in the first 150 words, FAQs,
+   requirements questionnaire, and thumbnail text.
+3. **Upwork proposal**: a hook written for the specific job post, a workflow and software-stack match,
+   risk reduction, a milestone plan, and a closing question.
+
+Tools the agent uses:
 
 | Tool | What it does |
 |---|---|
-| `keyword_ideas` | Built-in arch-viz keyword list grouped by niche, with buyer intent and a rough competition estimate, plus long-tail variants of a seed phrase |
-| `platform_guide` | Fiverr and Upwork character limits, rules and ranking factors |
-| `audit_listing` | Scores a title, tags/skills and description from 0 to 100: length limits, keyword placement, filler words, tag quality, the 200-character Upwork hook, contact-info ToS violations, call to action |
-| `web_search` | Live search for current platform rules, competitor wording and trending phrases |
-| `save_report` | Saves the final listing as Markdown in `seo_agent/reports/` |
+| `keyword_ideas` | Built-in arch viz keyword list by niche, with long-tail variants of a seed phrase |
+| `platform_guide` | Fiverr/Upwork limits, ranking factors, Fiverr category options |
+| `audit_listing` | Scores a gig/profile 0-100: length limits, keyword placement, URL slug, first 150 words, tags, filler words, contact-info ToS checks |
+| `check_proposal` | Scores a proposal 0-100: generic openers, hook length, job-post wording, length, closing question, ToS |
+| `web_search` | Current platform rules, categories, competitor wording |
+| `save_report` | Saves the final listing to `seo_agent/reports/` |
 
-The agent audits everything it writes and keeps rewriting until the score is 85 or higher.
+The agent checks everything it writes and keeps rewriting until the score is 85 or higher.
+
+## Web interface
+
+```bash
+pip install -r seo_agent/requirements.txt
+export ANTHROPIC_API_KEY=sk-ant-...
+python -m seo_agent.web            # then open http://127.0.0.1:8000
+```
+
+A minimal single-page interface: pick a task (Full workflow, Fiverr gig, Upwork proposal,
+Upwork profile, Audit listing, Keywords), enter your niche and a short "about you", and paste a
+job post or your current listing if the task needs one. Results appear as they are written, and
+the tool steps show while it works. You can send follow-ups to refine the result, copy it, or
+download it as `.md`. It needs only the Python standard library plus `anthropic`, works in light
+and dark mode, and works on phones. Use `--host 0.0.0.0 --port 8080` to reach it from another device on your network
+(there is no login, so only do this on a network you trust).
 
 ## Setup
 
@@ -23,14 +49,14 @@ pip install -r seo_agent/requirements.txt
 export ANTHROPIC_API_KEY=sk-ant-...      # from console.anthropic.com
 ```
 
-## Usage (run from the repo root)
+## Command line (run from the repo root)
 
 ```bash
 # Interactive chat
 python -m seo_agent.agent
 
-# Create a new optimized Fiverr gig
-python -m seo_agent.agent --task create --platform fiverr --niche "exterior rendering" \
+# Fiverr gig package (use --task full for gig + proposal framework)
+python -m seo_agent.agent --task fiverr --niche "exterior rendering" \
   --about "5 years, 3ds Max + Corona, villas and residential projects"
 
 # Audit and rewrite your current Upwork profile (paste it into a text file)

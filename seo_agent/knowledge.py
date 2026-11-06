@@ -142,3 +142,27 @@ BANNED_CONTACT_PATTERNS = [
     r"https?://",              # external links in description
     r"\+?\d[\d\s-]{8,}\d",     # phone numbers
 ]
+
+# Fiverr category routing for arch viz. Fiverr renames/reshuffles categories, so the
+# agent is told to confirm the exact path with web search before presenting it as final.
+FIVERR_CATEGORY_CANDIDATES = [
+    "Graphics & Design > Architecture & Building Design > 3D Architectural Rendering",
+    "Graphics & Design > Architecture & Building Design > Interior Design",
+    "Graphics & Design > Architecture & Building Design > Landscape Design",
+    "Graphics & Design > Architecture & Building Design > Architecture & Floor Plans",
+    "Video & Animation > 3D Animation / Architectural walkthroughs (check current subcategory)",
+]
+
+# Upwork proposal openers that signal a template and get skipped by clients.
+GENERIC_OPENERS = [
+    "dear sir", "dear hiring manager", "hello sir", "hi, i am", "hi i am", "hello, i am",
+    "my name is", "i have read your job", "i read your job", "i am interested in your job",
+    "i am an expert", "i am the best", "greetings", "to whom it may concern",
+    "i can do this job", "i am a professional",
+]
+
+STOPWORDS = set("""a an the and or but if of to in on for with at by from as is are was were be been
+this that these those it its we you your our i me my they them their he she his her will would can could
+should must have has had do does did not no yes so than then there here what which who whom when where
+why how all any each few more most other some such only own same too very just also into about over
+under again further once up down out off need needs looking project job work please".""".split())

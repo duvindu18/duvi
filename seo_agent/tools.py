@@ -10,6 +10,9 @@ from pathlib import Path
 
 from .knowledge import (
     BANNED_CONTACT_PATTERNS,
+    FIVERR_CATEGORY_CANDIDATES,
+    GENERIC_OPENERS,
+    STOPWORDS,
     KEYWORD_BANK,
     PLATFORM_RULES,
     UPWORK_SKILL_SUGGESTIONS,
@@ -125,6 +128,16 @@ def audit_listing(
         if dup:
             issues.append(f"Duplicate tags: {sorted(dup)}.")
             score -= 4
+        slug = slugify(title[len("i will"):] if title.lower().startswith("i will") else title)
+        if targets and slugify(targets[0]) not in slug:
+            issues.append(f"URL slug '{slug}' won't contain the primary keyword - Fiverr builds the slug "
+                          "from the title when the gig is first published and it can't be edited later.")
+            score -= 5
+        if description and targets:
+            first150 = " ".join(description.split()[:150])
+            if targets[0].lower() not in first150.lower():
+                issues.append(f"Primary keyword '{targets[0]}' is not in the first 150 words of the description.")
+                score -= 6
         if description and len(description) > rules["description_max"]:
             issues.append(f"Description is {len(description)} chars; limit is {rules['description_max']}.")
             score -= 10
@@ -167,6 +180,67 @@ def audit_listing(
     }, indent=2)
 
 
+def slugify(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+def check_proposal(proposal: str, job_post: str = "") -> str:
+    """Check an Upwork proposal for generic openers, hook length, job-post mirroring and a CTA."""
+    issues: list[str] = []
+    wins: list[str] = []
+    score = 100
+    text = proposal.strip()
+    lines = [l for l in text.splitlines() if l.strip()]
+    first = lines[0].lower() if lines else ""
+    opener_hits = [g for g in GENERIC_OPENERS if g in first]
+    if opener_hits:
+        issues.append(f"Generic opener {opener_hits} - the first line must speak to the client's project.")
+        score -= 25
+    preview = text[:220]
+    if len(lines) and len(lines[0]) > 220:
+        issues.append("The hook runs past the ~220 characters clients see in the proposal preview.")
+        score -= 8
+    words = len(text.split())
+    if words > 300:
+        issues.append(f"{words} words - aim for 120-250 so it gets read in full.")
+        score -= 8
+    elif words < 60:
+        issues.append(f"Only {words} words - add workflow, stack match and a deliverable plan.")
+        score -= 8
+    if not re.search(r"\?\s*$", lines[-1] if lines else ""):
+        issues.append("Doesn't end with a question - close with a low-friction question to start a chat.")
+        score -= 10
+    else:
+        wins.append("Ends with a question CTA.")
+    if _contact_violations(text):
+        issues.append("Contains contact details/links - against Upwork ToS before a contract starts.")
+        score -= 20
+    you = len(re.findall(r"\byou(r)?\b", text.lower()))
+    me = len(re.findall(r"\b(i|my|me)\b", text.lower()))
+    if me > you * 2 and me > 6:
+        issues.append(f"Talks about 'I/my' {me}x vs 'you/your' {you}x - make it client-centred.")
+        score -= 6
+    matched: list[str] = []
+    if job_post:
+        terms = [w for w in re.findall(r"[a-zA-Z0-9+#]{3,}", job_post.lower()) if w not in STOPWORDS]
+        freq: dict[str, int] = {}
+        for w in terms:
+            freq[w] = freq.get(w, 0) + 1
+        key_terms = [w for w, _ in sorted(freq.items(), key=lambda kv: -kv[1])[:15]]
+        matched = [w for w in key_terms if w in text.lower()]
+        missing = [w for w in key_terms if w not in matched]
+        if len(matched) < len(key_terms) * 0.4:
+            issues.append(f"Mirrors few of the job post's key terms. Missing: {missing[:8]}.")
+            score -= 12
+        else:
+            wins.append(f"Mirrors job-post terms: {matched}.")
+        if not any(w in preview.lower() for w in key_terms[:6]):
+            issues.append("The visible hook doesn't reference anything specific from the job post.")
+            score -= 10
+    return json.dumps({"score": max(score, 0), "issues": issues, "wins": wins,
+                       "word_count": words}, indent=2)
+
+
 def platform_guide(platform: str) -> str:
     """Return SEO rules and ranking factors for 'fiverr' or 'upwork'."""
     platform = platform.strip().lower()
@@ -175,6 +249,8 @@ def platform_guide(platform: str) -> str:
     data = dict(PLATFORM_RULES[platform])
     if platform == "upwork":
         data["skill_suggestions"] = UPWORK_SKILL_SUGGESTIONS
+    else:
+        data["category_candidates"] = FIVERR_CATEGORY_CANDIDATES
     return json.dumps(data, indent=2)
 
 
