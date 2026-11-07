@@ -1,0 +1,196 @@
+$ python -m lumo_materials --smoke-ui D:\a\duvi\duvi\ci-out\smoke-source
+--- lumo materials 2.0.0 started 2026-11-07T12:09:55
+Preview renderer: D3D12 on Microsoft Basic Render Driver
+Preview renderer: D3D12 on Microsoft Basic Render Driver
+{
+  "errors": [],
+  "steps": [
+    {
+      "step": "library",
+      "ok": true,
+      "s": 0.07
+    },
+    {
+      "step": "inspector",
+      "ok": true,
+      "s": 4.28
+    },
+    {
+      "step": "switch materials",
+      "ok": true,
+      "s": 1.85
+    },
+    {
+      "step": "card sizes",
+      "ok": true,
+      "s": 1.24
+    },
+    {
+      "step": "list view",
+      "ok": true,
+      "s": 0.5
+    },
+    {
+      "step": "search + multi-select",
+      "ok": true,
+      "s": 1.05
+    },
+    {
+      "step": "new from photo + save",
+      "ok": true,
+      "s": 8.98
+    },
+    {
+      "step": "import map set + save",
+      "ok": true,
+      "s": 5.7
+    },
+    {
+      "step": "repeated photo warning",
+      "ok": true,
+      "s": 1.66
+    },
+    {
+      "step": "adjust + save copy",
+      "ok": true,
+      "s": 2.88
+    },
+    {
+      "step": "draft",
+      "ok": true,
+      "s": 1.5
+    },
+    {
+      "step": "trash + settings",
+      "ok": true,
+      "s": 0.95
+    },
+    {
+      "step": "settings (all sections)",
+      "ok": true,
+      "s": 4.74
+    },
+    {
+      "step": "flat thumbnails + folder colour",
+      "ok": true,
+      "s": 3.27
+    },
+    {
+      "step": "menus",
+      "ok": true,
+      "s": 1.04
+    },
+    {
+      "step": "dialogs",
+      "ok": true,
+      "s": 0.66
+    },
+    {
+      "step": "window states",
+      "ok": true,
+      "s": 1.73
+    }
+  ],
+  "screenshots": [
+    "01-splash.png",
+    "02-library.png",
+    "03-library-inspector.png",
+    "04-viewer-sphere.png",
+    "05-viewer-plane.png",
+    "06-viewer-both.png",
+    "07-inspector-loading.png",
+    "08-grid-160.png",
+    "09-grid-320.png",
+    "10-library-list.png",
+    "11-library-multiselect.png",
+    "12-editor-photo.png",
+    "13-after-save-photo.png",
+    "14-editor-import.png",
+    "15-editor-duplicate.png",
+    "16-editor-adjust.png",
+    "17-drafts.png",
+    "18-trash.png",
+    "19-settings.png",
+    "20-settings-appearance.png",
+    "21-settings-library.png",
+    "22-settings-new.png",
+    "23-settings-preview.png",
+    "24-settings-export.png",
+    "25-settings-about.png",
+    "26-settings-accent.png",
+    "27-settings-narrow.png",
+    "28-grid-flat.png",
+    "29-grid-flat-320.png",
+    "30-grid-380.png",
+    "31-menu-category.png",
+    "32-menu-folder-colour.png",
+    "33-menu-checkable.png",
+    "34-dialog-export.png",
+    "35-dialog-library.png",
+    "36-maximized.png",
+    "37-narrow.png"
+  ],
+  "prepare_s": 10.35,
+  "renderer_chain": [
+    "d3d12",
+    "d3d11",
+    "opengl",
+    "cpu"
+  ],
+  "window": [
+    1600,
+    1000
+  ],
+  "switch_ms": {
+    "first_view": [
+      264,
+      180,
+      237
+    ],
+    "cached": [
+      176,
+      176
+    ]
+  },
+  "dup_placeholder_before": {
+    "calls": [
+      1,
+      1
+    ],
+    "hidden": false,
+    "visible": true,
+    "opacity": 1.0,
+    "fade": 2,
+    "page_visible": true,
+    "has_last": true
+  },
+  "dup_placeholder_after": {
+    "calls": [
+      1,
+      1
+    ],
+    "hidden": true,
+    "visible": false,
+    "opacity": 1.0,
+    "fade": 0,
+    "page_visible": true,
+    "has_last": true,
+    "cleared": true
+  },
+  "duplicate": "This photo is the same file as Old Red Brick Wall in Uncategorized.",
+  "thumbs_stable": {
+    "cached": 60,
+    "pending_while_repainting": 0,
+    "cache_mb": 14.4
+  },
+  "gpu_note": "",
+  "renderer": "d3d12",
+  "device": "D3D12 on Microsoft Basic Render Driver",
+  "gl_info": "",
+  "gpu_viewer_used": true,
+  "materials": 11,
+  "seconds": 55.3,
+  "ok": true
+}
+
+[exit code 0]

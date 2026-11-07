@@ -1,0 +1,16 @@
+$ python packaging/compile_shaders.py --install-addons
+Collecting PySide6-Addons==6.12.0
+  Downloading pyside6_addons-6.12.0-cp310-abi3-win_amd64.whl.metadata (4.4 kB)
+Requirement already satisfied: PySide6_Essentials==6.12.0 in C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages (from PySide6-Addons==6.12.0) (6.12.0)
+Requirement already satisfied: shiboken6==6.12.0 in C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages (from PySide6_Essentials==6.12.0->PySide6-Addons==6.12.0) (6.12.0)
+Downloading pyside6_addons-6.12.0-cp310-abi3-win_amd64.whl (40.5 MB)
+   ---------------------------------------- 40.5/40.5 MB 36.3 MB/s  0:00:01
+Installing collected packages: PySide6-Addons
+Successfully installed PySide6-Addons-6.12.0
+qsb not found: installing PySide6-Addons==6.12.0 into the build environment
+$ C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages\PySide6\qsb.exe --glsl 330,300 es --hlsl 50 --msl 12 -o D:\a\duvi\duvi\lumo_materials\assets\shaders\material.frag.qsb D:\a\duvi\duvi\lumo_materials\shaders\material.frag
+  -> lumo_materials\assets\shaders\material.frag.qsb (10524 bytes)
+$ C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages\PySide6\qsb.exe --glsl 330,300 es --hlsl 50 --msl 12 -o D:\a\duvi\duvi\lumo_materials\assets\shaders\material.vert.qsb D:\a\duvi\duvi\lumo_materials\shaders\material.vert
+  -> lumo_materials\assets\shaders\material.vert.qsb (2614 bytes)
+
+[exit code 0]

@@ -1,0 +1,74 @@
+$ python -m unittest discover -s tests -v
+test_absolute_not_cumulative (test_engine.AdjustTests.test_absolute_not_cumulative) ... ok
+test_controls (test_engine.AdjustTests.test_controls) ... ok
+test_hue_and_saturation (test_engine.AdjustTests.test_hue_and_saturation) ... ok
+test_neutral_changes_nothing (test_engine.AdjustTests.test_neutral_changes_nothing) ... ok
+test_normalize_and_changed (test_engine.AdjustTests.test_normalize_and_changed) ... ok
+test_output_size (test_engine.AdjustTests.test_output_size) ... ok
+test_blur_wrap_colour (test_engine.FilterTests.test_blur_wrap_colour) ... ok
+test_blur_wrap_is_periodic_and_keeps_mean (test_engine.FilterTests.test_blur_wrap_is_periodic_and_keeps_mean) ... ok
+test_delight_flattens_lighting (test_engine.GenerateTests.test_delight_flattens_lighting) ... ok
+test_every_preset_generates_valid_maps (test_engine.GenerateTests.test_every_preset_generates_valid_maps) ... ok
+test_invert_height (test_engine.GenerateTests.test_invert_height) ... ok
+test_normal_is_opengl_convention (test_engine.GenerateTests.test_normal_is_opengl_convention) ... ok
+test_params_roundtrip (test_engine.GenerateTests.test_params_roundtrip) ... ok
+test_assemble_flips_dx_and_splits_orm (test_engine.ImporterTests.test_assemble_flips_dx_and_splits_orm) ... ok
+test_duplicates_and_empty (test_engine.ImporterTests.test_duplicates_and_empty) ... ok
+test_guess_names (test_engine.ImporterTests.test_guess_names) ... ok
+test_png16_roundtrip_and_formats (test_engine.RenderAndIoTests.test_png16_roundtrip_and_formats) ... ok
+test_sphere_and_plane (test_engine.RenderAndIoTests.test_sphere_and_plane) ... ok
+test_all_modes_make_photo_tile (test_engine.SeamlessTests.test_all_modes_make_photo_tile) ... ok
+test_off_keeps_image (test_engine.SeamlessTests.test_off_keeps_image) ... ok
+test_periodic_keeps_detail (test_engine.SeamlessTests.test_periodic_keeps_detail) ... ok
+test_score_of_photo_is_high (test_engine.SeamlessTests.test_score_of_photo_is_high) ... ok
+test_score_of_tileable_texture_is_about_one (test_engine.SeamlessTests.test_score_of_tileable_texture_is_about_one) ... ok
+test_unknown_mode (test_engine.SeamlessTests.test_unknown_mode) ... ok
+test_import_and_adjust (test_jobs.JobTests.test_import_and_adjust) ... ok
+test_photo_preview_and_save (test_jobs.JobTests.test_photo_preview_and_save) ... ok
+test_copy_with_adjustments (test_library.AdjustStorage.test_copy_with_adjustments) ... ok
+test_replace_keeps_originals_and_neutral_restores (test_library.AdjustStorage.test_replace_keeps_originals_and_neutral_restores) ... ok
+test_colour_follows_rename_and_goes_with_delete (test_library.CategoryColours.test_colour_follows_rename_and_goes_with_delete) ... ok
+test_bulk (test_library.CreateAndEdit.test_bulk) ... ok
+test_create_layout_and_roundtrip (test_library.CreateAndEdit.test_create_layout_and_roundtrip) ... ok
+test_duplicate (test_library.CreateAndEdit.test_duplicate) ... ok
+test_duplicate_names_get_numbers (test_library.CreateAndEdit.test_duplicate_names_get_numbers) ... ok
+test_query (test_library.CreateAndEdit.test_query) ... ok
+test_update_rename_move_tags (test_library.CreateAndEdit.test_update_rename_move_tags) ... ok
+test_drafts (test_library.DraftsAndSettings.test_drafts) ... ok
+test_settings (test_library.DraftsAndSettings.test_settings) ... ok
+test_different_picture_and_flat_picture_do_not_match (test_library.Duplicates.test_different_picture_and_flat_picture_do_not_match) ... ok
+test_import_job_records_every_file (test_library.Duplicates.test_import_job_records_every_file) ... ok
+test_legacy_material_is_fingerprinted_once (test_library.Duplicates.test_legacy_material_is_fingerprinted_once) ... ok
+test_resaved_and_resized_is_similar (test_library.Duplicates.test_resaved_and_resized_is_similar) ... ok
+test_same_file_is_identical (test_library.Duplicates.test_same_file_is_identical) ... ok
+test_folder_never_overwrites (test_library.ExportTests.test_folder_never_overwrites) ... ok
+test_zip_plain_and_engine (test_library.ExportTests.test_zip_plain_and_engine) ... ok
+test_flat_preview_written_and_backfilled (test_library.FlatPreview.test_flat_preview_written_and_backfilled) ... D:\a\duvi\duvi\tests\test_library.py:406: ResourceWarning: unclosed file <_io.BufferedReader name='C:\\Users\\runneradmin\\AppData\\Local\\Temp\\tmp2k4re21l\\lib\\Materials\\Walls\\Flat\\preview_flat.jpg'>
+  self.assertEqual(Image.open(p).size, (512, 512))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_inspect_states (test_library.NamesAndFolders.test_inspect_states) ... ok
+test_prepare_other_folder_keeps_files (test_library.NamesAndFolders.test_prepare_other_folder_keeps_files) ... ok
+test_refuses_non_library_without_create (test_library.NamesAndFolders.test_refuses_non_library_without_create) ... ok
+test_safe_name (test_library.NamesAndFolders.test_safe_name) ... ok
+test_categories (test_library.RescanTrashCategories.test_categories) ... ok
+test_explorer_changes (test_library.RescanTrashCategories.test_explorer_changes) ... ok
+test_trash_restore_empty (test_library.RescanTrashCategories.test_trash_restore_empty) ... ok
+test_paging_and_args (test_ui_logic.FilterTests.test_paging_and_args) ... ok
+test_fits (test_ui_logic.FramingTests.test_fits) ... ok
+test_fills_width (test_ui_logic.GridTests.test_fills_width) ... ok
+test_against_reference_formulas (test_ui_logic.MatrixTests.test_against_reference_formulas) ... ok
+test_maps_to_u8 (test_ui_logic.MeshTests.test_maps_to_u8) ... ok
+test_plane (test_ui_logic.MeshTests.test_plane) ... ok
+test_sphere (test_ui_logic.MeshTests.test_sphere) ... ok
+test_triangles_face_outwards (test_ui_logic.MeshTests.test_triangles_face_outwards) ... ok
+test_large (test_ui_logic.PagerTests.test_large) ... ok
+test_small (test_ui_logic.PagerTests.test_small) ... ok
+test_chains (test_ui_logic.RendererChainTests.test_chains) ... ok
+
+----------------------------------------------------------------------
+Ran 63 tests in 42.197s
+
+OK
+
+[exit code 0]
