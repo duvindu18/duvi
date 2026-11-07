@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ArchRailing Pro</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="kit.css">
+<style>
+  html,body{height:100%}
+  body.su{padding:0;background:var(--paper);display:flex;flex-direction:column;overflow:hidden}
+  .top{display:flex;align-items:stretch;border-bottom:var(--border-hairline) solid var(--line);background:var(--surface);flex:none}
+  .top .su-logo{padding:10px 14px;display:flex;align-items:center}
+  .top .su-logo svg{width:32px;height:32px;display:block}
+  .top .ttl{flex:1;padding:8px 14px;display:flex;flex-direction:column;justify-content:center;min-width:0}
+  .top .ttl h1{font-size:16px;line-height:18px}
+  .top .ttl small{font-size:11px;line-height:16px;color:var(--smoke)}
+  .top .mode{display:flex;align-items:center;padding:0 14px;border-left:var(--border-hairline) solid var(--line)}
+  .top .mode .su-tag{white-space:nowrap}
+  .body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(300px,1fr) minmax(320px,1.1fr)}
+  .col{min-height:0;overflow-y:auto;padding:var(--space-4)}
+  .col.l{border-right:var(--border-hairline) solid var(--line)}
+  .su-pv{margin-bottom:var(--space-4)}
+  .su-pvc{aspect-ratio:16/10}
+  .cats{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--space-3)}
+  .su-tiles{grid-template-columns:repeat(auto-fill,minmax(118px,1fr))}
+  .su-tile{padding:8px 8px 10px}
+  .su-tile svg{display:block;width:100%;height:auto;aspect-ratio:16/9;margin-bottom:6px}
+  .su-tile b{margin-top:0;font-size:10px;line-height:14px;letter-spacing:.04em}
+  .su-tile small{display:block;font-size:10px;line-height:14px}
+  .su-tile[aria-pressed=true] svg{background:var(--surface);outline:var(--border-hairline) solid var(--on-blue)}
+  .save{display:flex;gap:8px;margin-top:var(--space-3)}
+  .save .su-fld{padding:7px 10px}
+  .su-tabs{width:100%;margin-bottom:0}
+  .su-tab{flex:1;padding:12px 6px}
+  .su-pane{padding:var(--space-4) var(--space-4) 4px;background:var(--surface)}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--space-3)}
+  .su-f{margin-bottom:var(--space-3)}
+  .su-f>span{font-size:10px;line-height:14px;margin-bottom:4px}
+  .su-f>span em{font-style:normal;font-weight:400;color:var(--smoke);text-transform:none;letter-spacing:0}
+  .su-fld,.su-sel{padding:7px 10px;font-size:12px}
+  .su-sel{padding-right:30px}
+  .su-opt{margin-bottom:10px;font-size:12px}
+  .clr{display:flex;align-items:center;gap:8px;border:var(--border-hairline) solid var(--line);padding:3px 8px 3px 3px}
+  .clr input[type=color]{width:30px;height:26px;border:0;padding:0;background:none;cursor:pointer}
+  .clr code{font:400 12px var(--font-mono)}
+  .grp{font-size:11px;line-height:16px;letter-spacing:.14em;text-transform:uppercase;color:var(--smoke);margin:var(--space-4) 0 8px;padding-top:var(--space-3);border-top:var(--border-hairline) solid var(--line)}
+  .grp:first-child{margin-top:0;padding-top:0;border-top:0}
+  .seg{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--space-3)}
+  .seg .su-chip{min-height:30px;padding:5px 10px}
+  .hide{display:none!important}
+  .su-sw.on input{background:var(--blue);border-color:var(--blue)}
+  .su-sw.on::after{transform:translateX(22px);background:var(--on-blue)}
+  .foot{flex:none;border-top:var(--border-hairline) solid var(--line);background:var(--surface);padding:10px var(--space-4)}
+  .foot .row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap}
+  .foot .sp{flex:1}
+  .foot .su-status{margin-top:8px;padding:6px 10px;font-size:11px;line-height:16px}
+  .su-status.warn{border-left-color:var(--ink)}
+  .su-status.note{border-left-color:var(--smoke);background:transparent}
+  .live{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+  #pv text{font-family:var(--font-mono)}
+  @media (max-width:600px){
+    body.su{overflow:auto;height:auto}
+    .body{display:block}
+    .col{overflow:visible}
+    .col.l{border-right:0;border-bottom:var(--border-hairline) solid var(--line)}
+  }
+</style>
+</head>
+<body class="su">
+
+<header class="top">
+  <div class="su-logo" aria-hidden="true">
+    <svg viewBox="0 0 32 32"><rect width="32" height="32" fill="var(--ink)"/><rect y="22" width="32" height="10" fill="var(--blue)"/>
+      <g fill="none" stroke="var(--surface)" stroke-width="2" stroke-linecap="square"><path d="M4 8h24M4 8v14M28 8v14M16 8v14"/><path d="M8 11v11M12 11v11M20 11v11M24 11v11" stroke-width="1.2"/></g>
+      <path d="M0 22h32" stroke="var(--surface)" stroke-width="1"/></svg>
+  </div>
+  <div class="ttl"><h1>ArchRailing Pro</h1><small id="ver">Railings, balustrades and fences along any path</small></div>
+  <div class="mode"><span class="su-tag" id="mode">No selection</span></div>
+</header>
+
+<div class="body">
+  <!-- left: live preview and the ready-made railings -->
+  <section class="col l">
+    <div class="su-pv">
+      <h3>Elevation preview</h3>
+      <div class="su-pvc"><svg id="pv" viewBox="0 0 400 250" role="img" aria-label="Railing elevation preview"></svg></div>
+      <div class="su-stats">
+        <div><small>Height</small><b id="st-h"></b></div>
+        <div><small>Bay width</small><b id="st-bay"></b></div>
+        <div><small>Infill</small><b id="st-inf"></b></div>
+        <div><small>Clear gap</small><b id="st-gap"></b></div>
+      </div>
+    </div>
+
+    <p class="su-lab">Ready-made railings <span id="pcount"></span></p>
+    <div class="cats" id="cats"></div>
+    <div class="su-tiles" id="tiles"></div>
+    <div class="save">
+      <input class="su-fld" id="pname" placeholder="Preset name" maxlength="60">
+      <button class="su-btn small" id="psave">Save preset</button>
+      <button class="su-btn small ghost hide" id="pdel">Delete</button>
+    </div>
+  </section>
+
+  <!-- right: parameters -->
+  <section class="col r">
+    <div class="su-tabs" role="tablist" id="tabs"></div>
+    <div class="su-pane" id="pane"></div>
+  </section>
+</div>
+
+<footer class="foot">
+  <div class="row">
+    <label class="live"><span class="su-sw"><input type="checkbox" id="live" checked></span>Live update</label>
+    <span class="sp"></span>
+    <button class="su-btn ghost small" id="b-path" title="Select one railing and new edges first">Change path</button>
+    <button class="su-btn small" id="b-update">Update selected</button>
+    <button class="su-btn primary small" id="b-create">Create railing</button>
+  </div>
+  <div class="su-status" id="status" role="status">Select edges, a curve or an arc, then create a railing.</div>
+</footer>
+
+<script src="dialog.js"></script>
+</body>
+</html>

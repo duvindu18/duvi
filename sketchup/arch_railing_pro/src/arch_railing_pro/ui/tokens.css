@@ -1,0 +1,21 @@
+/* SketchUp Tools UI Kit - tokens (from tokens.json). Light first, dark under prefers-color-scheme. */
+:root{
+  --paper:#f2f2f2;--surface:#fafafa;--ink:#111111;--line:#111111;--smoke:#6b6b6b;--tone:#bdbdbd;
+  --charcoal:#444444;--night:#111111;--chalk:#f2f2f2;
+  --blue:#0b5cff;--on-blue:#ffffff;--blue-hover:#0848cc;--blue-pressed:#06358f;
+  --blue-tint:#0b5cff1a;--blue-text:#0b5cff;--blue-on-tint:#0848cc;--focus:var(--blue-text);
+  --wash:#8080802e;--grid-minor:#80808033;--grid-major:#80808066;
+  --font-display:Poppins,"Helvetica Neue",Arial,sans-serif;
+  --font-mono:"Space Mono","Courier New",monospace;
+  --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-7:32px;--space-8:40px;
+  --radius-none:0px;--radius-full:50%;
+  --border-hairline:1px;--border-strong:2px;--border-bar:6px;--ring-width:2px;--ring-offset:3px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --paper:#121212;--surface:#1a1a1a;--ink:#f2f2f2;--line:#cfcfcf;--smoke:#a3a3a3;--tone:#4a4a4a;
+    --blue-tint:#6f9bff29;--blue-text:#6f9bff;--blue-on-tint:#6f9bff;
+    color-scheme:dark;
+  }
+}
