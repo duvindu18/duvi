@@ -199,7 +199,7 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self, obj: dict) -> None:
         body = json.dumps(obj).encode()
         self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -216,7 +216,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _stream(self, session: str, events: Callable[[], Iterator[dict]], rollback: bool = True) -> None:
         self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "application/x-ndjson")
+        self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Connection", "close")
         self.end_headers()

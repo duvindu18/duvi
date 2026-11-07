@@ -39,7 +39,11 @@ jobs:
           $body = '{"session":"ci","engine":"builtin","task":"full","niche":"exterior rendering"}'
           $r = Invoke-WebRequest -UseBasicParsing -Method Post -ContentType "application/json" -Body $body http://127.0.0.1:8765/api/run
           Stop-Process -Id $p.Id -Force
-          if ($r.Content -notmatch "Fiverr Gig Optimization Package") { throw "free built-in engine produced no gig" }
+          $text = if ($r.Content -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($r.Content) } else { [string]$r.Content }
+          if ($text -notmatch "Fiverr Gig Optimization Package") {
+            Write-Host "Response was:"; Write-Host $text.Substring(0, [Math]::Min(1500, $text.Length))
+            throw "free built-in engine produced no gig"
+          }
           Write-Host "exe served the UI and generated a free gig package OK"
       - uses: actions/upload-artifact@v4
         with:
