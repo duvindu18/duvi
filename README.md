@@ -115,7 +115,7 @@ python -m unittest discover -s tests
 | Export | ZIP or folder (never overwrites), OpenGL / DirectX normals, plain or engine names, packed ORM, 8- or 16-bit height |
 | Controls | sliders and choice rows ignore the mouse wheel, so scrolling a panel never changes a value; rounded menus and drop-downs |
 | Motion | sliding switches, card hover easing, thumbnails and previews that fade in, page cross-fades, toasts and dialogs that ease in (Settings > Animations turns it all off) |
-| Settings | accent colour, card thumbnails, tags on cards, animations, splash, window at start, materials per page, sort, trash confirmation, repeated-image warning, default type / seamless mode / output size, preview resolution, generate missing maps, PNG compression, renderer, preview shape / light / background / spin, editor tile size, export defaults, reset |
+| Settings | six sections on the left (Appearance, Library, New materials, 3D preview, Export, About), each a set of titled cards that fill the width, two columns of options on wide windows: accent colour, card thumbnails, tags on cards, animations, splash, window at start, materials per page, sort, trash confirmation, repeated-image warning, default type / seamless mode / output size, preview resolution, generate missing maps, PNG compression, renderer, preview shape / light / background / spin, editor tile size, export defaults, reset |
 | Window | splash screen with the bold *lumo* wordmark and its light line while the library opens; frameless dark window with custom caption buttons, Aero Snap, Win+Arrow, edge resizing, Windows 11 rounded corners, single instance (opening a second copy hands its files to the first) |
 
 ## Tested
