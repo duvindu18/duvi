@@ -5,7 +5,7 @@ import datetime as dt
 from typing import Callable
 
 from PySide6.QtCore import (QAbstractListModel, QEvent, QModelIndex, QObject, QPointF, QRect, QRectF, QRunnable, QSize, Qt,
-                            QThreadPool, Signal)
+                            QThreadPool, QTimer, Signal)
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QImageReader, QPainter, QPainterPath, QPen, QPixmap, QPixmapCache
 from PySide6.QtWidgets import (QAbstractItemView, QHBoxLayout, QListView, QMenu, QPushButton, QStackedLayout,
                                QStyle, QStyledItemDelegate, QStyleOptionViewItem, QVBoxLayout, QWidget)
@@ -146,6 +146,7 @@ class CardDelegate(QStyledItemDelegate):
         self.row_width = 600
         self.list_mode = False
         self.loading_visible = False                # set while painting: any skeleton on screen?
+        self.offset_x = 0                           # centres the row of cards (set by the grid)
 
     @property
     def card(self) -> QSize:
@@ -165,7 +166,8 @@ class CardDelegate(QStyledItemDelegate):
         half = GAP // 2
         if self.list_mode:
             return QRect(option.rect.left() + half, option.rect.top() + 3, option.rect.width() - GAP, ROW_H - 6)
-        return QRect(option.rect.left() + half, option.rect.top() + half, self.card.width(), self.card.height())
+        return QRect(option.rect.left() + half + self.offset_x, option.rect.top() + half, self.card.width(),
+                     self.card.height())
 
     def _action_rects(self, r: QRect) -> tuple[QRect, QRect]:
         if self.list_mode:
@@ -374,26 +376,30 @@ class MaterialGrid(QListView):
         sb = self.verticalScrollBar()
         avail = max(200, self.contentsRect().width() - (sb.width() if sb.isVisible() else 0))
         if self.delegate.list_mode:
-            self._set_left_margin(0)
+            self.delegate.offset_x = 0
             self.delegate.row_width = avail
             self.doItemsLayout()
             return
-        # Qt's icon view wraps a few pixels before the full width: keep a small reserve and centre the cards
+        # Qt's icon view wraps a few pixels before the full width: keep a small reserve; the cards are then
+        # centred by a paint offset (no margins: changing those resizes the viewport and re-enters here)
         usable = avail - WRAP_SLACK
         cols, _ = grid_layout(usable, min_card=self.card_size + GAP, gap=0)
         cell = usable // cols
-        self._set_left_margin(max(0, (avail - cell * cols - WRAP_SLACK) // 2))
-        self.delegate.set_cell(cell)                # equal cells across the whole width
-        self.setGridSize(self.delegate.cell)
-        self.doItemsLayout()
-
-    def _set_left_margin(self, m: int) -> None:
-        if getattr(self, "_left_margin", None) != m:
-            self._left_margin = m
-            self.setViewportMargins(m, 0, 0, 0)
+        self.delegate.offset_x = max(0, (avail - cell * cols) // 2)
+        if self.delegate.cell.width() != cell or self.gridSize() != self.delegate.cell:
+            self.delegate.set_cell(cell)            # equal cells across the whole width
+            self.setGridSize(self.delegate.cell)
+        self.viewport().update()
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
+        # coalesced: several resizes in one go (scroll bar appearing, window snapping) give one relayout
+        if not getattr(self, "_relayout_queued", False):
+            self._relayout_queued = True
+            QTimer.singleShot(0, self._queued_relayout)
+
+    def _queued_relayout(self):
+        self._relayout_queued = False
         self._relayout()
 
     def paintEvent(self, e):
