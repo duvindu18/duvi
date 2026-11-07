@@ -133,7 +133,8 @@ jobs:
           $lnk = Join-Path ([Environment]::GetFolderPath("Programs")) "lumo materials.lnk"
           if (-not (Test-Path $lnk)) { throw "Start menu shortcut missing: $lnk" }
           Start-Process (Join-Path $dir "unins000.exe") -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART") -Wait
-          for ($i = 0; $i -lt 60 -and (Test-Path $exe); $i++) { Start-Sleep 1 }
+          # the uninstaller hands over to a copy of itself in TEMP: wait until it has finished (exe and shortcut gone)
+          for ($i = 0; $i -lt 90 -and ((Test-Path $exe) -or (Test-Path $lnk) -or (Get-Process -Name "_iu*", "unins*" -ErrorAction SilentlyContinue)); $i++) { Start-Sleep 1 }
           if (Test-Path $exe) { throw "uninstall left the program behind" }
           if (Test-Path $lnk) { throw "uninstall left the Start menu shortcut" }
           "install / check / uninstall: OK" | Tee-Object -Append ci-out\installed.txt
