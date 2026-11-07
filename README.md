@@ -1,5 +1,7 @@
 # lumo materials 2.0: native Windows PBR material library
 
+<img src="lumo_materials/assets/icons/app-512.png" width="96" alt="lumo logo: the bold lumo wordmark and its line, black on a white tile">
+
 A real Windows program (Qt / PySide6, no browser, no local web server). It has a frameless pure-dark window with its
 own minimise, maximise and close buttons, and still snaps, resizes and casts a shadow like any Windows window. It
 works fully offline, is free and open source end to end, and is signed with your own publisher.
@@ -16,8 +18,8 @@ lumo_materials/
                settings, dialogs, Direct3D 12 PBR viewer (Qt RHI) with Direct3D 11 / OpenGL / CPU fallbacks
   shaders/     GLSL 440 sources, compiled to .qsb (HLSL for Direct3D, SPIR-V, GLSL) at build time
   assets/      Inter font, icons, licence texts
-packaging/     PyInstaller spec, Inno Setup script, wizard images, build.ps1
-tests/         56 unit tests (engine, library, jobs, UI logic, meshes, preview framing)
+packaging/     PyInstaller spec, Inno Setup script, wizard images, build.ps1, make_icons.py (renders the logo)
+tests/         63 unit tests (engine, library, jobs, UI logic, meshes, preview framing)
 .github/       GitHub Actions: tests, UI smoke tests, build, install test, release
 ```
 
@@ -103,24 +105,30 @@ python -m unittest discover -s tests
 
 | Area | Features |
 |---|---|
-| Library | card grid with a card-size slider (or Ctrl + wheel; columns follow the window width, cards centred) or list, skeleton cards while thumbnails load, pager (12 / 24 / 48 / 96 per page), search over name / tags / description (`/` or Ctrl F), category pills, favourites, sort by date / name / category / resolution, multi-select with Move, Tag, Favourite, Export and Trash, trash with Undo, Rescan (F5) |
+| Library | card grid with a card-size slider (or Ctrl + wheel; columns follow the window width, cards centred) or list; lit-sphere or flat thumbnails that fill the card; skeleton cards while thumbnails load, steady thumbnails at every card size; folder colours per category (right-click a category); pager (12 / 24 / 48 / 96 per page), search over name / tags / description (`/` or Ctrl F), category pills, favourites, sort by date / name / category / resolution, multi-select with Move, Tag, Favourite, Export and Trash, trash with Undo, Rescan (F5) |
 | Inspector | switching shows the new material at once (its thumbnail and a skeleton, never the previous one), loads a fast 1024 px preview, and keeps the last 10 plus the neighbours in the grid preloaded; Direct3D 12 3D preview (GGX PBR, parallax occlusion from the height map, studio reflections, 4x MSAA; sphere / plane / both, orbit, zoom, spin), the six maps (click one to view it alone), fill-bar rows for tiling, displacement, light (Studio, Softbox, Window, Overcast, Dramatic) and background, details, Adjust and Export |
-| New from photo | drop a photo anywhere or press Ctrl N; type preset guessed from the file name; seamless mode, de-lighting, height, normal, roughness, metallic and AO sliders with a live preview and a seam score; saves at 512 to 4096 px; name, category (pick or create) and tags (type and press Enter or comma) in the save form |
+| Repeated images | every saved material keeps fingerprints of its photo or map files (SHA-256 and a 64-bit difference hash). Opening a photo or map set that is already in the library — the same file under any name, or the same picture re-saved or resized — shows a notice with *Show* and asks before saving a second copy. Materials from older versions are fingerprinted once in the background |
+| New from photo | drop a photo anywhere or press Ctrl N; tile size of the preview; type preset guessed from the file name; seamless mode, de-lighting, height, normal, roughness, metallic and AO sliders with a live preview and a seam score; saves at 512 to 4096 px; name, category (pick or create) and tags (type and press Enter or comma) in the save form |
 | Import map set | up to 24 files, roles guessed from file names (`_Color`, `_NormalGL/DX`, `_Rough`, `_Metal`, `_Displacement`, `_AO`, `_ORM`, `_Gloss`…), DirectX normals flipped, missing maps generated, then adjusted |
 | Adjust maps | per-map controls (exposure, contrast, saturation, hue, normal strength / smoothing / flip, roughness, metallic, height, AO, output size). Always absolute and applied to the untouched originals; save as Replace or as a copy |
 | Drafts | leaving work you changed asks *Keep as draft / Discard* (no prompt when nothing changed); drafts reopen exactly where you left them |
 | Export | ZIP or folder (never overwrites), OpenGL / DirectX normals, plain or engine names, packed ORM, 8- or 16-bit height |
-| Controls | sliders and choice rows ignore the mouse wheel, so scrolling a panel never changes a value |
+| Controls | sliders and choice rows ignore the mouse wheel, so scrolling a panel never changes a value; rounded menus and drop-downs |
+| Motion | sliding switches, card hover easing, thumbnails and previews that fade in, page cross-fades, toasts and dialogs that ease in (Settings > Animations turns it all off) |
+| Settings | accent colour, card thumbnails, tags on cards, animations, splash, window at start, materials per page, sort, trash confirmation, repeated-image warning, default type / seamless mode / output size, preview resolution, generate missing maps, PNG compression, renderer, preview shape / light / background / spin, editor tile size, export defaults, reset |
 | Window | splash screen with the bold *lumo* wordmark and its light line while the library opens; frameless dark window with custom caption buttons, Aero Snap, Win+Arrow, edge resizing, Windows 11 rounded corners, single instance (opening a second copy hands its files to the first) |
 
 ## Tested
 
-- **Unit tests:** 56 tests pass on Linux and on Windows (GitHub Actions). They cover the engine, the library (incl.
+- **Unit tests:** 63 tests pass on Linux and on Windows (GitHub Actions). They cover the engine, the library (incl.
   Explorer renames / copies, trash, adjusted originals, export), the editor's save and adjust jobs, the pager / grid
-  logic, the meshes, and the preview camera framing.
+  logic, the meshes, the preview camera framing, repeated-image detection (same file, re-saved / resized copy,
+  plain pictures that must not match, older materials), folder colours and the flat previews.
 - **The real program on Windows:** every CI run drives the interface from source and from the built .exe. That
   covers the library, inspector, list view, search, multi-select, new from photo + save, import + save, adjust + save
-  as copy, drafts, trash with undo, settings, dialogs, maximise and narrow window. It fails on any exception or Qt
+  as copy, the repeated-photo notice, drafts, trash with undo, every settings section and a live accent change,
+  flat thumbnails, the card size across its whole range (thumbnails must not reload), menus, dialogs, maximise
+  and narrow window. It fails on any exception or Qt
   critical message. The 3D preview ran on **Direct3D 12** with no errors or warnings (on GitHub's software D3D12
   adapter, as those machines have no GPU).
 - **Speed (2-core CI-class machine, 2048 px photo):** saving takes about 2.8 s instead of 7.0 s (map generation

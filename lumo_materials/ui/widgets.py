@@ -833,12 +833,13 @@ class PreviewPlaceholder(QWidget):
 
     def stop(self) -> None:
         """The material is there: the placeholder dissolves into it."""
-        if not self.isVisible():
+        if self.isHidden():
             return
-        if theme.ANIMATIONS:
+        if theme.ANIMATIONS and self.isVisible():
             self._fade.stop()
             self._fade.start()
-        else:
+        else:                       # not on screen (e.g. its page is not shown yet): just go
+            self._fade.stop()
             self._gone()
 
     def _faded(self, v) -> None:

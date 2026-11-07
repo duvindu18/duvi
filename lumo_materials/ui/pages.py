@@ -11,7 +11,7 @@ from . import icons, theme
 from .dialogs import LibraryChooser, confirm
 from .hub import Hub, app_dir, reveal
 from .library_page import ago
-from .widgets import ChoiceRow, ToggleRow, button, clear_layout, label
+from .widgets import ChoiceRow, ElidedLabel, ToggleRow, button, clear_layout, label
 
 
 class _Page(QWidget):
@@ -264,9 +264,12 @@ class SettingsPage(_Page):
         kl = label(k, "muted")
         kl.setFixedWidth(160)
         lay.addWidget(kl)
-        vl = label(v)
+        if ("\\" in v or "/" in v) and " " not in v.strip()[:3] and len(v) > 40:
+            vl = ElidedLabel(v)                       # a long path: one line, shortened in the middle
+        else:
+            vl = label(v)
+            vl.setWordWrap(True)
         vl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        vl.setWordWrap(True)
         lay.addWidget(vl, 1)
         for b in buttons:
             lay.addWidget(b)
