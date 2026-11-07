@@ -77,9 +77,20 @@ if (-not $NoInstaller) {
         (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe")) | Where-Object { $_ }
     $iscc = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
     if (-not $iscc) { Fail "Inno Setup 6 not found. Install it (free):  winget install JRSoftware.InnoSetup   (or use -NoInstaller)" }
-    $innoVer = (Get-Item -LiteralPath $iscc).VersionInfo.ProductVersion
-    Write-Host "Inno Setup: $iscc ($innoVer)"
-    if ($innoVer -and ([version]($innoVer -replace '[^\d\.].*$', '')) -lt [version]"6.3") { Fail "Inno Setup 6.3 or newer is needed (found $innoVer)." }
+    # ISCC.exe itself carries no version number: read it from the other Inno Setup files
+    $innoVer = $null
+    foreach ($f in @("Compil32.exe", "ISCmplr.dll", "Setup.e32", "ISCC.exe")) {
+        $p = Join-Path (Split-Path -Parent $iscc) $f
+        if (-not (Test-Path -LiteralPath $p)) { continue }
+        $vi = (Get-Item -LiteralPath $p).VersionInfo
+        foreach ($raw in @($vi.ProductVersion, $vi.FileVersion)) {
+            $clean = "$raw" -replace '[^\d\.].*$', ''
+            if ($clean -match '^\d+\.\d+' -and [version]$clean -gt [version]"1.0") { $innoVer = [version]$clean; break }
+        }
+        if ($innoVer) { break }
+    }
+    Write-Host "Inno Setup: $iscc ($(if ($innoVer) { $innoVer } else { 'version unknown' }))"
+    if ($innoVer -and $innoVer -lt [version]"6.3") { Fail "Inno Setup 6.3 or newer is needed (found $innoVer)." }
 }
 
 # ---------------------------------------------------------------- publisher

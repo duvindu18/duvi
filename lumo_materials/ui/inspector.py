@@ -272,6 +272,8 @@ class Inspector(QWidget):
             vl.setText(fm.elidedText(v, Qt.TextElideMode.ElideMiddle, 200))
             self.details.addWidget(kl, i, 0)
             self.details.addWidget(vl, i, 1)
+            kl.show()      # visible at once, not only after Qt's queued show
+            vl.show()
 
     def show_material(self, m: Material | None, reload: bool = True) -> None:
         self.material = m
