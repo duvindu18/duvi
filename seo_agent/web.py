@@ -16,6 +16,8 @@ Endpoints
     POST /api/prompt       same fields as /api/run -> {"prompt"} to paste into a free chatbot
     POST /api/key          {"key"} save a Claude API key (optional)
     POST /api/reset        {"session"}
+    GET  /api/verify       saved keyword checks (ranked) and gig stats
+    POST /api/verify       {"action": add|load_niche|update|delete|add_stat|delete_stat, ...}
 Each streamed line is a JSON event: text | delta | tool | notice | error | done.
 """
 
@@ -30,7 +32,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Callable, Iterator
 
-from . import core, local_llm, offline
+from . import core, local_llm, offline, verify
 from .paths import api_key, load_config, resource_dir, save_config
 
 try:  # the Claude engine is optional; the free engines work without the SDK
@@ -99,6 +101,8 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
         elif self.path == "/api/tasks":
             self._json({"tasks": core.TASKS})
+        elif self.path == "/api/verify":
+            self._json(verify.snapshot())
         elif self.path == "/api/status":
             self._json({"has_key": bool(api_key()), "model": core.MODEL,
                         "ollama": local_llm.ollama_models(),
@@ -144,12 +148,39 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_error(HTTPStatus.BAD_REQUEST, "unknown task")
                 return
             self._json({"prompt": local_llm.chatbot_prompt(*fields)})
+        elif self.path == "/api/verify":
+            self._verify(data)
         elif self.path == "/api/run":
             self._run(session, data, fields)
         elif self.path == "/api/chat":
             self._chat(session, str(data.get("message", "")).strip())
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
+
+    def _verify(self, data: dict) -> None:
+        action = data.get("action")
+        try:
+            if action == "add":
+                words = [w for w in str(data.get("keywords", "")).replace(";", ",").split(",")]
+                verify.add_keywords(words)
+            elif action == "load_niche":
+                svc = offline.SERVICES[offline.detect_service(str(data.get("niche", "")))]
+                verify.add_keywords([svc["primary"], *svc["secondary"], *svc["long_tail"]])
+            elif action == "update":
+                verify.upsert_keyword(str(data.get("keyword", "")), data.get("fields") or {})
+            elif action == "delete":
+                verify.delete_keyword(str(data.get("keyword", "")))
+            elif action == "add_stat":
+                verify.add_stat(data.get("fields") or {})
+            elif action == "delete_stat":
+                verify.delete_stat(str(data.get("id", "")))
+            else:
+                self.send_error(HTTPStatus.BAD_REQUEST, "unknown action")
+                return
+        except ValueError as e:
+            self._json({"ok": False, "error": str(e), **verify.snapshot()})
+            return
+        self._json({"ok": True, **verify.snapshot()})
 
     def _run(self, session: str, data: dict, fields: tuple) -> None:
         task = fields[0]

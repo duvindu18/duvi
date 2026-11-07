@@ -451,15 +451,30 @@ def fiverr_titles(svc: dict, stack: list[str], rng: random.Random) -> list[str]:
     return out
 
 
-def fiverr_tags(svc: dict, rng: random.Random) -> list[str]:
-    tags = [t for t in svc["tags"] if len(t) <= 20]
+def _verified() -> dict[str, int]:
+    try:
+        from .verify import verified_scores
+        return verified_scores()
+    except Exception:  # verification data is optional - never break generation
+        return {}
+
+
+def fiverr_tags(svc: dict, rng: random.Random, verified: dict[str, int] | None = None) -> list[str]:
+    """5 tags. Keywords the seller checked in the Verify panel are ranked by their real score;
+    weak checked ones (score < 40) are skipped; unchecked ones fill the remaining slots."""
+    verified = verified or {}
+    pool: list[str] = []
+    for t in svc["tags"] + svc["secondary"] + svc["long_tail"]:
+        if len(t) <= 20 and t not in pool:
+            pool.append(t)
     first = [svc["primary"]] if len(svc["primary"]) <= 20 else []
-    rest = [t for t in tags if t not in first]
-    head, tail = rest[:3], rest[3:]
+    checked = sorted((t for t in pool if t in verified and verified[t] >= 40 and t not in first),
+                     key=lambda t: -verified[t])
+    unchecked = [t for t in svc["tags"] if len(t) <= 20 and t not in verified and t not in first]
+    head, tail = unchecked[:3], unchecked[3:]
     rng.shuffle(tail)
-    picked = (first + head + tail)
     uniq: list[str] = []
-    for t in picked:
+    for t in first + checked + head + tail:
         if t not in uniq:
             uniq.append(t)
     return uniq[:5]
@@ -501,7 +516,7 @@ def fiverr_package(svc_key: str, seller: Seller, rng: random.Random) -> tuple[st
     svc = SERVICES[svc_key]
     stack = _stack(seller, svc)
     targets = [svc["primary"]] + svc["secondary"][:2]
-    tags = fiverr_tags(svc, rng)
+    tags = fiverr_tags(svc, rng, _verified())
     best = None
     for title in fiverr_titles(svc, stack, rng):
         desc = fiverr_description(svc, stack, svc["packages"][1][3], rng)
@@ -588,23 +603,34 @@ def fiverr_package(svc_key: str, seller: Seller, rng: random.Random) -> tuple[st
 
 # --------------------------------------------------------------------------- keywords
 
-def keyword_section(svc_key: str, rng: random.Random) -> str:
+def keyword_section(svc_key: str, rng: random.Random, verified: dict[str, int] | None = None) -> str:
     svc = SERVICES[svc_key]
+    verified = _verified() if verified is None else verified
     bank = json.loads(T.keyword_ideas("all"))
     comp = {k["keyword"]: k["competition"] for g, items in bank.items() if isinstance(items, list)
             for k in items if isinstance(k, dict)}
+    kws = [svc["primary"]] + svc["secondary"] + svc["long_tail"]
+    # Checked keywords first, best real score on top; the rest keep their built-in order.
+    kws = sorted(kws, key=lambda k: (k not in verified, -verified.get(k, 0)))
     rows = []
-    for kw in [svc["primary"]] + svc["secondary"] + svc["long_tail"]:
+    for kw in kws:
         c = comp.get(kw) or ("high" if len(kw.split()) <= 2 else "medium" if len(kw.split()) == 3 else "low")
         use = ("Title + tag" if kw == svc["primary"] else "Tag / description" if kw in svc["secondary"]
                else "Description / FAQ / package name")
-        rows.append(f"| {kw} | buyer | {c} | {use} |")
+        mine = f"**{verified[kw]}**/100" if kw in verified else "-"
+        rows.append(f"| {kw} | {mine} | {c} | {use} |")
+    n_checked = sum(1 for k in kws if k in verified)
+    note = (f"*{n_checked} of {len(kws)} keywords use the real numbers you entered in the Verify tab "
+            "(scores out of 100). The others are built-in estimates - check them in Verify to replace them.*"
+            if n_checked else
+            "*Competition levels are built-in estimates, not measured search volume. Open the **Verify** tab "
+            "to check each keyword on Fiverr and Upwork and replace the estimates with real numbers.*")
     return "\n".join([
         "## 1. Market & Keyword Analysis",
         f"**Sub-niche:** {svc['label']}  \n**Primary keyword:** `{svc['primary']}`  \n"
         f"**Buyers:** {svc['audience']}",
         "",
-        "| Keyword | Intent | Competition (estimate) | Where to use |",
+        "| Keyword | Your check | Competition (estimate) | Where to use |",
         "|---|---|---|---|",
         *rows,
         "",
@@ -612,8 +638,7 @@ def keyword_section(svc_key: str, rng: random.Random) -> str:
         "the description; use the secondary phrases as tags; spread the long-tail phrases through the "
         "description, package names and FAQs. Long-tail phrases rank faster for new gigs.",
         "",
-        "*Competition levels are estimates from the built-in arch viz keyword list, not measured search "
-        "volume. Check them by typing each phrase into Fiverr/Upwork search and counting results.*",
+        note,
     ])
 
 
@@ -896,7 +921,7 @@ def run(task: str, niche: str = "", about: str = "", text: str = "", platform: s
         yield {"type": "text", "text": "\n".join([
             "## Title & Tag Recommendations",
             "**Fiverr titles:**", *[f"- {t}" for t in fiverr_titles(svc, stack, rng)[:3]],
-            "", "**Fiverr tags:** " + ", ".join(f"`{t}`" for t in fiverr_tags(svc, rng)),
+            "", "**Fiverr tags:** " + ", ".join(f"`{t}`" for t in fiverr_tags(svc, rng, _verified())),
             "", f"**Upwork title:** 3D Architectural Visualizer | {svc['label'].title()} | {_short_sw(stack)}"])}
     if task == "upwork_profile":
         yield {"type": "tool", "name": "audit_listing", "detail": "building and scoring the profile"}

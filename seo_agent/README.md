@@ -32,6 +32,28 @@ keyword placement, URL slug, first 150 words, tag quality, filler words, generic
 reuse of the job post's wording, the closing question, and contact details that break the platforms' rules.
 A high score means the listing passes these checks. It does not guarantee a search ranking.
 
+## Verify tab: check keywords and results with real data (free)
+
+The Built-in engine works offline, so its competition levels are estimates. The **Verify** tab
+replaces them with real numbers that you collect yourself:
+
+1. **Keyword checker:** load the keywords for your niche (or add your own). Each keyword has buttons
+   that open the normal **Fiverr**, **Upwork Jobs** and **Upwork Talent** search pages in your browser.
+   Type in the number of results, and whether Fiverr suggests the phrase as you type it. Each keyword
+   gets a 0-100 score (demand against competition, on a log scale) and advice: title, tag, description
+   only, or drop.
+2. **Used automatically:** your best-scoring checked keywords become the gig's tags, keywords you
+   checked and scored as weak are left out, and the keyword table shows your real scores.
+3. **Gig stats tracker:** from Fiverr Analytics, log impressions, clicks and orders for the same period
+   each time, plus what you changed. It works out the click-through rate (CTR) and conversion rate, shows
+   the change since your last entry, and tells you what to fix next: tags if impressions are low, the
+   thumbnail or title if CTR is under 1%, the description or packages if conversion is under 2%.
+   These thresholds are rules of thumb.
+
+The app never scrapes Fiverr or Upwork, which their rules forbid. It only opens search pages for you.
+Everything you enter is saved on your computer only, in `%APPDATA%\ArchVizSEO\verify.json`
+(or `~/.config/ArchVizSEO/` on Linux/macOS).
+
 ## Requirements
 
 **Windows app (`ArchVizSEO.exe`)**

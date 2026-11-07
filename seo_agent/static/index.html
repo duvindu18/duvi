@@ -86,6 +86,39 @@ dialog::backdrop { background: rgb(0 0 0 / .35); }
 dialog h2 { font-size: 16px; margin: 0 0 8px; }
 dialog p { margin: 0 0 12px; font-size: 14px; color: var(--muted); }
 dialog p.error { color: var(--err); min-height: 1em; margin: 8px 0 0; }
+.tabs { display: flex; gap: 4px; margin-left: auto; background: var(--soft); padding: 3px; border-radius: 8px; }
+.tabs button { font: inherit; font-size: 13px; font-weight: 500; border: 0; background: transparent; color: var(--muted); padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+.tabs button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: 0 0 0 1px var(--line); }
+#settings { margin-left: 8px; }
+@media (max-width: 860px) { .tabs { margin-left: 0; margin-top: 8px; align-self: flex-start; } }
+.verify { display: flex; flex-direction: column; gap: 20px; padding: 12px 24px 24px; max-width: 1200px; }
+@media (max-width: 860px) { .verify { padding: 12px 16px 16px; } }
+.verify h2 { font-size: 16px; margin: 0 0 10px; }
+.steps { margin: 0 0 6px; padding-left: 1.3em; font-size: 14px; }
+.steps li { margin: 2px 0; }
+.vrow { display: flex; gap: 8px; margin-top: 10px; }
+.vrow input { flex: 1; min-width: 0; }
+.vrow .btn { white-space: nowrap; }
+.vt { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+.vt th, .vt td { border-bottom: 1px solid var(--line); padding: 8px 6px; text-align: left; vertical-align: middle; white-space: nowrap; }
+.vt th { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.vt td.kw { white-space: normal; min-width: 150px; font-weight: 500; }
+.vt td.wrap { white-space: normal; min-width: 220px; color: var(--muted); }
+.vt input[type=number] { width: 96px; padding: 5px 7px; }
+.vt select { width: auto; padding: 5px 7px; }
+.vt a { color: var(--text); font-size: 12.5px; margin-right: 6px; }
+.vt .x { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 0 4px; }
+.vt .empty { text-align: center; color: var(--muted); padding: 22px; white-space: normal; }
+.score { font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
+.score::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.score.s-hi::before { background: var(--ok); } .score.s-mid::before { background: #ca8a04; } .score.s-lo::before { background: var(--err); }
+.delta-up { color: var(--ok); } .delta-down { color: var(--err); }
+.statform { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: end; margin: 10px 0 14px; }
+.statform label { margin: 0; }
+.statform input { margin-top: 6px; }
+.statform .wide { grid-column: span 4; }
+.statform .opt { text-transform: none; font-weight: 400; }
+@media (max-width: 860px) { .statform { grid-template-columns: 1fr 1fr; } .statform .wide { grid-column: span 2; } .statform .btn { grid-column: span 2; } }
 .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 </style>
 </head>
@@ -93,7 +126,11 @@ dialog p.error { color: var(--err); min-height: 1em; margin: 8px 0 0; }
 <header>
   <h1>ArchViz SEO Agent</h1>
   <span>Fiverr &amp; Upwork listings, keywords and proposals</span>
-  <button class="btn ghost" id="settings" type="button" style="margin-left:auto">Settings</button>
+  <nav class="tabs" id="tabs" aria-label="View">
+    <button type="button" data-view="gen" aria-pressed="true">Generate</button>
+    <button type="button" data-view="verify" aria-pressed="false">Verify</button>
+  </nav>
+  <button class="btn ghost" id="settings" type="button">Settings</button>
 </header>
 <dialog id="keydlg">
   <form id="keyform" method="dialog">
@@ -168,6 +205,50 @@ dialog p.error { color: var(--err); min-height: 1em; margin: 8px 0 0; }
     </form>
   </section>
 </main>
+
+<div id="verify-view" class="verify hidden">
+  <section class="card">
+    <h2>1 · Check keywords with real Fiverr &amp; Upwork data</h2>
+    <ol class="steps">
+      <li>Load keywords for your niche, or add your own.</li>
+      <li>For each one, click <b>Fiverr</b>. Note the number of results, and whether the phrase appears in Fiverr's
+          search suggestions when you type its first words.</li>
+      <li>Click <b>Jobs</b> and <b>Talent</b> on Upwork and note the counts.</li>
+      <li>Type the numbers in. The list re-ranks itself, and the Built-in engine uses your best-scoring keywords as tags.</li>
+    </ol>
+    <p class="hint">The app only opens normal search pages in your browser. It never reads or scrapes Fiverr or Upwork,
+      which their rules forbid. Everything you enter is saved on this computer only.</p>
+    <div class="vrow">
+      <input id="vk-niche" placeholder="Niche, e.g. 3d floor plans">
+      <button class="btn ghost" id="vk-load" type="button">Load keywords for niche</button>
+    </div>
+    <form class="vrow" id="vk-addform">
+      <input id="vk-add" placeholder="Add your own keywords, comma separated">
+      <button class="btn ghost" type="submit">Add</button>
+    </form>
+    <div class="tablewrap"><table class="vt" id="vk-table"></table></div>
+    <p class="hint">Score (0-100): demand (in Fiverr's suggestions, open Upwork jobs) against competition (number of
+      gigs or freelancers, on a log scale). It's a rule of thumb for comparing your own keywords, not an official
+      metric.</p>
+  </section>
+
+  <section class="card">
+    <h2>2 · Track your gig stats</h2>
+    <p class="hint">On Fiverr, open your gig's <b>Analytics</b> and copy <b>impressions</b>, <b>clicks</b> and
+      <b>orders</b> for the same period each time (for example, the last 14 days). Note what you changed, then
+      compare the next entry.</p>
+    <form class="statform" id="vs-form">
+      <label>Date<input id="vs-date" type="date"></label>
+      <label>Gig<input id="vs-gig" placeholder="e.g. Exterior rendering"></label>
+      <label>Impressions<input id="vs-imp" type="number" min="0" inputmode="numeric"></label>
+      <label>Clicks<input id="vs-clicks" type="number" min="0" inputmode="numeric"></label>
+      <label>Orders<input id="vs-orders" type="number" min="0" inputmode="numeric"></label>
+      <label class="wide">What did you change? <span class="opt">(optional)</span><input id="vs-note" placeholder="e.g. new thumbnail, swapped 2 tags"></label>
+      <button class="btn" type="submit">Add entry</button>
+    </form>
+    <div class="tablewrap"><table class="vt" id="vs-table"></table></div>
+  </section>
+</div>
 
 <script>
 (() => {
@@ -414,6 +495,96 @@ dialog p.error { color: var(--err); min-height: 1em; margin: 8px 0 0; }
     $("out").innerHTML = '<div class="empty">Pick a task, describe your niche, and press Generate.</div>';
     setStatus("Ready", false);
   });
+
+  // ---------- views ----------
+  function showView(v) {
+    store.set("view", v);
+    for (const b of $("tabs").children) b.setAttribute("aria-pressed", String(b.dataset.view === v));
+    document.querySelector("main").classList.toggle("hidden", v !== "gen");
+    $("verify-view").classList.toggle("hidden", v !== "verify");
+    if (v === "verify") { if (!$("vk-niche").value) $("vk-niche").value = $("niche").value; loadVerify(); }
+  }
+  $("tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) showView(b.dataset.view); });
+
+  // ---------- verify: keywords ----------
+  const vpost = (payload) => fetch("/api/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }).then((r) => r.json());
+  const attr = (s) => esc(String(s ?? "")).replace(/"/g, "&quot;");
+  const scoreClass = (n) => n == null ? "" : n >= 70 ? "s-hi" : n >= 40 ? "s-mid" : "s-lo";
+  const num = (v) => (v == null ? "" : v);
+
+  function renderKeywords(rows) {
+    const t = $("vk-table");
+    if (!rows.length) { t.innerHTML = '<tr><td class="empty">No keywords yet. Load the keywords for your niche, or add your own.</td></tr>'; return; }
+    t.innerHTML = `<thead><tr><th>Keyword</th><th>Fiverr gigs</th><th>In suggestions?</th><th>Upwork jobs</th><th>Upwork freelancers</th><th>Score</th><th>Advice</th><th></th></tr></thead><tbody>` +
+      rows.map((r) => `<tr data-kw="${attr(r.keyword)}">
+        <td class="kw">${esc(r.keyword)}${r.checked_on ? `<br><small style="color:var(--muted);font-weight:400">checked ${esc(r.checked_on)}</small>` : ""}</td>
+        <td><a href="${attr(r.links.fiverr)}" target="_blank" rel="noopener noreferrer">Fiverr ↗</a><input type="number" min="0" data-f="fiverr_results" value="${attr(num(r.fiverr_results))}" placeholder="results" aria-label="Fiverr results for ${attr(r.keyword)}"></td>
+        <td><select data-f="fiverr_suggested" aria-label="Shown in Fiverr suggestions">
+            <option value="" ${r.fiverr_suggested == null ? "selected" : ""}>?</option>
+            <option value="1" ${r.fiverr_suggested === true ? "selected" : ""}>Yes</option>
+            <option value="0" ${r.fiverr_suggested === false ? "selected" : ""}>No</option></select></td>
+        <td><a href="${attr(r.links.upwork_jobs)}" target="_blank" rel="noopener noreferrer">Jobs ↗</a><input type="number" min="0" data-f="upwork_jobs" value="${attr(num(r.upwork_jobs))}" placeholder="jobs" aria-label="Upwork jobs"></td>
+        <td><a href="${attr(r.links.upwork_talent)}" target="_blank" rel="noopener noreferrer">Talent ↗</a><input type="number" min="0" data-f="upwork_talent" value="${attr(num(r.upwork_talent))}" placeholder="freelancers" aria-label="Upwork freelancers"></td>
+        <td>${r.score == null ? '<span style="color:var(--muted)">-</span>' : `<span class="score ${scoreClass(r.score)}">${r.score}</span>`}</td>
+        <td class="wrap">${esc(r.advice)}</td>
+        <td><button class="x" type="button" data-del="1" title="Remove keyword" aria-label="Remove ${attr(r.keyword)}">×</button></td>
+      </tr>`).join("") + "</tbody>";
+  }
+  $("vk-table").addEventListener("change", async (e) => {
+    const el = e.target.closest("[data-f]"); if (!el) return;
+    const kw = el.closest("tr").dataset.kw;
+    let v = el.value;
+    if (el.dataset.f === "fiverr_suggested") v = v === "" ? null : v === "1";
+    const snap = await vpost({ action: "update", keyword: kw, fields: { [el.dataset.f]: v } });
+    renderVerify(snap);
+  });
+  $("vk-table").addEventListener("click", async (e) => {
+    if (!e.target.closest("[data-del]")) return;
+    renderVerify(await vpost({ action: "delete", keyword: e.target.closest("tr").dataset.kw }));
+  });
+  $("vk-load").addEventListener("click", async () => renderVerify(await vpost({ action: "load_niche", niche: $("vk-niche").value })));
+  $("vk-addform").addEventListener("submit", async (e) => {
+    e.preventDefault(); const v = $("vk-add").value.trim(); if (!v) return;
+    $("vk-add").value = ""; renderVerify(await vpost({ action: "add", keywords: v }));
+  });
+
+  // ---------- verify: gig stats ----------
+  const pct = (v) => (v == null ? "-" : v.toFixed(2).replace(/\.?0+$/, "") + "%");
+  const delta = (v, suffix = "") => v == null || v === 0 ? "" : ` <span class="${v > 0 ? "delta-up" : "delta-down"}">${v > 0 ? "+" : ""}${v}${suffix}</span>`;
+  function renderStats(rows) {
+    const t = $("vs-table");
+    if (!rows.length) { t.innerHTML = '<tr><td class="empty">No entries yet. Add your first numbers from Fiverr Analytics above.</td></tr>'; return; }
+    t.innerHTML = `<thead><tr><th>Date</th><th>Gig</th><th>Impr.</th><th>Clicks</th><th>Orders</th><th>CTR</th><th>Conversion</th><th>What to do next</th><th></th></tr></thead><tbody>` +
+      rows.map((r) => `<tr>
+        <td>${esc(r.date)}</td><td class="kw">${esc(r.gig)}${r.note ? `<br><small style="color:var(--muted);font-weight:400">changed: ${esc(r.note)}</small>` : ""}</td>
+        <td>${r.impressions}${r.change ? delta(r.change.impressions) : ""}</td>
+        <td>${r.clicks}</td>
+        <td>${r.orders}${r.change ? delta(r.change.orders) : ""}</td>
+        <td>${pct(r.ctr)}${r.change ? delta(r.change.ctr, " pts") : ""}</td>
+        <td>${pct(r.conversion)}</td>
+        <td class="wrap">${esc(r.diagnosis)}${r.change && r.change.after_change ? `<br><small>Since "${esc(r.change.after_change)}"</small>` : ""}</td>
+        <td><button class="x" type="button" data-id="${attr(r.id)}" title="Delete entry" aria-label="Delete entry">×</button></td>
+      </tr>`).join("") + "</tbody>";
+  }
+  $("vs-table").addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-id]"); if (!b) return;
+    renderVerify(await vpost({ action: "delete_stat", id: b.dataset.id }));
+  });
+  $("vs-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!$("vs-imp").value) { $("vs-imp").focus(); return; }
+    const fields = { date: $("vs-date").value, gig: $("vs-gig").value, impressions: $("vs-imp").value,
+                     clicks: $("vs-clicks").value, orders: $("vs-orders").value, note: $("vs-note").value };
+    store.set("vs-gig", $("vs-gig").value);
+    renderVerify(await vpost({ action: "add_stat", fields }));
+    for (const id of ["vs-imp", "vs-clicks", "vs-orders", "vs-note"]) $(id).value = "";
+  });
+  $("vs-date").value = new Date().toISOString().slice(0, 10);
+  $("vs-gig").value = store.get("vs-gig") || "";
+
+  function renderVerify(snap) { renderKeywords(snap.keywords || []); renderStats(snap.stats || []); }
+  function loadVerify() { fetch("/api/verify").then((r) => r.json()).then(renderVerify).catch(() => {}); }
+  showView(store.get("view") === "verify" ? "verify" : "gen");
 })();
 </script>
 </body>
