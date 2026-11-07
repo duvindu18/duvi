@@ -4,123 +4,221 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ArchRailing Pro</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="tokens.css">
-<link rel="stylesheet" href="kit.css">
 <style>
+  *,*::before,*::after{box-sizing:border-box}
   html,body{height:100%}
-  body.su{padding:0;background:var(--paper);display:flex;flex-direction:column;overflow:hidden}
-  .top{display:flex;align-items:stretch;border-bottom:var(--border-hairline) solid var(--line);background:var(--surface);flex:none}
-  .top .su-logo{padding:10px 14px;display:flex;align-items:center}
-  .top .su-logo svg{width:32px;height:32px;display:block}
-  .top .ttl{flex:1;padding:8px 14px;display:flex;flex-direction:column;justify-content:center;min-width:0}
-  .top .ttl h1{font-size:16px;line-height:18px}
-  .top .ttl small{font-size:11px;line-height:16px;color:var(--smoke)}
-  .top .mode{display:flex;align-items:center;padding:0 14px;border-left:var(--border-hairline) solid var(--line)}
-  .top .mode .su-tag{white-space:nowrap}
-  .body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(300px,1fr) minmax(320px,1.1fr)}
-  .col{min-height:0;overflow-y:auto;padding:var(--space-4)}
-  .col.l{border-right:var(--border-hairline) solid var(--line)}
-  .su-pv{margin-bottom:var(--space-4)}
-  .su-pvc{aspect-ratio:16/10}
-  .cats{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--space-3)}
-  .su-tiles{grid-template-columns:repeat(auto-fill,minmax(118px,1fr))}
-  .su-tile{padding:8px 8px 10px}
-  .su-tile svg{display:block;width:100%;height:auto;aspect-ratio:16/9;margin-bottom:6px}
-  .su-tile b{margin-top:0;font-size:10px;line-height:14px;letter-spacing:.04em}
-  .su-tile small{display:block;font-size:10px;line-height:14px}
-  .su-tile[aria-pressed=true] svg{background:var(--surface);outline:var(--border-hairline) solid var(--on-blue)}
-  .save{display:flex;gap:8px;margin-top:var(--space-3)}
-  .save .su-fld{padding:7px 10px}
-  .su-tabs{width:100%;margin-bottom:0}
-  .su-tab{flex:1;padding:12px 6px}
-  .su-pane{padding:var(--space-4) var(--space-4) 4px;background:var(--surface)}
-  .g2{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--space-3)}
-  .su-f{margin-bottom:var(--space-3)}
-  .su-f>span{font-size:10px;line-height:14px;margin-bottom:4px}
-  .su-f>span em{font-style:normal;font-weight:400;color:var(--smoke);text-transform:none;letter-spacing:0}
-  .su-fld,.su-sel{padding:7px 10px;font-size:12px}
-  .su-sel{padding-right:30px}
-  .su-opt{margin-bottom:10px;font-size:12px}
-  .clr{display:flex;align-items:center;gap:8px;border:var(--border-hairline) solid var(--line);padding:3px 8px 3px 3px}
-  .clr input[type=color]{width:30px;height:26px;border:0;padding:0;background:none;cursor:pointer}
-  .clr code{font:400 12px var(--font-mono)}
-  .grp{font-size:11px;line-height:16px;letter-spacing:.14em;text-transform:uppercase;color:var(--smoke);margin:var(--space-4) 0 8px;padding-top:var(--space-3);border-top:var(--border-hairline) solid var(--line)}
-  .grp:first-child{margin-top:0;padding-top:0;border-top:0}
-  .seg{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--space-3)}
-  .seg .su-chip{min-height:30px;padding:5px 10px}
+  body{margin:0;background:var(--bg);color:var(--ink);font:400 13px/18px var(--sans);display:flex;flex-direction:column;overflow:hidden}
+  button,input,select{font:inherit;color:inherit}
+  button{cursor:pointer}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
   .hide{display:none!important}
-  .su-sw.on input{background:var(--blue);border-color:var(--blue)}
-  .su-sw.on::after{transform:translateX(22px);background:var(--on-blue)}
-  .foot{flex:none;border-top:var(--border-hairline) solid var(--line);background:var(--surface);padding:10px var(--space-4)}
-  .foot .row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap}
-  .foot .sp{flex:1}
-  .foot .su-status{margin-top:8px;padding:6px 10px;font-size:11px;line-height:16px}
-  .su-status.warn{border-left-color:var(--ink)}
-  .su-status.note{border-left-color:var(--smoke);background:transparent}
-  .live{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
-  #pv text{font-family:var(--font-mono)}
-  @media (max-width:600px){
-    body.su{overflow:auto;height:auto}
-    .body{display:block}
-    .col{overflow:visible}
-    .col.l{border-right:0;border-bottom:var(--border-hairline) solid var(--line)}
+  .eyebrow{font-size:11px;line-height:14px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .mono{font-family:var(--mono)}
+
+  /* header */
+  .hd{flex:none;display:flex;align-items:center;gap:10px;height:48px;padding:0 6px 0 14px;background:var(--surface);border-bottom:1px solid var(--line)}
+  .mark{width:24px;height:24px;border-radius:5px;background:var(--ink);color:var(--inv);display:grid;place-items:center;flex:none}
+  .mark svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:square}
+  .hd h1{margin:0;font-size:14px;line-height:20px;font-weight:600;white-space:nowrap}
+  .crumb{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .badge{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border:1px solid var(--line);border-radius:var(--r-xs);background:var(--raised);font-size:11px;font-weight:500;white-space:nowrap}
+  .badge .dot{width:6px;height:6px;border-radius:3px;background:var(--accent)}
+  .sp{flex:1}
+  .ib{width:36px;height:36px;border:0;background:transparent;color:var(--muted);border-radius:var(--r-sm);display:grid;place-items:center}
+  .ib:hover{background:var(--sunken);color:var(--ink)}
+
+  /* body: rail | main | aside */
+  .bd{flex:1;min-height:0;display:flex;gap:12px;padding:12px;overflow:hidden}
+  .rail{flex:none;align-self:flex-start;display:flex;flex-direction:column;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md)}
+  .rail button{width:40px;height:40px;border:0;border-radius:var(--r-sm);background:transparent;color:var(--muted);display:grid;place-items:center}
+  .rail button:hover{background:var(--sunken);color:var(--ink)}
+  .rail button[aria-pressed=true]{background:var(--ink);color:var(--inv)}
+  .rail svg.i{width:20px;height:20px}
+  .main{flex:1 1 560px;min-width:0;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-right:2px}
+  .side{flex:0 0 352px;min-width:0;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
+
+  /* viewport */
+  .vp{position:relative;background:var(--viewport);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;flex:none}
+  .vp svg.scene{display:block;width:100%;height:auto;aspect-ratio:16/10;touch-action:none;cursor:grab;user-select:none}
+  .vp svg.scene:active{cursor:grabbing}
+  .ov{position:absolute;left:12px;right:12px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;pointer-events:none}
+  .ov.t{top:12px}.ov.b{bottom:12px;align-items:flex-end}
+  .ov>*{pointer-events:auto}
+  .tb{display:flex;gap:2px;padding:2px;background:var(--raised);border:1px solid var(--line);border-radius:var(--r-sm)}
+  .tb button{height:32px;min-width:32px;padding:0 8px;border:1px solid transparent;border-radius:var(--r-xs);background:transparent;color:var(--muted);font-size:12px;font-weight:500;display:grid;place-items:center}
+  .tb button:hover{color:var(--ink)}
+  .tb button.v[aria-pressed=true]{background:var(--sunken);border-color:var(--line);color:var(--ink)}
+  .tb button.t[aria-pressed=true]{background:var(--ink);color:var(--inv)}
+  .tb svg.i{width:16px;height:16px}
+  .tb .div{width:1px;margin:4px 2px;background:var(--line)}
+  .chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 8px;background:var(--raised);border:1px solid var(--line);border-radius:var(--r-xs);font:500 11px/1 var(--mono);color:var(--ink);white-space:nowrap}
+  .chip svg.i{width:12px;height:12px;color:var(--muted)}
+
+  /* presets */
+  .ph{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .ph .eyebrow{flex:1;min-width:120px}
+  .fld{height:32px;padding:0 10px;background:var(--raised);border:1px solid var(--strong);border-radius:var(--r-sm);min-width:0}
+  .fld:hover{border-color:var(--ink)}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+  .tile{display:flex;flex-direction:column;gap:6px;padding:4px 4px 8px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);color:var(--muted);font-size:12px;font-weight:500;text-align:left;min-width:0}
+  .tile:hover{color:var(--ink);border-color:var(--strong)}
+  .tile[aria-pressed=true]{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink);color:var(--ink)}
+  .tile svg{display:block;width:100%;height:auto;aspect-ratio:16/10;background:var(--viewport);border-radius:var(--r-sm)}
+  .tile span{padding:0 6px;line-height:16px}
+
+  /* side panel */
+  .sh{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px 12px}
+  .sh h2{margin:0;font-size:15px;line-height:20px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .seg{display:flex;gap:2px;padding:2px;background:var(--sunken);border:1px solid var(--line);border-radius:var(--r-sm)}
+  .seg button{flex:1;height:26px;min-width:38px;padding:0 9px;border:1px solid transparent;border-radius:var(--r-xs);background:transparent;color:var(--muted);font-size:12px;font-weight:500;white-space:nowrap}
+  .seg button:hover{color:var(--ink)}
+  .seg button[aria-pressed=true],.seg button[aria-selected=true]{background:var(--raised);border-color:var(--line);color:var(--ink)}
+  .tabs{flex:none;margin:0 16px 4px}
+  .tabs button{height:30px}
+  .pane{flex:1;min-height:0;overflow-y:auto;padding:4px 16px 8px}
+  .grp{margin:14px 0 10px;padding-top:14px;border-top:1px solid var(--line)}
+  .grp:first-child{margin-top:6px;padding-top:0;border-top:0}
+  .rows{display:flex;flex-direction:column;gap:14px}
+
+  .row{display:flex;flex-direction:column;gap:4px}
+  .row .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .row .val{display:flex;align-items:center;gap:3px;font:500 12px/16px var(--mono)}
+  .row .val input{width:76px;height:22px;padding:0 4px;text-align:right;background:transparent;border:1px solid transparent;border-radius:var(--r-xs);font:500 12px/16px var(--mono)}
+  .row .val input:hover{border-color:var(--line)}
+  .row .val input:focus{border-color:var(--strong);background:var(--raised);outline:0}
+  .row .val i{font-style:normal;color:var(--muted)}
+  .sl{position:relative;display:block;height:20px}
+  .sl .tr{position:absolute;left:0;right:0;top:9px;height:2px;background:var(--strong)}
+  .sl .fi{position:absolute;left:0;top:9px;height:2px;background:var(--accent)}
+  .sl .th{position:absolute;top:3px;width:14px;height:14px;margin-left:-7px;border-radius:3px;background:var(--raised);border:1px solid var(--ink)}
+  .sl input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+  .sl:focus-within .th{outline:2px solid var(--accent);outline-offset:2px}
+
+  .opts{display:flex;flex-wrap:wrap;gap:6px 16px}
+  .sw{display:flex;align-items:center;gap:10px;height:28px;padding:0;border:0;background:transparent;font-size:13px;color:var(--ink);text-align:left}
+  .sw .k{position:relative;flex:none;width:32px;height:18px;border-radius:5px;background:var(--sunken);border:1px solid var(--strong)}
+  .sw .k::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:3px;background:var(--muted);transition:left .12s}
+  .sw[aria-checked=true] .k{background:var(--accent);border-color:var(--accent)}
+  .sw[aria-checked=true] .k::after{left:16px;background:var(--accent-ink)}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field select{height:32px;padding:0 8px;background:var(--raised);border:1px solid var(--strong);border-radius:var(--r-sm)}
+  .sws{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+  .swc{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--muted)}
+  .swc label{position:relative;display:block;width:100%;height:32px;padding:3px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--raised);cursor:pointer}
+  .swc label:hover{border-color:var(--ink)}
+  .swc label span{display:block;width:100%;height:100%;border-radius:3px}
+  .swc input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+
+  /* checks */
+  .stats{flex:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:12px 16px;border-top:1px solid var(--line)}
+  .card{display:flex;flex-direction:column;justify-content:space-between;gap:10px;min-height:76px;padding:10px 12px;background:var(--bg);border:1px solid var(--line);border-radius:12px;min-width:0}
+  .card .h{display:flex;justify-content:space-between;align-items:flex-start;gap:6px}
+  .card .n{font-size:22px;line-height:28px;font-weight:500;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card .n i{font-style:normal;font-weight:400;color:var(--faint)}
+  .card svg{width:14px;height:14px;fill:none;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  .card .ok{stroke:var(--ok)}.card .wn{stroke:var(--warn)}
+
+  /* actions */
+  .act{flex:none;display:flex;flex-direction:column;gap:10px;padding:12px 16px 14px;border-top:1px solid var(--line)}
+  .act .r{display:flex;gap:8px;align-items:center}
+  .btn{height:36px;padding:0 12px;border:1px solid var(--strong);border-radius:var(--r-sm);background:var(--raised);color:var(--ink);font-size:13px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+  .btn:hover{border-color:var(--ink)}
+  .btn:disabled{opacity:.45;pointer-events:none}
+  .btn.pri{flex:1;height:44px;border:0;background:var(--ink);color:var(--inv);font-size:14px}
+  .btn.pri:hover{opacity:.88}
+  .btn.sq{width:44px;height:44px;padding:0;flex:none}
+  .btn.f1{flex:1}
+  .toast{display:flex;align-items:center;gap:10px;min-height:40px;padding:4px 4px 4px 12px;background:var(--raised);border:1px solid var(--line);border-radius:var(--r-sm);font-size:12px;line-height:16px}
+  .toast svg{width:16px;height:16px;fill:none;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  .toast .msg{flex:1;min-width:0}
+  .toast .u{height:28px;padding:0 10px;border:0;border-radius:var(--r-sm);background:transparent;font-size:12px;font-weight:500}
+  .toast .u:hover{background:var(--sunken)}
+
+  @media (max-width:760px){
+    body{overflow:auto;height:auto}
+    .bd{flex-direction:column;overflow:visible}
+    .rail{flex-direction:row;flex-wrap:wrap;align-self:stretch;justify-content:center}
+    .main{overflow:visible}
+    .side{flex:none;overflow:visible}
+    .pane{overflow:visible}
   }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
-<body class="su">
+<body>
 
-<header class="top">
-  <div class="su-logo" aria-hidden="true">
-    <svg viewBox="0 0 32 32"><rect width="32" height="32" fill="var(--ink)"/><rect y="22" width="32" height="10" fill="var(--blue)"/>
-      <g fill="none" stroke="var(--surface)" stroke-width="2" stroke-linecap="square"><path d="M4 8h24M4 8v14M28 8v14M16 8v14"/><path d="M8 11v11M12 11v11M20 11v11M24 11v11" stroke-width="1.2"/></g>
-      <path d="M0 22h32" stroke="var(--surface)" stroke-width="1"/></svg>
-  </div>
-  <div class="ttl"><h1>ArchRailing Pro</h1><small id="ver">Railings, balustrades and fences along any path</small></div>
-  <div class="mode"><span class="su-tag" id="mode">No selection</span></div>
+<header class="hd">
+  <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h18M4 6v13M20 6v13M12 6v13M8 9v10M16 9v10" /></svg></span>
+  <h1>ArchRailing Pro</h1>
+  <span class="crumb" id="crumb">/ Custom</span>
+  <span class="badge hide" id="live-badge"><span class="dot" aria-hidden="true"></span>Live</span>
+  <span class="sp"></span>
+  <span class="badge" id="mode">No selection</span>
+  <button class="ib" id="theme" type="button" aria-label="Dark mode" title="Dark mode"></button>
+  <button class="ib" id="close" type="button" aria-label="Close" title="Close"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
 </header>
 
-<div class="body">
-  <!-- left: live preview and the ready-made railings -->
-  <section class="col l">
-    <div class="su-pv">
-      <h3>Elevation preview</h3>
-      <div class="su-pvc"><svg id="pv" viewBox="0 0 400 250" role="img" aria-label="Railing elevation preview"></svg></div>
-      <div class="su-stats">
-        <div><small>Height</small><b id="st-h"></b></div>
-        <div><small>Bay width</small><b id="st-bay"></b></div>
-        <div><small>Infill</small><b id="st-inf"></b></div>
-        <div><small>Clear gap</small><b id="st-gap"></b></div>
+<div class="bd">
+  <nav class="rail" id="rail" aria-label="Railing categories"></nav>
+
+  <main class="main">
+    <section class="vp" aria-label="Live preview">
+      <svg class="scene" id="scene" viewBox="0 0 640 400" role="img" aria-label="3D preview of the railing, drag to orbit"></svg>
+      <div class="ov t">
+        <div class="tb" role="group" aria-label="Standard views" id="views"></div>
+        <div class="tb" role="group" aria-label="Display">
+          <button class="t" type="button" id="tg-edges" aria-pressed="true" aria-label="Edges" title="Edges"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></button>
+          <button class="t" type="button" id="tg-xray" aria-pressed="false" aria-label="X-ray" title="X-ray"><svg class="i" viewBox="0 0 24 24" stroke-dasharray="2.5 2.5"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></button>
+          <button class="t" type="button" id="tg-spin" aria-pressed="false" aria-label="Auto-rotate" title="Auto-rotate"><svg class="i" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v4.5h-4.5"/></svg></button>
+          <span class="div" aria-hidden="true"></span>
+          <button type="button" id="z-out" aria-label="Zoom out" title="Zoom out"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M8 11h6M16.5 16.5L21 21"/></svg></button>
+          <button type="button" id="z-in" aria-label="Zoom in" title="Zoom in"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M8 11h6M11 8v6M16.5 16.5L21 21"/></svg></button>
+          <button type="button" id="z-fit" aria-label="Zoom to fit" title="Zoom to fit"><svg class="i" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+        </div>
+      </div>
+      <div class="ov b">
+        <span class="chip"><svg class="i" viewBox="0 0 24 24"><path d="M3 21L21 3M3 21v-6M3 21h6M21 3v6M21 3h-6"/></svg><span id="dims"></span></span>
+        <span class="chip"><svg class="i" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="4"/><path d="M12 3v18"/></svg><span id="orbit"></span></span>
+      </div>
+    </section>
+
+    <div class="ph">
+      <span class="eyebrow" id="ptitle">Ready-made railings</span>
+      <input class="fld" id="pname" placeholder="Name this setup" maxlength="60" aria-label="Preset name">
+      <button class="btn" type="button" id="psave">Save preset</button>
+      <button class="btn hide" type="button" id="pdel">Delete</button>
+    </div>
+    <div class="tiles" id="tiles" role="group" aria-label="Ready-made railings"></div>
+  </main>
+
+  <aside class="side" aria-label="Parameters">
+    <div class="sh">
+      <h2 id="ptitle2">Railing</h2>
+      <div class="seg" role="group" aria-label="Units">
+        <button type="button" id="u-mm" aria-pressed="true">mm</button>
+        <button type="button" id="u-in" aria-pressed="false">in</button>
       </div>
     </div>
-
-    <p class="su-lab">Ready-made railings <span id="pcount"></span></p>
-    <div class="cats" id="cats"></div>
-    <div class="su-tiles" id="tiles"></div>
-    <div class="save">
-      <input class="su-fld" id="pname" placeholder="Preset name" maxlength="60">
-      <button class="su-btn small" id="psave">Save preset</button>
-      <button class="su-btn small ghost hide" id="pdel">Delete</button>
+    <div class="seg tabs" role="tablist" id="tabs"></div>
+    <div class="pane" id="pane"></div>
+    <div class="stats" id="stats"></div>
+    <div class="act">
+      <div class="r">
+        <button type="button" class="sw" role="switch" id="live" aria-checked="true"><span class="k" aria-hidden="true"></span>Live update</button>
+        <span class="sp"></span>
+        <button class="btn" type="button" id="b-path" title="Select one railing and its new edges">Change path</button>
+      </div>
+      <div class="r">
+        <button class="btn sq" type="button" id="b-update" aria-label="Update selected railings" title="Update selected railings"><svg class="i" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.6-5.9"/><path d="M4 4v4.5h4.5"/></svg></button>
+        <button class="btn pri" type="button" id="b-create"><svg class="i" viewBox="0 0 24 24"><path d="M3 20h18M5 7v13M19 7v13M12 7v13M3 7h18"/></svg>Create railing</button>
+      </div>
+      <div class="toast" id="toast" role="status"><svg viewBox="0 0 24 24" id="toast-ic"></svg><span class="msg" id="status">Select edges, a curve or an arc, then create a railing.</span><button class="u hide" type="button" id="undo">Undo</button></div>
     </div>
-  </section>
-
-  <!-- right: parameters -->
-  <section class="col r">
-    <div class="su-tabs" role="tablist" id="tabs"></div>
-    <div class="su-pane" id="pane"></div>
-  </section>
+  </aside>
 </div>
-
-<footer class="foot">
-  <div class="row">
-    <label class="live"><span class="su-sw"><input type="checkbox" id="live" checked></span>Live update</label>
-    <span class="sp"></span>
-    <button class="su-btn ghost small" id="b-path" title="Select one railing and new edges first">Change path</button>
-    <button class="su-btn small" id="b-update">Update selected</button>
-    <button class="su-btn primary small" id="b-create">Create railing</button>
-  </div>
-  <div class="su-status" id="status" role="status">Select edges, a curve or an arc, then create a railing.</div>
-</footer>
 
 <script src="dialog.js"></script>
 </body>

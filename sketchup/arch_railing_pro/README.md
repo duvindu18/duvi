@@ -8,6 +8,8 @@ Generates railings, balustrades, glass guards and fences along any path you sele
 
 ![Panel](docs/dialog.png)
 
+The panel has a category rail, a 3D preview you can drag to orbit (Iso, Top, Front and Right views, edges, X-ray, auto-rotate, zoom), the ready-made railings as 3D tiles, and sliders with editable readouts in mm or inches. Four check cards flag height, clear gap and toe gap against common limits (900 mm and 100 mm). These limits aren't a code check: confirm the rules that apply to your project. Light and dark themes follow the system, and a toggle in the header overrides them.
+
 ## Install
 
 1. In SketchUp, open **Extensions > Extension Manager**.
@@ -69,7 +71,7 @@ src/
     generator.rb               path parsing, arc-length layout, sweeps, component placement
     ui_dialog.rb               HtmlDialog bridge (JS <-> Ruby callbacks, saved presets)
     defaults.rb                parameter schema, validation, the 31 ready-made railings
-    ui/                        dialog.html, dialog.js, tokens.css, kit.css (SketchUp Tools UI Kit)
+    ui/                        dialog.html, dialog.js, tokens.css (Parametric Builder UI look)
     icons/                     toolbar icons (SVG for Windows, PDF for macOS, PNG fallback), logo
 test/                          SketchUp API mock and the generator test run
 build.sh                       packs src/ into release/*.rbz

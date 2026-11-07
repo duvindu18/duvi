@@ -29,7 +29,7 @@ module ArchRailingPro
           dialog_title: 'ArchRailing Pro',
           preferences_key: 'com.archrailingpro.dialog',
           scrollable: false, resizable: true,
-          width: 860, height: 760, min_width: 420, min_height: 520,
+          width: 1180, height: 820, min_width: 440, min_height: 560,
           style: UI::HtmlDialog::STYLE_DIALOG
         )
         dlg.set_file(File.join(PLUGIN_DIR, 'ui', 'dialog.html'))
@@ -43,6 +43,7 @@ module ArchRailingPro
         dlg.add_action_callback('save_user_preset') { |_c, name, json| save_user_preset(name, json) }
         dlg.add_action_callback('delete_user_preset') { |_c, id| delete_user_preset(id) }
         dlg.add_action_callback('remember') { |_c, json| remember(json) }
+        dlg.add_action_callback('undo') { |_c| Sketchup.undo }
         dlg.add_action_callback('close') { |_c| dlg.close }
         dlg.set_on_closed { @dialog = nil }
         dlg
@@ -104,7 +105,7 @@ module ArchRailingPro
         remember_params(params)
         groups = Main.create_from_selection(params)
         return unless groups && !groups.empty?
-        status("Generated #{groups.size} railing#{groups.size == 1 ? '' : 's'}. Select one to edit it.", 'info')
+        status("Generated #{groups.size} railing#{groups.size == 1 ? '' : 's'}. Select one to edit it.", 'done')
       end
 
       def on_update(json, live)
@@ -119,7 +120,7 @@ module ArchRailingPro
         stats = Main.update_railings(rails, params, live)
         return unless stats
         status("Updated #{rails.size} railing#{rails.size == 1 ? '' : 's'}: " \
-               "#{stats['posts']} posts, #{stats['length_mm']} mm.", 'info')
+               "#{stats['posts']} posts, #{stats['length_mm']} mm.", live ? 'info' : 'done')
       end
 
       def on_repath

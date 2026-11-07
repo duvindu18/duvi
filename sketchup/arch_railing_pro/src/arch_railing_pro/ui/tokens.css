@@ -1,21 +1,31 @@
-/* SketchUp Tools UI Kit - tokens (from tokens.json). Light first, dark under prefers-color-scheme. */
+/* Parametric Builder UI - tokens. Light by default, dark from the system or the header toggle. */
 :root{
-  --paper:#f2f2f2;--surface:#fafafa;--ink:#111111;--line:#111111;--smoke:#6b6b6b;--tone:#bdbdbd;
-  --charcoal:#444444;--night:#111111;--chalk:#f2f2f2;
-  --blue:#0b5cff;--on-blue:#ffffff;--blue-hover:#0848cc;--blue-pressed:#06358f;
-  --blue-tint:#0b5cff1a;--blue-text:#0b5cff;--blue-on-tint:#0848cc;--focus:var(--blue-text);
-  --wash:#8080802e;--grid-minor:#80808033;--grid-major:#80808066;
-  --font-display:Poppins,"Helvetica Neue",Arial,sans-serif;
-  --font-mono:"Space Mono","Courier New",monospace;
-  --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-7:32px;--space-8:40px;
-  --radius-none:0px;--radius-full:50%;
-  --border-hairline:1px;--border-strong:2px;--border-bar:6px;--ring-width:2px;--ring-offset:3px;
+  --page:#e9e9e8;--bg:#efefee;--surface:#e5e5e4;--raised:#f7f7f6;--sunken:#dcdcdb;
+  --line:#d2d2d0;--strong:#8a8a87;--ink:#111111;--muted:#5e5e5c;--faint:#767673;--inv:#ffffff;
+  --accent:#c9500a;--accent-ink:#ffffff;--accent-soft:#f6dccb;
+  --ok:#1f6feb;--warn:#9a6700;--danger:#c2261c;
+  --viewport:#f7f7f6;--edge:#1b1f24;--grid:#dcdcda;
+  --axis-x:#d9412e;--axis-y:#2e9e48;--axis-z:#2266d6;
+  --sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r-xs:4px;--r-sm:6px;--r-md:10px;--r-lg:16px;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){
-  :root{
-    --paper:#121212;--surface:#1a1a1a;--ink:#f2f2f2;--line:#cfcfcf;--smoke:#a3a3a3;--tone:#4a4a4a;
-    --blue-tint:#6f9bff29;--blue-text:#6f9bff;--blue-on-tint:#6f9bff;
+  :root:not([data-theme="light"]){
+    --page:#0a0a0b;--bg:#111112;--surface:#1b1b1d;--raised:#252527;--sunken:#141415;
+    --line:#2d2d30;--strong:#737378;--ink:#f2f2f0;--muted:#a6a6a3;--faint:#85857f;--inv:#111111;
+    --accent:#ff8a3d;--accent-ink:#111111;--accent-soft:#3a2416;
+    --ok:#5aa2ff;--warn:#f2c14e;--danger:#ff6b5e;
+    --viewport:#161618;--edge:#0a0a0b;--grid:#2a2a2e;
     color-scheme:dark;
   }
+}
+:root[data-theme="dark"]{
+  --page:#0a0a0b;--bg:#111112;--surface:#1b1b1d;--raised:#252527;--sunken:#141415;
+  --line:#2d2d30;--strong:#737378;--ink:#f2f2f0;--muted:#a6a6a3;--faint:#85857f;--inv:#111111;
+  --accent:#ff8a3d;--accent-ink:#111111;--accent-soft:#3a2416;
+  --ok:#5aa2ff;--warn:#f2c14e;--danger:#ff6b5e;
+  --viewport:#161618;--edge:#0a0a0b;--grid:#2a2a2e;
+  color-scheme:dark;
 }
