@@ -1,7 +1,43 @@
 """Periodic (wrap-around) filters. Wrapping keeps tiles seamless after filtering."""
 from __future__ import annotations
 
+import os
+from concurrent.futures import ThreadPoolExecutor
+
 import numpy as np
+
+# numpy's FFT releases the GIL, so independent transforms run in parallel on all cores.
+_POOL = ThreadPoolExecutor(max_workers=max(2, min(8, os.cpu_count() or 2)), thread_name_prefix="lumo-fft")
+
+
+def parallel(fn, items):
+    """map() on the shared thread pool (keeps order)."""
+    items = list(items)
+    if len(items) <= 1:
+        return [fn(x) for x in items]
+    return list(_POOL.map(fn, items))
+
+
+def gauss_transfer(shape: tuple[int, int], sigma: float) -> np.ndarray:
+    """Gaussian low-pass in the half spectrum of rfft2 (1 everywhere for a tiny sigma)."""
+    h, w = shape
+    if sigma <= 0.05:
+        return np.ones((h, w // 2 + 1), np.float32)
+    return _gauss_transfer(h, w, sigma)
+
+
+class Spectrum:
+    """rfft2 of an image, computed once; every filtered version costs a single inverse transform."""
+
+    def __init__(self, a: np.ndarray):
+        self.shape = a.shape[:2]
+        self.F = np.fft.rfft2(a.astype(np.float32, copy=False))
+
+    def apply(self, transfer: np.ndarray) -> np.ndarray:
+        return np.fft.irfft2(self.F * transfer, s=self.shape).astype(np.float32)
+
+    def blur(self, sigma: float) -> np.ndarray:
+        return self.apply(gauss_transfer(self.shape, sigma))
 
 
 def _gauss_transfer(h: int, w: int, sigma: float) -> np.ndarray:

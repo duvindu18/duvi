@@ -122,9 +122,13 @@ def _atomic_save(im: Image.Image, path: Path, **kw) -> None:
     os.replace(tmp, path)
 
 
+# zlib level 1: about 4x faster than the default 6, files roughly 10-20 % larger (maps are noisy anyway).
+PNG_LEVEL = 1
+
+
 def save_png8(a: np.ndarray, path: str | os.PathLike) -> None:
     u = to_uint8(a)
-    _atomic_save(Image.fromarray(u, "L" if u.ndim == 2 else "RGB"), Path(path), format="PNG", compress_level=6)
+    _atomic_save(Image.fromarray(u, "L" if u.ndim == 2 else "RGB"), Path(path), format="PNG", compress_level=PNG_LEVEL)
 
 
 def save_png16(gray: np.ndarray, path: str | os.PathLike) -> None:
@@ -132,7 +136,7 @@ def save_png16(gray: np.ndarray, path: str | os.PathLike) -> None:
         raise ValueError("16-bit PNG export is for single-channel maps")
     u = to_uint16(gray)
     im = Image.frombytes("I;16", (u.shape[1], u.shape[0]), u.astype("<u2").tobytes())
-    _atomic_save(im, Path(path), format="PNG", compress_level=6)
+    _atomic_save(im, Path(path), format="PNG", compress_level=PNG_LEVEL)
 
 
 def save_jpg(a: np.ndarray, path: str | os.PathLike, quality: int = 90) -> None:
@@ -142,3 +146,18 @@ def save_jpg(a: np.ndarray, path: str | os.PathLike, quality: int = 90) -> None:
 
 def save_rgba_png(rgba: np.ndarray, path: str | os.PathLike) -> None:
     _atomic_save(Image.fromarray(to_uint8(rgba), "RGBA"), Path(path), format="PNG", compress_level=6)
+
+
+def shrink(a: np.ndarray, max_edge: int) -> np.ndarray:
+    """Fast downscale for previews: whole-number box reduction, then a bilinear step for the rest."""
+    h, w = a.shape[:2]
+    f = max(1, max(h, w) // max_edge)
+    if f > 1:
+        hh, ww = (h // f) * f, (w // f) * f
+        b = a[:hh, :ww]
+        b = b.reshape(hh // f, f, ww // f, f, *a.shape[2:]).mean(axis=(1, 3)).astype(np.float32)
+    else:
+        b = a.astype(np.float32, copy=False)
+    if max(b.shape[:2]) > max_edge:
+        b = fit_within(b, max_edge)
+    return b

@@ -130,9 +130,14 @@ def main(argv: list[str] | None = None) -> int:
     if icon_file.exists():
         app.setWindowIcon(QIcon(str(icon_file)))
     theme.apply(app)
+    from .ui.splash import Splash
+    splash = Splash()
+    splash.start()
 
+    splash.set_status("Opening your library…")
     hub = Hub()
     hub.try_open_saved()
+    splash.set_status("Preparing the window…")
     win = MainWindow(hub)
     app.main_window = win   # for the exception hook
 
@@ -161,6 +166,7 @@ def main(argv: list[str] | None = None) -> int:
     server.newConnection.connect(on_connection)
 
     win.show()
+    splash.finish(win)
     if not hub.library:
         QTimer.singleShot(250, win.choose_library_first)
     if files:

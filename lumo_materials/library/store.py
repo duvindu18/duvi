@@ -27,6 +27,7 @@ import numpy as np
 
 from ..engine import adjust as adj
 from ..engine import imageio, render
+from ..engine.fftops import parallel
 from ..engine.seamless import seam_score
 from .paths import is_inside, refuse_reason, safe_name, unique_child
 from .settings import read_json, write_json_atomic
@@ -360,19 +361,66 @@ class Library:
                       else np.full((h, w), v, np.float32))
         return out
 
+    def load_preview_u8(self, mid: str, edge: int = 1024) -> dict[str, np.ndarray]:
+        """The six maps as small uint8 arrays for the 3D preview (RGBA for albedo / normal, single channel for the
+        rest). Decoded straight to 8 bit with whole-number reduction while reading: several times faster than
+        load_maps(max_edge=...), which works in float at full size."""
+        from PIL import Image
+        import io as _io
+        m = self.get(mid)
+        defaults = {"albedo": (128, 128, 128, 255), "normal": (128, 128, 255, 255), "roughness": 178, "metallic": 0,
+                    "height": 128, "ao": 255}
+
+        def read(name: str):
+            p = m.folder / MAP_FILES[name]
+            if not p.exists():
+                return name, None
+            im = Image.open(_io.BytesIO(p.read_bytes()))
+            factor = max(1, max(im.size) // edge)
+            if im.mode in ("I;16", "I;16B", "I;16L", "I"):
+                a = np.asarray(im)
+                a = (a.astype(np.uint32) >> 8).astype(np.uint8) if a.max() > 255 else a.astype(np.uint8)
+                im = Image.fromarray(a, "L")
+            elif name in ("albedo", "normal"):
+                im = im.convert("RGB")
+            else:
+                im = im.convert("L")
+            if factor > 1:
+                im = im.reduce(factor)
+            if max(im.size) > edge:
+                im.thumbnail((edge, edge), Image.BILINEAR)
+            if name in ("albedo", "normal"):
+                im = im.convert("RGBA")
+            return name, np.ascontiguousarray(np.asarray(im))
+
+        out = {k: v for k, v in parallel(read, list(MAP_FILES)) if v is not None}
+        if "albedo" not in out:
+            raise LibraryError(f"{m.name} has no albedo.png.", "broken")
+        h, w = out["albedo"].shape[:2]
+        for name, val in defaults.items():
+            if name not in out:
+                out[name] = (np.tile(np.array(val, np.uint8), (h, w, 1)) if isinstance(val, tuple)
+                             else np.full((h, w), val, np.uint8))
+            elif out[name].shape[:2] != (h, w):      # maps of different sizes: match the albedo
+                mode = "RGBA" if out[name].ndim == 3 else "L"
+                out[name] = np.asarray(Image.fromarray(out[name], mode).resize((w, h), Image.BILINEAR))
+        return out
+
     @staticmethod
     def _write_maps(folder: Path, maps: dict[str, np.ndarray]) -> None:
-        for name, fname in MAP_FILES.items():
-            if name not in maps:
-                continue
-            a = maps[name]
+        """Writes the six PNGs in parallel (Pillow compresses without holding the GIL)."""
+        def write(item):
+            name, fname = item
             if name == "height":
-                imageio.save_png16(a, folder / fname)
+                imageio.save_png16(maps[name], folder / fname)
             else:
-                imageio.save_png8(a, folder / fname)
+                imageio.save_png8(maps[name], folder / fname)
+        parallel(write, [(n, f) for n, f in MAP_FILES.items() if n in maps])
 
     @staticmethod
     def write_previews(folder: Path, maps: dict[str, np.ndarray], size: int = 384) -> None:
+        # a 384 px preview needs no more than 512 px textures: shrink first (fast box filter)
+        maps = {k: imageio.shrink(v, 512) for k, v in maps.items()}
         sph = render.sphere(maps, size=size)
         imageio.save_rgba_png(sph, folder / PREVIEW_FILES["sphere"])
         imageio.save_jpg(render.plane(maps, size=size), folder / PREVIEW_FILES["plane"], quality=88)

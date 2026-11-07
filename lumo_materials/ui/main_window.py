@@ -85,7 +85,7 @@ class MainWindow(FramelessWindow):
         self.sidebar.section.connect(self._section)
         self.sidebar.categoryChosen.connect(self._category)
         self.sidebar.categoryMenu.connect(self._category_menu)
-        self.library.currentChanged.connect(self.inspector.show_material)
+        self.library.currentChanged.connect(self._current_material)
         self.library.openEditor.connect(self._open_editor)
         self.library.requestExport.connect(self._export)
         self.library.requestNew.connect(self._sidebar_action)
@@ -300,6 +300,11 @@ class MainWindow(FramelessWindow):
             self.hub.error(str(ex))
         self.hub.changed.emit()
 
+    def _current_material(self, m) -> None:
+        self.inspector.show_material(m)
+        if m is not None:                    # the cards around it load in the background: next click is instant
+            self.inspector.prefetch(self.library.neighbours(m.id, 2))
+
     def _open_editor(self, mode: str, mid: str) -> None:
         if not self._leave_editor_if_needed():
             return
@@ -344,8 +349,8 @@ class MainWindow(FramelessWindow):
         try:
             if what == "move":
                 d = MoveDialog(self, lib, len(ids))
-                if d.exec() == 1 and d.cat.currentText().strip():
-                    lib.bulk(ids, category=d.cat.currentText().strip())
+                if d.exec() == 1 and d.cat.value():
+                    lib.bulk(ids, category=d.cat.value())
                     self.library.clear_checked()
             elif what == "tag":
                 d = TagDialog(self, len(ids))

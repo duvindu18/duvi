@@ -243,6 +243,12 @@ class GLViewer(QOpenGLWidget):
 
     def set_maps(self, maps_u8: dict[str, np.ndarray]) -> None:
         self._pending = maps_u8
+        self._blank = False
+        self.update()
+
+    def clear_maps(self) -> None:
+        self._pending = None
+        self._blank = True
         self.update()
 
     def _upload_textures(self) -> None:
@@ -276,7 +282,7 @@ class GLViewer(QOpenGLWidget):
             return
         if self._pending is not None:
             self._upload_textures()
-        if len(self.textures) < len(_TEX_ORDER):
+        if len(self.textures) < len(_TEX_ORDER) or getattr(self, "_blank", False):
             return
         f.glEnable(GL_DEPTH_TEST)
         f.glEnable(GL_CULL_FACE)
@@ -494,17 +500,35 @@ class MaterialView(QWidget):
             if self._u8 is not None:
                 self.gpu.set_maps(self._u8)
         else:
+            if self._float is None and self._u8 is not None:
+                self._float = meshes.u8_to_float(self._u8)
             if self._float is not None:
                 self.cpu.set_float_maps(self._float)
             self._spin.stop()
         self.usingFallback.emit(f"{RENDERER_LABELS.get(self._kind, self._kind)} in use; {reason}")
 
+    def clear(self) -> None:
+        """Shows nothing (never the previous material) until new maps arrive."""
+        self._float = self._u8 = None
+        self.cpu.clear()
+        if self.gpu is not None and hasattr(self.gpu, "clear_maps"):
+            self.gpu.clear_maps()
+
+    def set_u8(self, u8_maps: dict[str, np.ndarray]) -> None:
+        """Preview maps straight from Library.load_preview_u8 (no float copies needed for the GPU views)."""
+        self._u8 = u8_maps
+        self._float = None
+        if self.gpu is not None:
+            self.gpu.set_maps(u8_maps)
+        else:
+            self._float = meshes.u8_to_float(u8_maps)
+            self.cpu.set_float_maps(self._float)
+
     def set_maps(self, float_maps: dict[str, np.ndarray] | None, u8_maps: dict[str, np.ndarray] | None = None):
         """float_maps: preview-sized engine maps; u8_maps: meshes.maps_to_u8(float_maps) (made in a worker)."""
         self._float = float_maps
         if float_maps is None:
-            self._u8 = None
-            self.cpu.clear()
+            self.clear()
             return
         self._u8 = u8_maps if u8_maps is not None else meshes.maps_to_u8(float_maps)
         if self.gpu is not None:

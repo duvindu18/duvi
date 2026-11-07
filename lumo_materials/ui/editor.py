@@ -23,10 +23,11 @@ from ..engine.seamless import MODES
 from ..library.drafts import Draft
 from ..library.store import UNCATEGORIZED
 from . import theme
-from .dialogs import ask, category_combo
+from .dialogs import ask
 from .hub import Hub
 from .inspector import MapStrip, ViewerCard
-from .widgets import ChoiceRow, FillSlider, Segmented, TagEdit, ToggleRow, button, clear_layout, label
+from .widgets import (CategoryPicker, ChoiceRow, FillSlider, Segmented, TagInput, ToggleRow, button, clear_layout,
+                      label)
 from .workers import Debouncer
 from ..jobs import (job_adjust_preview, job_assemble_preview, job_load_base, job_load_source,
                     job_photo_preview, job_save_adjust, job_save_import, job_save_photo)
@@ -106,9 +107,7 @@ class EditorPage(QWidget):
         self.h_title = label("New material", "crumbNow")
         hl.addWidget(self.h_title)
         hl.addStretch(1)
-        self.chip = label("", "badge")
-        hl.addWidget(self.chip)
-        hl.addSpacing(146)
+        hl.addSpacing(146)          # caption buttons
         root.addWidget(self.header)
 
         body = QHBoxLayout()
@@ -154,22 +153,20 @@ class EditorPage(QWidget):
         sb = QVBoxLayout(self.save_box)
         sb.setContentsMargins(16, 12, 16, 14)
         sb.setSpacing(8)
-        self.save_mode = Segmented([("replace", "Replace"), ("copy", "Save as copy")], "replace")
+        self.save_mode = Segmented([("replace", "Replace"), ("copy", "Save as copy")], "replace", height=32)
         self.save_mode.changed.connect(self._save_mode_changed)
         sb.addWidget(self.save_mode)
         self.e_name = QLineEdit()
         self.e_name.setPlaceholderText("Name")
         self.e_name.textEdited.connect(self._touch)
-        self.e_cat = category_combo(hub.library)
-        self.e_cat.currentTextChanged.connect(self._touch)
-        self.e_tags = TagEdit()
-        self.e_tags.textEdited.connect(self._touch)
+        self.e_name.setFixedHeight(32)
+        self.e_cat = CategoryPicker()
+        self.e_cat.picked.connect(self._touch)
+        self.e_tags = TagInput()
+        self.e_tags.changed.connect(self._touch)
         sb.addWidget(self.e_name)
-        r = QHBoxLayout()
-        r.setSpacing(8)
-        r.addWidget(self.e_cat, 1)
-        r.addWidget(self.e_tags, 1)
-        sb.addLayout(r)
+        sb.addWidget(self.e_cat)
+        sb.addWidget(self.e_tags)
         self.r_size = ChoiceRow("Output size", OUTPUT_SIZES, str(hub.settings.get("default_output_px") or 2048))
         self.r_size.changed.connect(lambda v: (self.hub.settings.set("default_output_px", int(v)), self._update_status()))
         sb.addWidget(self.r_size)
@@ -214,21 +211,20 @@ class EditorPage(QWidget):
         self.card.view.set_maps(None)
         self.strip.set_maps(None)
         self.status.setText("")
-        self.chip.setText("")
-        self.chip.hide()
+        self.generated_text = ""
+        self.generated_note = None
+        self.draft_from_list = False
         self.progress.hide()
         self.p_text.hide()
         self.b_save.setEnabled(True)
-        self.e_cat.clear()
-        self.e_cat.addItems([c for c, _ in self.hub.library.categories()] if self.hub.library else [])
+        self.card.loading(None)              # skeleton until the first preview is ready
 
     def _set_meta(self, name: str, category: str, tags: list[str]) -> None:
+        """Fills name, category and tags. Programmatic: never counts as a change (no 'Keep changes?' prompt)."""
+        lib = self.hub.library
         self.e_name.setText(name)
-        i = self.e_cat.findText(category)
-        if i >= 0:
-            self.e_cat.setCurrentIndex(i)
-        else:
-            self.e_cat.setEditText(category or UNCATEGORIZED)
+        self.e_cat.set_categories([c for c, _ in lib.categories()] if lib else [], category or UNCATEGORIZED)
+        self.e_tags.set_suggestions([t for t, _ in lib.tags()] if lib else [])
         self.e_tags.setTags(tags)
 
     def start_photo(self, path: str, category: str | None = None) -> None:
@@ -241,7 +237,7 @@ class EditorPage(QWidget):
         self.source = str(self.draft.source)
         self.source_label = Path(path).name
         self._set_meta(name, category or UNCATEGORIZED, [])
-        self.dirty = True
+        self.dirty = False
         self._enter()
 
     def start_regenerate(self, mid: str) -> None:
@@ -272,7 +268,7 @@ class EditorPage(QWidget):
         name = re.sub(r"\b(Normal|Rough(ness)?|Metal(lic|ness)?|Height|Displacement|Ao|Orm|Gl|Dx)\b", "", name).strip() or name
         self.params = for_preset(guess_preset(name))
         self._set_meta(name, category or UNCATEGORIZED, [])
-        self.dirty = True
+        self.dirty = False
         self._enter()
 
     def start_adjust(self, mid: str) -> None:
@@ -320,7 +316,8 @@ class EditorPage(QWidget):
         self.draft = d
         self._set_meta(d.name or (m.name if m else "New material"), d.category or (m.category if m else UNCATEGORIZED),
                        d.tags or (m.tags if m else []))
-        self.dirty = True
+        self.dirty = False
+        self.draft_from_list = True           # reopened from Drafts: leaving unchanged keeps it
         self._enter()
 
     def _enter(self) -> None:
@@ -468,6 +465,9 @@ class EditorPage(QWidget):
         self.file_rows.setSpacing(6)
         lay.addLayout(self.file_rows)
         self._fill_file_rows()
+        self.generated_note = label("Reading the files…", "muted", wrap=True)
+        self.generated_note.setStyleSheet(f"font-size: 12px; color: {theme.MUTED};")
+        lay.addWidget(self.generated_note)
         row = QHBoxLayout()
         row.addWidget(button("Add files…", "import", on_click=self._add_files))
         row.addStretch(1)
@@ -666,8 +666,10 @@ class EditorPage(QWidget):
     def _import_base_done(self, result) -> None:
         self.base, generated, self.full_size = result
         self.last = self.last_adjust = None
-        self.chip.setText("Generated: " + ", ".join(generated) if generated else "")
-        self.chip.setVisible(bool(generated))
+        self.generated_text = ", ".join(generated)
+        if getattr(self, "generated_note", None) is not None:
+            self.generated_note.setText(f"Made from the albedo: {self.generated_text}." if generated else
+                                        "Every map comes from your files.")
         self._run_adjust_preview()
 
     def _adjust_done(self, result, params) -> None:
@@ -679,12 +681,14 @@ class EditorPage(QWidget):
         self.last = maps
         self.card.view.set_maps(maps, u8)
         self.strip.set_maps(maps)
+        self.card.loaded()
         self._score = score
         self._ms = ms
         self._update_status()
 
     def _preview_failed(self, msg: str) -> None:
         self.status.setText("")
+        self.card.loaded()
         self.hub.error(msg)
 
     def _update_status(self) -> None:
@@ -712,20 +716,20 @@ class EditorPage(QWidget):
 
     # ================================================================ save / leave
     def _save_mode_changed(self, mode: str) -> None:
-        editable = not (self.mode == "regenerate" or (self.mode == "adjust" and mode == "replace"))
-        for w in (self.e_name, self.e_cat, self.e_tags):
-            w.setEnabled(editable)
-        if self.mode == "adjust" and mode == "copy" and self.material_id:
+        # name, category and tags stay editable in every mode; "Replace" applies them to the material itself
+        if self.mode == "adjust" and self.material_id:
             base = self.hub.library.get(self.material_id).name
-            if self.e_name.text() == base:
+            if mode == "copy" and self.e_name.text() == base:
                 self.e_name.setText(f"{base} adjusted")
+            elif mode == "replace" and self.e_name.text() == f"{base} adjusted":
+                self.e_name.setText(base)
 
     def save(self) -> None:
         lib = self.hub.library
         if self.saving or not lib:
             return
         name = self.e_name.text().strip() or "New material"
-        cat = self.e_cat.currentText().strip() or UNCATEGORIZED
+        cat = self.e_cat.value() or UNCATEGORIZED
         tags = self.e_tags.tags()
         if self.mode == "import" and not any(a.role != "ignore" for a in self.assignments):
             self.hub.error("Assign at least one file to a map.")
@@ -785,7 +789,7 @@ class EditorPage(QWidget):
         self.hub.draftsChanged.emit()
 
     def _keep_draft(self) -> None:
-        meta = dict(name=self.e_name.text().strip(), category=self.e_cat.currentText().strip(),
+        meta = dict(name=self.e_name.text().strip(), category=self.e_cat.value(),
                     tags=self.e_tags.tags(), generation=self.params.to_dict(), adjustments=adj.clone(self.adjust))
         if self.draft is None:
             self.draft = self.hub.drafts.new(self.mode, material_id=self.material_id, **meta)
@@ -829,7 +833,9 @@ class EditorPage(QWidget):
             else:
                 self._drop_drafts()
         else:
-            if self.mode in ("photo", "import"):
+            # nothing changed: no question. A brand-new, untouched photo / import is simply dropped;
+            # a draft reopened from Drafts stays as it was.
+            if self.mode in ("photo", "import") and not self.draft_from_list:
                 self._drop_drafts()
         self.dirty = False
         self.card.view.set_option("spin", False)

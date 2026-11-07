@@ -2,25 +2,32 @@
 from __future__ import annotations
 
 import numpy as np
-from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QFontMetrics, QImage, QPixmap
+from PySide6.QtCore import QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QFontMetrics, QImage, QImageReader, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QMenu, QScrollArea, QVBoxLayout, QWidget
 
 from ..engine.imageio import fit_within, to_uint8
 from ..library.store import Material
-from . import icons, meshes, theme
+from . import icons, theme
 from .hub import Hub
 from .library_page import ago
 from .viewer import BACKGROUNDS, DISPLAY, LIGHTS, SHAPES, MaterialView
-from .widgets import ChoiceRow, FillSlider, Segmented, button, clear_layout, label
+from .widgets import (ChoiceRow, FillSlider, PreviewPlaceholder, Segmented, ShimmerClock, button, clear_layout,
+                      label, shimmer_brush)
 
 
 def gray_or_rgb_pixmap(a: np.ndarray, size: int) -> QPixmap:
-    u = to_uint8(fit_within(a, size))
-    if u.ndim == 2:
-        u = np.repeat(u[..., None], 3, axis=2)
-    u = np.ascontiguousarray(u)
-    img = QImage(u.tobytes(), u.shape[1], u.shape[0], u.shape[1] * 3, QImage.Format.Format_RGB888).copy()
+    """Small pixmap of a map; accepts float maps (0..1) and uint8 preview maps (L / RGB / RGBA)."""
+    if a.dtype != np.uint8:
+        a = to_uint8(fit_within(a, size))
+    if a.ndim == 3 and a.shape[2] == 4:
+        a = a[..., :3]
+    if a.ndim == 2:
+        a = np.repeat(a[..., None], 3, axis=2)
+    a = np.ascontiguousarray(a)
+    img = QImage(a.tobytes(), a.shape[1], a.shape[0], a.shape[1] * 3, QImage.Format.Format_RGB888).copy()
+    if max(img.width(), img.height()) > size:
+        img = img.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
     return QPixmap.fromImage(img)
 
 
@@ -29,15 +36,62 @@ def maps_signature(m: Material) -> tuple:
         stamp = (m.folder / "albedo.png").stat().st_mtime_ns
     except OSError:
         stamp = 0
-    return str(m.folder), stamp, m.width, m.height
+    return m.id, str(m.folder), stamp, m.width, m.height
 
 
-class ClickLabel(QLabel):
+def thumbnail_pixmap(m: Material, size: int = 320) -> QPixmap | None:
+    """The saved sphere preview, decoded small (shown at once while the 3D maps load)."""
+    p = m.preview_path("sphere")
+    if p is None:
+        return None
+    r = QImageReader(str(p))
+    sz = r.size()
+    if sz.isValid() and max(sz.width(), sz.height()) > size:
+        k = size / max(sz.width(), sz.height())
+        r.setScaledSize(QSize(max(1, round(sz.width() * k)), max(1, round(sz.height() * k))))
+    img = r.read()
+    return QPixmap.fromImage(img) if not img.isNull() else None
+
+
+class MapTile(QLabel):
+    """One map thumbnail; shimmers while its material loads."""
     clicked = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.loading = False
+        self.active = False
 
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
+
+    def set_loading(self, on: bool) -> None:
+        self.loading = on
+        if on:
+            self.clear()
+            ShimmerClock.get().add(self)
+        else:
+            ShimmerClock.get().discard(self)
+        self.update()
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        path = QPainterPath()
+        path.addRoundedRect(r, 6, 6)
+        if self.loading or self.pixmap() is None or self.pixmap().isNull():
+            p.fillPath(path, shimmer_brush(r, ShimmerClock.get().phase()) if self.loading else QColor("#151517"))
+        else:
+            p.setClipPath(path)
+            p.drawPixmap(self.rect(), self.pixmap())
+            p.setClipping(False)
+        p.setPen(QPen(QColor("#d8d8db" if self.active else theme.LINE), 1.5 if self.active else 1))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawRoundedRect(r, 6, 6)
+        p.end()
 
 
 class MapStrip(QWidget):
@@ -47,20 +101,19 @@ class MapStrip(QWidget):
     NAMES = [("albedo", "Albedo"), ("normal", "Normal"), ("roughness", "Rough"), ("metallic", "Metal"),
              ("height", "Height"), ("ao", "AO")]
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, tile: int = 44):
         super().__init__(parent)
         lay = QGridLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.setHorizontalSpacing(6)
-        lay.setVerticalSpacing(4)
-        self.thumbs: dict[str, QLabel] = {}
+        lay.setHorizontalSpacing(8)
+        lay.setVerticalSpacing(5)
+        self.thumbs: dict[str, MapTile] = {}
         self.active = "lit"
         for i, (key, text) in enumerate(self.NAMES):
-            t = ClickLabel()
-            t.setFixedSize(46, 46)
-            t.setScaledContents(True)
+            t = MapTile()
+            t.setFixedSize(tile, tile)
             t.setCursor(Qt.CursorShape.PointingHandCursor)
-            t.setToolTip(f"Show only the {text.lower()} map")
+            t.setToolTip(f"Show only the {text.lower()} map (click again for the lit view)")
             t.clicked.connect(lambda k=key: self._click(k))
             self.thumbs[key] = t
             lay.addWidget(t, 0, i, Qt.AlignmentFlag.AlignHCenter)
@@ -68,6 +121,7 @@ class MapStrip(QWidget):
             lb.setStyleSheet(f"font-size: 10px; color: {theme.MUTED};")
             lb.setAlignment(Qt.AlignmentFlag.AlignCenter)
             lay.addWidget(lb, 1, i)
+            lay.setColumnStretch(i, 1)
         self._style()
 
     def _click(self, key: str):
@@ -81,43 +135,79 @@ class MapStrip(QWidget):
 
     def _style(self):
         for k, t in self.thumbs.items():
-            col = "#d8d8db" if k == self.active else theme.LINE
-            t.setStyleSheet(f"border: 1px solid {col}; border-radius: 6px; background: #111112;")
+            t.active = k == self.active
+            t.update()
+
+    def set_loading(self) -> None:
+        for t in self.thumbs.values():
+            t.set_loading(True)
 
     def set_maps(self, maps: dict[str, np.ndarray] | None) -> None:
         for k, t in self.thumbs.items():
+            t.set_loading(False)
             if maps and k in maps:
-                t.setPixmap(gray_or_rgb_pixmap(maps[k], 92))
+                t.setPixmap(gray_or_rgb_pixmap(maps[k], 96))
             else:
                 t.clear()
 
 
 class ViewerCard(QFrame):
-    """MaterialView with the shape switch and spin button on top."""
+    """The 3D view with its own toolbar row (shape, display mode, spin): nothing sits on top of the material."""
 
-    def __init__(self, parent=None, height: int = 250):
+    def __init__(self, parent=None, height: int = 300):
         super().__init__(parent)
-        self.setStyleSheet(f"ViewerCard {{ border: 1px solid {theme.LINE}; border-radius: 10px; background: #121214; }}")
-        self.view = MaterialView()
+        self.setObjectName("ViewerCard")
+        self.setStyleSheet(f"QFrame#ViewerCard {{ border: 1px solid {theme.LINE}; border-radius: 10px; background: #121214; }}"
+                           f"QWidget#ViewerBar {{ border-bottom: 1px solid {theme.LINE}; background: transparent; }}")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(1, 1, 1, 1)
-        lay.addWidget(self.view)
-        if height:
-            self.setMinimumHeight(height)
-        self.shape = Segmented(SHAPES, "sphere", self)
-        self.shape.setStyleSheet(self.shape.styleSheet() + "Segmented { background: #121214; }")
+        lay.setSpacing(0)
+        bar = QWidget()
+        bar.setObjectName("ViewerBar")
+        bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        bar.setFixedHeight(42)
+        bl = QHBoxLayout(bar)
+        bl.setContentsMargins(8, 0, 8, 0)
+        bl.setSpacing(6)
+        self.shape = Segmented(SHAPES, "sphere")
         self.shape.changed.connect(lambda k: self.view.set_option("shape", k))
-        self.shape.adjustSize()          # positioned by hand (not in a layout), so it must size itself
-        self.shape.move(10, 10)
-        self.spin = button("", "regen", "ghost", "Spin", checkable=True)
-        self.spin.setParent(self)
-        self.spin.setFixedSize(28, 28)
-        self.spin.toggled.connect(lambda on: self.view.set_option("spin", on))
-        self.mode = button("Lit", None, "ghost")
-        self.mode.setParent(self)
-        self.mode.setStyleSheet("font-size: 11px; min-height: 26px; padding: 0 8px; font-weight: 400;")
+        bl.addWidget(self.shape)
+        bl.addStretch(1)
+        self.mode = button("Lit", "caret", "ghost", "What the view shows: the lit material or one map")
+        self.mode.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self.mode.setFixedHeight(28)
+        self.mode.setStyleSheet("QPushButton { min-height: 26px; padding: 0 8px; font-size: 12px; font-weight: 400; }")
         self.mode.clicked.connect(self._mode_menu)
+        bl.addWidget(self.mode)
+        self.spin = button("", "regen", "ghost", "Spin the preview", checkable=True)
+        self.spin.setFixedSize(28, 28)
+        self.spin.setStyleSheet("QPushButton { min-height: 26px; padding: 0; }")
+        bl.addWidget(self.spin)
+        lay.addWidget(bar)
+        self.view_host = QWidget()
+        vh = QVBoxLayout(self.view_host)
+        vh.setContentsMargins(0, 0, 0, 0)
+        self.view = MaterialView()
+        vh.addWidget(self.view)
+        self.placeholder = PreviewPlaceholder(self.view_host)
+        lay.addWidget(self.view_host, 1)
+        if height:
+            self.view_host.setMinimumHeight(height)
+        self.spin.toggled.connect(lambda on: self.view.set_option("spin", on))
         self.view.usingFallback.connect(lambda _r: self.spin.setEnabled(self.view.gpu is not None))
+
+    # loading state -------------------------------------------------------------
+    def loading(self, pixmap: QPixmap | None = None) -> None:
+        self.view.clear()
+        self.placeholder.setGeometry(self.view_host.rect())
+        self.placeholder.start(pixmap)
+
+    def loaded(self) -> None:
+        self.placeholder.stop()
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self.placeholder.setGeometry(self.view_host.rect())
 
     def _mode_menu(self):
         m = QMenu(self)
@@ -135,15 +225,6 @@ class ViewerCard(QFrame):
 
     def modeChanged(self, key: str) -> None:   # overridden by owners that mirror the mode elsewhere
         pass
-
-    def resizeEvent(self, e):
-        super().resizeEvent(e)
-        self.spin.move(self.width() - 38, 10)
-        self.mode.adjustSize()
-        self.mode.move(self.width() - 46 - self.mode.width(), 11)
-        self.shape.raise_()
-        self.spin.raise_()
-        self.mode.raise_()
 
 
 class Inspector(QWidget):
@@ -187,10 +268,10 @@ class Inspector(QWidget):
         scroll.setWidget(host)
         root.addWidget(scroll, 1)
 
-        self.card = ViewerCard()
+        self.card = ViewerCard(height=300)
         self.card.modeChanged = lambda k: self.strip.set_active(k)
         self.body.addWidget(self.card)
-        self.body.addSpacing(10)
+        self.body.addSpacing(12)
         self.strip = MapStrip()
         self.strip.chosen.connect(self.card.set_mode)
         self.body.addWidget(self.strip)
@@ -234,7 +315,7 @@ class Inspector(QWidget):
 
     def _section(self, text: str) -> QLabel:
         lb = label(text, "section")
-        lb.setContentsMargins(0, 18, 0, 8)
+        lb.setContentsMargins(0, 20, 0, 8)
         return lb
 
     def _opt(self, key: str, value) -> None:
@@ -262,11 +343,12 @@ class Inspector(QWidget):
         clear_layout(self.details)
         for i, (k, v, colour) in enumerate(rows):
             kl = label(k)
-            kl.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px; padding: 6px 0; border-bottom: 1px solid {theme.LINE};")
+            kl.setFixedHeight(30)
+            kl.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px; border-bottom: 1px solid {theme.LINE};")
             vl = label(v)
+            vl.setFixedHeight(30)
             vl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            vl.setStyleSheet(f"color: {colour or theme.TEXT_2}; font-size: 12px; padding: 6px 0;"
-                             f" border-bottom: 1px solid {theme.LINE};")
+            vl.setStyleSheet(f"color: {colour or theme.TEXT_2}; font-size: 12px; border-bottom: 1px solid {theme.LINE};")
             vl.setToolTip(v)
             fm = QFontMetrics(vl.font())
             vl.setText(fm.elidedText(v, Qt.TextElideMode.ElideMiddle, 200))
@@ -282,13 +364,16 @@ class Inspector(QWidget):
             w.setEnabled(has)
         if not has:
             self.loaded_sig = None
-            self.title.setText("")
-            self.card.view.set_maps(None)
+            self.title.setText("Nothing selected")
+            self.title.setStyleSheet(f"color: {theme.MUTED};")
+            self.card.loaded()
+            self.card.view.clear()
             self.strip.set_maps(None)
             lib = self.hub.library
             self._set_details([("Library", str(lib.root) if lib else "not chosen", None),
                                ("Materials", str(lib.count()) if lib else "0", None)])
             return
+        self.title.setStyleSheet("")
         fm = QFontMetrics(self.title.font())
         self.title.setText(fm.elidedText(m.name, Qt.TextElideMode.ElideRight, 140))
         self.title.setToolTip(m.name)
@@ -302,25 +387,52 @@ class Inspector(QWidget):
         if m.description:
             rows.append(("Description", m.description, None))
         self._set_details(rows)
-        if not reload and self.loaded_sig == maps_signature(m):
+        sig = maps_signature(m)
+        if not reload and self.loaded_sig == sig:
             return
-        self.loaded_sig = maps_signature(m)
-        lib = self.hub.library
-        mid = m.id
+        self.loaded_sig = sig
+        cached = self.hub.previews.get(sig)
+        if cached is not None:                      # seen recently: no loading at all
+            self._show_maps(sig, cached)
+            return
+        # at once: drop the previous material, show this one's saved thumbnail with a shimmer
+        self.card.loading(thumbnail_pixmap(m))
+        self.strip.set_loading()
+        lib, cache = self.hub.library, self.hub.previews
 
         def load():
-            maps = lib.load_maps(mid, max_edge=1024)
-            return maps, meshes.maps_to_u8(maps)
+            maps = lib.load_preview_u8(m.id, 1024)
+            cache.put(sig, maps)                    # kept even if the user has moved on meanwhile
+            return maps
 
-        self.hub.runner.run("inspector", load, on_done=lambda r: self._maps_loaded(mid, r),
-                            on_error=lambda msg: self.hub.error(f"Could not load {m.name}: {msg}"))
+        self.hub.runner.run("inspector", load, on_done=lambda r: self._show_maps(sig, r),
+                            on_error=lambda msg: (self.card.loaded(), self.hub.error(f"Could not load {m.name}: {msg}")))
 
-    def _maps_loaded(self, mid: str, result) -> None:
-        if not self.material or self.material.id != mid:
+    def _show_maps(self, sig: tuple, maps: dict) -> None:
+        if self.loaded_sig != sig:
             return
-        maps, u8 = result
-        self.card.view.set_maps(maps, u8)
+        self.card.view.set_u8(maps)
         self.strip.set_maps(maps)
+        self.card.loaded()
+
+    def prefetch(self, materials: list[Material]) -> None:
+        """Loads the neighbours of the current card in the background, so the next click shows at once."""
+        lib, cache = self.hub.library, self.hub.previews
+        todo = [(maps_signature(m), m.id) for m in materials]
+        todo = [(sig, mid) for sig, mid in todo if sig not in cache]
+        if not lib or not todo:
+            return
+
+        def work():
+            for sig, mid in todo:
+                if sig not in cache:
+                    try:
+                        cache.put(sig, lib.load_preview_u8(mid, 1024))
+                    except Exception:
+                        pass
+            return None
+
+        self.hub.runner.run("prefetch", work)
 
     def sizeHint(self):
         return QSize(340, 600)

@@ -33,6 +33,39 @@ def _sample(tex: np.ndarray, u: np.ndarray, v: np.ndarray) -> np.ndarray:
     return a * (1 - fy) + b * fy
 
 
+_PACK = (("albedo", 3), ("normal", 3), ("roughness", 1), ("metallic", 1), ("ao", 1))
+
+
+def _sample_all(m: dict[str, np.ndarray], u: np.ndarray, v: np.ndarray) -> dict[str, np.ndarray]:
+    """Bilinear sampling of all maps at once: one packed texture, four gathers (instead of four per map)."""
+    h, w = m["albedo"].shape[:2]
+    chans = []
+    for name, n in _PACK:
+        a = m[name]
+        if a.shape[:2] != (h, w):
+            a = resize(a, w, h)
+        chans.append(a.reshape(h, w, n) if a.ndim == 2 else a)
+    tex = np.concatenate(chans, axis=2).astype(np.float32).reshape(h * w, -1)
+    x = np.mod(u * w, w)
+    y = np.mod(v * h, h)
+    xf, yf = np.floor(x), np.floor(y)
+    x0 = xf.astype(np.int64) % w
+    y0 = yf.astype(np.int64) % h
+    x1 = (x0 + 1) % w
+    y1 = (y0 + 1) % h
+    fx = (x - xf).astype(np.float32)[..., None]
+    fy = (y - yf).astype(np.float32)[..., None]
+    r0, r1 = y0 * w, y1 * w
+    top = tex[r0 + x0] * (1 - fx) + tex[r0 + x1] * fx
+    bot = tex[r1 + x0] * (1 - fx) + tex[r1 + x1] * fx
+    out = top * (1 - fy) + bot * fy
+    res, i = {}, 0
+    for name, n in _PACK:
+        res[name] = out[..., i:i + n] if n > 1 else out[..., i]
+        i += n
+    return res
+
+
 def _aces(c: np.ndarray) -> np.ndarray:
     return np.clip((c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14), 0, 1)
 
@@ -88,11 +121,10 @@ def sphere(maps: dict[str, np.ndarray], size: int = 384, tiles: float = 1.5, sup
     u = (phi / (2 * np.pi) + 0.5) * tiles * 2
     v = theta / np.pi * tiles
 
-    A = np.power(np.clip(_sample(m["albedo"], u, v), 0, 1), 2.2)
-    tn = _sample(m["normal"], u, v) * 2 - 1
-    R = _sample(m["roughness"], u, v)
-    M = _sample(m["metallic"], u, v)
-    AO = _sample(m["ao"], u, v)
+    smp = _sample_all(m, u, v)
+    A = np.power(np.clip(smp["albedo"], 0, 1), 2.2)
+    tn = smp["normal"] * 2 - 1
+    R, M, AO = smp["roughness"], smp["metallic"], smp["ao"]
 
     Ng = np.stack([x, y, z], -1)
     T = np.stack([np.cos(phi - 0.6), np.zeros_like(x), -np.sin(phi - 0.6)], -1)
@@ -117,13 +149,13 @@ def plane(maps: dict[str, np.ndarray], size: int = 384, tiles: int = 2) -> np.nd
     yy, xx = np.mgrid[0:size, 0:size].astype(np.float32)
     u = (xx + 0.5) / size * tiles
     v = (yy + 0.5) / size * tiles
-    A = np.power(np.clip(_sample(m["albedo"], u, v), 0, 1), 2.2)
-    tn = _sample(m["normal"], u, v) * 2 - 1
+    smp = _sample_all(m, u, v)
+    A = np.power(np.clip(smp["albedo"], 0, 1), 2.2)
+    tn = smp["normal"] * 2 - 1
     N = np.stack([tn[..., 0], tn[..., 1], np.maximum(tn[..., 2], 0.05)], -1)
     N /= np.maximum(np.linalg.norm(N, axis=-1, keepdims=True), 1e-6)
     # plane faces the viewer: tangent x = right, y = up, z = out of the screen
-    col = _shade(N, np.array([0, 0, 1.0], np.float32), A, _sample(m["roughness"], u, v),
-                 _sample(m["metallic"], u, v), _sample(m["ao"], u, v))
+    col = _shade(N, np.array([0, 0, 1.0], np.float32), A, smp["roughness"], smp["metallic"], smp["ao"])
     return np.power(_aces(col * 0.85), 1 / 2.2).astype(np.float32)
 
 

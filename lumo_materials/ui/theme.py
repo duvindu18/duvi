@@ -123,6 +123,7 @@ QToolButton:hover {{ background: {HOVER}; }}
 
 QLineEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox {{ background: #111112; border: 1px solid {LINE_2};
     border-radius: 7px; padding: 5px 10px; selection-background-color: #3a3a40; }}
+QLineEdit {{ min-height: 20px; }}
 QLineEdit:focus, QPlainTextEdit:focus {{ border-color: #4a4a50; }}
 QLineEdit[role="search"] {{ border: none; background: transparent; padding: 0px; }}
 

@@ -47,6 +47,21 @@ def job_load_base(lib, mid: str, preview_px: int):
     return maps, (m.width, m.height)
 
 
+def _apply_meta(lib, mid: str, name: str, category: str, tags: list[str]) -> str:
+    """Name, category and tags edited in the editor also apply when maps are replaced in place."""
+    m = lib.get(mid)
+    changes = {}
+    if name and name != m.name:
+        changes["name"] = name
+    if category and category != m.category:
+        changes["category"] = category
+    if tags is not None and list(tags) != list(m.tags):
+        changes["tags"] = tags
+    if changes:
+        lib.update(mid, **changes)
+    return mid
+
+
 def _resize_longest(a: np.ndarray, edge: int) -> np.ndarray:
     h, w = a.shape[:2]
     s = edge / max(h, w)
@@ -62,7 +77,8 @@ def job_save_photo(lib, source: str, params: GenParams, size: int, name: str, ca
     maps = gen.generate(src, params)
     sub = lambda f, s="": report(0.5 + 0.5 * f, s)  # noqa: E731
     if replace_id:
-        return lib.replace_maps(replace_id, maps, generation=params.to_dict(), source=source, progress=sub).id
+        mid = lib.replace_maps(replace_id, maps, generation=params.to_dict(), source=source, progress=sub).id
+        return _apply_meta(lib, mid, name, category, tags)
     return lib.create(maps, name, category, tags=tags, origin="photo", generation=params.to_dict(), source=source,
                       progress=sub).id
 
@@ -89,7 +105,8 @@ def job_save_adjust(lib, mid: str, adjust_params: dict, mode: str, name: str, ca
     final = adj.apply(originals, adjust_params)
     sub = lambda f, s="": report(0.5 + 0.5 * f, s)  # noqa: E731
     if mode == "replace":
-        return lib.replace_maps(mid, final, originals=originals, adjustments=adjust_params, progress=sub).id
+        lib.replace_maps(mid, final, originals=originals, adjustments=adjust_params, progress=sub)
+        return _apply_meta(lib, mid, name, category, tags)
     return lib.create(final, name, category, tags=tags, description=m.description, origin=m.origin,
                       generation=m.generation, source=m.source_path, originals=originals,
                       adjustments=adjust_params, progress=sub).id

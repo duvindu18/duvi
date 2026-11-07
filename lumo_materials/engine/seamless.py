@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from .fftops import parallel
 from .imageio import resize
 
 MODES = ("periodic", "blend", "mirror", "off")
@@ -10,28 +11,29 @@ MODES = ("periodic", "blend", "mirror", "off")
 
 def _periodic_channel(u: np.ndarray) -> np.ndarray:
     # Moisan, "Periodic plus smooth image decomposition" (2011): u = p + s, p periodic, s smooth.
+    # Real-to-complex transforms (half spectrum): twice as fast as a complex FFT, same result.
+    u = u.astype(np.float32, copy=False)
     h, w = u.shape
-    v = np.zeros_like(u, dtype=np.float64)
+    v = np.zeros((h, w), np.float32)
     v[0, :] += u[-1, :] - u[0, :]
     v[-1, :] += u[0, :] - u[-1, :]
     v[:, 0] += u[:, -1] - u[:, 0]
     v[:, -1] += u[:, 0] - u[:, -1]
-    q = np.arange(h).reshape(h, 1)
-    r = np.arange(w).reshape(1, w)
+    q = np.arange(h, dtype=np.float64).reshape(h, 1)
+    r = np.arange(w // 2 + 1, dtype=np.float64).reshape(1, -1)
     denom = 2.0 * np.cos(2.0 * np.pi * q / h) + 2.0 * np.cos(2.0 * np.pi * r / w) - 4.0
     denom[0, 0] = 1.0
-    s_hat = np.fft.fft2(v) / denom
+    s_hat = np.fft.rfft2(v) / denom
     s_hat[0, 0] = 0.0
-    s = np.real(np.fft.ifft2(s_hat))
-    return (u - s).astype(np.float32)
+    return (u - np.fft.irfft2(s_hat, s=(h, w))).astype(np.float32)
 
 
 def periodic(a: np.ndarray) -> np.ndarray:
     """Removes the edge discontinuity while keeping all detail (FFT based)."""
     if a.ndim == 2:
         return np.clip(_periodic_channel(a), 0, 1)
-    out = np.stack([_periodic_channel(a[..., c]) for c in range(a.shape[2])], axis=2)
-    return np.clip(out, 0, 1).astype(np.float32)
+    chans = parallel(_periodic_channel, [a[..., c] for c in range(a.shape[2])])
+    return np.clip(np.stack(chans, axis=2), 0, 1).astype(np.float32)
 
 
 def _ramp(n: int, width: float) -> np.ndarray:

@@ -22,6 +22,39 @@ def app_dir() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+class PreviewCache:
+    """Recently shown materials as uint8 preview maps (about 12 MB each at 1024 px). Thread-safe."""
+
+    def __init__(self, size: int = 10):
+        import threading
+        from collections import OrderedDict
+        self.size = size
+        self._d: "OrderedDict[tuple, dict]" = OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, key):
+        with self._lock:
+            v = self._d.get(key)
+            if v is not None:
+                self._d.move_to_end(key)
+            return v
+
+    def put(self, key, value) -> None:
+        with self._lock:
+            self._d[key] = value
+            self._d.move_to_end(key)
+            while len(self._d) > self.size:
+                self._d.popitem(last=False)
+
+    def __contains__(self, key) -> bool:
+        with self._lock:
+            return key in self._d
+
+    def clear(self) -> None:
+        with self._lock:
+            self._d.clear()
+
+
 class Hub(QObject):
     libraryOpened = Signal()
     changed = Signal()                 # materials, categories or trash changed
@@ -35,6 +68,7 @@ class Hub(QObject):
         self.library: Library | None = None
         self.drafts = DraftStore(self.settings.drafts_dir)
         self.runner = Runner(self)
+        self.previews = PreviewCache(10)
         self._notify: Callable[..., None] = lambda *a, **k: None
         self.gpu_note = ""
 

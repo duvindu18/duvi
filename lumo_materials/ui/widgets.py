@@ -6,8 +6,8 @@ from typing import Callable, Sequence
 
 from PySide6.QtCore import QEasingCurve, QPointF, QPropertyAnimation, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import (QAbstractButton, QButtonGroup, QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel,
-                               QLineEdit, QMenu, QPushButton, QSizePolicy, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractButton, QButtonGroup, QComboBox, QFrame, QGraphicsOpacityEffect, QHBoxLayout,
+                               QLabel, QLayout, QLineEdit, QMenu, QPushButton, QSizePolicy, QVBoxLayout, QWidget)
 
 from . import icons, theme
 from ..viewmodel import page_window
@@ -201,7 +201,7 @@ class FillSlider(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._commit_timer = QTimer(self, singleShot=True, interval=250)
         self._commit_timer.timeout.connect(lambda: self.valueCommitted.emit(self._value))
-        self.setToolTip(f"{text}: drag, scroll or use the arrow keys. Double-click resets to "
+        self.setToolTip(f"{text}: drag, click or use the arrow keys. Double-click resets to "
                         f"{self._fmt(self.default)}.")
 
     def _clamp(self, v: float) -> float:
@@ -252,11 +252,7 @@ class FillSlider(QWidget):
         self.setValue(self.default, emit=True)
 
     def wheelEvent(self, e):
-        steps = e.angleDelta().y() / 120.0
-        if steps:
-            mult = 10 if e.modifiers() & Qt.KeyboardModifier.ShiftModifier else 1
-            self.setValue(self._value + steps * self.step * mult, emit=True)
-        e.accept()
+        e.ignore()          # scrolling the panel must never change a value: drag, click or use the arrow keys
 
     def keyPressEvent(self, e):
         k = e.key()
@@ -353,8 +349,7 @@ class ChoiceRow(QWidget):
         m.exec(self.mapToGlobal(self.rect().bottomRight()) - QPointF(m.sizeHint().width(), 0).toPoint())
 
     def wheelEvent(self, e):
-        self._cycle(-1 if e.angleDelta().y() > 0 else 1)
-        e.accept()
+        e.ignore()          # scrolling the panel must never change a value
 
     def keyPressEvent(self, e):
         if e.key() in (Qt.Key.Key_Right, Qt.Key.Key_Down, Qt.Key.Key_Space):
@@ -402,23 +397,34 @@ class ToggleRow(ChoiceRow):
 
 # ------------------------------------------------------------------ segmented switch
 class Segmented(QFrame):
+    """Exclusive options in one frame; the chosen one is a rounded pill inside it."""
     changed = Signal(str)
 
-    def __init__(self, options: Sequence[tuple[str, str]], value: str, parent=None, icon_only: bool = False):
+    def __init__(self, options: Sequence[tuple[str, str]], value: str, parent=None, icon_only: bool = False,
+                 height: int = 28):
         super().__init__(parent)
-        self.setStyleSheet(f"Segmented {{ border: 1px solid {theme.LINE_2}; border-radius: 6px; background: transparent; }}")
+        self.setObjectName("Segmented")
+        inner = height - 6
+        self.setStyleSheet(
+            f"QFrame#Segmented {{ border: 1px solid {theme.LINE_2}; border-radius: 7px; background: transparent; }}"
+            f"QFrame#Segmented QPushButton {{ border: none; border-radius: 5px; background: transparent; padding: 0px 10px;"
+            f" min-height: {inner}px; max-height: {inner}px; color: {theme.MUTED}; font-size: 12px; font-weight: 400; }}"
+            f"QFrame#Segmented QPushButton:hover {{ color: {theme.TEXT_2}; }}"
+            f"QFrame#Segmented QPushButton:checked {{ background: #2a2a2e; color: {theme.TEXT}; }}")
+        self.setFixedHeight(height)
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(1, 1, 1, 1)
-        lay.setSpacing(0)
+        lay.setContentsMargins(2, 2, 2, 2)
+        lay.setSpacing(2)
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
         self.buttons: dict[str, QPushButton] = {}
         for key, text in options:
             if icon_only:
-                b = button("", icon=text, kind="seg", checkable=True)
-                b.setFixedWidth(30)
+                b = button("", icon=text, checkable=True)
+                b.setFixedWidth(inner + 6)
+                b.setStyleSheet("padding: 0px;")
             else:
-                b = button(text, kind="seg", checkable=True)
+                b = button(text, checkable=True)
             self.group.addButton(b)
             self.buttons[key] = b
             lay.addWidget(b)
@@ -640,3 +646,460 @@ def bold(font: QFont, weight: QFont.Weight = QFont.Weight.Medium) -> QFont:
     f = QFont(font)
     f.setWeight(weight)
     return f
+
+
+# ------------------------------------------------------------------ skeletons (loading placeholders)
+SKELETON_BASE = "#1a1a1d"
+SKELETON_SHINE = "#26262a"
+
+
+def shimmer_brush(rect: QRectF, phase: float):
+    """A soft highlight band sweeping left to right; phase 0..1."""
+    from PySide6.QtGui import QLinearGradient
+    w = max(1.0, rect.width())
+    x = rect.left() - w * 0.6 + phase * w * 2.2
+    g = QLinearGradient(x, 0, x + w * 0.6, 0)
+    g.setColorAt(0.0, QColor(SKELETON_BASE))
+    g.setColorAt(0.5, QColor(SKELETON_SHINE))
+    g.setColorAt(1.0, QColor(SKELETON_BASE))
+    return g
+
+
+class ShimmerClock(QTimer):
+    """One shared animation clock for every skeleton (30 fps, runs only while something listens)."""
+    _instance = None
+
+    def __init__(self):
+        super().__init__()
+        self.setInterval(33)
+        self.listeners: set = set()
+        self.timeout.connect(self._tick)
+        import time as _t
+        self._t0 = _t.perf_counter()
+
+    @classmethod
+    def get(cls) -> "ShimmerClock":
+        if cls._instance is None:
+            cls._instance = ShimmerClock()
+        return cls._instance
+
+    def phase(self) -> float:
+        import time as _t
+        return ((_t.perf_counter() - self._t0) / 1.3) % 1.0
+
+    def add(self, w) -> None:
+        self.listeners.add(w)
+        if not self.isActive():
+            self.start()
+
+    def discard(self, w) -> None:
+        self.listeners.discard(w)
+        if not self.listeners:
+            self.stop()
+
+    def _tick(self):
+        for w in list(self.listeners):
+            try:
+                w.update()
+            except RuntimeError:          # deleted widget
+                self.listeners.discard(w)
+
+
+class PreviewPlaceholder(QWidget):
+    """Shown over the 3D view while a material loads: its saved thumbnail if there is one, with a shimmer;
+    otherwise a skeleton sphere."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.pixmap = None
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.hide()
+
+    def start(self, pixmap=None) -> None:
+        self.pixmap = pixmap if (pixmap is not None and not pixmap.isNull()) else None
+        self.show()
+        self.raise_()
+        ShimmerClock.get().add(self)
+
+    def stop(self) -> None:
+        self.hide()
+        self.pixmap = None
+        ShimmerClock.get().discard(self)
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        p.fillRect(self.rect(), QColor("#121214"))
+        side = min(self.width(), self.height()) * 0.72
+        r = QRectF((self.width() - side) / 2, (self.height() - side) / 2, side, side)
+        phase = ShimmerClock.get().phase()
+        if self.pixmap is not None:
+            p.drawPixmap(r.toRect(), self.pixmap)
+            # a light sweep over the thumbnail says "still loading"
+            g = shimmer_brush(r, phase)
+            p.setOpacity(0.28)
+            path = QPainterPath()
+            path.addEllipse(r)
+            p.fillPath(path, g)
+            p.setOpacity(1.0)
+        else:
+            path = QPainterPath()
+            path.addEllipse(r)
+            p.fillPath(path, shimmer_brush(r, phase))
+        p.end()
+
+
+class SkeletonBox(QWidget):
+    """A rounded shimmering block (for map thumbnails and text lines while loading)."""
+
+    def __init__(self, w: int, h: int, radius: float = 6, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(w, h)
+        self.radius = radius
+
+    def showEvent(self, e):
+        ShimmerClock.get().add(self)
+
+    def hideEvent(self, e):
+        ShimmerClock.get().discard(self)
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = QRectF(self.rect())
+        path = QPainterPath()
+        path.addRoundedRect(r, self.radius, self.radius)
+        p.fillPath(path, shimmer_brush(r, ShimmerClock.get().phase()))
+        p.end()
+
+
+class SizeSlider(QWidget):
+    """Compact slider for the card size: small and large grid icons at the ends. Drag or click; no wheel."""
+    valueChanged = Signal(int)
+
+    def __init__(self, minimum: int, maximum: int, value: int, parent=None):
+        super().__init__(parent)
+        self.minimum, self.maximum = minimum, maximum
+        self._value = max(minimum, min(maximum, int(value)))
+        self.setFixedSize(132, 32)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setProperty("interactive", True)
+        self.setToolTip("Card size (Ctrl + mouse wheel over the grid)")
+        self._drag = False
+
+    def value(self) -> int:
+        return self._value
+
+    def setValue(self, v: int, emit: bool = False) -> None:
+        v = max(self.minimum, min(self.maximum, int(v)))
+        if v != self._value:
+            self._value = v
+            self.update()
+            if emit:
+                self.valueChanged.emit(v)
+
+    def _track(self) -> tuple[float, float]:
+        return 26.0, self.width() - 26.0
+
+    def _from_x(self, x: float) -> None:
+        a, b = self._track()
+        f = min(1.0, max(0.0, (x - a) / (b - a)))
+        self.setValue(round(self.minimum + f * (self.maximum - self.minimum)), emit=True)
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton:
+            self._drag = True
+            self._from_x(e.position().x())
+
+    def mouseMoveEvent(self, e):
+        if self._drag:
+            self._from_x(e.position().x())
+
+    def mouseReleaseEvent(self, e):
+        self._drag = False
+
+    def wheelEvent(self, e):
+        e.ignore()                       # never change by scrolling past it
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        p.setPen(QPen(QColor(theme.LINE_2), 1))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawRoundedRect(r, 7, 7)
+        cy = self.height() / 2
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(theme.MUTED))
+        for dx, dy in ((0, 0), (5, 0), (0, 5), (5, 5)):          # small grid icon
+            p.drawRoundedRect(QRectF(9 + dx, cy - 4.5 + dy, 3.5, 3.5), 0.8, 0.8)
+        p.drawRoundedRect(QRectF(self.width() - 19, cy - 5.5, 11, 11), 2, 2)   # large tile icon
+        a, b = self._track()
+        p.setBrush(QColor("#2c2c30"))
+        p.drawRoundedRect(QRectF(a, cy - 1.5, b - a, 3), 1.5, 1.5)
+        f = (self._value - self.minimum) / max(1, self.maximum - self.minimum)
+        x = a + f * (b - a)
+        p.setBrush(QColor("#5a5a60"))
+        p.drawRoundedRect(QRectF(a, cy - 1.5, x - a, 3), 1.5, 1.5)
+        p.setBrush(QColor(theme.TEXT))
+        p.drawEllipse(QPointF(x, cy), 5.5, 5.5)
+        p.end()
+
+
+# ------------------------------------------------------------------ tags as chips
+class FlowLayout(QLayout):
+    """Lays widgets out left to right and wraps to the next line (Qt's classic flow layout)."""
+
+    def __init__(self, parent=None, spacing: int = 6):
+        super().__init__(parent)
+        self._items = []
+        self._spacing = spacing
+        self.setContentsMargins(0, 0, 0, 0)
+
+    def addItem(self, item):
+        self._items.append(item)
+
+    def count(self):
+        return len(self._items)
+
+    def itemAt(self, i):
+        return self._items[i] if 0 <= i < len(self._items) else None
+
+    def takeAt(self, i):
+        return self._items.pop(i) if 0 <= i < len(self._items) else None
+
+    def expandingDirections(self):
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        return self._do_layout(QRectF(0, 0, width, 0).toRect(), test=True)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._do_layout(rect, test=False)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        size = QSize()
+        for it in self._items:
+            size = size.expandedTo(it.minimumSize())
+        m = self.contentsMargins()
+        return size + QSize(m.left() + m.right(), m.top() + m.bottom())
+
+    def _do_layout(self, rect, test: bool) -> int:
+        m = self.contentsMargins()
+        x, y = rect.x() + m.left(), rect.y() + m.top()
+        right = rect.right() - m.right()
+        line_h = 0
+        for it in self._items:
+            hint = it.sizeHint()
+            if x + hint.width() > right and line_h > 0:
+                x = rect.x() + m.left()
+                y += line_h + self._spacing
+                line_h = 0
+            if not test:
+                from PySide6.QtCore import QPoint, QRect
+                it.setGeometry(QRect(QPoint(x, y), hint))
+            x += hint.width() + self._spacing
+            line_h = max(line_h, hint.height())
+        return y + line_h - rect.y() + m.bottom()
+
+
+class TagChip(QFrame):
+    removed = Signal(str)
+
+    def __init__(self, tag: str, parent=None):
+        super().__init__(parent)
+        self.tag = tag
+        self.setObjectName("TagChip")
+        self.setStyleSheet(f"QFrame#TagChip {{ background: #232326; border: 1px solid {theme.LINE_2}; border-radius: 6px; }}")
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(8, 0, 2, 0)
+        lay.setSpacing(2)
+        t = label(tag)
+        t.setStyleSheet(f"font-size: 12px; color: {theme.TEXT};")
+        lay.addWidget(t)
+        x = QPushButton()
+        x.setIcon(icons.icon("close", theme.MUTED, theme.TEXT, 12))
+        x.setIconSize(QSize(10, 10))
+        x.setFixedSize(18, 18)
+        x.setCursor(Qt.CursorShape.PointingHandCursor)
+        x.setToolTip(f"Remove {tag}")
+        x.setStyleSheet("QPushButton { border: none; background: transparent; min-height: 0px; padding: 0px; border-radius: 4px; }"
+                        "QPushButton:hover { background: #3a3a3e; }")
+        x.clicked.connect(lambda: self.removed.emit(self.tag))
+        lay.addWidget(x)
+        self.setFixedHeight(24)
+
+
+class TagInput(QFrame):
+    """Tags as chips. Type and press Enter, comma or Tab to add; Backspace in the empty field removes the last;
+    the × on a chip removes it. Suggestions come from the tags already in the library."""
+    changed = Signal()
+
+    def __init__(self, suggestions: Sequence[str] = (), parent=None):
+        super().__init__(parent)
+        self.setObjectName("TagInput")
+        self.setStyleSheet(f"QFrame#TagInput {{ background: #111112; border: 1px solid {theme.LINE_2}; border-radius: 7px; }}"
+                           f"QFrame#TagInput[focus=\"true\"] {{ border-color: #4a4a50; }}")
+        self.setMinimumHeight(34)
+        self._tags: list[str] = []
+        self.flow = FlowLayout(self, spacing=5)
+        self.flow.setContentsMargins(5, 4, 5, 4)
+        self.edit = QLineEdit()
+        self.edit.setProperty("role", "search")
+        self.edit.setPlaceholderText("Add a tag…")
+        self.edit.setMinimumWidth(90)
+        self.edit.setFixedHeight(24)
+        self.edit.installEventFilter(self)
+        self.edit.returnPressed.connect(self._commit)
+        self.edit.textEdited.connect(self._typed)
+        self.flow.addWidget(self.edit)
+        self.set_suggestions(suggestions)
+
+    def set_suggestions(self, words: Sequence[str]) -> None:
+        from PySide6.QtWidgets import QCompleter
+        c = QCompleter(sorted(set(words)), self)
+        c.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        c.setFilterMode(Qt.MatchFlag.MatchContains)
+        c.activated.connect(lambda t: (self.edit.setText(t), self._commit()))
+        self.edit.setCompleter(c)
+
+    def tags(self) -> list[str]:
+        pending = self._clean(self.edit.text())
+        return self._tags + ([pending] if pending and pending not in self._tags else [])
+
+    def setTags(self, tags: Sequence[str]) -> None:
+        self._tags = []
+        self._rebuild()
+        for t in tags:
+            self._add(t, notify=False)
+        self.edit.clear()
+
+    @staticmethod
+    def _clean(t: str) -> str:
+        return " ".join(t.replace(",", " ").lower().split())[:40]
+
+    def _typed(self, text: str) -> None:
+        if "," in text:
+            for part in text.split(",")[:-1]:
+                self._add(part)
+            self.edit.setText(text.split(",")[-1].lstrip())
+
+    def _commit(self) -> None:
+        if self.edit.text().strip():
+            self._add(self.edit.text())
+            self.edit.clear()
+
+    def _add(self, t: str, notify: bool = True) -> None:
+        t = self._clean(t)
+        if not t or t in self._tags or len(self._tags) >= 24:
+            return
+        self._tags.append(t)
+        self._rebuild()
+        if notify:
+            self.changed.emit()
+
+    def _remove(self, t: str) -> None:
+        if t in self._tags:
+            self._tags.remove(t)
+            self._rebuild()
+            self.changed.emit()
+
+    def _rebuild(self) -> None:
+        # chips first, the text field last (kept, so focus and typing survive)
+        while self.flow.count():
+            it = self.flow.takeAt(0)
+            w = it.widget()
+            if w is not None and w is not self.edit:
+                w.hide()
+                w.setParent(None)
+                w.deleteLater()
+        for t in self._tags:
+            chip = TagChip(t)
+            chip.removed.connect(self._remove)
+            self.flow.addWidget(chip)
+            chip.show()
+        self.flow.addWidget(self.edit)
+        self.updateGeometry()
+
+    def eventFilter(self, obj, e):
+        if obj is self.edit:
+            if e.type() == e.Type.KeyPress:
+                if e.key() == Qt.Key.Key_Backspace and not self.edit.text() and self._tags:
+                    self._remove(self._tags[-1])
+                    return True
+                if e.key() == Qt.Key.Key_Tab and self.edit.text().strip():
+                    self._commit()
+                    return True
+            elif e.type() == e.Type.FocusIn:
+                self.setProperty("focus", True)
+                theme.restyle(self)
+            elif e.type() == e.Type.FocusOut:
+                self.setProperty("focus", False)
+                theme.restyle(self)
+                self._commit()
+        return False
+
+    def mousePressEvent(self, e):
+        self.edit.setFocus()
+
+
+class CategoryPicker(QComboBox):
+    """The library's categories, plus 'New category…' at the end (asks for a name and selects it)."""
+    picked = Signal(str)
+    NEW = "\u0000new"
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(32)
+        self._last = ""
+        self.activated.connect(self._activated)
+
+    def set_categories(self, names: Sequence[str], current: str = "") -> None:
+        self.blockSignals(True)
+        self.clear()
+        for n in names:
+            self.addItem(n, n)
+        if current and self.findData(current) < 0:
+            self.addItem(current, current)
+        self.insertSeparator(self.count())
+        self.addItem(icons.icon("plus-folder"), "New category…", self.NEW)
+        self.setValue(current or (names[0] if names else ""))
+        self.blockSignals(False)
+
+    def value(self) -> str:
+        v = self.currentData()
+        return "" if v == self.NEW else (v or "")
+
+    def setValue(self, name: str) -> None:
+        i = self.findData(name)
+        if i < 0 and name:
+            self.insertItem(max(0, self.count() - 2), name, name)
+            i = self.findData(name)
+        if i >= 0:
+            self.setCurrentIndex(i)
+            self._last = name
+
+    def _activated(self, index: int) -> None:
+        if self.itemData(index) != self.NEW:
+            self._last = self.value()
+            self.picked.emit(self._last)
+            return
+        from .dialogs import prompt
+        name = prompt(self.window(), "New category", "A category is a folder inside Materials.", "", "Create")
+        if name:
+            from ..library.paths import safe_name
+            name = safe_name(name, "")
+        if name:
+            self.setValue(name)
+            self._last = name
+            self.picked.emit(name)
+        else:
+            self.setValue(self._last)

@@ -5,14 +5,14 @@ from pathlib import Path
 from typing import Sequence
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QComboBox, QDialog, QFileDialog, QFrame, QHBoxLayout, QLineEdit, QPlainTextEdit,
+from PySide6.QtWidgets import (QDialog, QFileDialog, QFrame, QHBoxLayout, QLineEdit, QPlainTextEdit,
                                QProgressBar, QVBoxLayout, QWidget)
 
 from ..library.export import ExportOptions, export_folder, export_zip
 from ..library.store import Library, Material, inspect_folder
 from . import theme
 from .hub import Hub, app_dir, reveal
-from .widgets import ChoiceRow, Segmented, TagEdit, ToggleRow, button, label
+from .widgets import CategoryPicker, ChoiceRow, Segmented, TagInput, ToggleRow, button, label
 
 
 class FDialog(QDialog):
@@ -104,27 +104,25 @@ def prompt(parent, title: str, text: str, value: str = "", ok: str = "OK") -> st
     return e.text().strip() if d.exec() == 1 and e.text().strip() else None
 
 
-def category_combo(lib: Library | None, current: str = "") -> QComboBox:
-    c = QComboBox()
-    c.setEditable(True)
-    cats = [name for name, _ in lib.categories()] if lib else []
-    c.addItems(cats)
-    if current:
-        i = c.findText(current)
-        if i >= 0:
-            c.setCurrentIndex(i)
-        else:
-            c.setEditText(current)
+def category_picker(lib: Library | None, current: str = "") -> CategoryPicker:
+    c = CategoryPicker()
+    c.set_categories([name for name, _ in lib.categories()] if lib else [], current)
     return c
+
+
+def tag_input(lib: Library | None, tags=()) -> TagInput:
+    t = TagInput([name for name, _ in lib.tags()] if lib else [])
+    t.setTags(list(tags))
+    return t
 
 
 class DetailsDialog(FDialog):
     def __init__(self, parent, lib: Library, m: Material):
         super().__init__(parent, "Edit details", 460)
         self.name = QLineEdit(m.name)
-        self.cat = category_combo(lib, m.category)
-        self.tags = TagEdit()
-        self.tags.setTags(m.tags)
+        self.name.setFixedHeight(32)
+        self.cat = category_picker(lib, m.category)
+        self.tags = tag_input(lib, m.tags)
         self.desc = QPlainTextEdit(m.description)
         self.desc.setFixedHeight(80)
         self.fav = ToggleRow("Favourite", m.favourite)
@@ -136,16 +134,17 @@ class DetailsDialog(FDialog):
         self.add_button("Save", "primary", 1).setDefault(True)
 
     def values(self) -> dict:
-        return dict(name=self.name.text().strip(), category=self.cat.currentText().strip(), tags=self.tags.tags(),
+        return dict(name=self.name.text().strip(), category=self.cat.value(), tags=self.tags.tags(),
                     description=self.desc.toPlainText().strip(), favourite=self.fav.checked())
 
 
 class TagDialog(FDialog):
     def __init__(self, parent, count: int):
         super().__init__(parent, f"Tag {count} material{'s' if count != 1 else ''}")
-        self.add = TagEdit()
-        self.remove = TagEdit()
-        self.remove.setPlaceholderText("tags to remove, separated by commas")
+        lib = getattr(parent, "hub", None) and parent.hub.library
+        self.add = tag_input(lib)
+        self.remove = tag_input(lib)
+        self.remove.edit.setPlaceholderText("Tag to remove…")
         self.body.addWidget(label("Add tags", "section"))
         self.body.addWidget(self.add)
         self.body.addWidget(label("Remove tags", "section"))
@@ -157,8 +156,8 @@ class TagDialog(FDialog):
 class MoveDialog(FDialog):
     def __init__(self, parent, lib: Library, count: int):
         super().__init__(parent, f"Move {count} material{'s' if count != 1 else ''}")
-        self.cat = category_combo(lib)
-        self.body.addWidget(label("To category (type a new name to create one)", "muted", wrap=True))
+        self.cat = category_picker(lib)
+        self.body.addWidget(label("To category ('New category…' at the end of the list creates one)", "muted", wrap=True))
         self.body.addWidget(self.cat)
         self.add_button("Cancel", "ghost", 0)
         self.add_button("Move", "primary", 1).setDefault(True)
@@ -168,7 +167,7 @@ class ExportDialog(FDialog):
     def __init__(self, parent, hub: Hub, ids: list[str]):
         super().__init__(parent, f"Export {len(ids)} material{'s' if len(ids) != 1 else ''}", 480)
         self.hub, self.ids = hub, ids
-        self.target = Segmented([("zip", "ZIP file"), ("folder", "Folder")], "zip")
+        self.target = Segmented([("zip", "ZIP file"), ("folder", "Folder")], "zip", height=32)
         self.body.addWidget(self.target)
         self.normal = ChoiceRow("Normal map", [("gl", "OpenGL (Blender, Unity)"), ("dx", "DirectX (Unreal, 3ds Max)")], "gl")
         self.naming = ChoiceRow("File names", [("plain", "albedo.png …"), ("engine", "Name_BaseColor.png …")], "plain")

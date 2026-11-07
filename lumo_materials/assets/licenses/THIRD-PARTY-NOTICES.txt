@@ -12,6 +12,9 @@ NumPy (BSD 3-Clause; bundled OpenBLAS and runtime libraries under their own perm
 Pillow (MIT-CMU / HPND)
   See Pillow-LICENSE.txt. https://python-pillow.org
 
+Poppins Bold, splash wordmark (SIL Open Font License 1.1)
+  Copyright 2020 The Poppins Project Authors. See Poppins-OFL-1.1.txt (added by the build).
+
 Inter typeface (SIL Open Font License 1.1)
   Copyright 2016-2023 The Inter Project Authors. See Inter-OFL-1.1.txt. https://rsms.me/inter
 

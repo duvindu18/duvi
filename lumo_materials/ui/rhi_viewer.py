@@ -214,6 +214,13 @@ class RhiViewer(QRhiWidget):
         self._last_maps = maps_u8
         self.update()
 
+    def clear_maps(self) -> None:
+        """Draw only the background until the next set_maps (never the previous material)."""
+        self._pending = None
+        self._last_maps = None
+        self._have_maps = False
+        self.update()
+
     # ------------------------------------------------------------ frame
     def _uniforms(self, model: np.ndarray, view_proj: np.ndarray, cam: np.ndarray, tiling: tuple[float, float]) -> bytes:
         from .viewer import LIGHTS

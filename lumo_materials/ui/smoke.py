@@ -102,6 +102,13 @@ def run(outdir: str) -> int:
             time.sleep(0.01)
 
     def scenario():
+        from .splash import Splash
+        sp = Splash()
+        sp.start()
+        sp.set_status("Opening your library…")
+        settle(500)
+        shot("splash", sp)
+        sp.close()
         settle(1200)
         report["window"] = [win.width(), win.height()]
         step("library", lambda: shot("library"))
@@ -122,12 +129,37 @@ def run(outdir: str) -> int:
             card.view.set_option("shape", "sphere")
         step("inspector", select_first)
 
+        def switching():
+            card = win.inspector.card
+            times = []
+            for i in (3, 4, 5, 3, 4):              # three new materials, then two seen before (cached)
+                win.library.grid.setCurrentIndex(win.library.model.index(i))
+                t = time.perf_counter()
+                if i == 5:
+                    app.processEvents()
+                    shot("inspector-loading", card)          # the skeleton / thumbnail while loading
+                wait_idle(lambda: not card.placeholder.isVisible(), 20)
+                times.append(round((time.perf_counter() - t) * 1000))
+                settle(150)
+            report["switch_ms"] = {"first_view": times[:3], "cached": times[3:]}
+        step("switch materials", switching)
+
+        def card_sizes():
+            for px in (160, 320):
+                win.library.size_slider.setValue(px)
+                win.library._card_size(px)
+                settle(500)
+                shot(f"grid-{px}")
+            win.library._card_size(210)
+            win.library.size_slider.setValue(210)
+        step("card sizes", card_sizes)
+
         def list_mode():
             win.library.view_toggle.setValue("list")
-            win.library.grid.set_list_mode(True)
+            win.library._view_mode("list")
             settle(400)
             shot("library-list")
-            win.library.grid.set_list_mode(False)
+            win.library._view_mode("grid")
             win.library.view_toggle.setValue("grid")
         step("list view", list_mode)
 

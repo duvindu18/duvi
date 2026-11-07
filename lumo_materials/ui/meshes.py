@@ -107,3 +107,12 @@ def scale(k: float) -> np.ndarray:
 def column_major(m: np.ndarray) -> bytes:
     """std140 / GLSL mat4 layout."""
     return np.ascontiguousarray(m.T, dtype=np.float32).tobytes()
+
+
+def u8_to_float(maps_u8: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+    """uint8 preview maps (RGBA / L) back to float engine maps (RGB / 2-D), for the CPU preview."""
+    out = {}
+    for k, v in maps_u8.items():
+        a = v[..., :3] if v.ndim == 3 else v
+        out[k] = a.astype(np.float32) / 255.0
+    return out
