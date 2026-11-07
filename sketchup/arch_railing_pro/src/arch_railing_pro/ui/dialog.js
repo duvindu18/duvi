@@ -155,20 +155,20 @@
   function itemHtml(f) {
     var id = 'f-' + f.k;
     if (f.t === 'num') {
-      return '<div class="row" data-f="' + f.k + '"><div class="top"><label class="eyebrow" for="' + id + '-n">' + esc(f.l) + '</label>' +
-        '<span class="val"><input id="' + id + '-n" type="number" step="any" inputmode="decimal"><i data-unit="' + f.k + '"></i></span></div>' +
-        '<span class="sl"><span class="tr"></span><span class="fi"></span><span class="th"></span>' +
-        '<input id="' + id + '" type="range" min="' + f.r[0] + '" max="' + f.r[1] + '" step="' + f.r[2] + '" aria-label="' + esc(f.l) + '"></span></div>';
+      return '<div class="rs" data-f="' + f.k + '"><span class="fi"></span><span class="dots"></span><span class="hb"></span>' +
+        '<label for="' + id + '">' + esc(f.l) + '</label>' +
+        '<input id="' + id + '" type="range" min="' + f.r[0] + '" max="' + f.r[1] + '" step="' + f.r[2] + '">' +
+        '<span class="val"><input id="' + id + '-n" type="number" step="any" inputmode="decimal" aria-label="' + esc(f.l) + ' value"><i data-unit="' + f.k + '"></i></span></div>';
     }
-    if (f.t === 'bool') return '<button type="button" class="sw" role="switch" id="' + id + '" data-f="' + f.k + '" aria-checked="false"><span class="k" aria-hidden="true"></span>' + esc(f.l) + '</button>';
+    if (f.t === 'bool') return '<button type="button" class="sw" role="switch" id="' + id + '" data-f="' + f.k + '" aria-checked="false">' + esc(f.l) + '<span class="k" aria-hidden="true"></span></button>';
     if (f.t === 'seg') {
-      return '<div class="field" data-f="' + f.k + '"><span class="eyebrow">' + esc(f.l) + '</span><div class="seg" role="group" aria-label="' + esc(f.l) + '" id="' + id + '">' +
+      return '<div class="field" data-f="' + f.k + '"><span class="cap">' + esc(f.l) + '</span><div class="well" role="group" aria-label="' + esc(f.l) + '" id="' + id + '">' +
         f.o.map(function (o) { return '<button type="button" data-v="' + o[0] + '" aria-pressed="false">' + esc(o[1]) + '</button>'; }).join('') + '</div></div>';
     }
     if (f.t === 'color') {
-      return '<div class="swc" data-f="' + f.k + '"><label title="' + esc(f.l) + '"><span id="' + id + '-s"></span><input type="color" id="' + id + '" aria-label="' + esc(f.l) + ' colour"></label>' + esc(f.l) + '</div>';
+      return '<div class="rowf" data-f="' + f.k + '"><span>' + esc(f.l) + '</span><label class="swr" title="' + esc(f.l) + '"><span id="' + id + '-s"></span><input type="color" id="' + id + '" aria-label="' + esc(f.l) + ' colour"></label></div>';
     }
-    return '<label class="field" data-f="' + f.k + '"><span class="eyebrow">' + esc(f.l) + '</span><select id="' + id + '" data-comp="1"></select></label>';
+    return '<label class="rowf" data-f="' + f.k + '"><span>' + esc(f.l) + '</span><select id="' + id + '" data-comp="1"></select></label>';
   }
 
   // Consecutive switches and colour swatches share one wrapping row.
@@ -176,13 +176,13 @@
     var out = '', group = null, buf = [];
     function flush() {
       if (!buf.length) return;
-      out += group === 'bool' ? '<div class="opts">' + buf.join('') + '</div>' : group === 'color' ? '<div class="sws">' + buf.join('') + '</div>' : buf.join('');
+      out += group === 'bool' ? '<div class="opts">' + buf.join('') + '</div>' : buf.join('');
       buf = [];
     }
     out += '<div class="rows">';
     t.items.forEach(function (it, i) {
       if (it.g) { flush(); group = null; out += '</div><p class="eyebrow grp" data-g="' + t.id + i + '">' + esc(it.g) + '</p><div class="rows">'; return; }
-      var kind = it.t === 'bool' || it.t === 'color' ? it.t : 'other';
+      var kind = it.t === 'bool' ? 'bool' : 'other';
       if (kind !== group) { flush(); group = kind; }
       buf.push(itemHtml(it));
     });
@@ -243,9 +243,10 @@
         var lo = f.r[0], hi = f.r[1];
         el.value = clamp(v, lo, hi);
         var pct = (clamp(v, lo, hi) - lo) / (hi - lo) * 100;
-        var sl = el.parentNode;
-        sl.querySelector('.fi').style.width = pct + '%';
-        sl.querySelector('.th').style.left = pct + '%';
+        var rs = el.parentNode;
+        rs.querySelector('.fi').style.width = pct + '%';
+        rs.querySelector('.hb').style.left = pct + '%';
+        rs.querySelector('.dots').style.left = 'calc(max(' + pct + '%, 96px) + 10px)';
         var n = $('f-' + k + '-n');
         if (document.activeElement !== n) n.value = shown(f, v);
         document.querySelector('[data-unit="' + k + '"]').textContent = unitOf(f);

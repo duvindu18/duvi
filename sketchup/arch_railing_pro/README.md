@@ -71,7 +71,7 @@ src/
     generator.rb               path parsing, arc-length layout, sweeps, component placement
     ui_dialog.rb               HtmlDialog bridge (JS <-> Ruby callbacks, saved presets)
     defaults.rb                parameter schema, validation, the 31 ready-made railings
-    ui/                        dialog.html, dialog.js, tokens.css (Parametric Builder UI look)
+    ui/                        dialog.html, dialog.js, tokens.css (Parametric Builder UI v2 look)
     icons/                     toolbar icons (SVG for Windows, PDF for macOS, PNG fallback), logo
 test/                          SketchUp API mock and the generator test run
 build.sh                       packs src/ into release/*.rbz
