@@ -522,7 +522,7 @@ class Library:
                 m.folder, m.category, m.name = target, cat, target.name
             elif name is not None and safe_name(name) != m.name:
                 target = unique_child(m.folder.parent, safe_name(name), exclude=m.folder)
-                if target != m.folder:
+                if target.name != m.folder.name:      # compare names: Windows paths compare case-insensitively
                     if target.name.lower() == m.folder.name.lower():   # case-only rename on Windows
                         tmp = m.folder.with_name(m.folder.name + f".rename-{uuid.uuid4().hex[:6]}")
                         m.folder.rename(tmp)

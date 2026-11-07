@@ -1,6 +1,7 @@
 """Reading and writing images as float32 arrays."""
 from __future__ import annotations
 
+import io
 import os
 from pathlib import Path
 
@@ -46,7 +47,8 @@ def open_image(path: str | os.PathLike) -> Image.Image:
     if p.stat().st_size > MAX_UPLOAD_BYTES:
         raise ImageError(f"{p.name} is larger than 120 MB.")
     try:
-        im = Image.open(p)
+        # Read into memory: no file handle stays open (on Windows an open handle blocks replacing or moving the file).
+        im = Image.open(io.BytesIO(p.read_bytes()))
         im.load()
     except Exception as e:  # Pillow raises many types
         raise ImageError(f"{p.name} is not a readable image ({e}).") from e

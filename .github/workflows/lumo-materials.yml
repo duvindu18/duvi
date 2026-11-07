@@ -45,12 +45,12 @@ jobs:
         run: python -m pip install -r requirements.txt -r requirements-build.txt
 
       - name: Unit tests
-        run: python -m unittest discover -s tests -v
+        run: python packaging/ci_tee.py ci-out/unit-tests.txt -- python -m unittest discover -s tests -v
 
       - name: UI smoke test (from source)
         shell: pwsh
         run: |
-          python -m lumo_materials --smoke-ui "$PWD\ci-out\smoke-source"
+          python packaging/ci_tee.py ci-out/smoke-source.txt -- python -m lumo_materials --smoke-ui "$PWD\ci-out\smoke-source"
           if ($LASTEXITCODE) { throw "UI smoke test failed ($LASTEXITCODE)" }
 
       - name: Inno Setup
@@ -85,7 +85,7 @@ jobs:
         env:
           LUMO_SIGN_PASSWORD: ${{ secrets.LUMO_SIGN_PASSWORD }}
         run: |
-          & .\packaging\build.ps1 -Python python -SkipTests -VCRedist download -PublisherDir "$PWD\lumo-publisher\publisher"
+          python packaging/ci_tee.py ci-out/build.txt -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File packaging\build.ps1 -Python python -SkipTests -VCRedist download -PublisherDir "$PWD\lumo-publisher\publisher"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
       - name: UI smoke test (built program)
