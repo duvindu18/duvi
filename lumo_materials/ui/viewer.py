@@ -184,8 +184,15 @@ class GLViewer(QOpenGLWidget):
         try:
             ctx = self.context()
             fmt = ctx.format()
+            try:
+                f = ctx.functions()
+                MaterialView.gl_info = f"{f.glGetString(0x1F01)} | OpenGL {f.glGetString(0x1F02)}"   # renderer, version
+            except Exception:
+                MaterialView.gl_info = f"OpenGL {fmt.majorVersion()}.{fmt.minorVersion()}"
+            print(f"OpenGL context: {MaterialView.gl_info}")
             if (fmt.majorVersion(), fmt.minorVersion()) < (3, 3) or ctx.isOpenGLES():
-                raise RuntimeError(f"OpenGL 3.3 is not available (got {fmt.majorVersion()}.{fmt.minorVersion()})")
+                raise RuntimeError(f"OpenGL 3.3 is not available (got {fmt.majorVersion()}.{fmt.minorVersion()}, "
+                                   f"{MaterialView.gl_info})")
             prog = QOpenGLShaderProgram(self)
             if not prog.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Vertex, VERT):
                 raise RuntimeError(prog.log())
@@ -424,6 +431,7 @@ class MaterialView(QWidget):
 
     gpu_ok = True          # class-wide: once one view failed, new views start on the CPU
     opengl_mode = "auto"
+    gl_info = ""           # renderer and version of the last OpenGL context
 
     def _fallback(self, reason: str) -> None:
         MaterialView.gpu_ok = False

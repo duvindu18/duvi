@@ -230,6 +230,8 @@ def run(outdir: str) -> int:
         step("window states", window_states)
 
         report["gpu_note"] = hub.gpu_note or ("GPU preview" if MaterialView.gpu_ok else "CPU preview")
+        report["gl_info"] = MaterialView.gl_info
+        report["gpu_viewer_used"] = bool(MaterialView.gpu_ok and win.inspector.card.view.gl is not None)
         report["materials"] = lib.count()
         report["seconds"] = round(time.perf_counter() - t0, 1)
         report["ok"] = not report["errors"]

@@ -96,6 +96,31 @@ jobs:
           $p = Start-Process -FilePath "dist\lumo-materials\lumo-materials.exe" -ArgumentList @("--smoke-ui", "`"$PWD\ci-out\smoke-exe`"") -Wait -PassThru
           if ($p.ExitCode) { throw "UI smoke test of the built program failed ($($p.ExitCode))" }
 
+      - name: UI smoke test of the 3D viewer with real OpenGL (CI only - Mesa llvmpipe, not shipped)
+        continue-on-error: true
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GALLIUM_DRIVER: llvmpipe
+        run: |
+          # GitHub's Windows machines have no GPU (OpenGL 3.0 only). Mesa's software OpenGL 4.5 lets the real
+          # GPU viewer code (shaders, meshes, textures) run here. It goes into a copy of the program only.
+          $json = gh release view --repo pal1000/mesa-dist-win --json tagName,assets | ConvertFrom-Json
+          $asset = $json.assets | Where-Object { $_.name -match 'release-msvc\.7z$' } | Select-Object -First 1
+          if (-not $asset) { $asset = $json.assets | Where-Object { $_.name -match 'release.*\.7z$' } | Select-Object -First 1 }
+          Write-Host "Mesa $($json.tagName): $($asset.name)"
+          $dl = Join-Path $env:RUNNER_TEMP "mesa"
+          New-Item -ItemType Directory -Force $dl | Out-Null
+          gh release download $json.tagName --repo pal1000/mesa-dist-win --pattern $asset.name --dir $dl --clobber
+          7z x -y "-o$dl\x" (Join-Path $dl $asset.name) | Out-Null
+          $copy = Join-Path $env:RUNNER_TEMP "lumo-gl"
+          Copy-Item -Recurse -Force dist\lumo-materials $copy
+          Get-ChildItem "$dl\x\x64" -Filter *.dll | ForEach-Object { Copy-Item $_.FullName $copy -Force; $_.Name }
+          $p = Start-Process -FilePath "$copy\lumo-materials.exe" -ArgumentList @("--smoke-ui", "`"$PWD\ci-out\smoke-gl`"") -Wait -PassThru
+          $r = Get-Content "ci-out\smoke-gl\report.json" -Raw | ConvertFrom-Json
+          Write-Host "OpenGL: $($r.gl_info) | GPU viewer used: $($r.gpu_viewer_used) | ok: $($r.ok)"
+          if ($p.ExitCode -or -not $r.gpu_viewer_used) { throw "3D viewer test with real OpenGL failed" }
+
       - name: Install, check and uninstall (silent, per user)
         shell: pwsh
         run: |

@@ -241,7 +241,7 @@ class SettingsPage(_Page):
         self.body.addWidget(gl)
         now = self.hub.gpu_note or ("Software OpenGL" if MaterialView.opengl_mode == "software" else
                                     "CPU preview" if MaterialView.opengl_mode == "off" else "Graphics card (OpenGL 3.3+)")
-        self.body.addWidget(self._kv("In use now", now))
+        self.body.addWidget(self._kv("In use now", now + (f"  ({MaterialView.gl_info})" if MaterialView.gl_info else "")))
         self._section("PROGRAM")
         self.body.addWidget(self._kv("Version", f"{APP_NAME} {__version__}"))
         self.body.addWidget(self._kv("Program data", str(s.folder), button("Show", "reveal", "ghost",
