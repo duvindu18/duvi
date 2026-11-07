@@ -330,8 +330,9 @@ class SettingsCard(QFrame):
         while self.grid.count():
             self.grid.takeAt(0)
         r = c = 0
+        alone = len(self.items) == 1                    # a single option uses the whole card
         for w, wide in self.items:
-            if wide or cols == 1:
+            if wide or alone or cols == 1:
                 if c:
                     r, c = r + 1, 0
                 self.grid.addWidget(w, r, 0, 1, cols)
