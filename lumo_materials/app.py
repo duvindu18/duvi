@@ -103,7 +103,8 @@ def main(argv: list[str] | None = None) -> int:
     from .ui import theme
     from .ui.hub import Hub
     from .ui.main_window import MainWindow
-    from .ui.viewer import configure_default_format
+    from .library.settings import Settings
+    from .ui.viewer import configure_default_format, configure_opengl
 
     files = [a for a in argv[1:] if not a.startswith("--") and os.path.isfile(a)]
 
@@ -119,6 +120,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     QGuiApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+    configure_opengl(Settings().get("opengl"))
     configure_default_format()
     app = QApplication(argv)
     app.setApplicationName(APP_NAME)

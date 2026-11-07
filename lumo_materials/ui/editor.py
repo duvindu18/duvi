@@ -26,7 +26,7 @@ from . import theme
 from .dialogs import ask, category_combo
 from .hub import Hub
 from .inspector import MapStrip, ViewerCard
-from .widgets import ChoiceRow, FillSlider, Segmented, TagEdit, ToggleRow, button, label
+from .widgets import ChoiceRow, FillSlider, Segmented, TagEdit, ToggleRow, button, clear_layout, label
 from .workers import Debouncer
 from ..jobs import (job_adjust_preview, job_assemble_preview, job_load_base, job_load_source,
                     job_photo_preview, job_save_adjust, job_save_import, job_save_photo)
@@ -73,6 +73,7 @@ class EditorPage(QWidget):
         self.draft: Draft | None = None
         self.material_id: str | None = None
         self.source: str | None = None
+        self.source_label = ""
         self.params = GenParams()
         self.adjust: dict[str, Any] = adj.neutral()
         self.assignments: list[imp.Assignment] = []
@@ -142,10 +143,10 @@ class EditorPage(QWidget):
         pl = QVBoxLayout(panel)
         pl.setContentsMargins(0, 0, 0, 0)
         pl.setSpacing(0)
-        self.scroll = QScrollArea()
-        self.scroll.setWidgetResizable(True)
-        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        pl.addWidget(self.scroll, 1)
+        self.controls_scroll = QScrollArea()
+        self.controls_scroll.setWidgetResizable(True)
+        self.controls_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        pl.addWidget(self.controls_scroll, 1)
         self.save_box = QWidget()
         self.save_box.setObjectName("Foot")
         self.save_box.setStyleSheet(f"QWidget#Foot {{ border-top: 1px solid {theme.LINE}; }}")
@@ -198,6 +199,7 @@ class EditorPage(QWidget):
         self.draft = None
         self.material_id = None
         self.source = None
+        self.source_label = ""
         self.params = GenParams()
         self.adjust = adj.neutral()
         self.assignments = []
@@ -237,6 +239,7 @@ class EditorPage(QWidget):
                                          generation=self.params.to_dict())
         self.hub.draftsChanged.emit()
         self.source = str(self.draft.source)
+        self.source_label = Path(path).name
         self._set_meta(name, category or UNCATEGORIZED, [])
         self.dirty = True
         self._enter()
@@ -379,7 +382,7 @@ class EditorPage(QWidget):
         else:
             self._build_adjust(lay)
         lay.addStretch(1)
-        self.scroll.setWidget(host)
+        self.controls_scroll.setWidget(host)
         self.controls_host = host
 
     def _slider(self, lay, key: str, target: str = "gen") -> FillSlider:
@@ -403,7 +406,7 @@ class EditorPage(QWidget):
         sl.addWidget(self.src_thumb)
         col = QVBoxLayout()
         col.setSpacing(2)
-        self.src_name = label(Path(self.source).name if self.source else "")
+        self.src_name = label(self.source_label or (Path(self.source).name if self.source else ""))
         self.src_dims = label("", "muted")
         col.addWidget(self.src_name)
         col.addWidget(self.src_dims)
@@ -478,11 +481,7 @@ class EditorPage(QWidget):
         lay.addWidget(self.rows["preset"])
 
     def _fill_file_rows(self) -> None:
-        while self.file_rows.count():
-            it = self.file_rows.takeAt(0)
-            w = it.widget()
-            if w:
-                w.deleteLater()
+        clear_layout(self.file_rows)
         for i, a in enumerate(self.assignments):
             w = QWidget()
             hl = QHBoxLayout(w)
@@ -610,7 +609,8 @@ class EditorPage(QWidget):
             self.hub.drafts.discard(self.draft.id)
         self.draft = self.hub.drafts.new("photo", source=path, name=self.e_name.text(), generation=self.params.to_dict())
         self.source = str(self.draft.source)
-        self.src_name.setText(Path(path).name)
+        self.source_label = Path(path).name
+        self.src_name.setText(self.source_label)
         self._show_source_thumb()
         self.status.setText("Loading…")
         self.hub.runner.run("editor-src", job_load_source, self.source, self.preview_px,

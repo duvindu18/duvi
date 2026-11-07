@@ -86,6 +86,20 @@ def vbox(*items, spacing: int = 8, margins=(0, 0, 0, 0)) -> QVBoxLayout:
     return lay
 
 
+def clear_layout(lay) -> None:
+    """Removes every item of a layout. Widgets are hidden and detached at once (deleteLater alone would leave
+    them painted until the event loop runs), then deleted."""
+    while lay.count():
+        it = lay.takeAt(0)
+        w = it.widget()
+        if w is not None:
+            w.hide()
+            w.setParent(None)
+            w.deleteLater()
+        elif it.layout() is not None:
+            clear_layout(it.layout())
+
+
 def human_bytes(n: int) -> str:
     for unit in ("B", "KB", "MB", "GB", "TB"):
         if n < 1024 or unit == "TB":
@@ -433,7 +447,7 @@ class Pager(QFrame):
         super().__init__(parent)
         self.setObjectName("Panel")
         self.setFixedHeight(48)
-        self.page, self.pages, self.total, self.size = 0, 1, 0, 24
+        self.page, self.pages, self.total, self.per_page = 0, 1, 0, 24
         lay = QHBoxLayout(self)
         lay.setContentsMargins(14, 0, 10, 0)
         lay.setSpacing(4)
@@ -469,7 +483,7 @@ class Pager(QFrame):
         for s in self.SIZES:
             a = m.addAction(str(s))
             a.setCheckable(True)
-            a.setChecked(s == self.size)
+            a.setChecked(s == self.per_page)
             a.triggered.connect(lambda _=False, v=s: self.pageSizeChanged.emit(v))
         m.exec(self.bsize.mapToGlobal(self.bsize.rect().bottomLeft()))
 
@@ -479,17 +493,14 @@ class Pager(QFrame):
             self.pageChanged.emit(page)
 
     def set_state(self, page: int, size: int, total: int) -> None:
-        self.size, self.total = size, total
+        self.per_page, self.total = size, total
         self.pages = max(1, math.ceil(total / size))
         self.page = max(0, min(self.pages - 1, page))
         self.bsize.setText(str(size))
         a = self.page * size + 1 if total else 0
         b = min(total, (self.page + 1) * size)
         self.info.setText(f"Showing {a}–{b} of {total}" if total else "Nothing to show")
-        while self.nums.count():
-            w = self.nums.takeAt(0).widget()
-            if w:
-                w.deleteLater()
+        clear_layout(self.nums)
         for item in page_window(self.page, self.pages):
             if item is None:
                 lb = label("…", "muted")

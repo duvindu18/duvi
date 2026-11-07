@@ -11,7 +11,7 @@ from . import icons, theme
 from .dialogs import LibraryChooser, confirm
 from .hub import Hub, app_dir, reveal
 from .library_page import ago
-from .widgets import ChoiceRow, button, label
+from .widgets import ChoiceRow, button, clear_layout, label
 
 
 class _Page(QWidget):
@@ -51,22 +51,7 @@ class _Page(QWidget):
         root.addWidget(scroll, 1)
 
     def clear_body(self) -> None:
-        while self.body.count():
-            it = self.body.takeAt(0)
-            w = it.widget()
-            if w:
-                w.deleteLater()
-            elif it.layout():
-                _clear_layout(it.layout())
-
-
-def _clear_layout(lay):
-    while lay.count():
-        it = lay.takeAt(0)
-        if it.widget():
-            it.widget().deleteLater()
-        elif it.layout():
-            _clear_layout(it.layout())
+        clear_layout(self.body)
 
 
 def _row(parts: list[QWidget], thumb: str | None = None) -> QFrame:
@@ -249,8 +234,14 @@ class SettingsPage(_Page):
         prev.changed.connect(lambda v: s.set("preview_px", int(v)))
         self.body.addWidget(prev)
         self._section("3D PREVIEW")
-        note = self.hub.gpu_note or "Graphics card (OpenGL 3.3)."
-        self.body.addWidget(self._kv("Renderer", note))
+        from .viewer import OPENGL_MODES, MaterialView
+        gl = ChoiceRow("Renderer (after restart)", OPENGL_MODES, s.get("opengl") or "auto")
+        gl.changed.connect(lambda v: (s.set("opengl", v),
+                                      self.hub.notify("The renderer changes the next time lumo materials starts.", "info")))
+        self.body.addWidget(gl)
+        now = self.hub.gpu_note or ("Software OpenGL" if MaterialView.opengl_mode == "software" else
+                                    "CPU preview" if MaterialView.opengl_mode == "off" else "Graphics card (OpenGL 3.3+)")
+        self.body.addWidget(self._kv("In use now", now))
         self._section("PROGRAM")
         self.body.addWidget(self._kv("Version", f"{APP_NAME} {__version__}"))
         self.body.addWidget(self._kv("Program data", str(s.folder), button("Show", "reveal", "ghost",

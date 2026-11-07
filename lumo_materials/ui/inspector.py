@@ -12,7 +12,7 @@ from . import icons, meshes, theme
 from .hub import Hub
 from .library_page import ago
 from .viewer import BACKGROUNDS, DISPLAY, LIGHTS, SHAPES, MaterialView
-from .widgets import ChoiceRow, FillSlider, Segmented, button, label
+from .widgets import ChoiceRow, FillSlider, Segmented, button, clear_layout, label
 
 
 def gray_or_rgb_pixmap(a: np.ndarray, size: int) -> QPixmap:
@@ -107,6 +107,7 @@ class ViewerCard(QFrame):
         self.shape = Segmented(SHAPES, "sphere", self)
         self.shape.setStyleSheet(self.shape.styleSheet() + "Segmented { background: #121214; }")
         self.shape.changed.connect(lambda k: self.view.set_option("shape", k))
+        self.shape.adjustSize()          # positioned by hand (not in a layout), so it must size itself
         self.shape.move(10, 10)
         self.spin = button("", "regen", "ghost", "Spin", checkable=True)
         self.spin.setParent(self)
@@ -258,10 +259,7 @@ class Inspector(QWidget):
         m.exec(self.b_more.mapToGlobal(self.b_more.rect().bottomLeft()))
 
     def _set_details(self, rows: list[tuple[str, str, str | None]]) -> None:
-        while self.details.count():
-            it = self.details.takeAt(0)
-            if it.widget():
-                it.widget().deleteLater()
+        clear_layout(self.details)
         for i, (k, v, colour) in enumerate(rows):
             kl = label(k)
             kl.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px; padding: 6px 0; border-bottom: 1px solid {theme.LINE};")

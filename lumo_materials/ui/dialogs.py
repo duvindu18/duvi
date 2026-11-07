@@ -172,10 +172,10 @@ class ExportDialog(FDialog):
         self.body.addWidget(self.target)
         self.normal = ChoiceRow("Normal map", [("gl", "OpenGL (Blender, Unity)"), ("dx", "DirectX (Unreal, 3ds Max)")], "gl")
         self.naming = ChoiceRow("File names", [("plain", "albedo.png …"), ("engine", "Name_BaseColor.png …")], "plain")
-        self.height = ChoiceRow("Height map", [("16", "16-bit PNG"), ("8", "8-bit PNG")], "16")
+        self.height_row = ChoiceRow("Height map", [("16", "16-bit PNG"), ("8", "8-bit PNG")], "16")
         self.orm = ToggleRow("Packed ORM map", False)
         self.previews = ToggleRow("Include previews", False)
-        for w in (self.normal, self.naming, self.height, self.orm, self.previews):
+        for w in (self.normal, self.naming, self.height_row, self.orm, self.previews):
             self.body.addWidget(w)
         self.progress = QProgressBar()
         self.progress.setRange(0, 1000)
@@ -189,7 +189,7 @@ class ExportDialog(FDialog):
 
     def _options(self) -> ExportOptions:
         return ExportOptions(normal=self.normal.value(), naming=self.naming.value(), orm=self.orm.checked(),
-                             height_bits=int(self.height.value()), include_previews=self.previews.checked())
+                             height_bits=int(self.height_row.value()), include_previews=self.previews.checked())
 
     def _export(self):
         lib = self.hub.library

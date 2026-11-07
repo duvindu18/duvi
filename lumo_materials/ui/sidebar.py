@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QButtonGroup, QFrame, QHBoxLayout, QLabel, QMenu,
 from ..library.store import UNCATEGORIZED
 from . import icons, theme
 from .hub import Hub, reveal
-from .widgets import button, hline, label
+from .widgets import button, clear_layout, hline, label
 
 
 class NavButton(QPushButton):
@@ -214,10 +214,7 @@ class Sidebar(QWidget):
         drafts = len(self.hub.drafts.list())
         self.nav["drafts"].set_right(str(drafts) if drafts else "")
         current = next((n for n, b in self.cat_buttons.items() if b.isChecked()), None)
-        while self.cat_lay.count():
-            it = self.cat_lay.takeAt(0)
-            if it.widget():
-                it.widget().deleteLater()
+        clear_layout(self.cat_lay)
         self.cat_buttons.clear()
         if lib:
             for i, (cat, n) in enumerate(lib.categories()):

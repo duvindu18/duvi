@@ -34,14 +34,14 @@ def run(outdir: str) -> int:
     map_files = samples.write_map_set(tmp / "inputs" / "set", "Granite")
     prep_s = time.perf_counter() - t0
 
-    from PySide6.QtCore import QtMsgType, QTimer, qInstallMessageHandler
+    from PySide6.QtCore import QEvent, QtMsgType, QTimer, qInstallMessageHandler
     from PySide6.QtWidgets import QApplication
 
     from . import theme
     from .dialogs import ExportDialog, LibraryChooser
     from .hub import Hub
     from .main_window import MainWindow
-    from .viewer import configure_default_format
+    from .viewer import MaterialView, configure_default_format, configure_opengl
 
     report = {"errors": [], "qt_warnings": [], "steps": [], "screenshots": [], "prepare_s": round(prep_s, 2)}
 
@@ -59,11 +59,12 @@ def run(outdir: str) -> int:
         print(f"[qt] {msg}", file=sys.stderr)
 
     qInstallMessageHandler(qt_messages)
+    report["opengl_mode"] = configure_opengl("auto")
     configure_default_format()
     app = QApplication.instance() or QApplication(sys.argv[:1])
     theme.apply(app)
     hub = Hub()
-    hub.open_library(lib_dir, remember=False)
+    lib = hub.open_library(lib_dir, remember=False)      # count through the app's own library object
     win = MainWindow(hub)
     app.main_window = win
     win.resize(1600, 1000)
@@ -97,6 +98,7 @@ def run(outdir: str) -> int:
         end = time.perf_counter() + ms / 1000
         while time.perf_counter() < end:
             app.processEvents()
+            app.sendPostedEvents(None, QEvent.Type.DeferredDelete)   # as the event loop would
             time.sleep(0.01)
 
     def scenario():
@@ -227,7 +229,7 @@ def run(outdir: str) -> int:
             win.resize(1600, 1000)
         step("window states", window_states)
 
-        report["gpu_note"] = hub.gpu_note or "GPU preview"
+        report["gpu_note"] = hub.gpu_note or ("GPU preview" if MaterialView.gpu_ok else "CPU preview")
         report["materials"] = lib.count()
         report["seconds"] = round(time.perf_counter() - t0, 1)
         report["ok"] = not report["errors"]

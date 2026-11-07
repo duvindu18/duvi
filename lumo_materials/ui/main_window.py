@@ -414,8 +414,18 @@ class MainWindow(FramelessWindow):
                 self.inspector.show_material(fresh, reload=False)   # reloads maps only if they changed on disk
 
     def _gpu_fallback(self, reason: str) -> None:
-        self.hub.gpu_note = f"CPU preview (the graphics driver reported: {reason[:160]})"
-        self.hub.notify("3D preview runs on the CPU: OpenGL 3.3 is not available.", "warn")
+        from .viewer import MaterialView
+        self.hub.gpu_note = f"CPU preview (OpenGL: {reason[:160]})"
+        s = self.hub.settings
+        if MaterialView.opengl_mode == "auto" and s.get("opengl") == "auto":
+            s.set("opengl", "software")      # next start: Qt's bundled software OpenGL
+            self.hub.notify("This graphics driver has no OpenGL 3.3. The 3D preview uses the CPU now and "
+                            "software OpenGL from the next start.", "warn")
+        elif MaterialView.opengl_mode == "software" and s.get("opengl") == "software":
+            s.set("opengl", "off")           # software OpenGL failed too: stay on the CPU preview
+            self.hub.notify("Software OpenGL is not available either. The 3D preview stays on the CPU.", "warn")
+        else:
+            self.hub.notify("The 3D preview runs on the CPU.", "warn")
 
     # ------------------------------------------------------------------ keys
     def _typing(self) -> bool:

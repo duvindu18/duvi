@@ -88,8 +88,10 @@ jobs:
           python packaging/ci_tee.py ci-out/build.txt -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File packaging\build.ps1 -Python python -SkipTests -VCRedist download -PublisherDir "$PWD\lumo-publisher\publisher"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
-      - name: UI smoke test (built program)
+      - name: UI smoke test (built program, bundled software OpenGL)
         shell: pwsh
+        env:
+          LUMO_OPENGL: software
         run: |
           $p = Start-Process -FilePath "dist\lumo-materials\lumo-materials.exe" -ArgumentList @("--smoke-ui", "`"$PWD\ci-out\smoke-exe`"") -Wait -PassThru
           if ($p.ExitCode) { throw "UI smoke test of the built program failed ($($p.ExitCode))" }

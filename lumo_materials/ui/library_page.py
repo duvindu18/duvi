@@ -13,7 +13,7 @@ from ..library.store import Material
 from ..viewmodel import LibraryFilter, grid_layout
 from . import icons, theme
 from .hub import Hub
-from .widgets import Pager, SearchField, Segmented, button, human_bytes, label
+from .widgets import Pager, SearchField, Segmented, button, clear_layout, human_bytes, label
 
 SORTS = [("recent", "Recently added"), ("modified", "Recently changed"), ("name", "Name"),
          ("category", "Category"), ("size", "Resolution")]
@@ -529,10 +529,7 @@ class LibraryPage(QWidget):
         self.reload()
 
     def _rebuild_pills(self) -> None:
-        while self.pills_row.count():
-            it = self.pills_row.takeAt(0)
-            if it.widget():
-                it.widget().deleteLater()
+        clear_layout(self.pills_row)
         lib = self.hub.library
         if not lib:
             return

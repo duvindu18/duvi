@@ -122,6 +122,23 @@ void main() {
 """
 
 
+OPENGL_MODES = [("auto", "Graphics card"), ("software", "Software OpenGL (slower, always works)"),
+                ("off", "CPU preview (no OpenGL)")]
+
+
+def configure_opengl(mode: str) -> str:
+    """Call before QApplication is created. mode: auto | software | off (LUMO_OPENGL overrides)."""
+    import os
+    from PySide6.QtCore import QCoreApplication, Qt
+    mode = os.environ.get("LUMO_OPENGL", mode or "auto")
+    if mode == "software":
+        QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_UseSoftwareOpenGL)
+    elif mode == "off":
+        MaterialView.gpu_ok = False
+    MaterialView.opengl_mode = mode
+    return mode
+
+
 def configure_default_format() -> None:
     """Call before QApplication is created."""
     fmt = QSurfaceFormat()
@@ -405,7 +422,8 @@ class MaterialView(QWidget):
         self._spin.timeout.connect(self._step)
         self.setProperty("interactive", True)
 
-    gpu_ok = True   # class-wide: once one view failed, new views start on the CPU
+    gpu_ok = True          # class-wide: once one view failed, new views start on the CPU
+    opengl_mode = "auto"
 
     def _fallback(self, reason: str) -> None:
         MaterialView.gpu_ok = False
