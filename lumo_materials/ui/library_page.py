@@ -486,6 +486,11 @@ class LibraryPage(QWidget):
         self.search.edit.clear()
         self.reload()
 
+    def _rescan(self) -> None:
+        if self.hub.library:
+            n = self.hub.rescan()
+            self.hub.notify(f"Rescanned: {n} materials", "ok")
+
     def focus_search(self) -> None:
         self.search.focus()
 
