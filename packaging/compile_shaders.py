@@ -17,23 +17,21 @@ OUT = ROOT / "lumo_materials" / "assets" / "shaders"
 
 
 def find_qsb() -> list[str] | None:
-    for name in ("pyside6-qsb", "qsb"):
-        p = shutil.which(name)
-        if p:
-            return [p]
+    """The real qsb program. (pyside6-qsb is only a wrapper: PySide6-Essentials ships it without qsb.exe.)"""
     try:
+        import importlib
+
         import PySide6
+        importlib.reload(PySide6)
         base = Path(PySide6.__file__).parent
-        for cand in (base / "qsb.exe", base / "qsb", base / "bin" / "qsb.exe", base / "Qt" / "bin" / "qsb.exe"):
+        for cand in (base / "qsb.exe", base / "qsb", base / "bin" / "qsb.exe", base / "Qt" / "bin" / "qsb.exe",
+                     base / "Qt" / "libexec" / "qsb"):
             if cand.exists():
                 return [str(cand)]
     except ImportError:
         pass
-    scripts = Path(sys.executable).parent
-    for cand in (scripts / "pyside6-qsb.exe", scripts / "Scripts" / "pyside6-qsb.exe", scripts / "pyside6-qsb"):
-        if cand.exists():
-            return [str(cand)]
-    return None
+    p = shutil.which("qsb")
+    return [p] if p else None
 
 
 def install_addons() -> None:
