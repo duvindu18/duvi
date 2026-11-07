@@ -10,6 +10,7 @@ from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QLabel, QStackedLayout, QWidget
 
 from ..engine import render
+from ..viewmodel import BOTH_OFFSET, PLANE_SCALE, SPHERE_SCALE, camera_distance
 from . import meshes
 
 GL_FLOAT = 0x1406
@@ -286,9 +287,7 @@ class GLViewer(QOpenGLWidget):
         proj = QMatrix4x4()
         both = self.s.shape == "both"
         proj.perspective(32.0, w / h, 0.1, 100.0)
-        dist = (6.2 if both else 4.2) / max(0.3, self.s.zoom)
-        if both and w < h * 1.4:
-            dist *= 1.4 * h / w
+        dist = camera_distance(self.s.shape, w / h, self.s.zoom)
         view = QMatrix4x4()
         cam = QVector3D(0.0, 0.0, dist)
         view.lookAt(cam, QVector3D(0, 0, 0), QVector3D(0, 1, 0))
@@ -310,19 +309,19 @@ class GLViewer(QOpenGLWidget):
             p.setUniformValue1i(uni, unit)
         items = []
         if self.s.shape in ("sphere", "both"):
-            items.append(("sphere", -1.15 if both else 0.0))
+            items.append(("sphere", -BOTH_OFFSET if both else 0.0))
         if self.s.shape in ("plane", "both"):
-            items.append(("plane", 1.15 if both else 0.0))
+            items.append(("plane", BOTH_OFFSET if both else 0.0))
         for name, x in items:
             model = QMatrix4x4()
             model.translate(x, 0, 0)
             model.rotate(self.s.pitch, 1, 0, 0)
             model.rotate(self.s.yaw, 0, 1, 0)
             if name == "plane":
-                model.scale(0.62 if both else 0.85)
+                model.scale(PLANE_SCALE["both" if both else "plane"])
                 p.setUniformValue("uTiling", QVector2D(self.s.tiling, self.s.tiling))
             else:
-                model.scale(0.95 if both else 1.0)
+                model.scale(SPHERE_SCALE["both" if both else "sphere"])
                 # the mesh already has square texels (u 0..2 around, v 0..1 top to bottom)
                 p.setUniformValue("uTiling", QVector2D(self.s.tiling * 0.5, self.s.tiling * 0.5))
             p.setUniformValue("uModel", model)

@@ -131,3 +131,37 @@ class RendererChainTests(unittest.TestCase):
         self.assertEqual(renderer_chain("auto", False), ["opengl", "cpu"])
         self.assertEqual(renderer_chain("d3d12", False), ["opengl", "cpu"])   # no Direct3D off Windows
         self.assertEqual(renderer_chain("bogus", True), ["d3d12", "d3d11", "opengl", "cpu"])
+
+
+class FramingTests(unittest.TestCase):
+    """The preview camera keeps every shape inside the viewport, at any window shape and orbit angle."""
+
+    def project(self, shape, aspect, yaw, pitch):
+        from lumo_materials.viewmodel import BOTH_OFFSET, FOV_Y, PLANE_SCALE, SPHERE_SCALE, camera_distance
+        d = camera_distance(shape, aspect)
+        vp = meshes.perspective(FOV_Y, aspect, 0.1, 100.0) @ meshes.look_at(np.array([0, 0, d], np.float32),
+                                                                              (0, 0, 0), (0, 1, 0))
+        pts = []
+        both = shape == "both"
+        if shape in ("sphere", "both"):
+            m = (meshes.translate(-BOTH_OFFSET if both else 0, 0, 0) @ meshes.rotate(pitch, "x") @ meshes.rotate(yaw, "y")
+                 @ meshes.scale(SPHERE_SCALE["both" if both else "sphere"] * 1.06))
+            pts.append((m, meshes.sphere(16, 32)[:, 0:3]))
+        if shape in ("plane", "both"):
+            m = (meshes.translate(BOTH_OFFSET if both else 0, 0, 0) @ meshes.rotate(pitch, "x") @ meshes.rotate(yaw, "y")
+                 @ meshes.scale(PLANE_SCALE["both" if both else "plane"]))
+            pts.append((m, meshes.plane(4)[:, 0:3]))
+        out = []
+        for m, p in pts:
+            h = np.c_[p, np.ones(len(p))] @ (vp @ m).T
+            out.append(h[:, :2] / h[:, 3:4])
+        return np.vstack(out)
+
+    def test_fits(self):
+        for shape in ("sphere", "plane", "both"):
+            for aspect in (0.6, 1.0, 1.17, 1.6, 2.4):
+                for yaw, pitch in ((20, 12), (0, 0), (45, 30), (-60, -40)):
+                    ndc = self.project(shape, aspect, yaw, pitch)
+                    self.assertLessEqual(float(np.abs(ndc).max()), 0.99, (shape, aspect, yaw, pitch))
+            # and the objects are not tiny: they use a good part of the view at the default angle
+            self.assertGreater(float(np.abs(self.project(shape, 1.17, 20, 12)).max()), 0.6, shape)

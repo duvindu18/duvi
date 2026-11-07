@@ -70,3 +70,31 @@ def renderer_chain(choice: str, windows: bool) -> list[str]:
     if choice in gpu:
         return gpu[gpu.index(choice):] + ["cpu"]
     return gpu + ["cpu"]
+
+
+# ---------------------------------------------------------------- 3D preview framing (shared by all viewers)
+FOV_Y = 32.0                 # degrees
+SPHERE_SCALE = {"sphere": 1.0, "both": 0.95}
+PLANE_SCALE = {"plane": 0.6, "both": 0.62}     # the plane mesh is 3.2 units wide before scaling
+BOTH_OFFSET = 1.15           # x of the sphere (-) and the plane (+) in "both"
+MARGIN = 1.15                # free space around the objects
+
+
+def camera_distance(shape: str, aspect: float, zoom: float = 1.0) -> float:
+    """Distance at which the shown objects fit the viewport with a margin, for any width / height."""
+    import math
+    t = math.tan(math.radians(FOV_Y / 2))
+    aspect = max(0.2, float(aspect))
+    if shape == "both":
+        plane_half = 1.6 * PLANE_SCALE["both"] * 1.3                 # corners of the turned plane
+        half_w = BOTH_OFFSET + max(1.06 * SPHERE_SCALE["both"], plane_half)
+        half_h = max(1.06 * SPHERE_SCALE["both"], plane_half)
+        depth = 1.0
+    elif shape == "plane":
+        half_w = half_h = 1.6 * PLANE_SCALE["plane"] * 1.15     # corners when turned towards the camera
+        depth = 0.6
+    else:
+        half_w = half_h = 1.06                                     # radius + displacement
+        depth = 1.06
+    d = max(half_h * MARGIN / t, half_w * MARGIN / (t * aspect)) + depth * 0.5
+    return d / max(0.3, float(zoom))

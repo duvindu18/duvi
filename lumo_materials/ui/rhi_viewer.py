@@ -14,6 +14,7 @@ from PySide6.QtGui import (QColor, QImage, QRhiBuffer, QRhiDepthStencilClearValu
                            QShader)
 from PySide6.QtWidgets import QRhiWidget
 
+from ..viewmodel import BOTH_OFFSET, PLANE_SCALE, SPHERE_SCALE, camera_distance
 from . import meshes, theme
 
 UBO_SIZE = 304           # std140 size of the Params block (see material.vert)
@@ -250,25 +251,23 @@ class RhiViewer(QRhiWidget):
         size = self.renderTarget().pixelSize()
         w, h = max(1, size.width()), max(1, size.height())
         both = self.s.shape == "both"
-        dist = (6.2 if both else 4.2) / max(0.3, self.s.zoom)
-        if both and w < h * 1.4:
-            dist *= 1.4 * h / w
+        dist = camera_distance(self.s.shape, w / h, self.s.zoom)
         cam = np.array([0.0, 0.0, dist], np.float32)
         view_proj = (_qmatrix_to_np(rhi.clipSpaceCorrMatrix()) @ meshes.perspective(32.0, w / h, 0.1, 100.0)
                      @ meshes.look_at(cam, (0, 0, 0), (0, 1, 0)))
         items = []
         if self.s.shape in ("sphere", "both"):
-            items.append(("sphere", -1.15 if both else 0.0))
+            items.append(("sphere", -BOTH_OFFSET if both else 0.0))
         if self.s.shape in ("plane", "both"):
-            items.append(("plane", 1.15 if both else 0.0))
+            items.append(("plane", BOTH_OFFSET if both else 0.0))
         t = float(self.s.tiling)
         for i, (name, x) in enumerate(items):
             model = meshes.translate(x, 0, 0) @ meshes.rotate(self.s.pitch, "x") @ meshes.rotate(self.s.yaw, "y")
             if name == "plane":
-                model = model @ meshes.scale(0.62 if both else 0.85)
+                model = model @ meshes.scale(PLANE_SCALE["both" if both else "plane"])
                 tiling = (t, t)
             else:
-                model = model @ meshes.scale(0.95 if both else 1.0)
+                model = model @ meshes.scale(SPHERE_SCALE["both" if both else "sphere"])
                 tiling = (t * 0.5, t * 0.5)
             u.updateDynamicBuffer(self._ubufs[i], 0, UBO_SIZE, self._uniforms(model, view_proj, cam, tiling))
         from .viewer import BACKGROUNDS

@@ -114,9 +114,11 @@ def run(outdir: str) -> int:
             shot("library-inspector")
             card = win.inspector.card
             for shape in ("sphere", "plane", "both"):
+                card.shape.setValue(shape)              # the switch, as a click would leave it
                 card.view.set_option("shape", shape)
                 settle(700)
                 shot(f"viewer-{shape}", card)
+            card.shape.setValue("sphere")
             card.view.set_option("shape", "sphere")
         step("inspector", select_first)
 
