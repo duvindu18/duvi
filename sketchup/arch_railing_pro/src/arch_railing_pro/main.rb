@@ -19,7 +19,7 @@ module ArchRailingPro
 
     def create_from_selection(params)
       model = Sketchup.active_model
-      chains = Generator.chains_from_selection(model.selection)
+      chains = Generator.chains_from_selection(model.selection, to_local(model))
       groups = nil
       model.start_operation('Create ArchRailing', true)
       begin
@@ -93,7 +93,7 @@ module ArchRailingPro
         Dialog.status('Select exactly one railing together with the new path edges.', 'warn')
         return UI.messagebox('Select exactly one railing together with the edges of its new path.')
       end
-      chains = Generator.chains_from_selection(model.selection)
+      chains = Generator.chains_from_selection(model.selection, to_local(model))
       if chains.size != 1
         return UI.messagebox('The new path must be one continuous chain of edges.')
       end
@@ -114,6 +114,52 @@ module ArchRailingPro
       end
     rescue PathError => e
       UI.messagebox("ArchRailing Pro\n\n#{e.message}")
+    end
+
+    def to_local(model)
+      model.active_path ? model.edit_transform.inverse : nil
+    end
+
+    # Builds all ready-made railings on a test path (straight run, corner,
+    # stair flight, landing) in one undoable step and reports any failure.
+    def insert_gallery
+      model = Sketchup.active_model
+      presets = Defaults.presets
+      mm = MM
+      path = [[0, 0, 0], [1500, 0, 0], [3300, 0, 900], [4300, 0, 900], [4300, 1800, 900]]
+             .map { |q| q.map { |c| c * mm } }
+      failures = []
+      t0 = Time.now
+      model.start_operation('Insert ArchRailing Gallery', true)
+      begin
+        gallery = model.active_entities.add_group
+        gallery.name = 'ArchRailing Gallery'
+        presets.each_with_index do |pr, i|
+          ox = (i % 6) * 6500 * mm
+          oy = -(i / 6) * 4500 * mm
+          pts = path.map { |q| [q[0] + ox, q[1] + oy, q[2]] }
+          begin
+            Generator.create(model, gallery.entities, [{ 'points' => pts, 'closed' => false }], pr['params'])
+            gallery.entities.add_text("#{i + 1}. #{pr['name']}", Geom::Point3d.new(ox, oy - 400 * mm, 0))
+          rescue StandardError => e
+            failures << "#{pr['name']}: #{e.class}: #{e.message}"
+          end
+        end
+        model.commit_operation
+      rescue StandardError => e
+        model.abort_operation
+        return report(e)
+      end
+      secs = (Time.now - t0).round(1)
+      if failures.empty?
+        UI.messagebox("Built all #{presets.size} ready-made railings in #{secs} s.\n\n" \
+                      'Each one sits on a straight run, a stair flight, a landing and a corner. ' \
+                      'Undo removes the whole gallery.')
+      else
+        UI.messagebox("#{failures.size} of #{presets.size} railings failed:\n\n#{failures.join("\n")}")
+        warn failures.join("\n")
+      end
+      model.active_view.zoom_extents
     end
 
     # Regenerating a railing while it is open for editing would mix up its
@@ -205,6 +251,7 @@ module ArchRailingPro
       menu.add_item(cmd_regen)
       menu.add_item(cmd_path)
       menu.add_separator
+      menu.add_item('Insert gallery of all railings') { insert_gallery }
       menu.add_item('About ArchRailing Pro') do
         UI.messagebox("ArchRailing Pro #{VERSION}\n\nProcedural railings, balustrades, glass guards " \
                       "and fences along any path.\n31 ready-made railings, live parametric editing.")

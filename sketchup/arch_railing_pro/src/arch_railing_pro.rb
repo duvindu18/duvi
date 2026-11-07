@@ -11,6 +11,11 @@ module ArchRailingPro
   PLUGIN_ID  = 'arch_railing_pro'
   PLUGIN_DIR = File.join(File.dirname(__FILE__), PLUGIN_ID)
 
+  if Sketchup.version.to_i < 19
+    UI.messagebox('ArchRailing Pro needs SketchUp 2019 or newer.') unless file_loaded?(__FILE__)
+    file_loaded(__FILE__)
+  end
+
   unless file_loaded?(__FILE__)
     ext = SketchupExtension.new('ArchRailing Pro', File.join(PLUGIN_DIR, 'main'))
     ext.description = 'Procedural railings, balustrades, glass guards and fences along any path: ' \

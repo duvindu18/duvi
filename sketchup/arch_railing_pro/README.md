@@ -24,6 +24,8 @@ Requires SketchUp 2019 or newer (Ruby 2.5+, `UI::HtmlDialog`).
 4. To edit, select a railing. The panel switches to **Editing railing** and loads its settings. With **Live update** on, every change rebuilds the selected railings. Each rebuild is one undo step.
 5. To move a railing onto a new path, select the railing and the new edges together, then click **Change path**.
 
+**Check it works:** run **Extensions > ArchRailing Pro > Insert gallery of all railings** in an empty model. It builds all 31 railings, each on a run with a stair flight, a landing and a corner. It then reports how long that took, or which railings failed. One undo removes the whole gallery.
+
 **Quick Railing** builds on the selected edges with the last settings you used, without opening the panel.
 
 ## How it builds
@@ -80,4 +82,4 @@ ruby test/run_tests.rb   # builds all 31 railings on 7 path shapes against an AP
 ./build.sh               # writes release/ArchRailingPro_v<version>.rbz
 ```
 
-The test checks every preset on a straight line, an L corner, an arc, a closed square, a closed circle, a stair with landings and a path with duplicate and collinear points. It checks that every swept mesh faces outward, that no triangle is degenerate, the post layouts, the offset mitres, closed-loop seams and the error messages. It does not run inside SketchUp, so open the extension in SketchUp once before sharing it.
+The test checks every preset on a straight line, an L corner, an arc, a closed square, a closed circle, a stair with landings and a path with duplicate and collinear points. It checks that every swept mesh faces outward, that no triangle is degenerate, the post layouts, the offset mitres, closed-loop seams and the error messages. It also checks the open-group coordinate conversion. It does not run inside SketchUp, so run the gallery command in SketchUp once before sharing the extension.

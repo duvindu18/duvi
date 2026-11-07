@@ -58,4 +58,31 @@ p f.map { |q| q[0].map { |v| (v / mm).round } }
 # errors
 begin; Path.new([[0,0,0],[0,0,1000*mm]], false); puts 'no error!'; fails += 1; rescue PathError => e; puts "ok: #{e.message}"; end
 begin; Path.new(PATHS['arc'][0], false).offset(2500*mm, 0); puts 'no error!'; fails += 1; rescue PathError => e; puts "ok: #{e.message}"; end
+# open-context conversion: world points -> local of a group moved by (1000, 500, 0)
+class TV; attr_reader :position; def initialize(*a) @position = Geom::Point3d.new(*a) end; end
+class TE < Sketchup::Edge
+  def initialize(a, b) @a, @b = a, b end
+  def vertices; [@a, @b]; end
+  def other_vertex(v) v == @a ? @b : @a end
+  def curve; nil; end
+end
+inv = Geom::Transformation.new(Geom::Point3d.new(1000, 500, 0)).inverse
+ch = Generator.chains_from_selection([TE.new(TV.new(1000, 500, 0), TV.new(1100, 500, 0))], inv)
+if ch.first['points'].map { |q| q.map(&:round) } == [[0, 0, 0], [100, 0, 0]] then puts 'ok: open-context points converted'
+else fails += 1; puts "FAIL open context: #{ch.inspect}" end
+begin; Generator.chains_from_selection([]); fails += 1; rescue PathError; puts 'ok: empty selection refused'; end
+
+# gallery test path (run, stair flight, landing, corner) for every preset inside a parent group
+gm = Sketchup::Model.new
+gal = gm.active_entities.add_group
+gpath = [[0, 0, 0], [1500, 0, 0], [3300, 0, 900], [4300, 0, 900], [4300, 1800, 900]].map { |q| q.map { |c| c * mm } }
+Defaults.presets.each do |pr|
+  begin
+    Generator.create(gm, gal.entities, [{ 'points' => gpath, 'closed' => false }], pr['params'])
+  rescue => e
+    fails += 1; puts "FAIL gallery #{pr['id']}: #{e.message}"
+  end
+end
+puts "ok: gallery built #{gal.entities.items.size} railings"
+
 puts fails.zero? ? "ALL PASSED (#{Defaults.presets.size} presets x #{PATHS.size} paths)" : "#{fails} FAILURES"

@@ -701,7 +701,10 @@ module ArchRailingPro
 
     # Ordered chains of points from the selected edges. One chain per
     # continuous run; junctions with 3 or more edges split chains.
-    def chains_from_selection(selection)
+    # to_local: inverse of model.edit_transform when a group is open for
+    # editing. SketchUp reports vertex positions in the open context in world
+    # coordinates while new geometry there uses local ones.
+    def chains_from_selection(selection, to_local = nil)
       edges = []
       selection.each do |e|
         next unless e.is_a?(Sketchup::Edge)
@@ -712,7 +715,11 @@ module ArchRailingPro
       if edges.empty?
         raise PathError, 'Select one or more connected edges, a curve or an arc to use as the railing path.'
       end
-      chains_from_edges(edges)
+      chains = chains_from_edges(edges)
+      return chains unless to_local
+      chains.each do |ch|
+        ch['points'] = ch['points'].map { |q| (to_local * Geom::Point3d.new(*q)).to_a }
+      end
     end
 
     def chains_from_edges(edges)
