@@ -279,18 +279,26 @@ def run(outdir: str) -> int:
         step("trash + settings", trash_and_pages)
 
         def settings_pages():
-            from PySide6.QtWidgets import QScrollArea
+            from .pages import SECTIONS
             win._section("settings")
             settle(400)
-            sc = win.settings_page.findChild(QScrollArea)
-            for i, frac in enumerate((0.0, 0.5, 1.0)):
-                sc.verticalScrollBar().setValue(int(sc.verticalScrollBar().maximum() * frac))
-                settle(250)
-                shot(f"settings-{i + 1}")
+            for key, *_rest in SECTIONS:
+                win.settings_page.show_section(key)
+                settle(300)
+                shot(f"settings-{key}")
+            win.settings_page.show_section("appearance")
             hub.set_setting("accent", "#8fb3ff")         # live accent change
             settle(300)
             shot("settings-accent")
             hub.set_setting("accent", "#ececee")
+            win.resize(1000, 700)                       # narrow: the cards fall back to one column
+            settle(400)
+            win.settings_page.show_section("library")
+            settle(300)
+            shot("settings-narrow")
+            win.resize(1600, 1000)
+            settle(300)
+            win.settings_page.show_section("appearance")
             win._section("library")
             settle(300)
         step("settings (all sections)", settings_pages)

@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from PySide6.QtCore import QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (QButtonGroup, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea,
+                               QVBoxLayout, QWidget)
 
 from .. import APP_NAME, __version__
 from ..engine.presets import PRESETS
@@ -11,7 +12,7 @@ from . import icons, theme
 from .dialogs import LibraryChooser, confirm
 from .hub import Hub, app_dir, reveal
 from .library_page import ago
-from .widgets import ChoiceRow, ElidedLabel, ToggleRow, button, clear_layout, label
+from .widgets import ChoiceRow, ElidedLabel, ToggleRow, button, clear_layout, human_bytes, label, vline
 
 
 class _Page(QWidget):
@@ -49,6 +50,7 @@ class _Page(QWidget):
         self.body.setSpacing(8)
         scroll.setWidget(host)
         self.body_host = host
+        self.scroll = scroll
         root.addWidget(scroll, 1)
 
     def clear_body(self) -> None:
@@ -248,145 +250,290 @@ class AccentRow(QWidget):
 TILE_CHOICES = [("0.5", "½ (zoomed in)"), ("1.0", "1 × 1"), ("1.5", "1.5 × 1.5"), ("2.0", "2 × 2"), ("3.0", "3 × 3"),
                 ("4.0", "4 × 4"), ("6.0", "6 × 6"), ("8.0", "8 × 8")]
 
+SECTIONS = [("appearance", "Appearance", "palette", "How lumo materials looks and moves."),
+            ("library", "Library", "grid", "Where your materials live and how they are listed."),
+            ("new", "New materials", "photo", "Starting values for photos and imported map sets."),
+            ("preview", "3D preview", "regen", "The renderer and how materials are shown."),
+            ("export", "Export", "export", "Defaults of the Export window. It also remembers your last choices."),
+            ("about", "About", "info", "Version, folders, licences and reset.")]
 
-class SettingsPage(_Page):
-    def __init__(self, hub: Hub, parent=None):
-        super().__init__(hub, "Settings", "gear", parent)
-        self.body_host.setMaximumWidth(820)          # long lines are hard to read on wide windows
-        self.body.setSpacing(6)
-        hub.libraryOpened.connect(self.refresh)
+_SMALL_BUTTON = "QPushButton { min-height: 26px; max-height: 26px; padding: 0 10px; font-size: 12px; }"
 
-    def _kv(self, k: str, v: str, *buttons) -> QWidget:
-        w = QWidget()
-        lay = QHBoxLayout(w)
-        lay.setContentsMargins(0, 4, 0, 4)
+
+class InfoRow(QFrame):
+    """A read-only row in the same style as the setting rows: label left, value (and buttons) right."""
+
+    def __init__(self, text: str, value: str, *buttons, parent=None):
+        super().__init__(parent)
+        self.setObjectName("InfoRow")
+        self.setStyleSheet(f"QFrame#InfoRow {{ background: {theme.ROW}; border-radius: 9px; }}")
+        self.setFixedHeight(38)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(26, 0, 8 if buttons else 14, 0)
         lay.setSpacing(8)
-        kl = label(k, "muted")
-        kl.setFixedWidth(160)
+        kl = label(text)
+        kl.setStyleSheet(f"color: {theme.TEXT_2};")
         lay.addWidget(kl)
-        if ("\\" in v or "/" in v) and " " not in v.strip()[:3] and len(v) > 40:
-            vl = ElidedLabel(v)                       # a long path: one line, shortened in the middle
-        else:
-            vl = label(v)
-            vl.setWordWrap(True)
+        lay.addSpacing(12)
+        vl = ElidedLabel(value)
+        vl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         vl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         lay.addWidget(vl, 1)
         for b in buttons:
+            b.setFixedHeight(28)
+            b.setStyleSheet(_SMALL_BUTTON)
             lay.addWidget(b)
-        return w
 
-    def _section(self, text: str, hint: str = "") -> None:
-        lb = label(text, "section")
-        lb.setContentsMargins(0, 22, 0, 2 if hint else 6)
-        self.body.addWidget(lb)
+    def paintEvent(self, e):
+        super().paintEvent(e)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor("#4a4a4f"))
+        p.drawRoundedRect(QRectF(14, 11, 2, self.height() - 22), 1, 1)
+        p.end()
+
+
+class SettingsCard(QFrame):
+    """A titled group of settings. Its rows sit in two columns when the card is wide enough, else in one."""
+    TWO_COLUMNS = 760
+
+    def __init__(self, title: str, hint: str = "", parent=None):
+        super().__init__(parent)
+        self.setObjectName("SettingsCard")
+        self.setStyleSheet(f"QFrame#SettingsCard {{ background: #151517; border: 1px solid {theme.LINE}; "
+                           f"border-radius: 12px; }}")
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(16, 14, 16, 16)
+        lay.setSpacing(4)
+        t = label(title, "h2")
+        lay.addWidget(t)
         if hint:
             h = label(hint, "muted", wrap=True)
             h.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
-            h.setContentsMargins(0, 0, 0, 6)
-            self.body.addWidget(h)
+            lay.addWidget(h)
+        lay.addSpacing(8)
+        self.grid = QGridLayout()
+        self.grid.setHorizontalSpacing(10)
+        self.grid.setVerticalSpacing(6)
+        lay.addLayout(self.grid)
+        self.items: list[tuple[QWidget, bool]] = []      # (row, spans both columns)
+        self.cols = 0
+
+    def add(self, w: QWidget, wide: bool = False) -> QWidget:
+        self.items.append((w, wide))
+        self._place(max(1, self.cols))
+        return w
+
+    def _place(self, cols: int) -> None:
+        self.cols = cols
+        while self.grid.count():
+            self.grid.takeAt(0)
+        r = c = 0
+        for w, wide in self.items:
+            if wide or cols == 1:
+                if c:
+                    r, c = r + 1, 0
+                self.grid.addWidget(w, r, 0, 1, cols)
+                r += 1
+                continue
+            self.grid.addWidget(w, r, c)
+            c += 1
+            if c == cols:
+                r, c = r + 1, 0
+        for i in range(2):
+            self.grid.setColumnStretch(i, 1 if i < cols else 0)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        cols = 2 if self.width() >= self.TWO_COLUMNS else 1
+        if cols != self.cols:
+            self._place(cols)
+
+
+class SettingsPage(_Page):
+    """Sections on the left (like Windows Settings); the chosen section's cards fill the rest."""
+
+    def __init__(self, hub: Hub, parent=None):
+        super().__init__(hub, "Settings", "gear", parent)
+        self.section = "appearance"
+        self.scroll.setParent(None)                 # this page lays itself out (sections + content)
+        root = self.layout()
+        content = QWidget()
+        cl = QHBoxLayout(content)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.setSpacing(0)
+        nav = QWidget()
+        nav.setFixedWidth(220)
+        nl = QVBoxLayout(nav)
+        nl.setContentsMargins(14, 18, 14, 18)
+        nl.setSpacing(2)
+        from .sidebar import NavButton
+        self.nav_group = QButtonGroup(self)
+        self.nav_group.setExclusive(True)
+        self.nav: dict[str, QPushButton] = {}
+        for key, text, ic, _hint in SECTIONS:
+            b = NavButton(text, ic)
+            self.nav_group.addButton(b)
+            b.clicked.connect(lambda _=False, k=key: self.show_section(k))
+            self.nav[key] = b
+            nl.addWidget(b)
+        nl.addStretch(1)
+        cl.addWidget(nav)
+        cl.addWidget(vline())
+        self.page_scroll = QScrollArea()
+        self.page_scroll.setWidgetResizable(True)
+        self.page_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.page_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        cl.addWidget(self.page_scroll, 1)
+        root.addWidget(content, 1)
+        hub.libraryOpened.connect(self.refresh)
 
     # rows that write a preference and apply it at once ------------------------------------------
     def _choice(self, text: str, key: str, options, cast=str) -> ChoiceRow:
         cur = self.hub.settings.get(key)
         row = ChoiceRow(text, options, str(cur) if cur is not None else options[0][0])
         row.changed.connect(lambda v, k=key, c=cast: self.hub.set_setting(k, c(v)))
-        self.body.addWidget(row)
         return row
 
     def _toggle(self, text: str, key: str) -> ToggleRow:
         row = ToggleRow(text, bool(self.hub.settings.get(key)))
         row.toggled.connect(lambda on, k=key: self.hub.set_setting(k, bool(on)))
-        self.body.addWidget(row)
         return row
 
-    def refresh(self) -> None:
-        self.clear_body()
-        s, lib = self.hub.settings, self.hub.library
-        from .library_page import SORTS
-        from .viewer import BACKGROUNDS, LIGHTS, RENDERER_LABELS, RENDERERS, SHAPES, MaterialView
-        from .editor import OUTPUT_SIZES, SEAMLESS_LABELS
-        from ..engine.seamless import MODES
-        from .dialogs import EXPORT_HEIGHT, EXPORT_NAMING, EXPORT_NORMALS
+    def show_section(self, key: str) -> None:
+        self.section = key
+        self.refresh()
 
-        # ---- appearance
-        self._section("APPEARANCE")
+    def refresh(self) -> None:
+        key = self.section if self.section in self.nav else "appearance"
+        self.nav[key].setChecked(True)
+        title, hint = next((t, h) for k, t, _i, h in SECTIONS if k == key)
+        host = QWidget()
+        lay = QVBoxLayout(host)
+        lay.setContentsMargins(24, 22, 14, 24)         # + the 10 px scroll bar on the right
+        lay.setSpacing(14)
+        head = QVBoxLayout()
+        head.setSpacing(2)
+        head.addWidget(label(title, "title"))
+        sub = label(hint, "muted", wrap=True)
+        head.addWidget(sub)
+        lay.addLayout(head)
+        lay.addSpacing(2)
+        for card in getattr(self, f"_section_{key}")():
+            lay.addWidget(card)
+        lay.addStretch(1)
+        self.page_scroll.setWidget(host)           # the previous section's widgets are deleted with it
+
+    # sections -----------------------------------------------------------------------------------
+    def _section_appearance(self) -> list[QFrame]:
+        s = self.hub.settings
+        look = SettingsCard("Look", "Colours and what the cards show.")
         accent = AccentRow(s.get("accent") or theme.ACCENT)
         accent.picked.connect(lambda c: self.hub.set_setting("accent", c))
-        self.body.addWidget(accent)
-        self._choice("Card thumbnails", "thumb_style", [("sphere", "Lit sphere"), ("flat", "Flat, fills the card")])
-        self._toggle("Tags on cards", "card_tags")
-        self._choice("Animations", "animations", [("on", "On"), ("off", "Off (instant)")])
-        self._toggle("Splash screen at start", "splash")
-        self._choice("Window at start", "startup_window", [("last", "Last size and place"), ("maximized", "Maximised")])
+        look.add(accent, wide=True)
+        look.add(self._choice("Card thumbnails", "thumb_style", [("sphere", "Lit sphere"),
+                                                                  ("flat", "Flat, fills the card")]))
+        look.add(self._toggle("Tags on cards", "card_tags"))
+        start = SettingsCard("Motion and start", "Animations, the splash screen and the window when the program opens.")
+        start.add(self._choice("Animations", "animations", [("on", "On"), ("off", "Off (instant)")]))
+        start.add(self._toggle("Splash screen at start", "splash"))
+        start.add(self._choice("Window at start", "startup_window", [("last", "Last size and place"),
+                                                                      ("maximized", "Maximised")]))
+        return [look, start]
 
-        # ---- library
-        self._section("LIBRARY")
+    def _section_library(self) -> list[QFrame]:
+        from .library_page import SORTS
+        s, lib = self.hub.settings, self.hub.library
+        folder = SettingsCard("Library folder", "Materials are ordinary folders of PNG maps: one folder per category.")
         change = button("Change…", "folder", on_click=self._change)
         change.setEnabled(not s.library_pinned)
         if s.library_pinned:
             change.setToolTip("Pinned by the LUMO_LIBRARY_DIR environment variable")
-        self.body.addWidget(self._kv("Folder", str(lib.root) if lib else "not chosen", change,
-                                     button("Show", "reveal", "ghost", on_click=lambda: lib and reveal(lib.root)),
-                                     button("Rescan", "refresh", "ghost", on_click=self._rescan)))
+        folder.add(InfoRow("Folder", str(lib.root) if lib else "not chosen", change,
+                           button("Show", "reveal", "ghost", on_click=lambda: lib and reveal(lib.root)),
+                           button("Rescan", "refresh", "ghost", on_click=self._rescan)), wide=True)
         if lib:
-            self.body.addWidget(self._kv("Materials", f"{lib.count()} in {len(lib.categories())} categories"))
-        self._choice("Materials per page", "page_size", [("12", "12"), ("24", "24"), ("48", "48"), ("96", "96")], int)
-        self._choice("Sort by", "sort", SORTS)
-        self._toggle("Ask before moving to the trash", "confirm_trash")
-        self._choice("Warn about repeated images", "duplicate_check",
-                     [("similar", "Same file or same picture"), ("identical", "Only the very same file"), ("off", "Off")])
+            folder.add(InfoRow("Materials", f"{lib.count()} in {len(lib.categories())} categories"))
+            folder.add(InfoRow("Space used", human_bytes(lib.disk_usage())))
+        browse = SettingsCard("Browsing", "How the grid lists materials.")
+        browse.add(self._choice("Materials per page", "page_size", [("12", "12"), ("24", "24"), ("48", "48"),
+                                                                    ("96", "96")], int))
+        browse.add(self._choice("Sort by", "sort", SORTS))
+        safety = SettingsCard("Safety", "Questions before things you may not mean to do.")
+        safety.add(self._toggle("Ask before moving to the trash", "confirm_trash"))
+        safety.add(self._choice("Warn about repeated images", "duplicate_check",
+                                [("similar", "Same file or same picture"), ("identical", "Only the very same file"),
+                                 ("off", "Off")]))
+        return [folder, browse, safety]
 
-        # ---- new materials
-        self._section("NEW MATERIALS")
-        preset = ChoiceRow("Default material type", [(k, v[0]) for k, v in PRESETS.items()], s.get("default_preset"))
+    def _section_new(self) -> list[QFrame]:
+        from .editor import OUTPUT_SIZES, SEAMLESS_LABELS
+        from ..engine.seamless import MODES
+        defaults = SettingsCard("Defaults", "Used when the file name does not suggest a material type.")
+        preset = ChoiceRow("Material type", [(k, v[0]) for k, v in PRESETS.items()], self.hub.settings.get("default_preset"))
         preset.changed.connect(lambda v: self.hub.set_setting("default_preset", v))
-        self.body.addWidget(preset)
-        self._choice("Default seamless mode", "default_seamless", [(m, SEAMLESS_LABELS[m]) for m in MODES])
-        self._choice("Default output size", "default_output_px", OUTPUT_SIZES, int)
-        self._choice("Live preview resolution", "preview_px", [("512", "512 px (fastest)"), ("768", "768 px"),
-                                                               ("1024", "1024 px (sharper)")], int)
-        self._toggle("Generate missing maps on import", "import_generate_missing")
-        self._choice("PNG compression", "png_compression", [("fast", "Fast saving (larger files)"),
-                                                            ("small", "Smaller files (slower saving)")])
+        defaults.add(preset)
+        defaults.add(self._choice("Seamless mode", "default_seamless", [(m, SEAMLESS_LABELS[m]) for m in MODES]))
+        defaults.add(self._choice("Output size", "default_output_px", OUTPUT_SIZES, int))
+        defaults.add(self._toggle("Generate missing maps on import", "import_generate_missing"))
+        editor = SettingsCard("Editor", "The live preview while you adjust a material.")
+        editor.add(self._choice("Live preview resolution", "preview_px", [("512", "512 px (fastest)"), ("768", "768 px"),
+                                                                          ("1024", "1024 px (sharper)")], int))
+        editor.add(self._choice("Tile size in the preview", "editor_tiling", TILE_CHOICES, float))
+        saving = SettingsCard("Saving", "PNG maps are lossless either way; this only trades speed for file size.")
+        saving.add(self._choice("PNG compression", "png_compression", [("fast", "Fast saving (larger files)"),
+                                                                       ("small", "Smaller files (slower saving)")]))
+        return [defaults, editor, saving]
 
-        # ---- 3D preview
-        self._section("3D PREVIEW")
+    def _section_preview(self) -> list[QFrame]:
+        from .viewer import BACKGROUNDS, LIGHTS, RENDERER_LABELS, RENDERERS, SHAPES, MaterialView
+        s = self.hub.settings
+        render = SettingsCard("Renderer", "Direct3D 12 first; Direct3D 11, OpenGL and the CPU are the fallbacks.")
         gl = ChoiceRow("Renderer (after restart)", RENDERERS, s.get("renderer") or "auto")
         gl.changed.connect(lambda v: (self.hub.set_setting("renderer", v),
                                       self.hub.notify("The renderer changes the next time lumo materials starts.", "info")))
-        self.body.addWidget(gl)
+        render.add(gl)
         now = MaterialView.device_info or RENDERER_LABELS.get(MaterialView.backend, "not started yet")
         if MaterialView.backend == "cpu" and self.hub.gpu_note:
             now = self.hub.gpu_note
-        self.body.addWidget(self._kv("In use now", now))
-        self._choice("Shape", "preview_shape", SHAPES)
-        self._choice("Light", "light", [(k, v[0]) for k, v in LIGHTS.items()])
-        self._choice("Background", "background", [(k, v[0]) for k, v in BACKGROUNDS.items()])
-        self._toggle("Spin the preview", "preview_spin")
-        self._choice("Tile size in the editor", "editor_tiling", TILE_CHOICES, float)
+        render.add(InfoRow("In use now", now))
+        view = SettingsCard("View", "How the inspector and the editor show a material.")
+        view.add(self._choice("Shape", "preview_shape", SHAPES))
+        view.add(self._choice("Light", "light", [(k, v[0]) for k, v in LIGHTS.items()]))
+        view.add(self._choice("Background", "background", [(k, v[0]) for k, v in BACKGROUNDS.items()]))
+        view.add(self._toggle("Spin the preview", "preview_spin"))
+        return [render, view]
 
-        # ---- export
-        self._section("EXPORT", "Defaults of the Export window. It also remembers your last choices.")
-        self._choice("Export as", "export_target", [("zip", "ZIP file"), ("folder", "Folder")])
-        self._choice("Normal map", "export_normal", EXPORT_NORMALS)
-        self._choice("File names", "export_naming", EXPORT_NAMING)
-        self._choice("Height map", "export_height", EXPORT_HEIGHT)
-        self._toggle("Packed ORM map", "export_orm")
-        self._toggle("Include previews", "export_previews")
+    def _section_export(self) -> list[QFrame]:
+        from .dialogs import EXPORT_HEIGHT, EXPORT_NAMING, EXPORT_NORMALS
+        target = SettingsCard("Destination")
+        target.add(self._choice("Export as", "export_target", [("zip", "ZIP file"), ("folder", "Folder")]))
+        files = SettingsCard("Files", "Match these to the program you take the materials into.")
+        files.add(self._choice("Normal map", "export_normal", EXPORT_NORMALS))
+        files.add(self._choice("File names", "export_naming", EXPORT_NAMING))
+        files.add(self._choice("Height map", "export_height", EXPORT_HEIGHT))
+        files.add(self._toggle("Packed ORM map", "export_orm"))
+        files.add(self._toggle("Include previews", "export_previews"))
+        return [target, files]
 
-        # ---- program
-        self._section("PROGRAM")
-        self.body.addWidget(self._kv("Version", f"{APP_NAME} {__version__}"))
-        self.body.addWidget(self._kv("Program data", str(s.folder), button("Show", "reveal", "ghost",
-                                                                           on_click=lambda: reveal(s.folder))))
+    def _section_about(self) -> list[QFrame]:
+        s = self.hub.settings
+        prog = SettingsCard("Program")
+        prog.add(InfoRow("Version", f"{APP_NAME} {__version__}"))
+        prog.add(InfoRow("Installed in", str(app_dir())))
+        prog.add(InfoRow("Program data", str(s.folder), button("Show", "reveal", "ghost", on_click=lambda: reveal(s.folder))),
+                 wide=True)
         lic = theme.asset_dir() / "licenses"
-        self.body.addWidget(self._kv("Licences", "Inter and Poppins (SIL OFL 1.1), Qt / PySide6 (LGPL 3), NumPy (BSD), "
-                                     "Pillow (MIT-CMU)", button("Open", "reveal", "ghost", on_click=lambda: reveal(lic))))
-        self.body.addWidget(self._kv("Installed in", str(app_dir())))
-        self.body.addWidget(self._kv("Reset", "All settings back to their defaults. The library folder stays.",
-                                     button("Reset settings…", "restore", "danger", on_click=self._reset)))
-        self.body.addStretch(1)
+        prog.add(InfoRow("Licences", "Inter and Poppins (SIL OFL 1.1), Qt / PySide6 (LGPL 3), NumPy (BSD), Pillow (MIT-CMU)",
+                         button("Open", "reveal", "ghost", on_click=lambda: reveal(lic))), wide=True)
+        reset = SettingsCard("Reset", "Every preference back to its default. Your library, materials and drafts are "
+                             "not touched.")
+        reset.add(InfoRow("All settings", "Library folder and window position stay",
+                          button("Reset settings…", "restore", "danger", on_click=self._reset)), wide=True)
+        return [prog, reset]
 
+    # actions ------------------------------------------------------------------------------------
     def _reset(self) -> None:
         if not confirm(self.window(), "Reset all settings?", "Every preference goes back to its default. Your library, "
                        "materials and drafts are not touched.", "Reset", True):
