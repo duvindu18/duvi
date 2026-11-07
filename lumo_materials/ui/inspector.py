@@ -154,7 +154,9 @@ class MapStrip(QWidget):
 class ViewerCard(QFrame):
     """The 3D view with its own toolbar row (shape, display mode, spin): nothing sits on top of the material."""
 
-    def __init__(self, parent=None, height: int = 300):
+    TILINGS = [0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0]
+
+    def __init__(self, parent=None, height: int = 300, tiling: float | None = None):
         super().__init__(parent)
         self.setObjectName("ViewerCard")
         self.setStyleSheet(f"QFrame#ViewerCard {{ border: 1px solid {theme.LINE}; border-radius: 10px; background: #121214; }}"
@@ -173,6 +175,15 @@ class ViewerCard(QFrame):
         self.shape.changed.connect(lambda k: self.view.set_option("shape", k))
         bl.addWidget(self.shape)
         bl.addStretch(1)
+        self.tile_button = None
+        if tiling is not None:                 # the editor: how often the texture repeats on the preview
+            self.tile_button = button(self._tile_text(tiling), "tiles", "ghost", "Tile size: how often the material "
+                                      "repeats on the preview (does not change the saved maps)")
+            self.tile_button.setFixedHeight(28)
+            self.tile_button.setStyleSheet("QPushButton { min-height: 26px; padding: 0 8px; font-size: 12px; "
+                                           "font-weight: 400; }")
+            self.tile_button.clicked.connect(self._tile_menu)
+            bl.addWidget(self.tile_button)
         self.mode = button("Lit", "caret", "ghost", "What the view shows: the lit material or one map")
         self.mode.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         self.mode.setFixedHeight(28)
@@ -209,6 +220,29 @@ class ViewerCard(QFrame):
         super().resizeEvent(e)
         self.placeholder.setGeometry(self.view_host.rect())
 
+    @staticmethod
+    def _tile_text(v: float) -> str:
+        return f"{v:g}×"
+
+    def _tile_menu(self):
+        m = QMenu(self)
+        cur = float(self.view.state.tiling)
+        for v in self.TILINGS:
+            a = m.addAction(f"{v:g} × {v:g}" if v >= 1 else "½ (zoomed in)")
+            a.setCheckable(True)
+            a.setChecked(abs(v - cur) < 1e-6)
+            a.triggered.connect(lambda _=False, x=v: self.set_tiling(x))
+        m.exec(self.tile_button.mapToGlobal(self.tile_button.rect().bottomLeft()))
+
+    def set_tiling(self, v: float) -> None:
+        self.view.set_option("tiling", float(v))
+        if self.tile_button is not None:
+            self.tile_button.setText(self._tile_text(v))
+        self.tilingChanged(float(v))
+
+    def tilingChanged(self, v: float) -> None:   # overridden by owners that remember it
+        pass
+
     def _mode_menu(self):
         m = QMenu(self)
         for key, text in DISPLAY:
@@ -242,28 +276,37 @@ class Inspector(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
+        # the window's caption buttons own the top strip (same height as the page headers, so the lines meet);
+        # the panel itself starts below it
+        self.caption_strip = QWidget()
+        self.caption_strip.setObjectName("Header")
+        self.caption_strip.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.caption_strip.setProperty("dragArea", True)
+        self.caption_strip.setFixedHeight(52)
+        root.addWidget(self.caption_strip)
+
         self.header = QWidget()
-        self.header.setObjectName("Header")
-        self.header.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.header.setProperty("dragArea", True)
         self.header.setFixedHeight(52)
         hl = QHBoxLayout(self.header)
-        hl.setContentsMargins(16, 0, 0, 0)
+        hl.setContentsMargins(16, 0, 10, 0)
+        hl.setSpacing(8)
         self.title = label("", "h2")
         hl.addWidget(self.title, 1)
         self.b_more = button("", "more", "ghost", "More actions")
         self.b_more.setFixedSize(30, 30)
         self.b_more.clicked.connect(self._more_menu)
         hl.addWidget(self.b_more)
-        hl.addSpacing(146)          # caption buttons sit here
         root.addWidget(self.header)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # the scroll bar's room is always reserved: content never jumps sideways when a material with a longer
+        # description makes the panel scroll (the bar is invisible when there is nothing to scroll)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         host = QWidget()
         self.body = QVBoxLayout(host)
-        self.body.setContentsMargins(16, 16, 16, 16)
+        self.body.setContentsMargins(16, 0, 6, 16)
         self.body.setSpacing(0)
         scroll.setWidget(host)
         root.addWidget(scroll, 1)
@@ -291,6 +334,11 @@ class Inspector(QWidget):
         self.r_bg.changed.connect(lambda v: self._opt("background", v))
         for k in ("tiling", "displacement", "light", "background"):
             self.card.view.set_option(k, s.get(k) if s.get(k) is not None else self.card.view.state.__dict__[k])
+        self.card.shape.changed.connect(lambda k: self.hub.settings.set("preview_shape", k))
+        self.card.shape.setValue(s.get("preview_shape") or "sphere")
+        self.card.view.set_option("shape", s.get("preview_shape") or "sphere")
+        if s.get("preview_spin"):
+            self.card.spin.setChecked(True)
 
         self.body.addWidget(self._section("DETAILS"))
         self.details = QGridLayout()
@@ -375,7 +423,7 @@ class Inspector(QWidget):
             return
         self.title.setStyleSheet("")
         fm = QFontMetrics(self.title.font())
-        self.title.setText(fm.elidedText(m.name, Qt.TextElideMode.ElideRight, 140))
+        self.title.setText(fm.elidedText(m.name, Qt.TextElideMode.ElideRight, 260))
         self.title.setToolTip(m.name)
         seam = f"{m.seam_score:.2f}×" if m.seam_score is not None else "?"
         rows = [("Category", m.category, None), ("Resolution", f"{m.width} × {m.height}", None),
@@ -433,6 +481,18 @@ class Inspector(QWidget):
             return None
 
         self.hub.runner.run("prefetch", work)
+
+    def apply_settings(self, key: str) -> None:
+        s = self.hub.settings
+        if key == "preview_shape":
+            self.card.shape.setValue(s.get("preview_shape"))
+            self.card.view.set_option("shape", s.get("preview_shape"))
+        elif key == "preview_spin":
+            self.card.spin.setChecked(bool(s.get("preview_spin")))
+        elif key in ("light", "background"):
+            row = self.r_light if key == "light" else self.r_bg
+            row.setValue(s.get(key))
+            self.card.view.set_option(key, s.get(key))
 
     def sizeHint(self):
         return QSize(340, 600)

@@ -4,12 +4,12 @@ from __future__ import annotations
 from PySide6.QtCore import QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPixmap
 from PySide6.QtWidgets import (QButtonGroup, QFrame, QHBoxLayout, QLabel, QMenu, QPushButton, QScrollArea,
-                               QVBoxLayout, QWidget)
+                               QVBoxLayout, QWidget, QWidgetAction)
 
 from ..library.store import UNCATEGORIZED
 from . import icons, theme
 from .hub import Hub, reveal
-from .widgets import button, clear_layout, hline, label
+from .widgets import SwatchPicker, button, clear_layout, hline, label
 
 
 class NavButton(QPushButton):
@@ -109,6 +109,7 @@ class Sidebar(QWidget):
     section = Signal(str)                # library | favourites | recent | drafts | trash | settings
     categoryChosen = Signal(object)      # str | None
     categoryMenu = Signal(str, str)      # (action, category) rename | delete
+    categoryColour = Signal(str, str)    # (category, colour) — '' for the default colour
 
     def __init__(self, hub: Hub, parent=None):
         super().__init__(parent)
@@ -129,7 +130,7 @@ class Sidebar(QWidget):
         tl.addWidget(self.switch)
         root.addWidget(top)
 
-        self.b_search = NavButton("Search", "search", "/")
+        self.b_search = NavButton("Search", "search", "Ctrl F")
         self.b_new = NavButton("New from photo", "photo", "Ctrl N")
         self.b_import = NavButton("Import map set", "import", "Ctrl I")
         for b, key in ((self.b_search, "search"), (self.b_new, "new_photo"), (self.b_import, "import")):
@@ -231,10 +232,11 @@ class Sidebar(QWidget):
         clear_layout(self.cat_lay)
         self.cat_buttons.clear()
         if lib:
+            colours = lib.category_colours()
             for i, (cat, n) in enumerate(lib.categories()):
                 if n == 0 and cat == UNCATEGORIZED:
                     continue
-                b = NavButton(cat, swatch=theme.category_colour(cat, i))
+                b = NavButton(cat, swatch=colours.get(cat) or theme.category_colour(cat, i))
                 b.setStyleSheet("QPushButton { padding-left: 34px; color: %s; }" % theme.TEXT)
                 b.set_right(str(n))
                 b.setChecked(cat == current)
@@ -258,12 +260,24 @@ class Sidebar(QWidget):
         self.categoryChosen.emit(cat if on else None)
 
     def _cat_menu(self, cat: str, w: QWidget):
+        m = self.category_menu(cat, w)
+        m.exec(w.mapToGlobal(w.rect().bottomLeft()))
+
+    def category_menu(self, cat: str, w: QWidget) -> QMenu:
         m = QMenu(self)
         if cat != UNCATEGORIZED:
             m.addAction(icons.icon("edit"), "Rename…", lambda: self.categoryMenu.emit("rename", cat))
             m.addAction(icons.icon("trash"), "Delete (materials move to Uncategorized)",
                         lambda: self.categoryMenu.emit("delete", cat))
+        sub = m.addMenu(icons.icon("palette"), "Folder colour")
+        picker = SwatchPicker(getattr(w, "swatch", None))
+        act = QWidgetAction(sub)
+        act.setDefaultWidget(picker)
+        sub.addAction(act)
+        picker.picked.connect(lambda c: (m.close(), self.categoryColour.emit(cat, c)))
         if self.hub.library:
+            m.addSeparator()
             m.addAction(icons.icon("folder"), "Show in Explorer",
                         lambda: reveal(self.hub.library.materials_dir / cat))
-        m.exec(w.mapToGlobal(w.rect().bottomLeft()))
+        m.colour_menu = sub
+        return m

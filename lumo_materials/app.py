@@ -120,7 +120,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     QGuiApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-    configure_renderer(Settings().get("renderer"))
+    settings = Settings()
+    configure_renderer(settings.get("renderer"))
     configure_default_format()
     app = QApplication(argv)
     app.setApplicationName(APP_NAME)
@@ -129,15 +130,18 @@ def main(argv: list[str] | None = None) -> int:
     icon_file = theme.asset_dir() / "icons" / ("app.ico" if sys.platform == "win32" else "app.png")
     if icon_file.exists():
         app.setWindowIcon(QIcon(str(icon_file)))
+    theme.set_accent(settings.get("accent"))
+    theme.ANIMATIONS = settings.get("animations") != "off"
     theme.apply(app)
     from .ui.splash import Splash
-    splash = Splash()
-    splash.start()
-
-    splash.set_status("Opening your library…")
-    hub = Hub()
+    splash = Splash() if settings.get("splash") else None
+    if splash:
+        splash.start()
+        splash.set_status("Opening your library…")
+    hub = Hub(settings)
     hub.try_open_saved()
-    splash.set_status("Preparing the window…")
+    if splash:
+        splash.set_status("Preparing the window…")
     win = MainWindow(hub)
     app.main_window = win   # for the exception hook
 
@@ -166,7 +170,8 @@ def main(argv: list[str] | None = None) -> int:
     server.newConnection.connect(on_connection)
 
     win.show()
-    splash.finish(win)
+    if splash:
+        splash.finish(win)
     if not hub.library:
         QTimer.singleShot(250, win.choose_library_first)
     if files:

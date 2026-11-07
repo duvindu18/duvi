@@ -29,6 +29,7 @@ from ..engine import adjust as adj
 from ..engine import imageio, render
 from ..engine.fftops import parallel
 from ..engine.seamless import seam_score
+from . import fingerprint as fpr
 from .paths import is_inside, refuse_reason, safe_name, unique_child
 from .settings import read_json, write_json_atomic
 
@@ -39,7 +40,8 @@ UNCATEGORIZED = "Uncategorized"
 DEFAULT_CATEGORIES = ("Walls", "Floors", "Stone", "Metal", "Wood", "Tiles", "Fabric", "Ground", UNCATEGORIZED)
 MAP_FILES = {"albedo": "albedo.png", "normal": "normal.png", "roughness": "roughness.png",
              "metallic": "metallic.png", "height": "height.png", "ao": "ao.png"}
-PREVIEW_FILES = {"thumb": "thumb.jpg", "sphere": "preview_sphere.png", "plane": "preview_plane.png"}
+PREVIEW_FILES = {"thumb": "thumb.jpg", "sphere": "preview_sphere.png", "plane": "preview_plane.png",
+                 "flat": "preview_flat.jpg"}
 MAX_TAGS = 24
 FORMAT_VERSION = 1
 
@@ -80,6 +82,7 @@ class Material:
     origin: str = "photo"                          # photo | import
     generation: dict[str, Any] | None = None       # GenParams.to_dict() for photo materials
     adjustments: dict[str, Any] | None = None      # adjust params when adjusted (originals\ then exists)
+    sources: list[dict[str, Any]] | None = None    # fingerprints of the source images (None: not computed yet)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -87,7 +90,7 @@ class Material:
             "tags": self.tags, "description": self.description, "favourite": self.favourite,
             "created": self.created, "modified": self.modified, "width": self.width, "height": self.height,
             "seam_score": self.seam_score, "origin": self.origin,
-            "generation": self.generation, "adjustments": self.adjustments,
+            "generation": self.generation, "adjustments": self.adjustments, "sources": self.sources,
         }
 
     @property
@@ -108,6 +111,10 @@ class Material:
         p = self.folder / PREVIEW_FILES[kind]
         if p.exists():
             return p
+        if kind == "flat":                    # materials saved before the flat preview existed
+            q = self.folder / PREVIEW_FILES["plane"]
+            if q.exists():
+                return q
         t = self.folder / PREVIEW_FILES["thumb"]
         return t if t.exists() else None
 
@@ -212,6 +219,7 @@ class Library:
             width=int(data.get("width") or 0), height=int(data.get("height") or 0),
             seam_score=data.get("seam_score"), origin=str(data.get("origin") or "photo"),
             generation=data.get("generation"), adjustments=data.get("adjustments"),
+            sources=data.get("sources") if isinstance(data.get("sources"), list) else None,
         )
         if not m.width and (folder / MAP_FILES["albedo"]).exists():
             try:
@@ -424,8 +432,24 @@ class Library:
         sph = render.sphere(maps, size=size)
         imageio.save_rgba_png(sph, folder / PREVIEW_FILES["sphere"])
         imageio.save_jpg(render.plane(maps, size=size), folder / PREVIEW_FILES["plane"], quality=88)
+        # flat card thumbnail: the lit material filling the whole box, one tile, sharp enough for big cards
+        imageio.save_jpg(render.plane(maps, size=512, tiles=1), folder / PREVIEW_FILES["flat"], quality=88)
         thumb = imageio.resize(render.composite(sph), 256, 256)
         imageio.save_jpg(thumb, folder / PREVIEW_FILES["thumb"], quality=88)
+
+    def ensure_flat_preview(self, mid: str) -> Path | None:
+        """Writes the flat card preview of a material saved before it existed. Returns its path."""
+        m = self.get(mid)
+        p = m.folder / PREVIEW_FILES["flat"]
+        if p.exists():
+            return p
+        try:
+            maps = self.load_maps(mid, max_edge=512)
+            maps = {k: imageio.shrink(v, 512) for k, v in maps.items()}
+            imageio.save_jpg(render.plane(maps, size=512, tiles=1), p, quality=88)     # written atomically
+            return p
+        except Exception:
+            return m.preview_path("flat")
 
     def set_preview(self, mid: str, kind: str, png_bytes: bytes) -> None:
         """Stores a preview rendered elsewhere (e.g. by the GPU viewer)."""
@@ -449,6 +473,7 @@ class Library:
                description: str = "", favourite: bool = False, origin: str = "photo",
                generation: dict[str, Any] | None = None, source: str | Path | None = None,
                originals: dict[str, np.ndarray] | None = None, adjustments: dict[str, Any] | None = None,
+               sources: list[dict[str, Any]] | None = None,
                progress: Callable[[float, str], None] | None = None) -> Material:
         """Writes a new material folder. maps = final maps; originals + adjustments for adjusted materials."""
         report = progress or (lambda f, s: None)
@@ -478,6 +503,10 @@ class Library:
                          description=description, favourite=favourite, created=ts, modified=ts, width=w, height=h,
                          seam_score=round(seam_score(maps["albedo"]), 3), origin=origin, generation=generation,
                          adjustments=adj.normalize(adjustments) if adjustments else None)
+            if sources is not None:
+                m.sources = list(sources)
+            elif source:
+                m.sources = [self._fingerprint(source, "photo")]
             m.folder = staging
             self._write_material(m)
             with self._lock:
@@ -531,6 +560,7 @@ class Library:
                 shutil.rmtree(sdir, ignore_errors=True)
                 sdir.mkdir()
                 shutil.copy2(sp, sdir / ("original" + sp.suffix.lower()))
+                m.sources = [self._fingerprint(sp, "photo")]
         report(0.7, "Rendering previews")
         self.write_previews(m.folder, maps)
         h, w = maps["albedo"].shape[:2]
@@ -601,6 +631,85 @@ class Library:
             out.append(self.update(mid, category=category, tags=tags, favourite=favourite))
         return out
 
+    # ------------------------------------------------------------------ duplicates
+    @staticmethod
+    def _fingerprint(path: str | Path, role: str) -> dict[str, Any]:
+        try:
+            fp = fpr.fingerprint(path)
+        except OSError:
+            fp = {"name": Path(path).name, "bytes": 0, "sha256": "", "dhash": ""}
+        fp["role"] = role
+        return fp
+
+    def _ensure_sources(self, m: Material) -> list[dict[str, Any]]:
+        """Fingerprints of a material saved before they were recorded (computed once, then kept)."""
+        if m.sources is not None:
+            return m.sources
+        out: list[dict[str, Any]] = []
+        src = m.source_path
+        if src is not None:
+            out.append(self._fingerprint(src, "photo"))
+        else:
+            for p in (m.folder / "originals" / MAP_FILES["albedo"], m.folder / MAP_FILES["albedo"]):
+                if p.exists():                 # imported: the colour map, as a picture (bytes were re-encoded)
+                    try:
+                        out.append({"name": p.name, "bytes": 0, "sha256": "", "dhash": fpr.dhash_file(p),
+                                    "role": "albedo"})
+                    except Exception:
+                        pass
+                    break
+        with self._lock:
+            m.sources = out
+            if m.id in self._materials and m.folder.exists():
+                try:
+                    self._write_material(m)
+                except OSError:
+                    pass
+        return out
+
+    def backfill_fingerprints(self) -> int:
+        """Computes missing fingerprints (run in the background after opening a library)."""
+        n = 0
+        for m in self.all():
+            if m.sources is None:
+                self._ensure_sources(m)
+                n += 1
+        return n
+
+    def find_duplicates(self, paths: Iterable[str | Path], exclude: Iterable[str] = (),
+                        prints: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+        """Materials whose source images match any of paths: [{path, id, name, category, kind}], best first.
+        kind is 'identical' (same file) or 'similar' (the same picture, re-saved or resized)."""
+        skip = set(exclude)
+        if prints is None:
+            prints = [dict(self._fingerprint(p, "file"), path=str(p)) for p in paths]
+        found: dict[str, dict[str, Any]] = {}
+        for m in self.all():
+            if m.id in skip:
+                continue
+            for known in self._ensure_sources(m):
+                for fp in prints:
+                    kind = fpr.match(fp, known)
+                    if kind and (m.id not in found or (kind == "identical" and found[m.id]["kind"] != "identical")):
+                        found[m.id] = {"path": fp.get("path", ""), "id": m.id, "name": m.name, "category": m.category,
+                                       "kind": kind}
+        return sorted(found.values(), key=lambda d: (d["kind"] != "identical", d["name"].lower()))
+
+    # ------------------------------------------------------------------ category colours
+    def category_colours(self) -> dict[str, str]:
+        c = self.meta.get("category_colours")
+        return dict(c) if isinstance(c, dict) else {}
+
+    def set_category_colour(self, name: str, colour: str | None) -> None:
+        with self._lock:
+            c = self.category_colours()
+            if colour:
+                c[name] = str(colour)
+            else:
+                c.pop(name, None)
+            self.meta["category_colours"] = c
+            self._save_meta()
+
     # ------------------------------------------------------------------ categories
     def create_category(self, name: str) -> str:
         with self._lock:
@@ -632,6 +741,10 @@ class Library:
             else:
                 dst.mkdir(parents=True, exist_ok=True)
             self.meta["categories"] = [new_c if c == old else c for c in self.meta["categories"]]
+            cols = self.category_colours()
+            if old in cols:
+                cols[new_c] = cols.pop(old)
+                self.meta["category_colours"] = cols
             for m in self._materials.values():
                 if m.category == old:
                     m.category = new_c
@@ -658,6 +771,9 @@ class Library:
                 else:
                     d.rmdir()
             self.meta["categories"] = [c for c in self.meta["categories"] if c != name]
+            cols = self.category_colours()
+            if cols.pop(name, None) is not None:
+                self.meta["category_colours"] = cols
             self._save_meta()
             return moved
 

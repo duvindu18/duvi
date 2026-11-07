@@ -11,6 +11,7 @@ from .engine import importer as imp
 from .engine import maps as gen
 from .engine.presets import GenParams
 from .engine.seamless import seam_score
+from .library import fingerprint as fpr
 from .ui import meshes
 
 def _preview_result(maps: dict[str, np.ndarray], t0: float):
@@ -62,6 +63,11 @@ def _apply_meta(lib, mid: str, name: str, category: str, tags: list[str]) -> str
     return mid
 
 
+def job_find_duplicates(lib, paths: list[str], exclude: list[str] | None = None):
+    """Materials already made from any of these image files (same file, or the same picture re-saved)."""
+    return lib.find_duplicates(paths, exclude or [])
+
+
 def _resize_longest(a: np.ndarray, edge: int) -> np.ndarray:
     h, w = a.shape[:2]
     s = edge / max(h, w)
@@ -90,9 +96,16 @@ def job_save_import(lib, assignments, params: GenParams, missing: bool, adjust_p
     originals, _ = imp.assemble(assignments, params, missing)
     report(0.35, "Applying adjustments")
     final = adj.apply(originals, adjust_params)
+    sources = []
+    for a in assignments:
+        if a.role != "ignore":
+            try:
+                sources.append(dict(fpr.fingerprint(a.path), role=a.role))
+            except OSError:
+                pass
     sub = lambda f, s="": report(0.5 + 0.5 * f, s)  # noqa: E731
     return lib.create(final, name, category, tags=tags, origin="import", originals=originals,
-                      adjustments=adjust_params, progress=sub).id
+                      adjustments=adjust_params, sources=sources, progress=sub).id
 
 
 def job_save_adjust(lib, mid: str, adjust_params: dict, mode: str, name: str, category: str, tags: list[str],
@@ -109,4 +122,4 @@ def job_save_adjust(lib, mid: str, adjust_params: dict, mode: str, name: str, ca
         return _apply_meta(lib, mid, name, category, tags)
     return lib.create(final, name, category, tags=tags, description=m.description, origin=m.origin,
                       generation=m.generation, source=m.source_path, originals=originals,
-                      adjustments=adjust_params, progress=sub).id
+                      adjustments=adjust_params, sources=m.sources, progress=sub).id

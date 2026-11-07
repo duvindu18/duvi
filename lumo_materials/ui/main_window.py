@@ -3,12 +3,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, Qt, QTimer
+from PySide6.QtCore import QByteArray, QEasingCurve, QPropertyAnimation, Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
-from PySide6.QtWidgets import QApplication, QHBoxLayout, QLineEdit, QPlainTextEdit, QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (QApplication, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
+                               QStackedWidget, QVBoxLayout, QWidget)
 
 from .. import APP_NAME
 from ..engine import importer as imp
+from ..engine import imageio
 from ..engine.imageio import PHOTO_EXTENSIONS
 from .dialogs import DetailsDialog, ExportDialog, LibraryChooser, MoveDialog, TagDialog, confirm, prompt
 from .editor import EditorPage, pick_maps, pick_photo
@@ -18,6 +20,7 @@ from .inspector import Inspector
 from .library_page import LibraryPage
 from .pages import DraftsPage, SettingsPage, TrashPage
 from .sidebar import Sidebar
+from . import theme
 from .widgets import CaptionButtons, Toast, label, vline
 
 INSPECTOR_MIN_WIDTH = 1120
@@ -85,6 +88,7 @@ class MainWindow(FramelessWindow):
         self.sidebar.section.connect(self._section)
         self.sidebar.categoryChosen.connect(self._category)
         self.sidebar.categoryMenu.connect(self._category_menu)
+        self.sidebar.categoryColour.connect(self._category_colour)
         self.library.currentChanged.connect(self._current_material)
         self.library.openEditor.connect(self._open_editor)
         self.library.requestExport.connect(self._export)
@@ -92,8 +96,11 @@ class MainWindow(FramelessWindow):
         self.library.bulkAction.connect(self._bulk)
         self.inspector.action.connect(self._inspector_action)
         self.editor.closed.connect(self._editor_closed)
+        self.editor.showExisting.connect(self._show_existing)
         self.drafts.openDraft.connect(self._open_draft)
         hub.changed.connect(self._after_change)
+        hub.settingsChanged.connect(self._setting_changed)
+        imageio.PNG_LEVEL = 6 if hub.settings.get("png_compression") == "small" else 1
         for view in (self.inspector.card.view, self.editor.card.view):
             view.usingFallback.connect(self._gpu_fallback)
 
@@ -137,10 +144,59 @@ class MainWindow(FramelessWindow):
 
     def show_page(self, name: str) -> None:
         page = self.page_by_name[name]
+        old = self.pages.currentWidget()
+        snap = None
+        # cross-fade: a picture of the old page dissolves over the new one. Not to or from the editor: its 3D
+        # view is drawn by the GPU and a snapshot of it would flash.
+        if (theme.ANIMATIONS and self.isVisible() and old is not None and old is not page
+                and self.editor not in (old, page)):
+            snap = self.pages.grab()
         if name in ("trash", "drafts", "settings"):
             page.refresh()
         self.pages.setCurrentWidget(page)
         self._update_inspector()
+        if snap is not None:
+            self._fade_out(snap)
+
+    def _fade_out(self, pixmap) -> None:
+        cover = QLabel(self.pages)
+        cover.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        cover.setPixmap(pixmap)
+        cover.setGeometry(self.pages.rect())
+        eff = QGraphicsOpacityEffect(cover)
+        cover.setGraphicsEffect(eff)
+        cover.show()
+        cover.raise_()
+        anim = QPropertyAnimation(eff, b"opacity", cover)
+        anim.setDuration(170)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.setStartValue(1.0)
+        anim.setEndValue(0.0)
+        anim.finished.connect(cover.deleteLater)
+        anim.start()
+
+    def _setting_changed(self, key: str) -> None:
+        s = self.hub.settings
+        if key == "accent":
+            theme.set_accent(s.get("accent"))
+            theme.reapply()
+            for w in QApplication.allWidgets():
+                w.update()
+        elif key == "animations":
+            theme.ANIMATIONS = s.get("animations") != "off"
+            self.library.apply_settings(key)
+        elif key in ("thumb_style", "card_tags", "page_size", "sort"):
+            self.library.apply_settings(key)
+        elif key == "png_compression":
+            imageio.PNG_LEVEL = 6 if s.get("png_compression") == "small" else 1
+        elif key in ("preview_shape", "preview_spin", "light", "background"):
+            self.inspector.apply_settings(key)
+            if key in ("light", "preview_shape"):
+                if key == "preview_shape":
+                    self.editor.card.shape.setValue(s.get(key))
+                self.editor.card.view.set_option("shape" if key == "preview_shape" else key, s.get(key))
+        elif key == "editor_tiling":
+            self.editor.card.set_tiling(float(s.get("editor_tiling") or 2.0))
 
     def _restore_geometry(self) -> None:
         g = self.hub.settings.get("window")
@@ -153,6 +209,8 @@ class MainWindow(FramelessWindow):
             w, h = min(1600, int(scr.width() * 0.9)), min(1000, int(scr.height() * 0.9))
             self.resize(w, h)
             self.move(scr.center().x() - w // 2, scr.center().y() - h // 2)
+        if self.hub.settings.get("startup_window") == "maximized":
+            QTimer.singleShot(0, self.showMaximized)
 
     def closeEvent(self, e):
         if self.pages.currentWidget() is self.editor and (self.editor.dirty or self.editor.saving):
@@ -301,6 +359,16 @@ class MainWindow(FramelessWindow):
             self.hub.error(str(ex))
         self.hub.changed.emit()
 
+    def _category_colour(self, cat: str, colour: str) -> None:
+        lib = self.hub.library
+        if not lib:
+            return
+        try:
+            lib.set_category_colour(cat, colour or None)
+        except Exception as ex:
+            self.hub.error(str(ex))
+        self.hub.changed.emit()
+
     def _current_material(self, m) -> None:
         self.inspector.show_material(m)
         if m is not None:                    # the cards around it load in the background: next click is instant
@@ -330,6 +398,11 @@ class MainWindow(FramelessWindow):
         self.sidebar.select_section("library")
         if saved_id:
             self.library.select(saved_id)
+
+    def _show_existing(self, mid: str) -> None:
+        """From the duplicate notice: leave the editor (asking about unsaved work) and select the material."""
+        if self.editor.leave():
+            self.library.select(mid)
 
     def _inspector_action(self, what: str, mid: str) -> None:
         if what in ("adjust", "regenerate"):
@@ -365,6 +438,11 @@ class MainWindow(FramelessWindow):
                 return
             elif what == "trash":
                 names = [lib.get(i).name for i in ids]
+                if self.hub.settings.get("confirm_trash"):
+                    what_ = names[0] if len(ids) == 1 else f"{len(ids)} materials"
+                    if not confirm(self, f"Move {what_} to the trash?", "You can restore it from Trash.",
+                                   "Move to trash", True):
+                        return
                 lib.trash(ids)
                 self.library.clear_checked()
                 text = f"Moved {names[0]} to the trash" if len(ids) == 1 else f"Moved {len(ids)} materials to the trash"

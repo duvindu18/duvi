@@ -179,8 +179,12 @@ def run(outdir: str) -> int:
             win.open_files([str(photo)])
             assert win.pages.currentWidget() is win.editor, "editor did not open"
             wait_idle(lambda: win.editor.last is not None, 30)
+            win.editor.card.set_tiling(3.0)               # the editor's tile size control
             settle(900)
             shot("editor-photo")
+            win.editor.card.set_tiling(2.0)
+            wait_idle(lambda: not hub.runner.busy("duplicates"), 20)
+            win.editor.dup.dismiss()                      # (a sample could look alike: no question mid-test)
             win.editor.save()
             wait_idle(lambda: not win.editor.saving and win.pages.currentWidget() is win.library, 60)
             assert lib.count() == len(sample_ids) + 1, "photo material was not saved"
@@ -196,10 +200,28 @@ def run(outdir: str) -> int:
             roles = sorted(a.role for a in win.editor.assignments)
             assert roles == ["albedo", "height", "normal", "roughness"], roles
             shot("editor-import")
+            wait_idle(lambda: not hub.runner.busy("duplicates"), 20)
+            win.editor.dup.dismiss()
             win.editor.save()
             wait_idle(lambda: not win.editor.saving and win.pages.currentWidget() is win.library, 60)
             assert lib.count() == len(sample_ids) + 2, "imported material was not saved"
         step("import map set + save", editor_import)
+
+        def duplicates():
+            win.editor.start_photo(str(photo))           # the photo saved above, once more
+            win.show_page("editor")
+            wait_idle(lambda: not hub.runner.busy("duplicates"), 30)
+            wait_idle(lambda: win.editor.last is not None, 30)
+            settle(500)
+            assert win.editor.dup.active(), "repeated photo was not noticed"
+            assert win.editor.dup.matches[0]["kind"] == "identical", win.editor.dup.matches
+            report["duplicate"] = win.editor.dup.text.text()
+            shot("editor-duplicate")
+            win.editor.dup.dismiss()
+            assert win.editor.leave(), "could not leave the editor"
+            settle(300)
+            assert win.pages.currentWidget() is win.library
+        step("repeated photo warning", duplicates)
 
         def editor_adjust():
             win._open_editor("adjust", sample_ids[0])
@@ -242,6 +264,88 @@ def run(outdir: str) -> int:
             shot("settings")
             win._section("library")
         step("trash + settings", trash_and_pages)
+
+        def settings_pages():
+            from PySide6.QtWidgets import QScrollArea
+            win._section("settings")
+            settle(400)
+            sc = win.settings_page.findChild(QScrollArea)
+            for i, frac in enumerate((0.0, 0.5, 1.0)):
+                sc.verticalScrollBar().setValue(int(sc.verticalScrollBar().maximum() * frac))
+                settle(250)
+                shot(f"settings-{i + 1}")
+            hub.set_setting("accent", "#8fb3ff")         # live accent change
+            settle(300)
+            shot("settings-accent")
+            hub.set_setting("accent", "#ececee")
+            win._section("library")
+            settle(300)
+        step("settings (all sections)", settings_pages)
+
+        def thumbnails_and_colours():
+            lib.set_category_colour(lib.categories()[0][0], "#d9c24a")
+            hub.changed.emit()
+            hub.set_setting("thumb_style", "flat")
+            settle(300)
+            wait_idle(lambda: not win.library.thumbs.pending, 20)
+            settle(400)
+            shot("grid-flat")
+            win.library.size_slider.setValue(320)
+            win.library._card_size(320)
+            wait_idle(lambda: not win.library.thumbs.pending, 20)
+            settle(400)
+            shot("grid-flat-320")
+            # the card size slider across its range: thumbnails must stay (no reload loop)
+            for px in range(150, 381, 10):
+                win.library._card_size(px)
+                app.processEvents()
+            win.library._card_size(380)
+            settle(300)
+            wait_idle(lambda: not win.library.thumbs.pending, 20)
+            n0 = len(win.library.thumbs.cache)
+            loads = []
+            for _ in range(10):
+                win.library.grid.viewport().repaint()
+                app.processEvents()
+                loads.append(len(win.library.thumbs.pending))
+            settle(300)
+            report["thumbs_stable"] = {"cached": n0, "pending_while_repainting": max(loads),
+                                       "cache_mb": round(win.library.thumbs.bytes / 1048576, 1)}
+            assert max(loads) == 0, "thumbnails keep reloading at the largest card size"
+            shot("grid-380")
+            win.library._card_size(210)
+            win.library.size_slider.setValue(210)
+            hub.set_setting("thumb_style", "sphere")
+            settle(300)
+        step("flat thumbnails + folder colour", thumbnails_and_colours)
+
+        def menus():
+            from PySide6.QtCore import QPoint
+            from PySide6.QtWidgets import QMenu
+            cat = next(iter(win.sidebar.cat_buttons))
+            w = win.sidebar.cat_buttons[cat]
+            m = win.sidebar.category_menu(cat, w)
+            m.popup(w.mapToGlobal(w.rect().bottomLeft()))
+            settle(300)
+            shot("menu-category", m)
+            m.colour_menu.popup(m.mapToGlobal(QPoint(m.width(), 0)))
+            settle(300)
+            shot("menu-folder-colour", m.colour_menu)
+            m.colour_menu.close()
+            m.close()
+            c = QMenu(win)
+            for i, text in enumerate(("Recently added", "Recently changed", "Name", "Category", "Resolution")):
+                a = c.addAction(text)
+                a.setCheckable(True)
+                a.setChecked(i == 0)
+            c.popup(win.library.b_sort.mapToGlobal(win.library.b_sort.rect().bottomLeft()))
+            settle(300)
+            shot("menu-checkable", c)
+            c.close()
+            cp = win.editor.e_cat
+            cp.set_categories([x for x, _ in lib.categories()], "Walls")
+            settle(100)
+        step("menus", menus)
 
         def dialogs():
             d = ExportDialog(win, hub, sample_ids[:2])

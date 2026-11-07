@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import datetime as dt
+import time
+from collections import OrderedDict
 from typing import Callable
 
 from PySide6.QtCore import (QAbstractListModel, QEvent, QModelIndex, QObject, QPointF, QRect, QRectF, QRunnable, QSize, Qt,
                             QThreadPool, QTimer, Signal)
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QImageReader, QPainter, QPainterPath, QPen, QPixmap, QPixmapCache
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QImageReader, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QHBoxLayout, QListView, QMenu, QPushButton, QStackedLayout,
                                QStyle, QStyledItemDelegate, QStyleOptionViewItem, QVBoxLayout, QWidget)
 
@@ -45,11 +47,16 @@ def ago(iso: str) -> str:
 
 
 class _ThumbJob(QRunnable):
-    def __init__(self, loader, key: str, path: str, px: int):
+    def __init__(self, loader, key: str, path: str, px: int, make=None):
         super().__init__()
-        self.loader, self.key, self.path, self.px = loader, key, path, px
+        self.loader, self.key, self.path, self.px, self.make = loader, key, path, px, make
 
     def run(self):
+        if self.make is not None:            # e.g. write a missing flat preview first
+            try:
+                self.make()
+            except Exception:
+                pass
         r = QImageReader(self.path)
         sz = r.size()
         if sz.isValid() and max(sz.width(), sz.height()) > self.px:
@@ -60,46 +67,111 @@ class _ThumbJob(QRunnable):
 
 
 class ThumbLoader(QObject):
-    """Card thumbnails decoded in background threads; cards show a shimmering skeleton until theirs arrives."""
+    """Card thumbnails decoded in background threads, kept in an own memory-bounded cache.
+
+    Sizes are rounded up to steps of 64 px, so dragging the card-size slider reloads only now and then, and while
+    a new size loads the card keeps showing the size it already has (no skeleton, no flicker). Qt's shared
+    QPixmapCache (10 MB) was too small for big cards: thumbnails pushed each other out and reloaded endlessly.
+    """
     loaded = Signal(str, QImage)
     ready = Signal()
 
-    def __init__(self, parent=None):
+    BUDGET = 192 * 1024 * 1024
+    STEP = 64
+    MAX_PX = 512                 # the saved previews are 384 (sphere) and 512 (flat) px
+    FADE_S = 0.18
+
+    def __init__(self, parent=None, library=None):
         super().__init__(parent)
         self.pool = QThreadPool(self)
         self.pool.setMaxThreadCount(4)
+        self.library = library or (lambda: None)
         self.pending: set[str] = set()
         self.failed: set[str] = set()
+        self.cache: "OrderedDict[str, QPixmap]" = OrderedDict()
+        self.bytes = 0
+        self.best: dict[tuple, str] = {}      # (material id, kind) -> its latest loaded cache key
+        self.slot_of: dict[str, tuple] = {}
+        self.born: dict[str, float] = {}      # cache key -> when it replaced a skeleton (fade-in)
+        self.flat_requested: set[str] = set()
+        self.style = "sphere"                 # sphere | flat
+        self.animate = True
         self.loaded.connect(self._done)
 
-    def get(self, m: Material, size: int, dpr: float) -> QPixmap | None | bool:
-        """QPixmap when ready, None while loading, False when the material has no preview at all."""
-        p = m.preview_path("sphere")
+    def set_style(self, style: str) -> None:
+        if style != self.style:
+            self.style = style
+            self.ready.emit()
+
+    def _bucket(self, px: int) -> int:
+        return min(self.MAX_PX, max(self.STEP, -(-px // self.STEP) * self.STEP))
+
+    def get(self, m: Material, size: int, dpr: float, kind: str | None = None) -> tuple[QPixmap | None | bool, float]:
+        """(picture, opacity). picture: a QPixmap when ready (possibly another size of it while the right one
+        loads), None while loading, False when the material has no preview at all. opacity < 1 while it fades in."""
+        kind = kind or self.style
+        p = m.preview_path(kind)
         if p is None:
-            return False
+            return False, 1.0
         try:
             mt = p.stat().st_mtime_ns
         except OSError:
-            return False
-        px = max(16, int(size * dpr))
+            return False, 1.0
+        px = self._bucket(int(size * dpr))
         key = f"{p}|{mt}|{px}"
-        pm = QPixmapCache.find(key)
-        if pm is not None and not pm.isNull():
+        slot = (m.id, kind)
+        pm = self.cache.get(key)
+        if pm is not None:
+            self.cache.move_to_end(key)
             pm.setDevicePixelRatio(dpr)
-            return pm
+            return pm, self._alpha(key)
         if key in self.failed:
-            return False
+            return False, 1.0
         if key not in self.pending:
+            make = None
+            if kind == "flat" and p.name != "preview_flat.jpg" and m.id not in self.flat_requested:
+                lib = self.library()              # older material: write its flat preview once, in the background
+                if lib is not None:
+                    self.flat_requested.add(m.id)
+                    make = lambda mid=m.id, lb=lib: lb.ensure_flat_preview(mid)  # noqa: E731
             self.pending.add(key)
-            self.pool.start(_ThumbJob(self, key, str(p), px))
-        return None
+            self.slot_of[key] = slot
+            self.pool.start(_ThumbJob(self, key, str(p), px, make))
+        other = self.best.get(slot)
+        if other and other in self.cache:         # another size / an older version of it: show that meanwhile
+            return self.cache[other], 1.0
+        return None, 1.0
+
+    def _alpha(self, key: str) -> float:
+        t = self.born.get(key)
+        if t is None:
+            return 1.0
+        f = (time.monotonic() - t) / self.FADE_S
+        if f >= 1.0:
+            del self.born[key]
+            return 1.0
+        return max(0.0, f)
+
+    def fading(self) -> bool:
+        return bool(self.born)
 
     def _done(self, key: str, img: QImage) -> None:
         self.pending.discard(key)
+        slot = self.slot_of.pop(key, None)
         if img.isNull():
             self.failed.add(key)
-        else:
-            QPixmapCache.insert(key, QPixmap.fromImage(img))
+            self.ready.emit()
+            return
+        pm = QPixmap.fromImage(img)
+        if slot is not None:
+            if self.animate and not (self.best.get(slot) in self.cache):
+                self.born[key] = time.monotonic()  # first picture of this card: fade it in over the skeleton
+            self.best[slot] = key
+        self.cache[key] = pm
+        self.bytes += pm.width() * pm.height() * 4
+        while self.bytes > self.BUDGET and len(self.cache) > 1:
+            _old, opm = self.cache.popitem(last=False)
+            self.bytes -= opm.width() * opm.height() * 4
         self.ready.emit()
 
 
@@ -147,6 +219,8 @@ class CardDelegate(QStyledItemDelegate):
         self.list_mode = False
         self.loading_visible = False                # set while painting: any skeleton on screen?
         self.offset_x = 0                           # centres the row of cards (set by the grid)
+        self.hover: dict[int, float] = {}           # row -> 0..1 hover highlight (animated by the grid)
+        self.show_tags = True
 
     @property
     def card(self) -> QSize:
@@ -197,17 +271,20 @@ class CardDelegate(QStyledItemDelegate):
         return super().editorEvent(event, model, option, index)
 
     # painting ------------------------------------------------------------------
+    def hover_amount(self, row: int) -> float:
+        return self.hover.get(row, 0.0)
+
     def paint(self, p: QPainter, option: QStyleOptionViewItem, index):
         m: Material = index.data(Qt.ItemDataRole.UserRole)
         r = self._card_rect(option)
         selected = bool(option.state & QStyle.StateFlag.State_Selected)
-        hover = bool(option.state & QStyle.StateFlag.State_MouseOver)
         checked = m.id in self.model.checked
+        h = self.hover_amount(index.row())
         p.save()
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        bg = QColor("#1b1b1d" if selected else ("#1a1a1c" if hover else theme.CARD))
-        border = QColor("#4a4a4f" if (selected or checked) else theme.LINE)
+        bg = QColor("#1b1b1d") if selected else _mix(theme.CARD, "#1d1d20", h)
+        border = QColor("#4a4a4f") if (selected or checked) else _mix(theme.LINE, "#343438", h)
         rf = QRectF(r).adjusted(0.5, 0.5, -0.5, -0.5)
         p.setPen(QPen(border, 1))
         p.setBrush(bg)
@@ -216,7 +293,7 @@ class CardDelegate(QStyledItemDelegate):
         if self.list_mode:
             self._paint_row(p, r, m, dpr, checked)
         else:
-            self._paint_card(p, r, m, dpr, checked)
+            self._paint_card(p, r, m, dpr, checked, h)
         p.restore()
 
     def _paint_actions(self, p: QPainter, r: QRect, m: Material, checked: bool) -> None:
@@ -236,31 +313,64 @@ class CardDelegate(QStyledItemDelegate):
         col = theme.STAR if m.favourite else theme.FAINT
         p.drawPixmap(QRect(star.center().x() - 7, star.center().y() - 7, 14, 14), icons.pixmap(name, col, 14))
 
-    def _paint_card(self, p: QPainter, r: QRect, m: Material, dpr: float, checked: bool) -> None:
+    def _skeleton(self, p: QPainter, shape: QPainterPath, area: QRectF) -> None:
+        self.loading_visible = True
+        p.fillPath(shape, shimmer_brush(area, ShimmerClock.get().phase()))
+
+    def _paint_card(self, p: QPainter, r: QRect, m: Material, dpr: float, checked: bool, hover: float) -> None:
         thumb_h = int(r.width() * 0.66)
         thumb = QRectF(r.left() + 1, r.top() + 1, r.width() - 2, thumb_h)
-        path = QPainterPath()
-        path.addRoundedRect(QRectF(r).adjusted(1, 1, -1, -1), 9, 9)
+        card_path = QPainterPath()
+        card_path.addRoundedRect(QRectF(r).adjusted(1, 1, -1, -1), 9, 9)
+        flat = self.loader.style == "flat"
         p.save()
-        p.setClipPath(path)
+        p.setClipPath(card_path)
         p.fillRect(thumb, QColor("#18181b"))
+        if flat:
+            pm, alpha = self.loader.get(m, int(thumb.width()), dpr)
+            if pm:
+                p.setClipRect(thumb, Qt.ClipOperation.IntersectClip)
+                zoom = 1.0 + 0.04 * hover                    # the picture leans in a little on hover
+                tw, th = thumb.width() * zoom, thumb.height() * zoom
+                dest = QRectF(thumb.center().x() - tw / 2, thumb.center().y() - th / 2, tw, th)
+                pw, ph = pm.width() / pm.devicePixelRatio(), pm.height() / pm.devicePixelRatio()
+                k = max(dest.width() / pw, dest.height() / ph)    # cover: fill the box, crop the rest
+                sw, sh = dest.width() / k, dest.height() / k
+                src = QRectF((pw - sw) / 2 * pm.devicePixelRatio(), (ph - sh) / 2 * pm.devicePixelRatio(),
+                             sw * pm.devicePixelRatio(), sh * pm.devicePixelRatio())
+                p.setOpacity(alpha)
+                p.drawPixmap(dest, pm, src)
+                p.setOpacity(1.0)
+                if alpha < 1.0:
+                    self.loading_visible = True
+            elif pm is None:
+                sk = QPainterPath()
+                sk.addRect(thumb)
+                self._skeleton(p, sk, thumb)
+        p.setClipPath(card_path)
         p.setPen(QPen(QColor(theme.LINE), 1))
         p.drawLine(QPointF(thumb.left(), thumb.bottom()), QPointF(thumb.right(), thumb.bottom()))
         p.restore()
-        side = int(min(thumb_h - 30, r.width() * 0.55))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(0, 0, 0, 120))
-        cx = thumb.center().x()
-        p.drawEllipse(QPointF(cx, thumb.top() + (thumb_h + side) / 2 + 2), side * 0.28, 5)
-        pm = self.loader.get(m, side, dpr)
-        target = QRect(int(cx - side / 2), int(thumb.top() + (thumb_h - side) / 2), side, side)
-        if pm:
-            p.drawPixmap(target, pm)
-        elif pm is None:                              # still loading: skeleton sphere
-            self.loading_visible = True
-            sk = QPainterPath()
-            sk.addEllipse(QRectF(target).adjusted(side * 0.06, side * 0.06, -side * 0.06, -side * 0.06))
-            p.fillPath(sk, shimmer_brush(QRectF(target), ShimmerClock.get().phase()))
+        if not flat:
+            side = int(min(thumb_h - 30, r.width() * 0.55))
+            grow = 1.0 + 0.045 * hover
+            cx = thumb.center().x()
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(0, 0, 0, int(120 - 30 * hover)))
+            p.drawEllipse(QPointF(cx, thumb.top() + (thumb_h + side) / 2 + 2 + 2 * hover), side * (0.28 + 0.02 * hover), 5)
+            pm, alpha = self.loader.get(m, side, dpr)
+            s2 = side * grow
+            target = QRectF(cx - s2 / 2, thumb.top() + (thumb_h - side) / 2 - (s2 - side) * 0.75, s2, s2)
+            if pm:
+                p.setOpacity(alpha)
+                p.drawPixmap(target, pm, QRectF(pm.rect()))
+                p.setOpacity(1.0)
+                if alpha < 1.0:
+                    self.loading_visible = True
+            elif pm is None:                              # still loading: skeleton sphere
+                sk = QPainterPath()
+                sk.addEllipse(target.adjusted(side * 0.06, side * 0.06, -side * 0.06, -side * 0.06))
+                self._skeleton(p, sk, target)
         # resolution badge
         f = QFont(p.font())
         f.setPixelSize(10)
@@ -271,9 +381,9 @@ class CardDelegate(QStyledItemDelegate):
         bw = fm.horizontalAdvance(txt) + 10
         badge = QRectF(r.left() + 8, r.top() + 8, bw, 16)
         p.setPen(QPen(QColor(theme.LINE_2), 1))
-        p.setBrush(QColor("#141416"))
+        p.setBrush(QColor(20, 20, 22, 220) if flat else QColor("#141416"))
         p.drawRoundedRect(badge, 5, 5)
-        p.setPen(QColor(theme.MUTED))
+        p.setPen(QColor(theme.TEXT_2 if flat else theme.MUTED))
         p.drawText(badge, Qt.AlignmentFlag.AlignCenter, txt)
         if m.seam_score is not None and m.seam_score > 1.5:
             p.setPen(Qt.PenStyle.NoPen)
@@ -293,29 +403,42 @@ class CardDelegate(QStyledItemDelegate):
         f3.setWeight(QFont.Weight.Normal)
         p.setFont(f3)
         p.setPen(QColor(theme.MUTED))
-        sub = m.category + (f"  ·  {', '.join(m.tags[:2])}" if m.tags else "")
+        sub = m.category + (f"  ·  {', '.join(m.tags[:2])}" if m.tags and self.show_tags else "")
         sr = QRect(r.left() + 12, r.top() + thumb_h + 30, r.width() - 52, 16)
         p.drawText(sr, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                    QFontMetrics(f3).elidedText(sub, Qt.TextElideMode.ElideRight, sr.width()))
         self._paint_actions(p, r, m, checked)
 
     def _paint_row(self, p: QPainter, r: QRect, m: Material, dpr: float, checked: bool) -> None:
-        pm = self.loader.get(m, 40, dpr)
-        target = QRect(r.left() + 10, r.center().y() - 20, 40, 40)
+        flat = self.loader.style == "flat"
+        pm, alpha = self.loader.get(m, 40, dpr)
+        target = QRectF(r.left() + 10, r.center().y() - 20, 40, 40)
+        shape = QPainterPath()
+        if flat:
+            shape.addRoundedRect(target, 7, 7)
+        else:
+            shape.addEllipse(target.adjusted(3, 3, -3, -3))
         if pm:
-            p.drawPixmap(target, pm)
+            p.save()
+            p.setOpacity(alpha)
+            if flat:
+                p.setClipPath(shape)
+                side = min(pm.width(), pm.height())
+                p.drawPixmap(target, pm, QRectF((pm.width() - side) / 2, (pm.height() - side) / 2, side, side))
+            else:
+                p.drawPixmap(target, pm, QRectF(pm.rect()))
+            p.restore()
+            if alpha < 1.0:
+                self.loading_visible = True
         elif pm is None:
-            self.loading_visible = True
-            sk = QPainterPath()
-            sk.addEllipse(QRectF(target).adjusted(3, 3, -3, -3))
-            p.fillPath(sk, shimmer_brush(QRectF(target), ShimmerClock.get().phase()))
+            self._skeleton(p, shape, target)
         f2 = QFont(p.font())
         f2.setPixelSize(13)
         f2.setWeight(QFont.Weight.Medium)
         p.setFont(f2)
         p.setPen(QColor(theme.TEXT))
         p.drawText(QRect(r.left() + 62, r.center().y() - 18, 300, 18), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                   m.name)
+                   QFontMetrics(f2).elidedText(m.name, Qt.TextElideMode.ElideRight, 300))
         f3 = QFont(p.font())
         f3.setPixelSize(12)
         f3.setWeight(QFont.Weight.Normal)
@@ -323,7 +446,7 @@ class CardDelegate(QStyledItemDelegate):
         p.setPen(QColor(theme.MUTED))
         p.drawText(QRect(r.left() + 62, r.center().y() + 2, 300, 16), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                    m.category)
-        cols = [(", ".join(m.tags), 260), (f"{m.width} × {m.height}", 110), (ago(m.created), 120)]
+        cols = [(", ".join(m.tags) if self.show_tags else "", 260), (f"{m.width} × {m.height}", 110), (ago(m.created), 120)]
         x = r.left() + 380
         for text, w in cols:
             if x + w > r.right() - 80:
@@ -332,6 +455,13 @@ class CardDelegate(QStyledItemDelegate):
                        QFontMetrics(f3).elidedText(text, Qt.TextElideMode.ElideRight, w - 10))
             x += w
         self._paint_actions(p, r, m, checked)
+
+
+def _mix(a: str, b: str, t: float) -> QColor:
+    ca, cb = QColor(a), QColor(b)
+    t = max(0.0, min(1.0, t))
+    return QColor(round(ca.red() + (cb.red() - ca.red()) * t), round(ca.green() + (cb.green() - ca.green()) * t),
+                  round(ca.blue() + (cb.blue() - ca.blue()) * t))
 
 
 class MaterialGrid(QListView):
@@ -353,6 +483,11 @@ class MaterialGrid(QListView):
         self.setSpacing(0)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         delegate.loader.ready.connect(self.viewport().update)
+        self.animate = True
+        self._hover_row = -1
+        self._hover_timer = QTimer(self, interval=16)
+        self._hover_timer.timeout.connect(self._hover_step)
+        model.modelReset.connect(lambda: (self.delegate.hover.clear(), setattr(self, "_hover_row", -1)))
         self.set_list_mode(False)
 
     def set_list_mode(self, on: bool) -> None:
@@ -401,6 +536,44 @@ class MaterialGrid(QListView):
     def _queued_relayout(self):
         self._relayout_queued = False
         self._relayout()
+
+    # hover: each card eases in and out instead of switching colour at once ----------------------------------
+    def _set_hover(self, row: int) -> None:
+        if row == self._hover_row:
+            return
+        self._hover_row = row
+        if not self.animate:
+            self.delegate.hover = {row: 1.0} if row >= 0 else {}
+            self.viewport().update()
+            return
+        if not self._hover_timer.isActive():
+            self._hover_timer.start()
+
+    def _hover_step(self) -> None:
+        h = self.delegate.hover
+        done = True
+        for row in set(h) | ({self._hover_row} if self._hover_row >= 0 else set()):
+            target = 1.0 if row == self._hover_row else 0.0
+            v = h.get(row, 0.0)
+            v = min(target, v + 0.14) if target > v else max(target, v - 0.10)
+            if v <= 0.0:
+                h.pop(row, None)
+            else:
+                h[row] = v
+            if v != target:
+                done = False
+        self.viewport().update()
+        if done:
+            self._hover_timer.stop()
+
+    def mouseMoveEvent(self, e):
+        super().mouseMoveEvent(e)
+        idx = self.indexAt(e.position().toPoint())
+        self._set_hover(idx.row() if idx.isValid() else -1)
+
+    def leaveEvent(self, e):
+        super().leaveEvent(e)
+        self._set_hover(-1)
 
     def paintEvent(self, e):
         self.delegate.loading_visible = False
@@ -542,7 +715,7 @@ class LibraryPage(QWidget):
         self.stack_host = QWidget()
         self.stack = QStackedLayout(self.stack_host)
         self.model = MaterialModel(self)
-        self.thumbs = ThumbLoader(self)
+        self.thumbs = ThumbLoader(self, library=lambda: self.hub.library)
         self.delegate = CardDelegate(self.model, self.thumbs, self)
         self.grid = MaterialGrid(self.model, self.delegate)
         self.grid.set_card_size(self.size_slider.value())
@@ -569,6 +742,21 @@ class LibraryPage(QWidget):
 
         hub.changed.connect(self.reload)
         self._update_sort_label()
+        self.apply_settings()
+
+    def apply_settings(self, key: str = "") -> None:
+        s = self.hub.settings
+        self.thumbs.set_style(s.get("thumb_style") or "sphere")
+        self.thumbs.animate = theme.ANIMATIONS
+        self.grid.animate = theme.ANIMATIONS
+        self.delegate.show_tags = bool(s.get("card_tags"))
+        if key == "page_size":
+            self._page_size(int(s.get("page_size") or 24))
+        elif key == "sort":
+            self.f.sort = s.get("sort") or "recent"
+            self._update_sort_label()
+            self.reload()
+        self.grid.viewport().update()
 
     # ------------------------------------------------------------------ empty state
     def _make_empty(self) -> QWidget:

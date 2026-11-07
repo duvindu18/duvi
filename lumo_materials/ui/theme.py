@@ -4,8 +4,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QComboBox, QListView, QMenu
 
 # ---- colours ------------------------------------------------------------------------------------
 WIN = "#0d0d0e"        # sidebar, inspector
@@ -22,6 +23,10 @@ TEXT_2 = "#b4b4b8"
 MUTED = "#86868c"
 FAINT = "#5a5a60"
 ACCENT = "#ececee"     # primary buttons are light on dark
+ACCENT_HOVER = "#ffffff"
+ACCENTS = [("#ececee", "White"), ("#8fb3ff", "Blue"), ("#b9a4ff", "Violet"), ("#74d6a3", "Green"),
+           ("#f2c66d", "Amber"), ("#ff9a85", "Coral")]
+ANIMATIONS = True      # Settings > Appearance > Animations
 STAR = "#e6c14a"
 DANGER = "#e5484d"
 CLOSE_HOVER = "#c42b1c"
@@ -32,6 +37,15 @@ CATEGORY_COLOURS = ["#3b6fd8", "#b07a45", "#6b6b70", "#9aa3ad", "#d96b3b", "#d9c
 
 RADIUS = 9
 FONT_FAMILY = "Inter"
+
+
+def set_accent(colour: str | None) -> None:
+    global ACCENT, ACCENT_HOVER
+    c = QColor(colour or "#ececee")
+    if not c.isValid():
+        c = QColor("#ececee")
+    ACCENT = c.name()
+    ACCENT_HOVER = "#ffffff" if ACCENT == "#ececee" else c.lighter(112).name()
 
 
 def category_colour(name: str, index: int | None = None) -> str:
@@ -97,7 +111,7 @@ QPushButton:hover {{ background: #252528; }}
 QPushButton:pressed {{ background: #2a2a2d; }}
 QPushButton:disabled {{ color: {FAINT}; background: #171719; }}
 QPushButton[kind="primary"] {{ background: {ACCENT}; color: #111113; border-color: {ACCENT}; }}
-QPushButton[kind="primary"]:hover {{ background: #ffffff; }}
+QPushButton[kind="primary"]:hover {{ background: {ACCENT_HOVER}; border-color: {ACCENT_HOVER}; }}
 QPushButton[kind="primary"]:disabled {{ background: #3a3a3e; color: #77777c; border-color: #3a3a3e; }}
 QPushButton[kind="ghost"] {{ background: transparent; }}
 QPushButton[kind="ghost"]:hover {{ background: {HOVER}; }}
@@ -131,12 +145,18 @@ QComboBox {{ background: #1e1e20; border: 1px solid {LINE_2}; border-radius: 7px
              min-height: 30px; }}
 QComboBox:hover {{ background: #252528; }}
 QComboBox::drop-down {{ border: none; width: 22px; }}
-QComboBox QAbstractItemView {{ background: #18181a; border: 1px solid {LINE_2}; selection-background-color: #2a2a2e;
-                               padding: 4px; }}
-QMenu {{ background: #18181a; border: 1px solid {LINE_2}; border-radius: 8px; padding: 4px; }}
-QMenu::item {{ padding: 6px 22px 6px 12px; border-radius: 5px; }}
-QMenu::item:selected {{ background: #2a2a2e; }}
-QMenu::separator {{ height: 1px; background: {LINE}; margin: 4px 6px; }}
+QComboBox QAbstractItemView {{ background: #18181a; border: 1px solid {LINE_2}; border-radius: 8px; padding: 5px;
+                               selection-background-color: #26262a; selection-color: {TEXT}; outline: 0; }}
+QComboBox QAbstractItemView::item {{ min-height: 30px; padding: 0px 10px; border-radius: 6px; color: {TEXT}; }}
+QComboBox QAbstractItemView::item:hover, QComboBox QAbstractItemView::item:selected {{ background: #26262a; }}
+QMenu {{ background: #18181a; border: 1px solid {LINE_2}; border-radius: 10px; padding: 6px; }}
+QMenu::item {{ padding: 7px 28px 7px 18px; margin: 1px 0px; border-radius: 6px; background: transparent;
+               color: {TEXT}; }}
+QMenu::item:selected {{ background: #26262a; }}
+QMenu::item:disabled {{ color: {FAINT}; }}
+QMenu::icon {{ left: 10px; }}
+QMenu::indicator {{ width: 14px; height: 14px; left: 10px; }}
+QMenu::separator {{ height: 1px; background: {LINE}; margin: 5px 8px; }}
 
 QCheckBox {{ spacing: 8px; }}
 QCheckBox::indicator {{ width: 14px; height: 14px; border: 1.5px solid #4a4a50; border-radius: 4px; background: transparent; }}
@@ -147,6 +167,7 @@ QScrollArea > QWidget > QWidget {{ background: transparent; }}
 QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}
 QScrollBar::handle:vertical {{ background: #2c2c30; border-radius: 3px; min-height: 30px; }}
 QScrollBar::handle:vertical:hover {{ background: #3a3a3f; }}
+QScrollBar::handle:vertical:disabled {{ background: transparent; }}
 QScrollBar:horizontal {{ background: transparent; height: 10px; margin: 2px; }}
 QScrollBar::handle:horizontal {{ background: #2c2c30; border-radius: 3px; min-width: 30px; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
@@ -167,6 +188,27 @@ QWidget#DropOverlay {{ background: rgba(13,13,14,215); border: 2px dashed #4a4a5
 """
 
 
+class _PopupPolish(QObject):
+    """Menus get real rounded corners (a translucent window, so the QSS radius shows) and combo boxes a
+    QListView, so their drop-down rows take the QSS padding."""
+
+    def eventFilter(self, obj, ev):
+        if ev.type() == QEvent.Type.Polish:
+            if isinstance(obj, QMenu) and not obj.property("lumoPolished"):
+                obj.setProperty("lumoPolished", True)
+                obj.setWindowFlags(obj.windowFlags() | Qt.WindowType.FramelessWindowHint
+                                   | Qt.WindowType.NoDropShadowWindowHint)
+                obj.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+            elif isinstance(obj, QComboBox) and not obj.property("lumoPolished"):
+                obj.setProperty("lumoPolished", True)
+                if not isinstance(obj.view(), QListView):
+                    obj.setView(QListView())
+        return False
+
+
+_popup_filter: _PopupPolish | None = None
+
+
 def apply(app: QApplication) -> None:
     family = load_fonts()
     font = QFont(family, 10)
@@ -183,6 +225,17 @@ def apply(app: QApplication) -> None:
         pal.setColor(role, QColor(col))
     app.setPalette(pal)
     app.setStyleSheet(qss())
+    global _popup_filter
+    if _popup_filter is None:
+        _popup_filter = _PopupPolish(app)
+        app.installEventFilter(_popup_filter)
+
+
+def reapply(app: QApplication | None = None) -> None:
+    """After the accent changed: the style sheet again (painted widgets read the colours when they paint)."""
+    app = app or QApplication.instance()
+    if app is not None:
+        app.setStyleSheet(qss())
 
 
 def restyle(widget) -> None:

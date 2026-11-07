@@ -13,8 +13,8 @@ from typing import Any
 import numpy as np  # noqa: F401  (type hints)
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QImageReader, QPixmap
-from PySide6.QtWidgets import (QComboBox, QFileDialog, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QProgressBar,
-                               QScrollArea, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
+                               QProgressBar, QScrollArea, QVBoxLayout, QWidget)
 
 from ..engine import adjust as adj
 from ..engine import importer as imp
@@ -22,14 +22,14 @@ from ..engine.presets import PRESETS, RANGES, GenParams, for_preset
 from ..engine.seamless import MODES
 from ..library.drafts import Draft
 from ..library.store import UNCATEGORIZED
-from . import theme
+from . import icons, theme
 from .dialogs import ask
 from .hub import Hub
 from .inspector import MapStrip, ViewerCard
 from .widgets import (CategoryPicker, ChoiceRow, ElidedLabel, FillSlider, Segmented, TagInput, ToggleRow, button,
                       clear_layout, label)
 from .workers import Debouncer
-from ..jobs import (job_adjust_preview, job_assemble_preview, job_load_base, job_load_source,
+from ..jobs import (job_adjust_preview, job_assemble_preview, job_find_duplicates, job_load_base, job_load_source,
                     job_photo_preview, job_save_adjust, job_save_import, job_save_photo)
 
 ROLE_SHORT = {"albedo": "Albedo", "normal": "Normal", "roughness": "Roughness", "gloss": "Gloss",
@@ -63,9 +63,69 @@ def guess_preset(name: str) -> str:
     return "generic"
 
 
+class DuplicateBanner(QFrame):
+    """'Already in your library' notice above the editor controls."""
+    show_existing = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("DupBanner")
+        self.setStyleSheet(f"QFrame#DupBanner {{ background: #1d1a12; border: 1px solid #4a3f1c; border-radius: 9px; }}")
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(12, 10, 8, 10)
+        lay.setSpacing(10)
+        ic = QLabel()
+        ic.setPixmap(icons.pixmap("warning", theme.STAR, 16))
+        ic.setAlignment(Qt.AlignmentFlag.AlignTop)
+        lay.addWidget(ic, 0, Qt.AlignmentFlag.AlignTop)
+        col = QVBoxLayout()
+        col.setSpacing(2)
+        self.title = label("")
+        self.title.setStyleSheet("font-weight: 500;")
+        self.text = label("", "muted", wrap=True)
+        self.text.setStyleSheet(f"color: {theme.TEXT_2}; font-size: 12px;")
+        col.addWidget(self.title)
+        col.addWidget(self.text)
+        lay.addLayout(col, 1)
+        self.b_show = button("Show", None, "ghost", "Go to the material that is already in the library")
+        self.b_show.setFixedHeight(28)
+        self.b_show.setStyleSheet("QPushButton { min-height: 26px; padding: 0 10px; font-size: 12px; }")
+        self.b_show.clicked.connect(lambda: self.matches and self.show_existing.emit(self.matches[0]["id"]))
+        lay.addWidget(self.b_show, 0, Qt.AlignmentFlag.AlignTop)
+        self.b_close = button("", "close", "ghost", "Keep going: save this one too")
+        self.b_close.setFixedSize(28, 28)
+        self.b_close.setStyleSheet("QPushButton { min-height: 26px; padding: 0; }")
+        self.b_close.clicked.connect(self.dismiss)
+        lay.addWidget(self.b_close, 0, Qt.AlignmentFlag.AlignTop)
+        self.matches: list[dict] = []
+        self.dismissed = False
+        self.hide()
+
+    def set_matches(self, matches: list[dict], noun: str) -> None:
+        self.matches = list(matches)
+        self.dismissed = False
+        if not matches:
+            self.hide()
+            return
+        first = matches[0]
+        same = "the same file" if first["kind"] == "identical" else "the same picture (re-saved or resized)"
+        self.title.setText("Already in your library")
+        more = f" and {len(matches) - 1} more" if len(matches) > 1 else ""
+        self.text.setText(f"This {noun} is {same} as {first['name']} in {first['category']}{more}.")
+        self.show()
+
+    def active(self) -> bool:
+        return bool(self.matches) and not self.dismissed
+
+    def dismiss(self) -> None:
+        self.dismissed = True
+        self.hide()
+
+
 # ---------------------------------------------------------------- the page
 class EditorPage(QWidget):
     closed = Signal(object)      # saved material id, or None
+    showExisting = Signal(str)   # material id of a duplicate the user wants to see
 
     def __init__(self, hub: Hub, parent=None):
         super().__init__(parent)
@@ -117,8 +177,12 @@ class EditorPage(QWidget):
         body.setSpacing(0)
         left = QVBoxLayout()
         left.setSpacing(10)
-        self.card = ViewerCard(height=360)
-        self.card.view.set_option("tiling", 2.0)
+        tiling = float(hub.settings.get("editor_tiling") or 2.0)
+        self.card = ViewerCard(height=360, tiling=tiling)
+        self.card.view.set_option("tiling", tiling)
+        self.card.tilingChanged = lambda v: self.hub.settings.set("editor_tiling", v)
+        self.card.shape.setValue(hub.settings.get("preview_shape") or "sphere")
+        self.card.view.set_option("shape", hub.settings.get("preview_shape") or "sphere")
         self.card.view.set_option("displacement", float(hub.settings.get("displacement") or 0.35))
         self.card.view.set_option("light", hub.settings.get("light") or "studio")
         left.addWidget(self.card, 1)
@@ -144,9 +208,16 @@ class EditorPage(QWidget):
         pl = QVBoxLayout(panel)
         pl.setContentsMargins(0, 0, 0, 0)
         pl.setSpacing(0)
+        self.dup = DuplicateBanner()
+        self.dup.show_existing.connect(self.showExisting.emit)
+        dup_wrap = QVBoxLayout()
+        dup_wrap.setContentsMargins(16, 4, 16, 6)
+        dup_wrap.addWidget(self.dup)
+        pl.addLayout(dup_wrap)
         self.controls_scroll = QScrollArea()
         self.controls_scroll.setWidgetResizable(True)
         self.controls_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.controls_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)   # fixed content width
         pl.addWidget(self.controls_scroll, 1)
         self.save_box = QWidget()
         self.save_box.setObjectName("Foot")
@@ -212,7 +283,7 @@ class EditorPage(QWidget):
         self.params = GenParams()
         self.adjust = adj.neutral()
         self.assignments = []
-        self.generate_missing = True
+        self.generate_missing = bool(self.hub.settings.get("import_generate_missing"))
         self.src_small = self.base = self.last = self.last_adjust = None
         self.full_size = None
         self._base_stale = True
@@ -229,6 +300,8 @@ class EditorPage(QWidget):
         self.progress.hide()
         self.p_text.hide()
         self.b_save.setEnabled(True)
+        self.dup.set_matches([], "")
+        self._dup_token = getattr(self, "_dup_token", 0) + 1
         self.card.loading(None)              # skeleton until the first preview is ready
 
     def _set_meta(self, name: str, category: str, tags: list[str]) -> None:
@@ -242,7 +315,7 @@ class EditorPage(QWidget):
     def start_photo(self, path: str, category: str | None = None) -> None:
         self._reset("photo")
         name = nice_name(path)
-        self.params = for_preset(guess_preset(name))
+        self.params = self._new_params(name)
         self.draft = self.hub.drafts.new("photo", source=path, name=name, category=category or "",
                                          generation=self.params.to_dict())
         self.hub.draftsChanged.emit()
@@ -251,6 +324,18 @@ class EditorPage(QWidget):
         self._set_meta(name, category or UNCATEGORIZED, [])
         self.dirty = False
         self._enter()
+        self._check_duplicates([path], "photo")
+
+    def _new_params(self, name: str) -> GenParams:
+        """Type from the file name (else the default type from Settings), seamless mode from Settings."""
+        s = self.hub.settings
+        preset = guess_preset(name)
+        if preset == "generic" and s.get("default_preset") in PRESETS:
+            preset = s.get("default_preset")
+        params = for_preset(preset)
+        if s.get("default_seamless") in MODES:
+            params.seamless = s.get("default_seamless")
+        return params
 
     def start_regenerate(self, mid: str) -> None:
         lib = self.hub.library
@@ -278,10 +363,11 @@ class EditorPage(QWidget):
         albedo = next((a for a in self.assignments if a.role == "albedo"), None)
         name = nice_name(albedo.path if albedo else paths[0])
         name = re.sub(r"\b(Normal|Rough(ness)?|Metal(lic|ness)?|Height|Displacement|Ao|Orm|Gl|Dx)\b", "", name).strip() or name
-        self.params = for_preset(guess_preset(name))
+        self.params = self._new_params(name)
         self._set_meta(name, category or UNCATEGORIZED, [])
         self.dirty = False
         self._enter()
+        self._check_duplicates(paths, "map set" if len(paths) > 1 else "image")
 
     def start_adjust(self, mid: str) -> None:
         lib = self.hub.library
@@ -314,6 +400,7 @@ class EditorPage(QWidget):
             self.params = GenParams.from_dict(d.generation)
         elif d.kind == "import":
             self._reset("import")
+            dup_paths = [str(self.hub.drafts.file_path(d, a["file"])) for a in d.assignments]
             self.assignments = [imp.Assignment(str(self.hub.drafts.file_path(d, a["file"])), a["role"],
                                                a.get("convention", "gl")) for a in d.assignments]
             self.params = GenParams.from_dict(d.generation)
@@ -331,6 +418,28 @@ class EditorPage(QWidget):
         self.dirty = False
         self.draft_from_list = True           # reopened from Drafts: leaving unchanged keeps it
         self._enter()
+        if d.kind == "photo" and self.source:
+            self._check_duplicates([self.source], "photo")
+        elif d.kind == "import":
+            self._check_duplicates(dup_paths, "map set")
+
+    # ================================================================ duplicates
+    def _check_duplicates(self, paths: list[str], noun: str) -> None:
+        s, lib = self.hub.settings, self.hub.library
+        if not lib or not paths or (s.get("duplicate_check") or "similar") == "off":
+            return
+        token = self._dup_token = getattr(self, "_dup_token", 0) + 1
+        only_identical = s.get("duplicate_check") == "identical"
+
+        def done(found):
+            if token != self._dup_token:       # the user moved on to another photo meanwhile
+                return
+            if only_identical:
+                found = [f for f in found if f["kind"] == "identical"]
+            self.dup.set_matches(found, noun)
+
+        self.hub.runner.run("duplicates", job_find_duplicates, lib, [str(p) for p in paths],
+                            on_done=done, on_error=lambda _m: None)
 
     def _enter(self) -> None:
         titles = {"photo": "New material from photo", "regenerate": "Regenerate from photo",
@@ -379,7 +488,7 @@ class EditorPage(QWidget):
     def _build_controls(self) -> None:
         host = QWidget()
         lay = QVBoxLayout(host)
-        lay.setContentsMargins(16, 6, 16, 16)
+        lay.setContentsMargins(16, 6, 6, 16)           # + the 10 px scroll bar = 16 on the right
         lay.setSpacing(6)
         self.sliders: dict[str, FillSlider] = {}
         self.rows: dict[str, Any] = {}
@@ -587,6 +696,7 @@ class EditorPage(QWidget):
         self.dirty = True
         self._fill_file_rows()
         self._debounce()
+        self._check_duplicates([a.path for a in self.assignments if a.role != "ignore"], "map set")
 
     def _conv_changed(self, idx: int, conv: str) -> None:
         self.assignments[idx].convention = conv
@@ -627,6 +737,7 @@ class EditorPage(QWidget):
         self.status.setText("Loading…")
         self.hub.runner.run("editor-src", job_load_source, self.source, self.preview_px,
                             on_done=self._source_loaded, on_error=self._failed_load)
+        self._check_duplicates([path], "photo")
 
     def _add_files(self) -> None:
         paths = pick_maps(self, self.hub)
@@ -746,6 +857,19 @@ class EditorPage(QWidget):
         if self.mode == "import" and not any(a.role != "ignore" for a in self.assignments):
             self.hub.error("Assign at least one file to a map.")
             return
+        if self.mode in ("photo", "import") and self.dup.active():
+            first = self.dup.matches[0]
+            choice = ask(self, "Save a second copy?",
+                         f"{first['name']} in {first['category']} was made from the same "
+                         f"{'file' if first['kind'] == 'identical' else 'picture'}.",
+                         [("show", "Show existing", "ghost"), ("cancel", "Cancel", "ghost"),
+                          ("save", "Save anyway", "primary")], "save")
+            if choice == "show":
+                self.showExisting.emit(first["id"])
+                return
+            if choice != "save":
+                return
+            self.dup.dismiss()
         self.saving = True
         self.b_save.setEnabled(False)
         self.progress.setValue(0)

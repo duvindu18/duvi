@@ -44,6 +44,8 @@ _P = {
     "reveal": '<path d="M2.5 4.5a1 1 0 011-1h3l1.5 1.5h4.5a1 1 0 011 1v6a1 1 0 01-1 1h-9a1 1 0 01-1-1z"/><path d="M8 7.5v3M6.5 9l1.5 1.5L9.5 9"/>',
     "warning": '<path d="M8 2.5l6 10.5H2z"/><path d="M8 6.5v3M8 11.3v.2"/>',
     "info": '<circle cx="8" cy="8" r="5.5"/><path d="M8 7.5v3.5M8 5v.2"/>',
+    "tiles": '<rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/><path d="M8 2.5v11M2.5 8h11"/>',
+    "palette": '<path d="M8 2.5a5.5 5.5 0 100 11c.9 0 1.3-.6 1.1-1.3-.3-.9.3-1.7 1.2-1.7h1.4a1.8 1.8 0 001.8-1.8A6 6 0 008 2.5z"/><circle cx="5.3" cy="7" r=".7" fill="currentColor"/><circle cx="7.5" cy="5" r=".7" fill="currentColor"/><circle cx="10.4" cy="5.8" r=".7" fill="currentColor"/>',
 }
 
 

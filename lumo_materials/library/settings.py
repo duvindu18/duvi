@@ -25,6 +25,33 @@ DEFAULTS: dict[str, Any] = {
     "window": None,
     "last_folder": "",
     "renderer": "auto",        # auto (Direct3D 12 -> 11 -> OpenGL -> CPU) | d3d12 | d3d11 | opengl | cpu
+    "card_size": 210,
+    # appearance
+    "accent": "#ececee",
+    "animations": "on",        # on | off
+    "splash": True,
+    "thumb_style": "sphere",   # sphere | flat
+    "card_tags": True,
+    # library
+    "confirm_trash": False,
+    "duplicate_check": "similar",   # similar | identical | off
+    # 3D preview
+    "preview_shape": "sphere",
+    "preview_spin": False,
+    # editor
+    "editor_tiling": 2.0,
+    "default_seamless": "periodic",
+    "import_generate_missing": True,
+    "png_compression": "fast",      # fast | small
+    # export defaults
+    "export_target": "zip",
+    "export_normal": "gl",
+    "export_naming": "plain",
+    "export_height": "16",
+    "export_orm": False,
+    "export_previews": False,
+    # window
+    "startup_window": "last",       # last | maximized
 }
 
 
@@ -82,6 +109,11 @@ class Settings:
 
     def save(self) -> None:
         write_json_atomic(self.path, self.values)
+
+    def reset(self, keep: tuple[str, ...] = ("library_dir", "window", "last_folder")) -> None:
+        """Back to the defaults, keeping the library folder and the window position."""
+        self.values = {**DEFAULTS, **{k: self.values.get(k) for k in keep if k in self.values}}
+        self.save()
 
     @property
     def library_pinned(self) -> bool:

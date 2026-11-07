@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Sequence
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt
 from PySide6.QtWidgets import (QDialog, QFileDialog, QFrame, QHBoxLayout, QLineEdit, QPlainTextEdit,
                                QProgressBar, QVBoxLayout, QWidget)
 
@@ -67,6 +67,14 @@ class FDialog(QDialog):
             g = par.window().frameGeometry()
             self.adjustSize()
             self.move(g.center().x() - self.width() // 2, g.center().y() - self.height() // 2)
+        if theme.ANIMATIONS:                       # a short fade in, like the rest of Windows 11
+            self.setWindowOpacity(0.0)
+            self._appear = QPropertyAnimation(self, b"windowOpacity", self)
+            self._appear.setDuration(140)
+            self._appear.setEasingCurve(QEasingCurve.Type.OutCubic)
+            self._appear.setStartValue(0.0)
+            self._appear.setEndValue(1.0)
+            self._appear.start()
 
 
 def ask(parent, title: str, text: str, choices: Sequence[tuple[str, str, str | None]], default: str | None = None) -> str:
@@ -163,17 +171,23 @@ class MoveDialog(FDialog):
         self.add_button("Move", "primary", 1).setDefault(True)
 
 
+EXPORT_NORMALS = [("gl", "OpenGL (Blender, Unity)"), ("dx", "DirectX (Unreal, 3ds Max)")]
+EXPORT_NAMING = [("plain", "albedo.png …"), ("engine", "Name_BaseColor.png …")]
+EXPORT_HEIGHT = [("16", "16-bit PNG"), ("8", "8-bit PNG")]
+
+
 class ExportDialog(FDialog):
     def __init__(self, parent, hub: Hub, ids: list[str]):
         super().__init__(parent, f"Export {len(ids)} material{'s' if len(ids) != 1 else ''}", 480)
         self.hub, self.ids = hub, ids
-        self.target = Segmented([("zip", "ZIP file"), ("folder", "Folder")], "zip", height=32)
+        st = hub.settings
+        self.target = Segmented([("zip", "ZIP file"), ("folder", "Folder")], st.get("export_target") or "zip", height=32)
         self.body.addWidget(self.target)
-        self.normal = ChoiceRow("Normal map", [("gl", "OpenGL (Blender, Unity)"), ("dx", "DirectX (Unreal, 3ds Max)")], "gl")
-        self.naming = ChoiceRow("File names", [("plain", "albedo.png …"), ("engine", "Name_BaseColor.png …")], "plain")
-        self.height_row = ChoiceRow("Height map", [("16", "16-bit PNG"), ("8", "8-bit PNG")], "16")
-        self.orm = ToggleRow("Packed ORM map", False)
-        self.previews = ToggleRow("Include previews", False)
+        self.normal = ChoiceRow("Normal map", EXPORT_NORMALS, st.get("export_normal") or "gl")
+        self.naming = ChoiceRow("File names", EXPORT_NAMING, st.get("export_naming") or "plain")
+        self.height_row = ChoiceRow("Height map", EXPORT_HEIGHT, str(st.get("export_height") or "16"))
+        self.orm = ToggleRow("Packed ORM map", bool(st.get("export_orm")))
+        self.previews = ToggleRow("Include previews", bool(st.get("export_previews")))
         for w in (self.normal, self.naming, self.height_row, self.orm, self.previews):
             self.body.addWidget(w)
         self.progress = QProgressBar()
@@ -196,6 +210,12 @@ class ExportDialog(FDialog):
             return
         last = self.hub.settings.get("last_folder") or str(Path.home())
         opts = self._options()
+        st = self.hub.settings                      # the choices become the defaults next time
+        for k, v in (("export_target", self.target.value()), ("export_normal", opts.normal),
+                     ("export_naming", opts.naming), ("export_height", str(opts.height_bits)),
+                     ("export_orm", opts.orm), ("export_previews", opts.include_previews)):
+            st.set(k, v, save=False)
+        st.save()
         if self.target.value() == "zip":
             default = lib.get(self.ids[0]).name if len(self.ids) == 1 else "lumo materials"
             path, _ = QFileDialog.getSaveFileName(self, "Export as ZIP", str(Path(last) / f"{default}.zip"), "ZIP files (*.zip)")

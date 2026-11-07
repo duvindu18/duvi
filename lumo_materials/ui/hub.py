@@ -61,6 +61,7 @@ class Hub(QObject):
     materialSaved = Signal(str)        # id of a created / replaced material
     draftsChanged = Signal()
     navigate = Signal(str)             # page name
+    settingsChanged = Signal(str)      # key of a preference that changed (applied live)
 
     def __init__(self, settings: Settings | None = None):
         super().__init__()
@@ -78,6 +79,9 @@ class Hub(QObject):
         self.library = lib
         if remember and not self.settings.library_pinned:
             self.settings.set("library_dir", str(lib.root))
+        # fingerprints of materials saved by older versions, for the duplicate check (once, in the background)
+        if self.settings.get("duplicate_check") != "off":
+            self.runner.run("fingerprints", lib.backfill_fingerprints, on_error=lambda _m: None)
         self.libraryOpened.emit()
         self.changed.emit()
         return lib
@@ -98,6 +102,13 @@ class Hub(QObject):
         n = self.library.rescan()
         self.changed.emit()
         return n
+
+    # ------------------------------------------------------------------ preferences
+    def set_setting(self, key: str, value) -> None:
+        if self.settings.get(key) == value:
+            return
+        self.settings.set(key, value)
+        self.settingsChanged.emit(key)
 
     # ------------------------------------------------------------------ messages
     def set_notifier(self, fn: Callable[..., None]) -> None:

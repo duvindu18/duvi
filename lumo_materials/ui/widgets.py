@@ -4,7 +4,8 @@ from __future__ import annotations
 import math
 from typing import Callable, Sequence
 
-from PySide6.QtCore import QEasingCurve, QPointF, QPropertyAnimation, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import (QEasingCurve, QPointF, QPropertyAnimation, QRectF, QSize, Qt, QTimer, QVariantAnimation,
+                            Signal)
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (QAbstractButton, QButtonGroup, QComboBox, QFrame, QGraphicsOpacityEffect, QHBoxLayout,
                                QLabel, QLayout, QLineEdit, QMenu, QPushButton, QSizePolicy, QVBoxLayout, QWidget)
@@ -429,7 +430,7 @@ class ToggleRow(ChoiceRow):
 
 # ------------------------------------------------------------------ segmented switch
 class Segmented(QFrame):
-    """Exclusive options in one frame; the chosen one is a rounded pill inside it."""
+    """Exclusive options in one frame; the chosen one sits on a rounded pill that slides to the new choice."""
     changed = Signal(str)
 
     def __init__(self, options: Sequence[tuple[str, str]], value: str, parent=None, icon_only: bool = False,
@@ -442,7 +443,7 @@ class Segmented(QFrame):
             f"QFrame#Segmented QPushButton {{ border: none; border-radius: 5px; background: transparent; padding: 0px 10px;"
             f" min-height: {inner}px; max-height: {inner}px; color: {theme.MUTED}; font-size: 12px; font-weight: 400; }}"
             f"QFrame#Segmented QPushButton:hover {{ color: {theme.TEXT_2}; }}"
-            f"QFrame#Segmented QPushButton:checked {{ background: #2a2a2e; color: {theme.TEXT}; }}")
+            f"QFrame#Segmented QPushButton:checked {{ background: transparent; color: {theme.TEXT}; }}")
         self.setFixedHeight(height)
         lay = QHBoxLayout(self)
         lay.setContentsMargins(2, 2, 2, 2)
@@ -460,12 +461,65 @@ class Segmented(QFrame):
             self.group.addButton(b)
             self.buttons[key] = b
             lay.addWidget(b)
-            b.clicked.connect(lambda _=False, k=key: self.changed.emit(k))
+            b.clicked.connect(lambda _=False, k=key: self._clicked(k))
+        self._pill: QRectF | None = None
+        self._anim = QVariantAnimation(self)
+        self._anim.setDuration(180)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._anim.valueChanged.connect(self._pill_moved)
         self.setValue(value)
+
+    def _clicked(self, key: str) -> None:
+        self._slide_to(key)
+        self.changed.emit(key)
+
+    def _target(self, key: str) -> QRectF | None:
+        b = self.buttons.get(key)
+        return QRectF(b.geometry()) if b is not None else None
+
+    def _slide_to(self, key: str) -> None:
+        target = self._target(key)
+        if target is None:
+            return
+        if self._pill is None or not theme.ANIMATIONS or not self.isVisible():
+            self._anim.stop()
+            self._pill = target
+            self.update()
+            return
+        self._anim.stop()
+        self._anim.setStartValue(self._pill)
+        self._anim.setEndValue(target)
+        self._anim.start()
+
+    def _pill_moved(self, r) -> None:
+        self._pill = QRectF(r)
+        self.update()
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._anim.stop()
+        self._pill = self._target(self.value())
+        self.update()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self._pill = self._target(self.value())
+
+    def paintEvent(self, e):
+        super().paintEvent(e)
+        if self._pill is None or not self.value():
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor("#2a2a2e"))
+        p.drawRoundedRect(self._pill, 5, 5)
+        p.end()
 
     def setValue(self, key: str) -> None:
         if key in self.buttons:
             self.buttons[key].setChecked(True)
+            self._slide_to(key)
 
     def value(self) -> str:
         for k, b in self.buttons.items():
@@ -564,7 +618,7 @@ class SearchField(QFrame):
         self.setStyleSheet(f"SearchField {{ border: 1px solid {theme.LINE_2}; border-radius: 7px; background: #111112; }}")
         self.setFixedHeight(32)
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(10, 0, 6, 0)
+        lay.setContentsMargins(10, 0, 8, 0)
         lay.setSpacing(8)
         ic = QLabel()
         ic.setPixmap(icons.pixmap("search", theme.MUTED))
@@ -574,8 +628,6 @@ class SearchField(QFrame):
         self.edit.setPlaceholderText(placeholder)
         self.edit.setClearButtonEnabled(True)
         lay.addWidget(self.edit, 1)
-        self.kbd = label("/", "kbd")
-        lay.addWidget(self.kbd)
         self._t = QTimer(self, singleShot=True, interval=180)
         self._t.timeout.connect(lambda: self.textChanged.emit(self.edit.text()))
         self.edit.textChanged.connect(lambda _: self._t.start())
@@ -613,6 +665,9 @@ class Toast(QFrame):
         self.anim = QPropertyAnimation(self.eff, b"opacity", self)
         self.anim.setDuration(180)
         self.anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.slide = QPropertyAnimation(self, b"pos", self)
+        self.slide.setDuration(220)
+        self.slide.setEasingCurve(QEasingCurve.Type.OutCubic)
         self.timer = QTimer(self, singleShot=True)
         self.timer.timeout.connect(self._fade)
         self.hide()
@@ -638,11 +693,21 @@ class Toast(QFrame):
         w = min(520, max(280, self.sizeHint().width()))
         self.resize(w, self.sizeHint().height())
         par = self.parentWidget()
-        self.move((par.width() - self.width()) // 2, par.height() - self.height() - TOAST_BOTTOM)
+        end = QPointF((par.width() - self.width()) // 2, par.height() - self.height() - TOAST_BOTTOM).toPoint()
+        was_visible = self.isVisible() and self.eff.opacity() > 0.5
         self.raise_()
         self.show()
         self.anim.stop()
-        self.anim.setStartValue(0.0)
+        self.slide.stop()
+        if theme.ANIMATIONS and not was_visible:      # rises a little while it fades in
+            self.move(end.x(), end.y() + 14)
+            self.slide.setStartValue(self.pos())
+            self.slide.setEndValue(end)
+            self.slide.start()
+        else:
+            self.move(end)
+        self.anim.setDuration(180 if theme.ANIMATIONS else 1)
+        self.anim.setStartValue(self.eff.opacity() if was_visible else 0.0)
         self.anim.setEndValue(1.0)
         self.anim.start()
         self.timer.start(ms if not action else max(ms, 7000))
@@ -747,24 +812,50 @@ class PreviewPlaceholder(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.pixmap = None
+        self.opacity = 1.0
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self._fade = QVariantAnimation(self)
+        self._fade.setDuration(200)
+        self._fade.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._fade.setStartValue(1.0)
+        self._fade.setEndValue(0.0)
+        self._fade.valueChanged.connect(self._faded)
+        self._fade.finished.connect(self._gone)
         self.hide()
 
     def start(self, pixmap=None) -> None:
+        self._fade.stop()
+        self.opacity = 1.0
         self.pixmap = pixmap if (pixmap is not None and not pixmap.isNull()) else None
         self.show()
         self.raise_()
         ShimmerClock.get().add(self)
 
     def stop(self) -> None:
+        """The material is there: the placeholder dissolves into it."""
+        if not self.isVisible():
+            return
+        if theme.ANIMATIONS:
+            self._fade.stop()
+            self._fade.start()
+        else:
+            self._gone()
+
+    def _faded(self, v) -> None:
+        self.opacity = float(v)
+        self.update()
+
+    def _gone(self) -> None:
         self.hide()
         self.pixmap = None
+        self.opacity = 1.0
         ShimmerClock.get().discard(self)
 
     def paintEvent(self, e):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        p.setOpacity(self.opacity)
         p.fillRect(self.rect(), QColor("#121214"))
         side = min(self.width(), self.height()) * 0.72
         r = QRectF((self.width() - side) / 2, (self.height() - side) / 2, side, side)
@@ -773,11 +864,11 @@ class PreviewPlaceholder(QWidget):
             p.drawPixmap(r.toRect(), self.pixmap)
             # a light sweep over the thumbnail says "still loading"
             g = shimmer_brush(r, phase)
-            p.setOpacity(0.28)
+            p.setOpacity(0.28 * self.opacity)
             path = QPainterPath()
             path.addEllipse(r)
             p.fillPath(path, g)
-            p.setOpacity(1.0)
+            p.setOpacity(self.opacity)
         else:
             path = QPainterPath()
             path.addEllipse(r)
@@ -817,7 +908,7 @@ class SizeSlider(QWidget):
         super().__init__(parent)
         self.minimum, self.maximum = minimum, maximum
         self._value = max(minimum, min(maximum, int(value)))
-        self.setFixedSize(132, 32)
+        self.setFixedSize(150, 32)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setProperty("interactive", True)
         self.setToolTip("Card size (Ctrl + mouse wheel over the grid)")
@@ -835,7 +926,7 @@ class SizeSlider(QWidget):
                 self.valueChanged.emit(v)
 
     def _track(self) -> tuple[float, float]:
-        return 26.0, self.width() - 26.0
+        return 30.0, self.width() - 33.0      # the knob stops clear of the icons at both ends
 
     def _from_x(self, x: float) -> None:
         a, b = self._track()
@@ -868,8 +959,8 @@ class SizeSlider(QWidget):
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QColor(theme.MUTED))
         for dx, dy in ((0, 0), (5, 0), (0, 5), (5, 5)):          # small grid icon
-            p.drawRoundedRect(QRectF(9 + dx, cy - 4.5 + dy, 3.5, 3.5), 0.8, 0.8)
-        p.drawRoundedRect(QRectF(self.width() - 19, cy - 5.5, 11, 11), 2, 2)   # large tile icon
+            p.drawRoundedRect(QRectF(10 + dx, cy - 4.5 + dy, 3.5, 3.5), 0.8, 0.8)
+        p.drawRoundedRect(QRectF(self.width() - 21, cy - 5.5, 11, 11), 2, 2)   # large tile icon
         a, b = self._track()
         p.setBrush(QColor("#2c2c30"))
         p.drawRoundedRect(QRectF(a, cy - 1.5, b - a, 3), 1.5, 1.5)
@@ -1138,3 +1229,90 @@ class CategoryPicker(QComboBox):
             self.picked.emit(name)
         else:
             self.setValue(self._last)
+
+
+# ------------------------------------------------------------------ colour swatches (folder colours)
+FOLDER_COLOURS = ["#3b6fd8", "#5a7bd0", "#3aa6a6", "#5f9a45", "#7d8b3a", "#d9c24a",
+                  "#d96b3b", "#b07a45", "#c4566e", "#8e5cd9", "#9aa3ad", "#6b6b70"]
+
+
+class SwatchPicker(QWidget):
+    """A grid of colour swatches with 'Custom…' and 'Default'. picked(colour) — '' means the default colour."""
+    picked = Signal(str)
+
+    COLS = 6
+    SIZE = 22
+    GAP = 8
+
+    def __init__(self, current: str | None = None, parent=None):
+        super().__init__(parent)
+        self.current = (current or "").lower()
+        self.hover = -1
+        self.setMouseTracking(True)
+        rows = -(-len(FOLDER_COLOURS) // self.COLS)
+        w = self.COLS * self.SIZE + (self.COLS - 1) * self.GAP + 24
+        self.grid_h = rows * self.SIZE + (rows - 1) * self.GAP
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(12, 12 + self.grid_h + 12, 12, 8)
+        lay.setSpacing(6)
+        row = QHBoxLayout()
+        row.setSpacing(6)
+        self.b_custom = button("Custom…", "palette", "ghost")
+        self.b_custom.setFixedHeight(28)
+        self.b_custom.setStyleSheet("QPushButton { min-height: 26px; padding: 0 8px; font-size: 12px; font-weight: 400; }")
+        self.b_custom.clicked.connect(self._custom)
+        self.b_default = button("Default", "restore", "ghost")
+        self.b_default.setFixedHeight(28)
+        self.b_default.setStyleSheet(self.b_custom.styleSheet())
+        self.b_default.clicked.connect(lambda: self.picked.emit(""))
+        row.addWidget(self.b_custom)
+        row.addStretch(1)
+        row.addWidget(self.b_default)
+        lay.addLayout(row)
+        self.setFixedWidth(w)
+
+    def _rect(self, i: int) -> QRectF:
+        r, c = divmod(i, self.COLS)
+        return QRectF(12 + c * (self.SIZE + self.GAP), 12 + r * (self.SIZE + self.GAP), self.SIZE, self.SIZE)
+
+    def _at(self, pos) -> int:
+        for i in range(len(FOLDER_COLOURS)):
+            if self._rect(i).adjusted(-3, -3, 3, 3).contains(pos):
+                return i
+        return -1
+
+    def mouseMoveEvent(self, e):
+        i = self._at(e.position())
+        if i != self.hover:
+            self.hover = i
+            self.setCursor(Qt.CursorShape.PointingHandCursor if i >= 0 else Qt.CursorShape.ArrowCursor)
+            self.update()
+
+    def leaveEvent(self, e):
+        self.hover = -1
+        self.update()
+
+    def mouseReleaseEvent(self, e):
+        i = self._at(e.position())
+        if i >= 0 and e.button() == Qt.MouseButton.LeftButton:
+            self.picked.emit(FOLDER_COLOURS[i])
+
+    def _custom(self):
+        from PySide6.QtWidgets import QColorDialog
+        c = QColorDialog.getColor(QColor(self.current or FOLDER_COLOURS[0]), self.window(), "Folder colour")
+        if c.isValid():
+            self.picked.emit(c.name())
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        for i, col in enumerate(FOLDER_COLOURS):
+            r = self._rect(i)
+            if col.lower() == self.current or i == self.hover:
+                p.setPen(QPen(QColor(theme.TEXT if col.lower() == self.current else "#6a6a70"), 1.5))
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                p.drawRoundedRect(r.adjusted(-3, -3, 3, 3), 8, 8)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(col))
+            p.drawRoundedRect(r, 6, 6)
+        p.end()

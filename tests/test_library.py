@@ -319,3 +319,92 @@ class DraftsAndSettings(TempLib):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Duplicates(TempLib):
+    def smooth_photo(self, name, seed=1, size=(320, 240)):
+        r = np.random.default_rng(seed)
+        small = r.random((6, 8, 3))
+        im = Image.fromarray((small * 255).astype(np.uint8)).resize(size, Image.BICUBIC)
+        p = self.tmp / name
+        im.save(p, quality=92)
+        return p
+
+    def test_same_file_is_identical(self):
+        p = self.smooth_photo("brick.jpg")
+        m = self.lib.create(sample_maps(), "Brick", "Walls", source=p)
+        self.assertEqual(m.sources[0]["role"], "photo")
+        copy = self.tmp / "renamed copy.jpg"
+        shutil.copy2(p, copy)
+        found = self.lib.find_duplicates([copy])
+        self.assertEqual([(d["id"], d["kind"]) for d in found], [(m.id, "identical")])
+        self.assertEqual(self.lib.find_duplicates([copy], exclude=[m.id]), [])
+
+    def test_resaved_and_resized_is_similar(self):
+        p = self.smooth_photo("stone.jpg", seed=4)
+        m = self.lib.create(sample_maps(), "Stone", "Stone", source=p)
+        other = self.tmp / "stone_small.png"
+        Image.open(p).resize((160, 120), Image.LANCZOS).save(other)
+        found = self.lib.find_duplicates([other])
+        self.assertEqual([(d["id"], d["kind"]) for d in found], [(m.id, "similar")])
+
+    def test_different_picture_and_flat_picture_do_not_match(self):
+        p = self.smooth_photo("a.jpg", seed=7)
+        self.lib.create(sample_maps(), "A", "Walls", source=p)
+        self.assertEqual(self.lib.find_duplicates([self.smooth_photo("b.jpg", seed=8)]), [])
+        flat = self.tmp / "white.png"
+        Image.new("RGB", (64, 64), (250, 250, 250)).save(flat)
+        flat2 = self.tmp / "grey.png"
+        Image.new("RGB", (64, 64), (128, 128, 128)).save(flat2)
+        self.lib.create(sample_maps(), "Plain", "Walls", source=flat)
+        self.assertEqual(self.lib.find_duplicates([flat2]), [])
+
+    def test_legacy_material_is_fingerprinted_once(self):
+        p = self.smooth_photo("old.jpg", seed=9)
+        m = self.lib.create(sample_maps(), "Old", "Walls", source=p)
+        data = json.loads((m.folder / "material.json").read_text())
+        data.pop("sources")
+        (m.folder / "material.json").write_text(json.dumps(data))
+        lib = Library(self.lib.root)
+        self.assertIsNone(lib.get(m.id).sources)
+        self.assertEqual(lib.backfill_fingerprints(), 1)
+        self.assertEqual(json.loads((m.folder / "material.json").read_text())["sources"][0]["role"], "photo")
+        self.assertEqual(lib.find_duplicates([p])[0]["kind"], "identical")
+
+    def test_import_job_records_every_file(self):
+        from lumo_materials.engine import importer as imp
+        from lumo_materials.jobs import job_save_import
+        col = self.smooth_photo("Granite_Color.png", seed=11)
+        rough = self.smooth_photo("Granite_Roughness.png", seed=12)
+        asg = imp.guess_all([str(col), str(rough)])
+        mid = job_save_import(self.lib, asg, GenParams(), True, adjust.neutral(), "Granite", "Stone", [])
+        roles = sorted(s["role"] for s in self.lib.get(mid).sources)
+        self.assertEqual(roles, ["albedo", "roughness"])
+        self.assertEqual(self.lib.find_duplicates([col])[0]["id"], mid)
+
+
+class CategoryColours(TempLib):
+    def test_colour_follows_rename_and_goes_with_delete(self):
+        self.lib.create_category("Bricks")
+        self.lib.set_category_colour("Bricks", "#d96b3b")
+        self.assertEqual(self.lib.category_colours()["Bricks"], "#d96b3b")
+        self.lib.rename_category("Bricks", "Masonry")
+        lib = Library(self.lib.root)
+        self.assertEqual(lib.category_colours(), {"Masonry": "#d96b3b"})
+        lib.set_category_colour("Masonry", None)
+        self.assertEqual(lib.category_colours(), {})
+        lib.set_category_colour("Masonry", "#3b6fd8")
+        lib.delete_category("Masonry")
+        self.assertEqual(lib.category_colours(), {})
+
+
+class FlatPreview(TempLib):
+    def test_flat_preview_written_and_backfilled(self):
+        m = self.lib.create(sample_maps(), "Flat", "Walls")
+        p = m.folder / "preview_flat.jpg"
+        self.assertTrue(p.exists())
+        self.assertEqual(Image.open(p).size, (512, 512))
+        p.unlink()
+        self.assertEqual(m.preview_path("flat").name, "preview_plane.png")
+        self.assertEqual(self.lib.ensure_flat_preview(m.id), p)
+        self.assertTrue(p.exists())
