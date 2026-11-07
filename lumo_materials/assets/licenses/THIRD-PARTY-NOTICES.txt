@@ -1,0 +1,20 @@
+lumo materials includes the following third-party components. Their licences are in this folder.
+
+Qt 6 and Qt for Python (PySide6, Shiboken6)
+  Copyright (C) The Qt Company Ltd. and other contributors.
+  Licensed under the GNU Lesser General Public License version 3 (LGPL-3.0.txt, which refers to GPL-3.0.txt).
+  The Qt libraries are shipped as separate, unmodified DLLs in the program folder and can be replaced by
+  compatible builds. Source code: https://code.qt.io and https://download.qt.io/official_releases/QtForPython/
+
+NumPy (BSD 3-Clause; bundled OpenBLAS and runtime libraries under their own permissive terms)
+  See NumPy-LICENSE.txt. https://numpy.org
+
+Pillow (MIT-CMU / HPND)
+  See Pillow-LICENSE.txt. https://python-pillow.org
+
+Inter typeface (SIL Open Font License 1.1)
+  Copyright 2016-2023 The Inter Project Authors. See Inter-OFL-1.1.txt. https://rsms.me/inter
+
+Python (PSF License)
+  The Python runtime embedded by PyInstaller. https://www.python.org/psf/license/
+  The release build copies the exact licence files of every bundled package into this folder.

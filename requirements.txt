@@ -1,0 +1,4 @@
+# Runtime (all free and open source). PySide6-Essentials = Qt Widgets/OpenGL/SVG/Network without the extras.
+PySide6-Essentials>=6.8,<7
+numpy>=2.0,<3
+Pillow>=10.4,<13

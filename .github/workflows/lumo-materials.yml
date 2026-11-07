@@ -1,0 +1,181 @@
+name: lumo materials - Windows build
+
+# Builds lumo-materials-setup-<version>.exe on a clean Windows machine and checks it end to end:
+# unit tests -> UI smoke test with screenshots -> PyInstaller + Inno Setup (VC++ runtime embedded)
+# -> UI smoke test of the built .exe -> silent install, self-check, uninstall -> pre-release with the setup.
+on:
+  push:
+    branches: [lumo-materials]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: lumo-materials-build
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 75
+    env:
+      PYTHONUTF8: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
+
+      - name: Screen size for the UI test
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          Set-DisplayResolution -Width 1920 -Height 1080 -Force
+          Add-Type -AssemblyName System.Windows.Forms
+          [System.Windows.Forms.Screen]::PrimaryScreen.Bounds | Format-List | Out-String | Write-Host
+
+      - name: Install packages
+        run: python -m pip install -r requirements.txt -r requirements-build.txt
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: UI smoke test (from source)
+        shell: pwsh
+        run: |
+          python -m lumo_materials --smoke-ui "$PWD\ci-out\smoke-source"
+          if ($LASTEXITCODE) { throw "UI smoke test failed ($LASTEXITCODE)" }
+
+      - name: Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          (Get-Item $iscc).VersionInfo.ProductVersion
+
+      - name: Publisher (optional, from repository secrets)
+        shell: pwsh
+        env:
+          LUMO_PUBLISHER_B64: ${{ secrets.LUMO_PUBLISHER_B64 }}
+        run: |
+          # LUMO_PUBLISHER_B64 = base64 of a zip of your lumo-publisher\publisher folder; LUMO_SIGN_PASSWORD = its password.
+          if ($env:LUMO_PUBLISHER_B64) {
+            $zip = Join-Path $env:RUNNER_TEMP "publisher.zip"
+            [IO.File]::WriteAllBytes($zip, [Convert]::FromBase64String($env:LUMO_PUBLISHER_B64))
+            Expand-Archive -LiteralPath $zip -DestinationPath "lumo-publisher\publisher" -Force
+            Remove-Item $zip
+            $json = Get-ChildItem "lumo-publisher\publisher" -Recurse -Filter publisher.json | Select-Object -First 1
+            if ($json -and $json.DirectoryName -ne (Resolve-Path "lumo-publisher\publisher").Path) {
+              Get-ChildItem $json.DirectoryName | Move-Item -Destination "lumo-publisher\publisher" -Force
+            }
+            Write-Host "Signing with publisher from secrets"
+          } else {
+            Write-Host "No LUMO_PUBLISHER_B64 secret: the build is not signed."
+          }
+
+      - name: Build program and installer
+        shell: powershell
+        env:
+          LUMO_SIGN_PASSWORD: ${{ secrets.LUMO_SIGN_PASSWORD }}
+        run: |
+          & .\packaging\build.ps1 -Python python -SkipTests -VCRedist download -PublisherDir "$PWD\lumo-publisher\publisher"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: UI smoke test (built program)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist\lumo-materials\lumo-materials.exe" -ArgumentList @("--smoke-ui", "`"$PWD\ci-out\smoke-exe`"") -Wait -PassThru
+          if ($p.ExitCode) { throw "UI smoke test of the built program failed ($($p.ExitCode))" }
+
+      - name: Install, check and uninstall (silent, per user)
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist\lumo-materials-setup-*.exe | Select-Object -First 1
+          $log = "$PWD\ci-out\install.log"
+          $p = Start-Process $setup.FullName -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/CURRENTUSER", "/NORESTART", "/LOG=`"$log`"") -Wait -PassThru
+          if ($p.ExitCode) { throw "setup returned $($p.ExitCode)" }
+          $dir = Join-Path $env:LOCALAPPDATA "Programs\lumo materials"
+          $exe = Join-Path $dir "lumo-materials.exe"
+          if (-not (Test-Path $exe)) { throw "program not found at $exe" }
+          $c = Start-Process $exe -ArgumentList "--check" -Wait -PassThru
+          if ($c.ExitCode) { throw "installed program: --check returned $($c.ExitCode)" }
+          $files = Get-ChildItem $dir -Recurse -File
+          "{0} files, {1:N1} MB installed in {2}" -f $files.Count, (($files | Measure-Object Length -Sum).Sum / 1MB), $dir |
+            Tee-Object ci-out\installed.txt
+          $files | ForEach-Object { $_.FullName.Substring($dir.Length + 1) } | Sort-Object | Add-Content ci-out\installed.txt
+          $lnk = Join-Path ([Environment]::GetFolderPath("Programs")) "lumo materials.lnk"
+          if (-not (Test-Path $lnk)) { throw "Start menu shortcut missing: $lnk" }
+          Start-Process (Join-Path $dir "unins000.exe") -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART") -Wait
+          for ($i = 0; $i -lt 60 -and (Test-Path $exe); $i++) { Start-Sleep 1 }
+          if (Test-Path $exe) { throw "uninstall left the program behind" }
+          if (Test-Path $lnk) { throw "uninstall left the Start menu shortcut" }
+          "install / check / uninstall: OK" | Tee-Object -Append ci-out\installed.txt
+
+      - name: Collect logs
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force ci-out\logs | Out-Null
+          Copy-Item "$env:LOCALAPPDATA\lumo-materials\logs\*" ci-out\logs -ErrorAction SilentlyContinue
+          Copy-Item build-lock.txt, dist\*.sha256 ci-out -ErrorAction SilentlyContinue
+          Get-ChildItem dist -File -ErrorAction SilentlyContinue | Format-Table Name, Length | Out-String | Set-Content ci-out\dist.txt
+          "${{ job.status }}" | Set-Content ci-out\status.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lumo-materials-build-${{ github.run_number }}
+          path: |
+            dist/lumo-materials-setup-*.exe
+            dist/lumo-materials-setup-*.exe.sha256
+            ci-out/
+          if-no-files-found: warn
+
+      - name: Publish the report to branch lumo-materials-ci
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          r="$RUNNER_TEMP/report"
+          rm -rf "$r" && mkdir -p "$r"
+          cp -r ci-out/. "$r/" 2>/dev/null || true
+          echo "run ${{ github.run_number }} (${{ github.run_id }}) on ${{ github.sha }}: ${{ job.status }}" > "$r/RUN.txt"
+          cd "$r"
+          git init -q -b lumo-materials-ci
+          git config user.name "lumo-ci"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "CI report: run ${{ github.run_number }} - ${{ job.status }}"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" lumo-materials-ci
+
+      - name: Pre-release with the installer
+        if: success() && github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $setup = Get-ChildItem dist\lumo-materials-setup-*.exe | Select-Object -First 1
+          $ver = ($setup.BaseName -replace '^lumo-materials-setup-', '')
+          $tag = "lumo-materials-v$ver-build.${{ github.run_number }}"
+          $sha = (Get-Content "$($setup.FullName).sha256").Split(" ")[0]
+          $signed = (Get-AuthenticodeSignature $setup.FullName).SignerCertificate
+          $sig = if ($signed) { "Signed by: $($signed.Subject)" } else { "Not signed (add the LUMO_PUBLISHER_B64 and LUMO_SIGN_PASSWORD secrets to sign)." }
+          $body = @"
+          Windows installer for **lumo materials $ver** (offline PBR material library), built by GitHub Actions run ${{ github.run_number }} from ``${{ github.sha }}``.
+
+          * Everything is inside: Python, Qt, NumPy, Pillow, fonts, software OpenGL, and the Microsoft Visual C++ runtime (installed only if missing).
+          * Checked on a clean Windows machine: unit tests, UI smoke test of the built program, silent install, self-check, uninstall.
+          * $sig
+          * SHA-256: ``$sha``
+          "@
+          gh release create $tag $setup.FullName "$($setup.FullName).sha256" --target "${{ github.sha }}" --prerelease `
+            --title "lumo materials $ver (build ${{ github.run_number }})" --notes $body

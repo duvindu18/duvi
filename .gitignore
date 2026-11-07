@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv*/
+build/
+dist/
+ci-out/
+smoke-ui/
+build-lock.txt
+# never commit signing keys
+*.pfx
+lumo-publisher/publisher/
