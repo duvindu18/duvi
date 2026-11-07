@@ -103,18 +103,19 @@ python -m unittest discover -s tests
 
 | Area | Features |
 |---|---|
-| Library | card grid (columns follow the window width) or list, pager (12 / 24 / 48 / 96 per page), search over name / tags / description (`/` or Ctrl F), category pills, favourites, sort by date / name / category / resolution, multi-select with Move, Tag, Favourite, Export and Trash, trash with Undo, Rescan (F5) |
-| Inspector | Direct3D 12 3D preview (GGX PBR, parallax occlusion from the height map, studio reflections, 4x MSAA; sphere / plane / both, orbit, zoom, spin), the six maps (click one to view it alone), fill-bar rows for tiling, displacement, light (Studio, Softbox, Window, Overcast, Dramatic) and background, details, Adjust and Export |
-| New from photo | drop a photo anywhere or press Ctrl N; type preset guessed from the file name; seamless mode, de-lighting, height, normal, roughness, metallic and AO sliders with a live preview and a seam score; saves at 512 to 4096 px |
+| Library | card grid with a card-size slider (or Ctrl + wheel; columns follow the window width, cards centred) or list, skeleton cards while thumbnails load, pager (12 / 24 / 48 / 96 per page), search over name / tags / description (`/` or Ctrl F), category pills, favourites, sort by date / name / category / resolution, multi-select with Move, Tag, Favourite, Export and Trash, trash with Undo, Rescan (F5) |
+| Inspector | switching shows the new material at once (its thumbnail and a skeleton, never the previous one), loads a fast 1024 px preview, and keeps the last 10 plus the neighbours in the grid preloaded; Direct3D 12 3D preview (GGX PBR, parallax occlusion from the height map, studio reflections, 4x MSAA; sphere / plane / both, orbit, zoom, spin), the six maps (click one to view it alone), fill-bar rows for tiling, displacement, light (Studio, Softbox, Window, Overcast, Dramatic) and background, details, Adjust and Export |
+| New from photo | drop a photo anywhere or press Ctrl N; type preset guessed from the file name; seamless mode, de-lighting, height, normal, roughness, metallic and AO sliders with a live preview and a seam score; saves at 512 to 4096 px; name, category (pick or create) and tags (type and press Enter or comma) in the save form |
 | Import map set | up to 24 files, roles guessed from file names (`_Color`, `_NormalGL/DX`, `_Rough`, `_Metal`, `_Displacement`, `_AO`, `_ORM`, `_Gloss`…), DirectX normals flipped, missing maps generated, then adjusted |
 | Adjust maps | per-map controls (exposure, contrast, saturation, hue, normal strength / smoothing / flip, roughness, metallic, height, AO, output size). Always absolute and applied to the untouched originals; save as Replace or as a copy |
-| Drafts | leaving unsaved work asks *Keep as draft / Discard*; drafts reopen exactly where you left them |
+| Drafts | leaving work you changed asks *Keep as draft / Discard* (no prompt when nothing changed); drafts reopen exactly where you left them |
 | Export | ZIP or folder (never overwrites), OpenGL / DirectX normals, plain or engine names, packed ORM, 8- or 16-bit height |
-| Window | frameless dark window with custom caption buttons, Aero Snap, Win+Arrow, edge resizing, Windows 11 rounded corners, single instance (opening a second copy hands its files to the first) |
+| Controls | sliders and choice rows ignore the mouse wheel, so scrolling a panel never changes a value |
+| Window | splash screen with the bold *lumo* wordmark and its light line while the library opens; frameless dark window with custom caption buttons, Aero Snap, Win+Arrow, edge resizing, Windows 11 rounded corners, single instance (opening a second copy hands its files to the first) |
 
 ## Tested
 
-- **Unit tests:** 58 tests pass on Linux and on Windows (GitHub Actions). They cover the engine, the library (incl.
+- **Unit tests:** 56 tests pass on Linux and on Windows (GitHub Actions). They cover the engine, the library (incl.
   Explorer renames / copies, trash, adjusted originals, export), the editor's save and adjust jobs, the pager / grid
   logic, the meshes, and the preview camera framing.
 - **The real program on Windows:** every CI run drives the interface from source and from the built .exe. That
@@ -122,6 +123,10 @@ python -m unittest discover -s tests
   as copy, drafts, trash with undo, settings, dialogs, maximise and narrow window. It fails on any exception or Qt
   critical message. The 3D preview ran on **Direct3D 12** with no errors or warnings (on GitHub's software D3D12
   adapter, as those machines have no GPU).
+- **Speed (2-core CI-class machine, 2048 px photo):** saving takes about 2.8 s instead of 7.0 s (map generation
+  1.5 s instead of 3.2 s with one shared FFT spectrum and parallel channels; PNG writing 0.4 s instead of 2.0 s;
+  previews 0.45 s instead of 1.4 s). Loading a material for the preview takes 0.3 s instead of 1.0 s, and a cached
+  or preloaded one shows at once.
 - **The installer:** a silent per-user install, the self-check of the installed program, the Start menu shortcut and
   a clean uninstall are checked on every run.
 - **Not covered by CI:** a real NVIDIA GPU (the same Direct3D 12 code path, in hardware), the "install for all users"

@@ -22,6 +22,38 @@ def label(text: str = "", role: str | None = None, wrap: bool = False) -> QLabel
     return lb
 
 
+class ElidedLabel(QLabel):
+    """Single-line label that shortens its text with '…' to fit, full text in the tooltip."""
+
+    def __init__(self, text: str = "", mode: Qt.TextElideMode = Qt.TextElideMode.ElideMiddle, parent=None):
+        super().__init__(parent)
+        self._full = text
+        self._mode = mode
+        self.setToolTip(text)
+        self.setMinimumWidth(40)
+
+    def setText(self, text: str) -> None:  # noqa: N802 (Qt naming)
+        self._full = text
+        self.setToolTip(text)
+        self._refit()
+
+    def full_text(self) -> str:
+        return self._full
+
+    def _refit(self) -> None:
+        super().setText(self.fontMetrics().elidedText(self._full, self._mode, max(0, self.width() - 2)))
+
+    def resizeEvent(self, e) -> None:  # noqa: N802
+        super().resizeEvent(e)
+        self._refit()
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802
+        return QSize(40, super().minimumSizeHint().height())
+
+    def sizeHint(self) -> QSize:  # noqa: N802
+        return QSize(self.fontMetrics().horizontalAdvance(self._full) + 4, super().sizeHint().height())
+
+
 def hline() -> QFrame:
     f = QFrame()
     f.setObjectName("HLine")

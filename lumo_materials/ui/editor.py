@@ -26,8 +26,8 @@ from . import theme
 from .dialogs import ask
 from .hub import Hub
 from .inspector import MapStrip, ViewerCard
-from .widgets import (CategoryPicker, ChoiceRow, FillSlider, Segmented, TagInput, ToggleRow, button, clear_layout,
-                      label)
+from .widgets import (CategoryPicker, ChoiceRow, ElidedLabel, FillSlider, Segmented, TagInput, ToggleRow, button,
+                      clear_layout, label)
 from .workers import Debouncer
 from ..jobs import (job_adjust_preview, job_assemble_preview, job_load_base, job_load_source,
                     job_photo_preview, job_save_adjust, job_save_import, job_save_photo)
@@ -499,9 +499,8 @@ class EditorPage(QWidget):
             hl = QHBoxLayout(w)
             hl.setContentsMargins(0, 0, 0, 0)
             hl.setSpacing(6)
-            name = label(Path(a.path).name)
-            name.setToolTip(Path(a.path).name)
-            name.setMinimumWidth(80)
+            name = ElidedLabel(Path(a.path).name)
+            name.setMinimumWidth(60)
             name.setStyleSheet(f"color: {theme.TEXT_2}; font-size: 12px;")
             hl.addWidget(name, 1)
             role = QComboBox()
