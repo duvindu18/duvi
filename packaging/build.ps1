@@ -84,8 +84,8 @@ if (-not $NoInstaller) {
         if (-not (Test-Path -LiteralPath $p)) { continue }
         $vi = (Get-Item -LiteralPath $p).VersionInfo
         foreach ($raw in @($vi.ProductVersion, $vi.FileVersion)) {
-            $clean = "$raw" -replace '[^\d\.].*$', ''
-            if ($clean -match '^\d+\.\d+' -and [version]$clean -gt [version]"1.0") { $innoVer = [version]$clean; break }
+            $verText = "$raw" -replace '[^\d\.].*$', ''      # not $clean: PowerShell names ignore case and -Clean is a switch
+            if ($verText -match '^\d+\.\d+' -and [version]$verText -gt [version]"1.0") { $innoVer = [version]$verText; break }
         }
         if ($innoVer) { break }
     }
