@@ -1,14 +1,22 @@
-"""Minimal web interface for the ArchViz SEO agent (standard library only).
+"""Minimal web interface for the ArchViz SEO agent (standard library + optional anthropic).
 
     python -m seo_agent.web            # http://127.0.0.1:8000
     python -m seo_agent.web --port 8080 --host 0.0.0.0
 
+Engines
+    builtin  free, offline rule-based generator (default, no key, no cost)
+    ollama   free local AI on your PC via Ollama (optional)
+    claude   Claude API agent (optional, paid, needs an API key)
+
 Endpoints
     GET  /                 the single-page UI
-    POST /api/run          {"session", "task", "niche", "about", "text", "platform"} -> NDJSON stream
-    POST /api/chat         {"session", "message"} -> NDJSON stream (follow-up in the same session)
+    GET  /api/status       which engines are available
+    POST /api/run          {"session","engine","model","task","niche","about","text","platform"} -> NDJSON
+    POST /api/chat         {"session","message"} -> NDJSON (follow-up, Ollama/Claude sessions)
+    POST /api/prompt       same fields as /api/run -> {"prompt"} to paste into a free chatbot
+    POST /api/key          {"key"} save a Claude API key (optional)
     POST /api/reset        {"session"}
-Each streamed line is a JSON event: text | tool | notice | error | done.
+Each streamed line is a JSON event: text | delta | tool | notice | error | done.
 """
 
 from __future__ import annotations
@@ -20,25 +28,31 @@ import threading
 import uuid
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
+from typing import Callable, Iterator
 
-import anthropic
-
-from . import core
+from . import core, local_llm, offline
 from .paths import api_key, load_config, resource_dir, save_config
+
+try:  # the Claude engine is optional; the free engines work without the SDK
+    import anthropic
+except ImportError:  # pragma: no cover
+    anthropic = None  # type: ignore[assignment]
 
 STATIC = resource_dir() / "static"
 MAX_BODY = 200_000
+ENGINES = ("builtin", "ollama", "claude")
 
-_sessions: dict[str, list] = {}
+_sessions: dict[str, dict] = {}
 _locks: dict[str, threading.Lock] = {}
-_client: anthropic.Anthropic | None = None
+_client = None
 # Swappable for tests: a callable (client, history) -> iterator of events.
 turn_runner = core.run_turn
 
 
-def _get_client() -> anthropic.Anthropic:
+def _get_client():
     global _client
+    if anthropic is None:
+        raise RuntimeError("The Claude engine needs the 'anthropic' package.")
     if _client is None:
         key = api_key()
         _client = anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
@@ -53,13 +67,28 @@ def _set_key(key: str) -> None:
     _client = None
 
 
+def _claude_error(e: Exception) -> str | None:
+    if anthropic is None:
+        return None
+    if isinstance(e, anthropic.AuthenticationError):
+        return "Claude API key missing or invalid. Use the free Built-in engine, or add a key in Settings."
+    if isinstance(e, anthropic.APIStatusError):
+        return f"Claude API error {e.status_code}: {e.message}"
+    if isinstance(e, anthropic.APIConnectionError):
+        return "Network error reaching the Claude API."
+    if isinstance(e, TypeError) and "auth" in str(e).lower():
+        return "No Claude API key set. Use the free Built-in engine, or add a key in Settings."
+    return None
+
+
 class Handler(BaseHTTPRequestHandler):
-    server_version = "ArchVizSEO/1.0"
+    server_version = "ArchVizSEO/1.1"
 
     def log_message(self, fmt: str, *args) -> None:  # quieter console
         if "/api/" in str(args[0] if args else "") or "code" in fmt:
             super().log_message(fmt, *args)
 
+    # ------------------------------------------------------------------ GET
     def do_GET(self) -> None:
         if self.path in ("/", "/index.html"):
             body = (STATIC / "index.html").read_bytes()
@@ -71,10 +100,13 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/tasks":
             self._json({"tasks": core.TASKS})
         elif self.path == "/api/status":
-            self._json({"has_key": bool(api_key()), "model": core.MODEL})
+            self._json({"has_key": bool(api_key()), "model": core.MODEL,
+                        "ollama": local_llm.ollama_models(),
+                        "suggested_models": local_llm.SUGGESTED_MODELS})
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
 
+    # ------------------------------------------------------------------ POST
     def _same_origin(self) -> bool:
         # Block cross-site pages in the user's browser from driving this local server.
         origin = self.headers.get("Origin")
@@ -94,6 +126,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(HTTPStatus.BAD_REQUEST, "invalid JSON")
             return
         session = str(data.get("session") or uuid.uuid4())
+        fields = (data.get("task", "full"), str(data.get("niche", "")), str(data.get("about", "")),
+                  str(data.get("text", "")), str(data.get("platform", "fiverr")))
 
         if self.path == "/api/key":
             key = str(data.get("key", "")).strip()
@@ -102,30 +136,66 @@ class Handler(BaseHTTPRequestHandler):
                 return
             _set_key(key)
             self._json({"ok": True})
-            return
-        if self.path == "/api/reset":
+        elif self.path == "/api/reset":
             _sessions.pop(session, None)
             self._json({"ok": True})
-            return
-        if self.path == "/api/run":
-            task = data.get("task", "full")
-            if task not in core.TASKS:
+        elif self.path == "/api/prompt":
+            if fields[0] not in core.TASKS:
                 self.send_error(HTTPStatus.BAD_REQUEST, "unknown task")
                 return
-            prompt = core.build_task_prompt(task, data.get("niche", ""), data.get("about", ""),
-                                            data.get("text", ""), data.get("platform", "fiverr"))
-            _sessions[session] = []
+            self._json({"prompt": local_llm.chatbot_prompt(*fields)})
+        elif self.path == "/api/run":
+            self._run(session, data, fields)
         elif self.path == "/api/chat":
-            prompt = str(data.get("message", "")).strip()
-            if not prompt:
-                self.send_error(HTTPStatus.BAD_REQUEST, "empty message")
-                return
-            _sessions.setdefault(session, [])
+            self._chat(session, str(data.get("message", "")).strip())
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
-            return
-        self._stream(session, prompt)
 
+    def _run(self, session: str, data: dict, fields: tuple) -> None:
+        task = fields[0]
+        engine = data.get("engine", "builtin")
+        if task not in core.TASKS or engine not in ENGINES:
+            self.send_error(HTTPStatus.BAD_REQUEST, "unknown task or engine")
+            return
+        sess = {"engine": engine, "history": [], "model": str(data.get("model") or "")}
+        _sessions[session] = sess
+        if engine == "builtin":
+            self._stream(session, lambda: offline.run(*fields), rollback=False)
+        elif engine == "ollama":
+            sess["history"].append({"role": "user", "content": local_llm.first_prompt(*fields)})
+            self._stream(session, lambda: local_llm.run_ollama(self._ollama_model(sess), sess["history"]))
+        else:
+            sess["history"].append({"role": "user", "content": core.build_task_prompt(*fields)})
+            self._stream(session, lambda: turn_runner(_get_client(), sess["history"]))
+
+    def _chat(self, session: str, message: str) -> None:
+        if not message:
+            self.send_error(HTTPStatus.BAD_REQUEST, "empty message")
+            return
+        sess = _sessions.setdefault(session, {"engine": "builtin", "history": [], "model": ""})
+        if sess["engine"] == "builtin":
+            def notice() -> Iterator[dict]:
+                yield {"type": "notice", "text": "The built-in engine doesn't do follow-up chat. Change the fields "
+                       "and press Generate again for a new variation, or use Local AI (Ollama) - also free."}
+            self._stream(session, notice, rollback=False)
+            return
+        sess["history"].append({"role": "user", "content": message})
+        if sess["engine"] == "ollama":
+            self._stream(session, lambda: local_llm.run_ollama(self._ollama_model(sess), sess["history"]))
+        else:
+            self._stream(session, lambda: turn_runner(_get_client(), sess["history"]))
+
+    @staticmethod
+    def _ollama_model(sess: dict) -> str:
+        if sess.get("model"):
+            return sess["model"]
+        models = local_llm.ollama_models() or []
+        if not models:
+            raise RuntimeError("Ollama isn't running or has no models. Install one with:  ollama pull llama3.1:8b")
+        sess["model"] = models[0]
+        return sess["model"]
+
+    # ------------------------------------------------------------------ output
     def _json(self, obj: dict) -> None:
         body = json.dumps(obj).encode()
         self.send_response(HTTPStatus.OK)
@@ -138,7 +208,13 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write((json.dumps(ev) + "\n").encode())
         self.wfile.flush()
 
-    def _stream(self, session: str, prompt: str) -> None:
+    def _safe_emit(self, ev: dict) -> None:
+        try:
+            self._emit(ev)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
+    def _stream(self, session: str, events: Callable[[], Iterator[dict]], rollback: bool = True) -> None:
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/x-ndjson")
         self.send_header("Cache-Control", "no-cache")
@@ -146,43 +222,31 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         lock = _locks.setdefault(session, threading.Lock())
         if not lock.acquire(blocking=False):
-            self._emit({"type": "error", "text": "This session is already running a request."})
+            self._safe_emit({"type": "error", "text": "This session is already running a request."})
             return
-        history = _sessions[session]
-        mark = len(history)
-        history.append({"role": "user", "content": prompt})
+        history = _sessions[session]["history"]
+        # Roll back to just before the user message of this turn if it fails.
+        mark = max(len(history) - 1, 0)
+        texts: list[str] = []
+        deltas: list[str] = []
         try:
-            for ev in turn_runner(_get_client(), history):
+            for ev in events():
+                if ev["type"] == "text":
+                    texts.append(ev["text"])
+                elif ev["type"] == "delta":
+                    deltas.append(ev["text"])
                 self._emit(ev)
-            self._emit({"type": "done", "session": session,
-                        "markdown": core.final_markdown(history, mark)})
+            markdown = "".join(deltas) if deltas else "\n\n".join(texts)
+            self._emit({"type": "done", "session": session, "markdown": markdown})
         except (BrokenPipeError, ConnectionResetError):
-            del history[mark:]
-        except anthropic.AuthenticationError:
-            del history[mark:]
-            self._safe_emit({"type": "error", "text": "API key missing or invalid - open Settings and paste a valid key."})
-        except anthropic.APIStatusError as e:
-            del history[mark:]
-            self._safe_emit({"type": "error", "text": f"API error {e.status_code}: {e.message}"})
-        except anthropic.APIConnectionError:
-            del history[mark:]
-            self._safe_emit({"type": "error", "text": "Network error reaching the Claude API."})
-        except TypeError as e:  # raised by the SDK when no credentials are configured at all
-            del history[mark:]
-            msg = ("No API key set - open Settings and paste your Anthropic API key."
-                   if "api_key" in str(e) or "auth" in str(e).lower() else f"TypeError: {e}")
-            self._safe_emit({"type": "error", "text": msg})
-        except Exception as e:  # surface anything else to the UI instead of a dead stream
-            del history[mark:]
-            self._safe_emit({"type": "error", "text": f"{type(e).__name__}: {e}"})
+            if rollback:
+                del history[mark:]
+        except Exception as e:  # surface every failure to the UI instead of a dead stream
+            if rollback:
+                del history[mark:]
+            self._safe_emit({"type": "error", "text": _claude_error(e) or str(e) or type(e).__name__})
         finally:
             lock.release()
-
-    def _safe_emit(self, ev: dict) -> None:
-        try:
-            self._emit(ev)
-        except (BrokenPipeError, ConnectionResetError):
-            pass
 
 
 class _Server(ThreadingHTTPServer):

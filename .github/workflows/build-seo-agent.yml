@@ -35,9 +35,12 @@ jobs:
               if ($r.StatusCode -eq 200) { $ok = $true; break }
             } catch {}
           }
+          if (-not $ok) { Stop-Process -Id $p.Id -Force; throw "exe did not start its web server" }
+          $body = '{"session":"ci","engine":"builtin","task":"full","niche":"exterior rendering"}'
+          $r = Invoke-WebRequest -UseBasicParsing -Method Post -ContentType "application/json" -Body $body http://127.0.0.1:8765/api/run
           Stop-Process -Id $p.Id -Force
-          if (-not $ok) { throw "exe did not start its web server" }
-          Write-Host "exe served /api/status OK"
+          if ($r.Content -notmatch "Fiverr Gig Optimization Package") { throw "free built-in engine produced no gig" }
+          Write-Host "exe served the UI and generated a free gig package OK"
       - uses: actions/upload-artifact@v4
         with:
           name: ArchVizSEO-windows

@@ -1,129 +1,96 @@
-# Arch Viz SEO Agent (Fiverr + Upwork)
+# ArchViz SEO Agent (Fiverr + Upwork)
 
-An AI agent that writes and fixes Fiverr gigs and Upwork profiles for **architectural
-visualization** freelancers: 3D exterior/interior rendering, floor plans, walkthrough
-animations, virtual tours, 3ds Max / Corona / V-Ray / Lumion / Enscape / D5 / Revit / SketchUp / Blender / Unreal.
+An SEO tool for **architectural visualization** freelancers. It writes and checks Fiverr gigs,
+Upwork profiles and Upwork proposals for 3D exterior and interior rendering, 3D floor plans,
+walkthrough animation, 360 tours, Unreal Engine 5, real estate rendering and 3D modeling.
 
-It works as an ArchViz SEO strategist and runs a fixed workflow:
+**It is free by default.** You don't need an account, an API key or a credit card.
 
-1. **Market & keyword analysis**: a primary keyword plus long-tail keywords, with buyer intent and a rough competition estimate.
-2. **Fiverr gig package**: title (80 chars max) and the URL slug it produces, category path, 5 tags,
-   a Basic/Standard/Premium pricing table, description with the keyword in the first 150 words, FAQs,
-   requirements questionnaire, and thumbnail text.
-3. **Upwork proposal**: a hook written for the specific job post, a workflow and software-stack match,
-   risk reduction, a milestone plan, and a closing question.
+## Engines
 
-Tools the agent uses:
+| Engine | Cost | Needs | What it does |
+|---|---|---|---|
+| **Built-in** (default) | Free | Nothing. Works offline | Generates the full package from built-in ArchViz knowledge and templates, then scores it with the SEO checkers. Instant. |
+| **Local AI (Ollama)** | Free | [Ollama](https://ollama.com) installed on your PC + one model | Takes the built-in draft and rewrites it with an open AI model that runs on your own computer. Supports follow-up chat. Nothing leaves your PC. |
+| **Copy prompt for a free chatbot** | Free | Any free chatbot account | Copies a ready-made prompt (instructions + research + draft) to paste into the free tier of claude.ai, ChatGPT or Gemini. |
+| Claude API | Paid per use | Anthropic API key | Full AI agent with live web research. Optional; ignore it to stay free. |
 
-| Tool | What it does |
-|---|---|
-| `keyword_ideas` | Built-in arch viz keyword list by niche, with long-tail variants of a seed phrase |
-| `platform_guide` | Fiverr/Upwork limits, ranking factors, Fiverr category options |
-| `audit_listing` | Scores a gig/profile 0-100: length limits, keyword placement, URL slug, first 150 words, tags, filler words, contact-info ToS checks |
-| `check_proposal` | Scores a proposal 0-100: generic openers, hook length, job-post wording, length, closing question, ToS |
-| `web_search` | Current platform rules, categories, competitor wording |
-| `save_report` | Saves the final listing to `seo_agent/reports/` |
+### What you get (Full workflow)
+1. **Market & keyword analysis**: primary keyword plus long-tail phrases, with intent, a competition estimate and where to use each.
+2. **Fiverr gig package**: title (80 chars max) with alternatives, the URL slug it creates, category path, 5 tags,
+   a Basic/Standard/Premium pricing table scaled to your experience, a description (1200 chars max) with the keyword
+   in the first sentence, FAQs, a requirements questionnaire and thumbnail ideas.
+3. **Upwork proposal**: paste a job post and it reads the property, style, lighting, source files,
+   quantity, software, deadline, budget and client questions. It then writes a hook about that project,
+   a modelling/render pipeline, a milestone plan, answers to common questions and a closing question.
 
-The agent checks everything it writes and keeps rewriting until the score is 85 or higher.
+Other tasks: **Upwork profile** (title, 200-character hook, overview, 15 skills, catalog offers),
+**Audit listing** (scores your current gig or profile, then rewrites it), and **Keywords**.
+
+Every listing and proposal is scored 0-100 by the built-in checkers. They cover character limits,
+keyword placement, URL slug, first 150 words, tag quality, filler words, generic proposal openers,
+reuse of the job post's wording, the closing question, and contact details that break the platforms' rules.
+A high score means the listing passes these checks. It does not guarantee a search ranking.
 
 ## Requirements
 
-**To run the Windows app (`ArchVizSEO.exe`)**
-- Windows 10 or 11, 64-bit
-- An internet connection (the agent calls the Claude API and searches the web)
-- A modern browser (Edge, Chrome, Firefox); the app opens it for you
-- An Anthropic API key from console.anthropic.com > API Keys. API usage is billed by Anthropic to your account.
-- About 40 MB of disk space. No Python install is needed.
+**Windows app (`ArchVizSEO.exe`)**
+- Windows 10 or 11, 64-bit, and a browser (Edge, Chrome, Firefox)
+- About 40 MB of disk space. No Python, no internet and no account needed for the Built-in engine
+- Optional: [Ollama](https://ollama.com) for the free Local AI engine. An 8B model needs about 5 GB of
+  disk and 8 GB+ RAM, and runs faster with a GPU
 
-**To run from source (any OS)**
-- Python 3.10 or newer
-- `pip install -r seo_agent/requirements.txt`: `anthropic` 2.6.0 and its pinned dependencies
+**From source (any OS)**: Python 3.10+ and `pip install -r seo_agent/requirements.txt`
 
-**To build the exe yourself**
-- Windows with Python 3.10 or newer
-- `pip install -r seo_agent/requirements-build.txt` (adds PyInstaller and pytest; `pip install pillow` is optional, for the app icon)
+**To build the exe yourself**: Windows, Python 3.10+, `pip install -r seo_agent/requirements-build.txt`
 
 ## Windows app (.exe)
 
-1. Download `ArchVizSEO.exe` (see "Getting the exe" below) and double-click it.
+1. Download `ArchVizSEO.exe` (see below) and double-click it.
 2. A small console window opens and the app opens in your browser at `http://127.0.0.1:8765`.
-   Keep the console window open while you work. Closing it quits the app.
-3. The first time, paste your Anthropic API key in the dialog. It is saved in
-   `%APPDATA%\ArchVizSEO\config.json` on your computer only. Change it later with **Settings**.
-4. Reports the agent saves go to `Documents\ArchViz SEO Reports`.
+   Keep the console window open while you use the app. Closing it quits the app.
+3. Leave the engine on **Built-in**, pick a task, type your niche and press **Generate**.
 
-The exe is not code-signed, so Windows SmartScreen may show "Windows protected your PC".
-Click **More info**, then **Run anyway**. Check the file against the `.sha256` hash that ships with it.
+The exe isn't code-signed, so Windows SmartScreen may say "Windows protected your PC". Click
+**More info**, then **Run anyway**. You can check the file against the `.sha256` hash that comes with it.
 
-**Getting the exe:** every push that changes `seo_agent/` runs the GitHub Actions workflow
-**Build ArchViz SEO exe**. It builds the exe on Windows, runs the tests, starts the exe to check that it
-works, and uploads `ArchVizSEO-windows` (the exe and its SHA256). Open the repo's **Actions** tab, select the
-latest run, and download the artifact. You can also start a build by hand with **Run workflow**.
+**Getting the exe:** each push that changes `seo_agent/` runs the GitHub Actions workflow
+**Build ArchViz SEO exe**. It builds the exe on Windows, runs the tests, starts the exe and checks that
+it generates a gig, then uploads `ArchVizSEO-windows`. Open the repo's **Actions** tab, select the latest
+green run, and download the artifact.
 
-**Building locally on Windows:**
-```bat
-pip install -r seo_agent\requirements-build.txt pillow
-python seo_agent\packaging\build_exe.py
-dist\ArchVizSEO.exe
-```
+### Free Local AI with Ollama (optional)
+1. Install Ollama from https://ollama.com (free).
+2. In a terminal: `ollama pull llama3.1:8b` (or `qwen2.5:7b`, `gemma2:9b`).
+3. Reopen the app and pick **Local AI**. Your installed models appear in a list.
 
-## Web interface (from source)
+## From source
 
 ```bash
 pip install -r seo_agent/requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...
-python -m seo_agent.web            # then open http://127.0.0.1:8000
-```
+python -m seo_agent.web                    # web UI at http://127.0.0.1:8000
+python -m seo_agent.launcher               # same, opens the browser (what the exe runs)
 
-A minimal single-page interface: pick a task (Full workflow, Fiverr gig, Upwork proposal,
-Upwork profile, Audit listing, Keywords), enter your niche and a short "about you", and paste a
-job post or your current listing if the task needs one. Results appear as they are written, and
-the tool steps show while it works. You can send follow-ups to refine the result, copy it, or
-download it as `.md`. It needs only the Python standard library plus `anthropic`, works in light
-and dark mode, and works on phones. Use `--host 0.0.0.0 --port 8080` to reach it from another device on your network
-(there is no login, so only do this on a network you trust).
-
-## Setup (from source)
-
-```bash
-pip install -r seo_agent/requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...      # or save it in the web UI's Settings
-```
-
-## Command line (run from the repo root)
-
-```bash
-# Interactive chat
-python -m seo_agent.agent
-
-# Fiverr gig package (use --task full for gig + proposal framework)
-python -m seo_agent.agent --task fiverr --niche "exterior rendering" \
-  --about "5 years, 3ds Max + Corona, villas and residential projects"
-
-# Audit and rewrite your current Upwork profile (paste it into a text file)
-python -m seo_agent.agent --task audit --platform upwork --file my_profile.txt
-
-# Keyword strategy for a niche, both platforms
-python -m seo_agent.agent --task keywords --niche "interior design rendering"
-
-# Tailored Upwork proposal for a job post
+# command line (Built-in engine by default)
+python -m seo_agent.agent --task full --niche "exterior rendering" --about "5 years, 3ds Max + Corona"
 python -m seo_agent.agent --task proposal --file job_post.txt
+python -m seo_agent.agent --task audit --platform upwork --file my_profile.txt
+python -m seo_agent.agent --task full --niche "interior rendering" --engine ollama
 ```
 
-After a `--task` run you can keep chatting to refine the result, e.g. "make 3 variations
-of the title" or "now do the Premium package for animation".
+Tasks: `full`, `fiverr`, `proposal`, `upwork_profile`, `audit`, `keywords`.
+For `audit`, paste your listing with lines like `Title: ...`, `Tags: a, b, c`, then the description.
 
 ## Notes
-- The platform limits in `knowledge.py` (Fiverr: 80-char title, 5 tags of up to 20 chars,
-  1200-char description; Upwork: about 70-char title, 15 skills, the first ~200 characters
-  of the overview visible) are the commonly documented values. Platforms change them, so
-  the agent checks with web search when a limit matters.
-- Competition levels are estimates, not measured search volume. The agent is told not to
-  invent search numbers.
-- Keywords get a listing into search results. Click-through rate, conversion, response
-  time and reviews decide how it ranks, so the agent also suggests steps for those.
-- Model: `claude-opus-5-5` with adaptive thinking and refusal fallbacks enabled
-  (`fallbacks="default"`). Change `MODEL` in `agent.py` to use another model.
+- Platform limits (Fiverr: 80-char title, 5 tags of up to 20 chars, 1200-char description;
+  Upwork: about 70-char title, 15 skills, the first ~200 characters of the overview visible) are the
+  commonly documented values. You can edit them in `knowledge.py` if a platform changes them.
+- Fiverr category paths are a best guess. Pick the closest match in the gig editor.
+- Competition levels are estimates, not measured search volume.
+- Prices scale with the experience you enter in *About you* (`2 years`, `senior`, ...). Without it, the
+  app assumes a mid-level seller and says so.
+- Replace every `[bracketed]` placeholder (prices, portfolio notes) before you send a proposal.
+- Keywords get you into search results. Click-through rate, conversion, response time and reviews decide your ranking.
 
 ## Tests
 ```bash

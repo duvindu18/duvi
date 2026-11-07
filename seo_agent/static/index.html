@@ -37,6 +37,15 @@ textarea { resize: vertical; min-height: 110px; }
 .tasks button { text-align: left; font: inherit; font-size: 13px; padding: 8px 10px; border-radius: 7px; border: 1px solid var(--line); background: transparent; color: var(--text); cursor: pointer; }
 .tasks button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 .hidden { display: none !important; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.seg button { font: inherit; font-size: 13px; padding: 7px 8px; border-radius: 7px; border: 1px solid var(--line); background: transparent; color: var(--text); cursor: pointer; text-align: left; line-height: 1.25; }
+.seg button small { display: block; font-size: 11px; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.seg button[aria-pressed="true"] small { color: inherit; opacity: .75; }
+.hint { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
+.hint code { font: 12px var(--mono); background: var(--soft); padding: 1px 4px; border-radius: 4px; }
+#model { margin-top: 8px; }
+#prompt { width: 100%; }
 .btn { font: inherit; font-weight: 600; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-text); border-radius: 7px; padding: 10px 14px; cursor: pointer; }
 .btn:disabled { opacity: .5; cursor: progress; }
 .btn.ghost { background: transparent; color: var(--text); border-color: var(--line); font-weight: 500; padding: 6px 10px; font-size: 13px; }
@@ -88,9 +97,9 @@ dialog p.error { color: var(--err); min-height: 1em; margin: 8px 0 0; }
 </header>
 <dialog id="keydlg">
   <form id="keyform" method="dialog">
-    <h2>Anthropic API key</h2>
-    <p>The agent runs on Claude. Paste an API key from <b>console.anthropic.com</b> &rarr; API Keys.
-       It is saved only on this computer.</p>
+    <h2>Claude API key (optional, paid)</h2>
+    <p>Only needed for the <b>Claude API</b> engine, which Anthropic bills per use. The Built-in and
+       Local AI engines are free and need no key. The key is saved only on this computer.</p>
     <input id="keyinput" type="password" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
     <p class="error" id="keyerr"></p>
     <div class="dlg-actions">
@@ -101,6 +110,16 @@ dialog p.error { color: var(--err); min-height: 1em; margin: 8px 0 0; }
 </dialog>
 <main>
   <form class="card" id="form" autocomplete="off">
+    <div>
+      <label>Engine</label>
+      <div class="seg" id="engines">
+        <button type="button" data-engine="builtin" aria-pressed="true">Built-in<small>free · offline</small></button>
+        <button type="button" data-engine="ollama">Local AI<small>free · Ollama</small></button>
+        <button type="button" data-engine="claude">Claude API<small>paid</small></button>
+      </div>
+      <p class="hint" id="engine-hint">Instant, no account, no internet needed. Uses built-in ArchViz know-how and templates.</p>
+      <select id="model" class="hidden" aria-label="Local model"></select>
+    </div>
     <div>
       <label>Task</label>
       <div class="tasks" id="tasks">
@@ -129,6 +148,7 @@ dialog p.error { color: var(--err); min-height: 1em; margin: 8px 0 0; }
       <textarea id="text" placeholder="Paste a job post, your current listing, or notes"></textarea>
     </div>
     <button class="btn" id="run" type="submit">Generate</button>
+    <button class="btn ghost" id="prompt" type="button">Copy prompt for a free chatbot</button>
   </form>
 
   <section class="card" aria-live="polite">
@@ -141,7 +161,7 @@ dialog p.error { color: var(--err); min-height: 1em; margin: 8px 0 0; }
       </div>
     </div>
     <div class="log" id="log"></div>
-    <div id="out"><div class="empty">Pick a task, describe your niche, and press Generate.<br>A full workflow run takes one to three minutes.</div></div>
+    <div id="out"><div class="empty">Pick a task, describe your niche, and press Generate.<br>The free Built-in engine answers instantly.</div></div>
     <form class="follow hidden" id="follow">
       <input id="follow-input" placeholder="Refine it, e.g. &ldquo;make the Premium tier include a 30s walkthrough&rdquo;">
       <button class="btn" type="submit">Send</button>
@@ -160,6 +180,8 @@ dialog p.error { color: var(--err); min-height: 1em; margin: 8px 0 0; }
   let session = null;
   let busy = false;
   let lastMarkdown = "";
+  let runEngine = "builtin";
+  const fields = () => ({ task, niche: $("niche").value, about: $("about").value, text: $("text").value, platform: $("platform").value });
 
   const TEXT_LABEL = {
     proposal: "Job post", audit: "Current listing",
@@ -183,6 +205,40 @@ dialog p.error { color: var(--err); min-height: 1em; margin: 8px 0 0; }
     $(id).addEventListener("input", () => store.set(id, $(id).value));
   }
   selectTask(task);
+
+  // ---------- engines ----------
+  let engine = store.get("engine") || "builtin";
+  let status = { has_key: false, ollama: null };
+  const HINTS = {
+    builtin: () => "Instant, no account, no internet needed. Uses built-in ArchViz know-how and templates.",
+    ollama: () => status.ollama && status.ollama.length
+      ? "Free AI running on your own PC. It polishes the built-in draft. Slower on computers without a strong GPU."
+      : "Ollama isn't running. It's free: install it from <b>ollama.com</b>, run <code>ollama pull llama3.1:8b</code>, then reopen this page.",
+    claude: () => status.has_key
+      ? "Best quality, with live web research. Anthropic bills your account per use."
+      : "Needs a paid Anthropic API key (Settings). Use Built-in or Local AI to stay free.",
+  };
+  function selectEngine(e) {
+    engine = e; store.set("engine", e);
+    for (const b of $("engines").children) b.setAttribute("aria-pressed", String(b.dataset.engine === e));
+    $("engine-hint").innerHTML = HINTS[e]();
+    const models = status.ollama || [];
+    $("model").classList.toggle("hidden", !(e === "ollama" && models.length));
+    $("run").disabled = busy || (e === "ollama" && !models.length) || (e === "claude" && !status.has_key);
+  }
+  $("engines").addEventListener("click", (ev) => { const b = ev.target.closest("button"); if (b) selectEngine(b.dataset.engine); });
+  function loadStatus() {
+    return fetch("/api/status").then((r) => r.json()).then((st) => {
+      status = st;
+      const models = st.ollama || [];
+      $("model").innerHTML = models.map((m) => `<option>${m.replace(/[<>&]/g, "")}</option>`).join("");
+      const saved = store.get("model"); if (saved && models.includes(saved)) $("model").value = saved;
+      selectEngine(engine);
+    }).catch(() => selectEngine(engine));
+  }
+  $("model").addEventListener("change", () => store.set("model", $("model").value));
+  selectEngine(engine);
+  loadStatus();
 
   // ---------- tiny, safe Markdown renderer ----------
   const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -250,6 +306,7 @@ dialog p.error { color: var(--err); min-height: 1em; margin: 8px 0 0; }
   const TOOL_LABEL = {
     keyword_ideas: "Keyword research", platform_guide: "Platform rules", audit_listing: "Auditing listing",
     check_proposal: "Checking proposal", save_report: "Saving report", web_search: "Web search",
+    local_ai: "Local AI",
   };
 
   async function stream(url, payload, target) {
@@ -273,6 +330,7 @@ dialog p.error { color: var(--err); min-height: 1em; margin: 8px 0 0; }
           if (!raw.trim()) continue;
           const ev = JSON.parse(raw);
           if (ev.type === "text") { text += (text ? "\n\n" : "") + ev.text; target.innerHTML = md(text); }
+          else if (ev.type === "delta") { text += ev.text; target.innerHTML = md(text); }
           else if (ev.type === "tool") logLine(`→ ${TOOL_LABEL[ev.name] || ev.name}${ev.detail ? ": " + ev.detail : ""}`);
           else if (ev.type === "notice") target.insertAdjacentHTML("beforeend", `<p class="notice">${esc(ev.text)}</p>`);
           else if (ev.type === "error") { failed = true; target.insertAdjacentHTML("beforeend", `<p class="error">${esc(ev.text)}</p>`); }
@@ -280,12 +338,12 @@ dialog p.error { color: var(--err); min-height: 1em; margin: 8px 0 0; }
         }
       }
       setStatus(failed ? "Failed" : `Done in ${Math.round((Date.now() - started) / 1000)}s`, false);
-      if (!failed) { $("copy").disabled = $("download").disabled = false; $("follow").classList.remove("hidden"); }
+      if (!failed) { $("copy").disabled = $("download").disabled = false; $("follow").classList.toggle("hidden", runEngine === "builtin"); }
     } catch (err) {
       target.insertAdjacentHTML("beforeend", `<p class="error">${esc(String(err.message || err))}</p>`);
       setStatus("Failed", false);
     } finally {
-      clearInterval(timer); busy = false; $("run").disabled = false;
+      clearInterval(timer); busy = false; selectEngine(engine);
     }
   }
 
@@ -298,7 +356,8 @@ dialog p.error { color: var(--err); min-height: 1em; margin: 8px 0 0; }
     $("log").innerHTML = ""; $("follow").classList.add("hidden");
     $("copy").disabled = $("download").disabled = true;
     const out = $("out"); out.innerHTML = '<div class="md"></div>';
-    stream("/api/run", { session, task, niche: $("niche").value, about: $("about").value, text, platform: $("platform").value }, out.firstChild);
+    runEngine = engine;
+    stream("/api/run", { session, engine, model: $("model").value, ...fields(), text }, out.firstChild);
   });
 
   $("follow").addEventListener("submit", (e) => {
@@ -324,7 +383,7 @@ dialog p.error { color: var(--err); min-height: 1em; margin: 8px 0 0; }
   });
   // ---------- API key settings ----------
   const dlg = $("keydlg");
-  const openKey = () => { $("keyerr").textContent = ""; $("keyinput").value = ""; dlg.showModal(); $("keyinput").focus(); };
+  function openKey() { $("keyerr").textContent = ""; $("keyinput").value = ""; dlg.showModal(); $("keyinput").focus(); }
   $("settings").addEventListener("click", openKey);
   $("keycancel").addEventListener("click", () => dlg.close());
   $("keyform").addEventListener("submit", async (e) => {
@@ -332,10 +391,19 @@ dialog p.error { color: var(--err); min-height: 1em; margin: 8px 0 0; }
     const key = $("keyinput").value.trim();
     try {
       const r = await (await fetch("/api/key", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key }) })).json();
-      if (r.ok) { dlg.close(); setStatus("API key saved", false); } else $("keyerr").textContent = r.error || "Could not save the key.";
+      if (r.ok) { dlg.close(); setStatus("API key saved", false); loadStatus(); } else $("keyerr").textContent = r.error || "Could not save the key.";
     } catch { $("keyerr").textContent = "Could not reach the local server."; }
   });
-  fetch("/api/status").then((r) => r.json()).then((st) => { if (!st.has_key) openKey(); }).catch(() => {});
+  $("prompt").addEventListener("click", async () => {
+    const b = $("prompt");
+    if ((task === "proposal" || task === "audit") && !$("text").value.trim()) { $("text").focus(); return; }
+    try {
+      const r = await (await fetch("/api/prompt", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(fields()) })).json();
+      await navigator.clipboard.writeText(r.prompt);
+      b.textContent = "Copied - paste it into claude.ai, ChatGPT or Gemini";
+    } catch { b.textContent = "Couldn't copy - try again"; }
+    setTimeout(() => (b.textContent = "Copy prompt for a free chatbot"), 2500);
+  });
 
   $("reset").addEventListener("click", () => {
     if (busy) return;
