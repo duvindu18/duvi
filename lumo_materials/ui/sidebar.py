@@ -86,9 +86,18 @@ class LibrarySwitch(QFrame):
         lay.addWidget(ch)
 
     def set_path(self, p: str) -> None:
-        fm = QFontMetrics(self.path.font())
-        self.path.setText(fm.elidedText(p, Qt.TextElideMode.ElideMiddle, 170))
+        self._full = p
         self.path.setToolTip(p)
+        self._elide()
+
+    def _elide(self) -> None:
+        fm = QFontMetrics(self.path.font())
+        width = max(60, self.width() - 10 - 24 - 10 - 8 - 16 - 10)   # margins, mark, spacing, chevron
+        self.path.setText(fm.elidedText(getattr(self, "_full", ""), Qt.TextElideMode.ElideMiddle, width))
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._elide()
 
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
@@ -157,7 +166,7 @@ class Sidebar(QWidget):
         root.addWidget(self.cat_area, 1)
         self.cat_buttons: dict[str, NavButton] = {}
 
-        card = QFrame()
+        card = self.drop_card = QFrame()
         card.setObjectName("Panel")
         cl = QVBoxLayout(card)
         cl.setContentsMargins(12, 12, 12, 12)
@@ -193,6 +202,11 @@ class Sidebar(QWidget):
             m.addAction("Show in Explorer", lambda: reveal(self.hub.library.root))
             m.addAction("Rescan folder", lambda: self.action.emit("rescan"))
         m.exec(self.switch.mapToGlobal(self.switch.rect().bottomLeft()))
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        # on short windows the categories need the room more than the drop hint
+        self.drop_card.setVisible(self.height() >= 820)
 
     def select_section(self, key: str) -> None:
         if key in self.nav:

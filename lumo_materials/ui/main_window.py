@@ -120,7 +120,8 @@ class MainWindow(FramelessWindow):
         self.drop.setGeometry(self.rect().adjusted(270, 10, -10, -10))
         self._update_inspector()
         if self.toast.isVisible():
-            self.toast.move((self.width() - self.toast.width()) // 2, self.height() - self.toast.height() - 24)
+            from .widgets import TOAST_BOTTOM
+            self.toast.move((self.width() - self.toast.width()) // 2, self.height() - self.toast.height() - TOAST_BOTTOM)
 
     def changeEvent(self, e):
         super().changeEvent(e)

@@ -557,6 +557,9 @@ class SearchField(QFrame):
 
 
 # ------------------------------------------------------------------ toast
+TOAST_BOTTOM = 84   # above the pager and the footer buttons
+
+
 class Toast(QFrame):
     def __init__(self, parent: QWidget):
         super().__init__(parent)
@@ -603,7 +606,7 @@ class Toast(QFrame):
         w = min(520, max(280, self.sizeHint().width()))
         self.resize(w, self.sizeHint().height())
         par = self.parentWidget()
-        self.move((par.width() - self.width()) // 2, par.height() - self.height() - 24)
+        self.move((par.width() - self.width()) // 2, par.height() - self.height() - TOAST_BOTTOM)
         self.raise_()
         self.show()
         self.anim.stop()

@@ -48,6 +48,7 @@ class _Page(QWidget):
         self.body.setContentsMargins(20, 20, 20, 20)
         self.body.setSpacing(8)
         scroll.setWidget(host)
+        self.body_host = host
         root.addWidget(scroll, 1)
 
     def clear_body(self) -> None:
@@ -185,6 +186,7 @@ class DraftsPage(_Page):
 class SettingsPage(_Page):
     def __init__(self, hub: Hub, parent=None):
         super().__init__(hub, "Settings", "gear", parent)
+        self.body_host.setMaximumWidth(820)          # long lines are hard to read on wide windows
         hub.libraryOpened.connect(self.refresh)
 
     def _kv(self, k: str, v: str, *buttons) -> QWidget:

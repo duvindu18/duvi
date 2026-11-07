@@ -13,8 +13,8 @@ from typing import Any
 import numpy as np  # noqa: F401  (type hints)
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QImageReader, QPixmap
-from PySide6.QtWidgets import (QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QProgressBar, QScrollArea,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QComboBox, QFileDialog, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QProgressBar,
+                               QScrollArea, QVBoxLayout, QWidget)
 
 from ..engine import adjust as adj
 from ..engine import importer as imp
@@ -32,6 +32,8 @@ from .workers import Debouncer
 from ..jobs import (job_adjust_preview, job_assemble_preview, job_load_base, job_load_source,
                     job_photo_preview, job_save_adjust, job_save_import, job_save_photo)
 
+ROLE_SHORT = {"albedo": "Albedo", "normal": "Normal", "roughness": "Roughness", "gloss": "Gloss",
+              "metallic": "Metallic", "height": "Height", "ao": "AO", "orm": "ORM (packed)", "ignore": "Ignore"}
 SEAMLESS_LABELS = {"periodic": "Periodic (keeps detail)", "blend": "Blend", "mirror": "Mirror", "off": "Off"}
 OUTPUT_SIZES = [("512", "512 px"), ("1024", "1024 px"), ("2048", "2048 px"), ("4096", "4096 px")]
 ADJUST_TITLES = {"albedo": "ALBEDO", "normal": "NORMAL", "roughness": "ROUGHNESS", "metallic": "METALLIC",
@@ -164,9 +166,19 @@ class EditorPage(QWidget):
         self.e_cat.picked.connect(self._touch)
         self.e_tags = TagInput()
         self.e_tags.changed.connect(self._touch)
-        sb.addWidget(self.e_name)
-        sb.addWidget(self.e_cat)
-        sb.addWidget(self.e_tags)
+        form = QGridLayout()
+        form.setHorizontalSpacing(10)
+        form.setVerticalSpacing(8)
+        for row, (text, w) in enumerate((("Name", self.e_name), ("Category", self.e_cat), ("Tags", self.e_tags))):
+            lb = label(text)
+            lb.setStyleSheet(f"color: {theme.MUTED}; font-size: 12px;")
+            lb.setFixedWidth(62)
+            form.addWidget(lb, row, 0, Qt.AlignmentFlag.AlignLeft | (Qt.AlignmentFlag.AlignTop if w is self.e_tags
+                                                                     else Qt.AlignmentFlag.AlignVCenter))
+            form.addWidget(w, row, 1)
+            if w is self.e_tags:
+                lb.setContentsMargins(0, 9, 0, 0)
+        sb.addLayout(form)
         self.r_size = ChoiceRow("Output size", OUTPUT_SIZES, str(hub.settings.get("default_output_px") or 2048))
         self.r_size.changed.connect(lambda v: (self.hub.settings.set("default_output_px", int(v)), self._update_status()))
         sb.addWidget(self.r_size)
@@ -494,16 +506,17 @@ class EditorPage(QWidget):
             hl.addWidget(name, 1)
             role = QComboBox()
             for r in imp.ROLES:
-                role.addItem(imp.ROLE_LABELS[r].split(" (")[0], r)
+                role.addItem(ROLE_SHORT[r], r)
+                role.setItemData(role.count() - 1, imp.ROLE_LABELS[r], Qt.ItemDataRole.ToolTipRole)
             role.setCurrentIndex(imp.ROLES.index(a.role))
-            role.setFixedWidth(130)
+            role.setFixedWidth(118)
             role.currentIndexChanged.connect(lambda _i, idx=i, box=role: self._role_changed(idx, box.currentData()))
             hl.addWidget(role)
             conv = QComboBox()
             conv.addItem("GL", "gl")
             conv.addItem("DX", "dx")
             conv.setCurrentIndex(0 if a.convention == "gl" else 1)
-            conv.setFixedWidth(58)
+            conv.setFixedWidth(68)
             conv.setEnabled(a.role == "normal")
             conv.setToolTip("Normal map convention: OpenGL (+Y up) or DirectX (flipped on import)")
             conv.currentIndexChanged.connect(lambda _i, idx=i, box=conv: self._conv_changed(idx, box.currentData()))

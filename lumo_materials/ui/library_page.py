@@ -22,6 +22,7 @@ SORTS = [("recent", "Recently added"), ("modified", "Recently changed"), ("name"
 GAP = 12          # space between cards (half of it on each side of a card)
 ROW_H = 64        # list rows
 CARD_MIN, CARD_MAX = 150, 380
+WRAP_SLACK = 6     # px the icon view needs to keep a full row from wrapping
 
 
 def ago(iso: str) -> str:
@@ -369,15 +370,27 @@ class MaterialGrid(QListView):
         self._relayout()
 
     def _relayout(self):
-        avail = max(200, self.viewport().width())
+        # measured from the outer size (not the viewport), so changing the margins below cannot feed back
+        sb = self.verticalScrollBar()
+        avail = max(200, self.contentsRect().width() - (sb.width() if sb.isVisible() else 0))
         if self.delegate.list_mode:
+            self._set_left_margin(0)
             self.delegate.row_width = avail
             self.doItemsLayout()
             return
-        cols, _ = grid_layout(avail, min_card=self.card_size + GAP, gap=0)
-        self.delegate.set_cell(avail // cols)       # equal cells across the whole width
+        # Qt's icon view wraps a few pixels before the full width: keep a small reserve and centre the cards
+        usable = avail - WRAP_SLACK
+        cols, _ = grid_layout(usable, min_card=self.card_size + GAP, gap=0)
+        cell = usable // cols
+        self._set_left_margin(max(0, (avail - cell * cols - WRAP_SLACK) // 2))
+        self.delegate.set_cell(cell)                # equal cells across the whole width
         self.setGridSize(self.delegate.cell)
         self.doItemsLayout()
+
+    def _set_left_margin(self, m: int) -> None:
+        if getattr(self, "_left_margin", None) != m:
+            self._left_margin = m
+            self.setViewportMargins(m, 0, 0, 0)
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
@@ -598,6 +611,12 @@ class LibraryPage(QWidget):
         self.search.edit.clear()
         self.reload()
 
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        if abs(self.width() - getattr(self, "_pill_w", 0)) > 40:    # re-fit the filter pills
+            self._pill_w = self.width()
+            self._rebuild_pills()
+
     def _card_size(self, px: int) -> None:
         self.grid.set_card_size(px)
         self.hub.settings.set("card_size", int(px))
@@ -678,11 +697,25 @@ class LibraryPage(QWidget):
         self.pills_row.addWidget(pill("All", total, self.f.category is None and self.f.view == "library",
                                       lambda: self.set_category(None)))
         cats = [(c, n) for c, n in lib.categories() if n > 0]
-        shown, rest = cats[:8], cats[8:]
+        # as many pills as the width allows; the rest (and always the current one, if hidden) go into "More"
+        fm = QFontMetrics(self.font())
+        room = max(200, self.width() - 2 * 20 - 120 - 90)     # minus margins, the Favourites pill and "More"
+        used, shown, rest = fm.horizontalAdvance("All  00") + 28, [], []
+        for c, n in cats:
+            w = fm.horizontalAdvance(f"{c}  {n}") + 28
+            if used + w <= room and not rest:
+                shown.append((c, n))
+                used += w
+            else:
+                rest.append((c, n))
         for c, n in shown:
             self.pills_row.addWidget(pill(c, n, self.f.category == c, lambda _=False, cc=c: self.set_category(cc)))
         if rest:
-            more = button("More", "caret", "pill")
+            current_hidden = any(c == self.f.category for c, _ in rest)
+            more = button(f"{self.f.category}" if current_hidden else f"More  {len(rest)}", "caret", "pill",
+                          checkable=True)
+            more.setChecked(current_hidden)
+            more.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
             menu = QMenu(more)
             for c, n in rest:
                 menu.addAction(f"{c}  ({n})", lambda cc=c: self.set_category(cc))
