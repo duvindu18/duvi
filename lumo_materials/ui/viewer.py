@@ -122,21 +122,20 @@ void main() {
 """
 
 
-OPENGL_MODES = [("auto", "Graphics card"), ("software", "Software OpenGL (slower, always works)"),
-                ("off", "CPU preview (no OpenGL)")]
+RENDERERS = [("auto", "Automatic (Direct3D 12 first)"), ("d3d12", "Direct3D 12"), ("d3d11", "Direct3D 11"),
+             ("opengl", "OpenGL 3.3"), ("cpu", "CPU preview")]
+RENDERER_LABELS = {"d3d12": "Direct3D 12", "d3d11": "Direct3D 11", "opengl": "OpenGL", "cpu": "CPU preview"}
 
 
-def configure_opengl(mode: str) -> str:
-    """Call before QApplication is created. mode: auto | software | off (LUMO_OPENGL overrides)."""
+def configure_renderer(choice: str) -> list[str]:
+    """Call before QApplication is created. LUMO_RENDERER overrides the setting."""
     import os
-    from PySide6.QtCore import QCoreApplication, Qt
-    mode = os.environ.get("LUMO_OPENGL", mode or "auto")
-    if mode == "software":
-        QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_UseSoftwareOpenGL)
-    elif mode == "off":
-        MaterialView.gpu_ok = False
-    MaterialView.opengl_mode = mode
-    return mode
+    import sys
+    from ..viewmodel import renderer_chain
+    choice = os.environ.get("LUMO_RENDERER", choice or "auto")
+    MaterialView.chain = renderer_chain(choice, sys.platform == "win32")
+    MaterialView.choice = choice
+    return MaterialView.chain
 
 
 def configure_default_format() -> None:
@@ -165,6 +164,7 @@ class _ViewState:
 
 class GLViewer(QOpenGLWidget):
     failed = Signal(str)
+    frameSubmitted = Signal()
 
     def __init__(self, state: _ViewState, parent=None):
         super().__init__(parent)
@@ -204,6 +204,8 @@ class GLViewer(QOpenGLWidget):
             for name, data in (("sphere", meshes.sphere()), ("plane", meshes.plane())):
                 self.meshes[name] = self._upload_mesh(data)
             self._ok = True
+            self.device_info = f"OpenGL: {MaterialView.gl_info}"
+            QTimer.singleShot(0, self.frameSubmitted.emit)
             ctx.aboutToBeDestroyed.connect(self._cleanup)
         except Exception as e:  # driver problems: switch to the CPU preview
             self._ok = False
@@ -409,8 +411,15 @@ class CpuViewer(QLabel):
 
 
 class MaterialView(QWidget):
-    """The viewer used everywhere: picks the GPU view and falls back to the CPU view automatically."""
+    """The viewer used everywhere. Tries the renderers in MaterialView.chain (Direct3D 12 -> Direct3D 11 ->
+    OpenGL -> CPU) and moves on whenever one fails; later views start with the one that worked."""
     usingFallback = Signal(str)
+
+    chain: list[str] = ["opengl", "cpu"]   # set by configure_renderer()
+    choice = "auto"
+    backend = ""                            # renderer in use (key of RENDERER_LABELS)
+    device_info = ""                        # e.g. "D3D12 on NVIDIA GeForce RTX 4070"
+    gl_info = ""                            # OpenGL renderer string, when OpenGL was tried
 
     def __init__(self, parent=None, gpu: bool = True):
         super().__init__(parent)
@@ -418,53 +427,102 @@ class MaterialView(QWidget):
         self.stack = QStackedLayout(self)
         self.stack.setContentsMargins(0, 0, 0, 0)
         self.cpu = CpuViewer(self.state)
-        self.gl: GLViewer | None = None
-        if gpu and MaterialView.gpu_ok:
-            self.gl = GLViewer(self.state)
-            self.gl.failed.connect(self._fallback)
-            self.stack.addWidget(self.gl)
         self.stack.addWidget(self.cpu)
+        self.gpu: QWidget | None = None
         self._float: dict[str, np.ndarray] | None = None
+        self._u8: dict[str, np.ndarray] | None = None
         self._spin = QTimer(self, interval=16)
         self._spin.timeout.connect(self._step)
         self.setProperty("interactive", True)
+        self._start(MaterialView.chain if gpu else ["cpu"])
 
-    gpu_ok = True          # class-wide: once one view failed, new views start on the CPU
-    opengl_mode = "auto"
-    gl_info = ""           # renderer and version of the last OpenGL context
+    @property
+    def gl(self):          # kept for older callers: the GPU widget, whatever its API
+        return self.gpu
 
-    def _fallback(self, reason: str) -> None:
-        MaterialView.gpu_ok = False
-        if self.gl is not None:
-            self.stack.removeWidget(self.gl)
-            self.gl.deleteLater()
-            self.gl = None
-        self.stack.setCurrentWidget(self.cpu)
-        if self._float is not None:
-            self.cpu.set_float_maps(self._float)
-        self.usingFallback.emit(reason)
+    def _make(self, kind: str) -> QWidget | None:
+        if kind in ("d3d12", "d3d11"):
+            try:
+                from .rhi_viewer import RhiViewer
+            except ImportError:          # PySide6 without QRhiWidget
+                return None
+            return RhiViewer(self.state, kind)
+        if kind == "opengl":
+            return GLViewer(self.state)
+        return None
+
+    def _start(self, chain: list[str]) -> None:
+        for i, kind in enumerate(chain):
+            w = self._make(kind) if kind != "cpu" else None
+            if kind == "cpu" or w is not None:
+                self._kind = kind
+                self._rest = chain[i + 1:]
+                break
+        else:
+            self._kind, self._rest, w = "cpu", [], None
+        if w is not None:
+            self.gpu = w
+            w.failed.connect(self._failed)
+            if hasattr(w, "frameSubmitted"):
+                w.frameSubmitted.connect(self._worked)
+            self.stack.addWidget(w)
+            self.stack.setCurrentWidget(w)
+        else:
+            self.stack.setCurrentWidget(self.cpu)
+            MaterialView.backend = "cpu"
+
+    def _worked(self) -> None:
+        if MaterialView.backend != self._kind:
+            MaterialView.backend = self._kind
+            MaterialView.device_info = getattr(self.gpu, "device_info", "") or RENDERER_LABELS.get(self._kind, "")
+        try:
+            self.gpu.frameSubmitted.disconnect(self._worked)
+        except (RuntimeError, TypeError, AttributeError):
+            pass
+
+    def _failed(self, reason: str) -> None:
+        print(f"Preview renderer {self._kind} failed: {reason}")
+        old = self.gpu
+        if old is not None:
+            self.stack.removeWidget(old)
+            old.hide()
+            old.deleteLater()
+            self.gpu = None
+        rest = [k for k in self._rest]
+        MaterialView.chain = rest if rest else ["cpu"]       # new views skip what failed
+        self._start(MaterialView.chain)
+        if self.gpu is not None:
+            if self._u8 is not None:
+                self.gpu.set_maps(self._u8)
+        else:
+            if self._float is not None:
+                self.cpu.set_float_maps(self._float)
+            self._spin.stop()
+        self.usingFallback.emit(f"{RENDERER_LABELS.get(self._kind, self._kind)} in use; {reason}")
 
     def set_maps(self, float_maps: dict[str, np.ndarray] | None, u8_maps: dict[str, np.ndarray] | None = None):
         """float_maps: preview-sized engine maps; u8_maps: meshes.maps_to_u8(float_maps) (made in a worker)."""
         self._float = float_maps
         if float_maps is None:
+            self._u8 = None
             self.cpu.clear()
             return
-        if self.gl is not None:
-            self.gl.set_maps(u8_maps if u8_maps is not None else meshes.maps_to_u8(float_maps))
+        self._u8 = u8_maps if u8_maps is not None else meshes.maps_to_u8(float_maps)
+        if self.gpu is not None:
+            self.gpu.set_maps(self._u8)
         else:
             self.cpu.set_float_maps(float_maps)
 
     def _refresh(self):
-        if self.gl is not None:
-            self.gl.update()
+        if self.gpu is not None:
+            self.gpu.update()
         else:
             self.cpu.refresh()
 
     def set_option(self, key: str, value) -> None:
         setattr(self.state, key, value)
         if key == "spin":
-            if value and self.gl is not None:
+            if value and self.gpu is not None:
                 self._spin.start()
             else:
                 self._spin.stop()
@@ -472,9 +530,8 @@ class MaterialView(QWidget):
 
     def _step(self):
         self.state.yaw = (self.state.yaw + 0.35) % 360
-        if self.gl is not None:
-            self.gl.update()
+        if self.gpu is not None:
+            self.gpu.update()
 
     def sizeHint(self):
         return QSize(320, 260)
-

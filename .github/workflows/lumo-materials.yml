@@ -47,6 +47,9 @@ jobs:
       - name: Unit tests
         run: python packaging/ci_tee.py ci-out/unit-tests.txt -- python -m unittest discover -s tests -v
 
+      - name: Compile the preview shaders
+        run: python packaging/ci_tee.py ci-out/shaders.txt -- python packaging/compile_shaders.py --install-addons
+
       - name: UI smoke test (from source)
         shell: pwsh
         run: |
@@ -88,38 +91,20 @@ jobs:
           python packaging/ci_tee.py ci-out/build.txt -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File packaging\build.ps1 -Python python -SkipTests -VCRedist download -PublisherDir "$PWD\lumo-publisher\publisher"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
-      - name: UI smoke test (built program, bundled software OpenGL)
+      - name: UI smoke test (built program)
         shell: pwsh
-        env:
-          LUMO_OPENGL: software
         run: |
           $p = Start-Process -FilePath "dist\lumo-materials\lumo-materials.exe" -ArgumentList @("--smoke-ui", "`"$PWD\ci-out\smoke-exe`"") -Wait -PassThru
           if ($p.ExitCode) { throw "UI smoke test of the built program failed ($($p.ExitCode))" }
 
-      - name: UI smoke test of the 3D viewer with real OpenGL (CI only - Mesa llvmpipe, not shipped)
-        continue-on-error: true
+      - name: The 3D preview runs on Direct3D 12
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GALLIUM_DRIVER: llvmpipe
         run: |
-          # GitHub's Windows machines have no GPU (OpenGL 3.0 only). Mesa's software OpenGL 4.5 lets the real
-          # GPU viewer code (shaders, meshes, textures) run here. It goes into a copy of the program only.
-          $json = gh release view --repo pal1000/mesa-dist-win --json tagName,assets | ConvertFrom-Json
-          $asset = $json.assets | Where-Object { $_.name -match 'release-msvc\.7z$' } | Select-Object -First 1
-          if (-not $asset) { $asset = $json.assets | Where-Object { $_.name -match 'release.*\.7z$' } | Select-Object -First 1 }
-          Write-Host "Mesa $($json.tagName): $($asset.name)"
-          $dl = Join-Path $env:RUNNER_TEMP "mesa"
-          New-Item -ItemType Directory -Force $dl | Out-Null
-          gh release download $json.tagName --repo pal1000/mesa-dist-win --pattern $asset.name --dir $dl --clobber
-          7z x -y "-o$dl\x" (Join-Path $dl $asset.name) | Out-Null
-          $copy = Join-Path $env:RUNNER_TEMP "lumo-gl"
-          Copy-Item -Recurse -Force dist\lumo-materials $copy
-          Get-ChildItem "$dl\x\x64" -Filter *.dll | ForEach-Object { Copy-Item $_.FullName $copy -Force; $_.Name }
-          $p = Start-Process -FilePath "$copy\lumo-materials.exe" -ArgumentList @("--smoke-ui", "`"$PWD\ci-out\smoke-gl`"") -Wait -PassThru
-          $r = Get-Content "ci-out\smoke-gl\report.json" -Raw | ConvertFrom-Json
-          Write-Host "OpenGL: $($r.gl_info) | GPU viewer used: $($r.gpu_viewer_used) | ok: $($r.ok)"
-          if ($p.ExitCode -or -not $r.gpu_viewer_used) { throw "3D viewer test with real OpenGL failed" }
+          foreach ($d in @("smoke-source", "smoke-exe")) {
+            $r = Get-Content "ci-out\$d\report.json" -Raw | ConvertFrom-Json
+            Write-Host "$d : renderer $($r.renderer) | $($r.device) | ok $($r.ok)"
+            if ($r.renderer -ne "d3d12") { throw "$d did not use Direct3D 12 (renderer: $($r.renderer); $($r.gpu_note))" }
+          }
 
       - name: Install, check and uninstall (silent, per user)
         shell: pwsh
@@ -199,6 +184,7 @@ jobs:
           $body = @"
           Windows installer for **lumo materials $ver** (offline PBR material library), built by GitHub Actions run ${{ github.run_number }} from ``${{ github.sha }}``.
 
+          * 3D preview on Direct3D 12 (falls back to Direct3D 11, OpenGL, then the CPU).
           * Everything is inside: Python, Qt, NumPy, Pillow, fonts, software OpenGL, and the Microsoft Visual C++ runtime (installed only if missing).
           * Checked on a clean Windows machine: unit tests, UI smoke test of the built program, silent install, self-check, uninstall.
           * $sig

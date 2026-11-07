@@ -129,6 +129,9 @@ if (-not $SkipTests) {
 }
 
 # ---------------------------------------------------------------- 4 + 5. build
+Step "Compiling the preview shaders (Direct3D 12 / 11, Vulkan, OpenGL)"
+Run $vpy @("packaging\compile_shaders.py", "--install-addons")
+
 Step "Building the program (PyInstaller)"
 $versionFile = Join-Path $Root "build\version_info.txt"
 $viArgs = @("packaging\make_version_info.py", "--out", $versionFile)

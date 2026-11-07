@@ -7,7 +7,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lumo_materials.ui import meshes  # noqa: E402  (no Qt import in this module)
-from lumo_materials.viewmodel import LibraryFilter, grid_layout, page_window  # noqa: E402
+from lumo_materials.viewmodel import LibraryFilter, grid_layout, page_window, renderer_chain  # noqa: E402
 
 
 class PagerTests(unittest.TestCase):
@@ -101,3 +101,33 @@ class MeshTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MatrixTests(unittest.TestCase):
+    def test_against_reference_formulas(self):
+        p = meshes.perspective(90, 2.0, 1.0, 3.0)
+        pt = p @ np.array([0, 0, -1, 1], np.float32)           # on the near plane -> z = -1 in NDC
+        self.assertAlmostEqual(pt[2] / pt[3], -1.0, places=5)
+        pt = p @ np.array([0, 0, -3, 1], np.float32)           # far plane -> z = +1
+        self.assertAlmostEqual(pt[2] / pt[3], 1.0, places=5)
+        v = meshes.look_at((0, 0, 5), (0, 0, 0), (0, 1, 0))
+        np.testing.assert_allclose(v @ np.array([0, 0, 0, 1], np.float32), [0, 0, -5, 1], atol=1e-6)
+        r = meshes.rotate(90, "y")
+        np.testing.assert_allclose(r @ np.array([1, 0, 0, 1], np.float32), [0, 0, -1, 1], atol=1e-6)  # like QMatrix4x4
+        r = meshes.rotate(90, "x")
+        np.testing.assert_allclose(r @ np.array([0, 1, 0, 1], np.float32), [0, 0, 1, 1], atol=1e-6)
+        t = meshes.translate(1, 2, 3) @ meshes.scale(2)
+        np.testing.assert_allclose(t @ np.array([1, 1, 1, 1], np.float32), [3, 4, 5, 1], atol=1e-6)
+        self.assertEqual(len(meshes.column_major(t)), 64)
+        self.assertEqual(np.frombuffer(meshes.column_major(t), np.float32)[12], 1.0)   # translation in column 3
+
+
+class RendererChainTests(unittest.TestCase):
+    def test_chains(self):
+        self.assertEqual(renderer_chain("auto", True), ["d3d12", "d3d11", "opengl", "cpu"])
+        self.assertEqual(renderer_chain("d3d11", True), ["d3d11", "opengl", "cpu"])
+        self.assertEqual(renderer_chain("opengl", True), ["opengl", "cpu"])
+        self.assertEqual(renderer_chain("cpu", True), ["cpu"])
+        self.assertEqual(renderer_chain("auto", False), ["opengl", "cpu"])
+        self.assertEqual(renderer_chain("d3d12", False), ["opengl", "cpu"])   # no Direct3D off Windows
+        self.assertEqual(renderer_chain("bogus", True), ["d3d12", "d3d11", "opengl", "cpu"])

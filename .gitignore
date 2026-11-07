@@ -9,3 +9,4 @@ build-lock.txt
 # never commit signing keys
 *.pfx
 lumo-publisher/publisher/
+lumo_materials/assets/shaders/

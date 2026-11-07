@@ -60,3 +60,13 @@ class LibraryFilter:
         if self.category:
             return self.category
         return {"favourites": "Favourites", "recent": "Recently added"}.get(self.view, "All materials")
+
+
+def renderer_chain(choice: str, windows: bool) -> list[str]:
+    """Preview renderers to try, best first. Direct3D needs Windows; every chain ends with the CPU preview."""
+    gpu = ["d3d12", "d3d11", "opengl"] if windows else ["opengl"]
+    if choice == "cpu":
+        return ["cpu"]
+    if choice in gpu:
+        return gpu[gpu.index(choice):] + ["cpu"]
+    return gpu + ["cpu"]

@@ -57,3 +57,53 @@ def maps_to_u8(maps: dict[str, np.ndarray], max_edge: int = 1024) -> dict[str, n
             a = np.concatenate([a, np.full(a.shape[:2] + (1,), 255, np.uint8)], axis=2)
         out[k] = np.ascontiguousarray(a)
     return out
+
+
+# ---------------------------------------------------------------- matrices (row-major math, GL clip space)
+def perspective(fovy_deg: float, aspect: float, near: float, far: float) -> np.ndarray:
+    f = 1.0 / np.tan(np.radians(fovy_deg) / 2.0)
+    m = np.zeros((4, 4), np.float32)
+    m[0, 0] = f / aspect
+    m[1, 1] = f
+    m[2, 2] = (far + near) / (near - far)
+    m[2, 3] = 2.0 * far * near / (near - far)
+    m[3, 2] = -1.0
+    return m
+
+
+def look_at(eye, center, up) -> np.ndarray:
+    eye, center, up = (np.asarray(v, np.float32) for v in (eye, center, up))
+    f = center - eye
+    f /= np.linalg.norm(f)
+    s = np.cross(f, up)
+    s /= np.linalg.norm(s)
+    u = np.cross(s, f)
+    m = np.identity(4, np.float32)
+    m[0, :3], m[1, :3], m[2, :3] = s, u, -f
+    m[:3, 3] = -m[:3, :3] @ eye
+    return m
+
+
+def translate(x: float, y: float, z: float) -> np.ndarray:
+    m = np.identity(4, np.float32)
+    m[:3, 3] = (x, y, z)
+    return m
+
+
+def rotate(deg: float, axis: str) -> np.ndarray:
+    c, s = np.cos(np.radians(deg)), np.sin(np.radians(deg))
+    m = np.identity(4, np.float32)
+    i, j = {"x": (1, 2), "y": (2, 0), "z": (0, 1)}[axis]
+    m[i, i], m[i, j], m[j, i], m[j, j] = c, -s, s, c
+    return m
+
+
+def scale(k: float) -> np.ndarray:
+    m = np.identity(4, np.float32)
+    m[0, 0] = m[1, 1] = m[2, 2] = k
+    return m
+
+
+def column_major(m: np.ndarray) -> bytes:
+    """std140 / GLSL mat4 layout."""
+    return np.ascontiguousarray(m.T, dtype=np.float32).tobytes()

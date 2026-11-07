@@ -41,7 +41,7 @@ def run(outdir: str) -> int:
     from .dialogs import ExportDialog, LibraryChooser
     from .hub import Hub
     from .main_window import MainWindow
-    from .viewer import MaterialView, configure_default_format, configure_opengl
+    from .viewer import MaterialView, configure_default_format, configure_renderer
 
     report = {"errors": [], "qt_warnings": [], "steps": [], "screenshots": [], "prepare_s": round(prep_s, 2)}
 
@@ -59,7 +59,7 @@ def run(outdir: str) -> int:
         print(f"[qt] {msg}", file=sys.stderr)
 
     qInstallMessageHandler(qt_messages)
-    report["opengl_mode"] = configure_opengl("auto")
+    report["renderer_chain"] = configure_renderer("auto")
     configure_default_format()
     app = QApplication.instance() or QApplication(sys.argv[:1])
     theme.apply(app)
@@ -110,8 +110,14 @@ def run(outdir: str) -> int:
             win.library.grid.setCurrentIndex(win.library.model.index(0))
             settle(300)
             wait_idle(lambda: not hub.runner.busy("inspector"))
-            settle(900)
+            settle(1500)
             shot("library-inspector")
+            card = win.inspector.card
+            for shape in ("sphere", "plane", "both"):
+                card.view.set_option("shape", shape)
+                settle(700)
+                shot(f"viewer-{shape}", card)
+            card.view.set_option("shape", "sphere")
         step("inspector", select_first)
 
         def list_mode():
@@ -229,9 +235,11 @@ def run(outdir: str) -> int:
             win.resize(1600, 1000)
         step("window states", window_states)
 
-        report["gpu_note"] = hub.gpu_note or ("GPU preview" if MaterialView.gpu_ok else "CPU preview")
+        report["gpu_note"] = hub.gpu_note
+        report["renderer"] = MaterialView.backend
+        report["device"] = MaterialView.device_info
         report["gl_info"] = MaterialView.gl_info
-        report["gpu_viewer_used"] = bool(MaterialView.gpu_ok and win.inspector.card.view.gl is not None)
+        report["gpu_viewer_used"] = MaterialView.backend in ("d3d12", "d3d11", "opengl")
         report["materials"] = lib.count()
         report["seconds"] = round(time.perf_counter() - t0, 1)
         report["ok"] = not report["errors"]

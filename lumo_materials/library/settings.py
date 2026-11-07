@@ -24,7 +24,7 @@ DEFAULTS: dict[str, Any] = {
     "inspector_open": True,
     "window": None,
     "last_folder": "",
-    "opengl": "auto",          # auto (graphics card) | software (Qt's bundled Mesa renderer) | off (CPU preview)
+    "renderer": "auto",        # auto (Direct3D 12 -> 11 -> OpenGL -> CPU) | d3d12 | d3d11 | opengl | cpu
 }
 
 

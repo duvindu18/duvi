@@ -415,17 +415,9 @@ class MainWindow(FramelessWindow):
 
     def _gpu_fallback(self, reason: str) -> None:
         from .viewer import MaterialView
-        self.hub.gpu_note = f"CPU preview (OpenGL: {reason[:160]})"
-        s = self.hub.settings
-        if MaterialView.opengl_mode == "auto" and s.get("opengl") == "auto":
-            s.set("opengl", "software")      # next start: Qt's bundled software OpenGL
-            self.hub.notify("This graphics driver has no OpenGL 3.3. The 3D preview uses the CPU now and "
-                            "software OpenGL from the next start.", "warn")
-        elif MaterialView.opengl_mode == "software" and s.get("opengl") == "software":
-            s.set("opengl", "off")           # software OpenGL failed too: stay on the CPU preview
-            self.hub.notify("Software OpenGL is not available either. The 3D preview stays on the CPU.", "warn")
-        else:
-            self.hub.notify("The 3D preview runs on the CPU.", "warn")
+        if MaterialView.chain == ["cpu"]:
+            self.hub.gpu_note = f"CPU preview ({reason[:200]})"
+            self.hub.notify("No Direct3D or OpenGL device is available: the 3D preview runs on the CPU.", "warn")
 
     # ------------------------------------------------------------------ keys
     def _typing(self) -> bool:

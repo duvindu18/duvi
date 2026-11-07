@@ -117,7 +117,7 @@ class ViewerCard(QFrame):
         self.mode.setParent(self)
         self.mode.setStyleSheet("font-size: 11px; min-height: 26px; padding: 0 8px; font-weight: 400;")
         self.mode.clicked.connect(self._mode_menu)
-        self.view.usingFallback.connect(lambda _r: self.spin.setEnabled(False))
+        self.view.usingFallback.connect(lambda _r: self.spin.setEnabled(self.view.gpu is not None))
 
     def _mode_menu(self):
         m = QMenu(self)
