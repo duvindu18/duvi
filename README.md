@@ -13,11 +13,36 @@ lumo_materials/
   jobs.py      the editor's background jobs (preview, save, import, adjust)        (no Qt)
   viewmodel.py pager, grid and filter logic                                        (no Qt)
   ui/          the program: frameless window, sidebar, card grid + pager, inspector, editor, trash, drafts,
-               settings, dialogs, OpenGL 3.3 PBR viewer with automatic CPU fallback
+               settings, dialogs, Direct3D 12 PBR viewer (Qt RHI) with Direct3D 11 / OpenGL / CPU fallbacks
+  shaders/     GLSL 440 sources, compiled to .qsb (HLSL for Direct3D, SPIR-V, GLSL) at build time
   assets/      Inter font, icons, licence texts
 packaging/     PyInstaller spec, Inno Setup script, wizard images, build.ps1
-tests/         53 unit tests (engine, library, jobs, UI logic, meshes)
+tests/         58 unit tests (engine, library, jobs, UI logic, meshes, preview framing)
+.github/       GitHub Actions: tests, UI smoke tests, build, install test, release
 ```
+
+## Build on GitHub (no Windows PC needed)
+
+Every push to the `lumo-materials` branch runs `.github/workflows/lumo-materials.yml` on a clean Windows
+machine:
+
+1. unit tests
+2. UI smoke test from source: every page is driven with sample materials and screenshots are saved
+3. shaders compiled
+4. program and installer built with the VC++ runtime embedded
+5. the built .exe smoke-tested again
+6. silent per-user install, `--check` and uninstall
+7. a pre-release `lumo-materials-v<version>-build.<n>` with the setup and its SHA-256 is published
+
+The test output, screenshots and logs of every run are force-pushed to the `lumo-materials-ci` branch.
+
+The build is signed only if two repository secrets exist:
+
+- `LUMO_PUBLISHER_B64`: base64 of a zip of your `lumo-publisher\publisher` folder
+- `LUMO_SIGN_PASSWORD`: its password
+
+Without them the installer is unsigned. Adding them means your signing key leaves your PC. Signing locally
+with `build.ps1` avoids that.
 
 ## Build the installer (on Windows, one command)
 
@@ -79,7 +104,7 @@ python -m unittest discover -s tests
 | Area | Features |
 |---|---|
 | Library | card grid (columns follow the window width) or list, pager (12 / 24 / 48 / 96 per page), search over name / tags / description (`/` or Ctrl F), category pills, favourites, sort by date / name / category / resolution, multi-select with Move, Tag, Favourite, Export and Trash, trash with Undo, Rescan (F5) |
-| Inspector | GPU 3D preview (sphere / plane / both, orbit, zoom, spin), the six maps (click one to view it alone), fill-bar rows for tiling, displacement, light (Studio, Softbox, Window, Overcast, Dramatic) and background, details, Adjust and Export |
+| Inspector | Direct3D 12 3D preview (GGX PBR, parallax occlusion from the height map, studio reflections, 4x MSAA; sphere / plane / both, orbit, zoom, spin), the six maps (click one to view it alone), fill-bar rows for tiling, displacement, light (Studio, Softbox, Window, Overcast, Dramatic) and background, details, Adjust and Export |
 | New from photo | drop a photo anywhere or press Ctrl N; type preset guessed from the file name; seamless mode, de-lighting, height, normal, roughness, metallic and AO sliders with a live preview and a seam score; saves at 512 to 4096 px |
 | Import map set | up to 24 files, roles guessed from file names (`_Color`, `_NormalGL/DX`, `_Rough`, `_Metal`, `_Displacement`, `_AO`, `_ORM`, `_Gloss`…), DirectX normals flipped, missing maps generated, then adjusted |
 | Adjust maps | per-map controls (exposure, contrast, saturation, hue, normal strength / smoothing / flip, roughness, metallic, height, AO, output size). Always absolute and applied to the untouched originals; save as Replace or as a copy |
@@ -87,16 +112,19 @@ python -m unittest discover -s tests
 | Export | ZIP or folder (never overwrites), OpenGL / DirectX normals, plain or engine names, packed ORM, 8- or 16-bit height |
 | Window | frameless dark window with custom caption buttons, Aero Snap, Win+Arrow, edge resizing, Windows 11 rounded corners, single instance (opening a second copy hands its files to the first) |
 
-## Tested and not tested
+## Tested
 
-- **Tested here** (Linux, Python 3.13): `python -m unittest discover -s tests` passes all 53 tests. They cover the
-  engine (seamless quality, OpenGL normal convention, de-lighting, every preset, adjustments, import guessing and
-  assembly, 16-bit PNG, rendering), the library (layout, Explorer renames / copies / loose folders, trash, categories,
-  adjusted originals, export), the editor's save and adjust jobs end to end, and the pager, grid and mesh logic.
-  `--check` passes. Ruff finds no errors.
-- **Not run yet:** the Qt interface, the OpenGL viewer, the frameless-window code, PyInstaller, Inno Setup and
-  `build.ps1`. No Qt and no Windows were available where this was written. The first `build.ps1` run on your PC is
-  their first real test. If something fails, the build output or
-  `%LOCALAPPDATA%\lumo-materials\logs\lumo-materials.log` shows where.
-- Map generation from a single photo is a heuristic, as before: height, normal and AO come from brightness, and metallic
-  cannot be measured from a photo. Import scanned maps when you need exact values.
+- **Unit tests:** 58 tests pass on Linux and on Windows (GitHub Actions). They cover the engine, the library (incl.
+  Explorer renames / copies, trash, adjusted originals, export), the editor's save and adjust jobs, the pager / grid
+  logic, the meshes, and the preview camera framing.
+- **The real program on Windows:** every CI run drives the interface from source and from the built .exe. That
+  covers the library, inspector, list view, search, multi-select, new from photo + save, import + save, adjust + save
+  as copy, drafts, trash with undo, settings, dialogs, maximise and narrow window. It fails on any exception or Qt
+  critical message. The 3D preview ran on **Direct3D 12** with no errors or warnings (on GitHub's software D3D12
+  adapter, as those machines have no GPU).
+- **The installer:** a silent per-user install, the self-check of the installed program, the Start menu shortcut and
+  a clean uninstall are checked on every run.
+- **Not covered by CI:** a real NVIDIA GPU (the same Direct3D 12 code path, in hardware), the "install for all users"
+  mode, the publisher-trust option, and the VC++ runtime install on a PC that lacks it (the CI machine already has it).
+- Map generation from a single photo is a heuristic: height, normal and AO come from brightness, and metallic cannot
+  be measured from a photo. Import scanned maps when you need exact values.
