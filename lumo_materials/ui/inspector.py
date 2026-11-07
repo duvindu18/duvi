@@ -208,12 +208,18 @@ class ViewerCard(QFrame):
         self.view.usingFallback.connect(lambda _r: self.spin.setEnabled(self.view.gpu is not None))
 
     # loading state -------------------------------------------------------------
+    calls = None                 # (loading, loaded) counts, kept by the smoke test only
+
     def loading(self, pixmap: QPixmap | None = None) -> None:
+        if self.calls is not None:
+            self.calls[0] += 1
         self.view.clear()
         self.placeholder.setGeometry(self.view_host.rect())
         self.placeholder.start(pixmap)
 
     def loaded(self) -> None:
+        if self.calls is not None:
+            self.calls[1] += 1
         self.placeholder.stop()
 
     def resizeEvent(self, e):

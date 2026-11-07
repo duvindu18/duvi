@@ -208,11 +208,24 @@ def run(outdir: str) -> int:
         step("import map set + save", editor_import)
 
         def duplicates():
+            card = win.editor.card
+            card.calls = [0, 0]
             win.editor.start_photo(str(photo))           # the photo saved above, once more
             win.show_page("editor")
             wait_idle(lambda: not hub.runner.busy("duplicates"), 30)
             wait_idle(lambda: win.editor.last is not None, 30)
             settle(500)
+            ph = card.placeholder
+
+            def state():
+                return {"calls": list(card.calls), "hidden": ph.isHidden(), "visible": ph.isVisible(),
+                        "opacity": round(ph.opacity, 2), "fade": int(ph._fade.state().value)
+                        if hasattr(ph._fade.state(), "value") else str(ph._fade.state()),
+                        "page_visible": win.editor.isVisible(), "has_last": win.editor.last is not None}
+            report["dup_placeholder_before"] = state()
+            cleared = wait_idle(lambda: not ph.isVisible(), 5)
+            report["dup_placeholder_after"] = dict(state(), cleared=cleared)
+            card.calls = None
             assert win.editor.dup.active(), "repeated photo was not noticed"
             assert win.editor.dup.matches[0]["kind"] == "identical", win.editor.dup.matches
             report["duplicate"] = win.editor.dup.text.text()
