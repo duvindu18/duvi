@@ -17,7 +17,7 @@ lumo_materials/
   shaders/     GLSL 440 sources, compiled to .qsb (HLSL for Direct3D, SPIR-V, GLSL) at build time
   assets/      Inter font, icons, licence texts
 packaging/     PyInstaller spec, Inno Setup script, wizard images, build.ps1
-tests/         58 unit tests (engine, library, jobs, UI logic, meshes, preview framing)
+tests/         56 unit tests (engine, library, jobs, UI logic, meshes, preview framing)
 .github/       GitHub Actions: tests, UI smoke tests, build, install test, release
 ```
 
@@ -126,7 +126,7 @@ python -m unittest discover -s tests
 - **Speed (2-core CI-class machine, 2048 px photo):** saving takes about 2.8 s instead of 7.0 s (map generation
   1.5 s instead of 3.2 s with one shared FFT spectrum and parallel channels; PNG writing 0.4 s instead of 2.0 s;
   previews 0.45 s instead of 1.4 s). Loading a material for the preview takes 0.3 s instead of 1.0 s, and a cached
-  or preloaded one shows at once.
+  or preloaded one skips loading entirely.
 - **The installer:** a silent per-user install, the self-check of the installed program, the Start menu shortcut and
   a clean uninstall are checked on every run.
 - **Not covered by CI:** a real NVIDIA GPU (the same Direct3D 12 code path, in hardware), the "install for all users"
