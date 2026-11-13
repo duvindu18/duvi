@@ -262,6 +262,62 @@ app.whenReady().then(async () => {
   await shot(w, '31-files-filter');
   console.log('v1.3 checks:', JSON.stringify(extra), JSON.stringify(own), filesEmpty);
 
+  /* phone access: pair, open the phone page, and check that changes travel both ways */
+  const phone = {};
+  {
+  const pst = JSON.parse(await js(w, "window.morfisDesktop.remoteSet(true).then(function(r){return JSON.stringify(r)})"));
+  phone.on = pst.on; phone.err = pst.error;
+  const pbase = 'http://127.0.0.1:' + pst.port;
+  const phttp = require('http');
+  const req = (method, url, body, headers) => new Promise((resolve, reject) => {
+    const r = phttp.request(pbase + url, { method: method, headers: Object.assign({ 'content-type': 'application/json' }, headers || {}) }, (res) => { let d = ''; res.on('data', (c) => { d += c; }); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: d })); });
+    r.on('error', reject); if (body) r.write(body); r.end();
+  });
+  phone.ping = JSON.parse((await req('GET', '/ping')).body).app;
+  phone.unpaired = (await req('POST', '/api/storeLoad', '{"args":[]}')).status;
+  phone.pairPage = /type the PIN/.test((await req('GET', '/app')).body);
+  phone.wrongPin = JSON.parse((await req('POST', '/pair', JSON.stringify({ pin: '000000' === pst.pin ? '111111' : '000000', name: 'x' }))).body).ok;
+  const paired = await req('POST', '/pair', JSON.stringify({ pin: pst.pin, name: 'Smoke phone' }));
+  const cookie = String((paired.headers['set-cookie'] || [''])[0]).split(';')[0];
+  phone.paired = JSON.parse(paired.body).ok && /^morfis_dev=[a-f0-9]{64}$/.test(cookie);
+  phone.projects = Object.keys(JSON.parse((await req('POST', '/api/storeLoad', '{"args":[]}', { cookie: cookie })).body).v.projects).length;
+  phone.blocked = /Not available/.test((await req('POST', '/api/saveFile', '{"args":["a.txt",[1]]}', { cookie: cookie })).body);
+  /* the phone page itself, in a phone-sized window */
+  const { session } = require('electron');
+  const ps = session.fromPartition('phone-smoke');
+  await ps.cookies.set({ url: pbase, name: 'morfis_dev', value: cookie.split('=')[1], httpOnly: true });
+  const phw = new BrowserWindow({ width: 412, height: 880, show: true, webPreferences: { session: ps, sandbox: true, contextIsolation: true } });
+  phw.webContents.setUserAgent('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36 StudioMorfisAndroid/1.0');
+  phw.webContents.on('console-message', (e) => { const m = e.message || ''; if (e.level === 'error' || /Uncaught/.test(m)) errors.push('phone: ' + m); });
+  await phw.loadURL(pbase + '/app');
+  await wait(3500);
+  await shot(phw, '40-phone-home');
+  const pj = (code) => phw.webContents.executeJavaScript(code);
+  phone.remotePage = await pj("!!window.MORFIS_REMOTE && document.documentElement.classList.contains('remote') && !!window.__morfisPage && window.__morfisPage.S.ready");
+  await pj("document.querySelector('.rb-menu').click()"); await wait(500); await shot(phw, '41-phone-menu');
+  phone.drawer = await pj("getComputedStyle(document.getElementById('dkSide')).transform==='none'");
+  await pj("document.querySelector('#dkSide [data-go=files]').click()"); await wait(1500); await shot(phw, '42-phone-files');
+  phone.drawerClosed = await pj("!document.documentElement.classList.contains('rb-nav')");
+  /* phone -> computer */
+  const pid = await pj("Object.keys(window.__morfisPage.S.projects)[0]");
+  await pj("Morfis.setWorkStatus(" + JSON.stringify(pid) + ",'on_hold')"); await wait(1500);
+  phone.toComputer = await js(w, "window.__morfisPage.P(" + JSON.stringify(pid) + ").workStatus");
+  /* computer -> phone */
+  await js(w, "Morfis.setWorkStatus(" + JSON.stringify(pid) + ",'in_progress')"); await wait(1500);
+  phone.toPhone = await pj("window.__morfisPage.P(" + JSON.stringify(pid) + ").workStatus");
+  await pj("document.querySelector('.rb-menu').click()"); await wait(300);
+  await pj("document.querySelector('#dkSide [data-go=automations]').click()"); await wait(1500); await shot(phw, '43-phone-automations');
+  phone.back = await pj("window.__morfisBack()"); await wait(600);
+  phone.backHome = await pj("!Morfis.current() && window.__morfisPage.S.ui.view==='home'");
+  phone.devices = JSON.parse(await js(w, "window.morfisDesktop.remoteStatus().then(function(r){return JSON.stringify(r.devices)})")).map((d) => d.name + (d.online ? ' (online)' : '')).join(', ');
+  await go('settings', '44-settings-phone');
+  await js(w, "(function(){var c=document.querySelector('.dk-phone');if(c)c.scrollIntoView({block:'center'})})()"); await wait(500); await shot(w, '44-settings-phone');
+  phw.destroy();
+  await js(w, "window.morfisDesktop.remoteSet(false)");
+  }
+  console.log('phone access:', JSON.stringify(phone));
+  console.log('window title after phone:', w.getTitle(), '|', await js(w, 'document.title'));
+
   console.log('page errors:', errors.length ? errors : 'none');
   const pdir = path.join(profile, 'data', 'projects');
   console.log('saved files:', fs.existsSync(pdir) ? fs.readdirSync(pdir).length : 0, 'projects,', fs.existsSync(path.join(profile, 'data', 'settings.json')) ? 'settings ok' : 'no settings');
@@ -287,6 +343,9 @@ app.whenReady().then(async () => {
   expect(extra.overlayTop >= 40 && extra.remBtn && extra.remClosed && extra.remView === 'settings' && extra.remCard, 'Reminder settings opens Settings, and panels open below the window bar: ' + JSON.stringify(extra));
   expect(extra.picker && extra.accent === '#2E9E6A' && extra.accentVar.toUpperCase() === '#2E9E6A', 'custom accent colour picker');
   expect(own.editor && own.cards === 1 && own.added === 1 && own.text.indexOf(own.pname) !== -1, 'custom automation: status Completed adds the close-out reminder: ' + JSON.stringify(own));
+  expect(phone.on && phone.ping === 'studio-morfis' && phone.unpaired === 401 && phone.pairPage && phone.wrongPin === false && phone.paired && phone.projects === 4 && phone.blocked, 'phone access: pairing and the API: ' + JSON.stringify(phone));
+  expect(phone.remotePage && phone.drawer && phone.drawerClosed && phone.back && phone.backHome, 'phone page: drawer and Back: ' + JSON.stringify(phone));
+  expect(phone.toComputer === 'on_hold' && phone.toPhone === 'in_progress', 'phone and computer stay in step: ' + JSON.stringify(phone));
   console.log(fails.length ? 'SMOKE FAILED: ' + fails.join('; ') : 'SMOKE PASSED');
   app.exit(fails.length ? 1 : 0);
 });

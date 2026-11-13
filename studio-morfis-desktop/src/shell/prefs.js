@@ -34,6 +34,8 @@ const DEFAULTS = {
   lookV: 2,
   roundCorners: true,
   backupKeep: 14,
+  remoteOn: false,             // phone access over the local network
+  remotePort: 47820,
   devTools: false,
   zoom: 1,
   theme: 'dark',

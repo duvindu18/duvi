@@ -165,3 +165,18 @@ html[data-dk-view]:not([data-dk-view="home"]):not([data-dk-view="projects"]) .to
 .dk-cp-sw{width:30px;height:30px;border-radius:7px;flex:none;border:1px solid var(--line-2)}
 .dk-cp-hex{height:30px;min-width:0;flex:1;font-size:12.5px;padding:0 8px}
 .custom-color input[type=color]{cursor:pointer}
+
+/* ===== Settings > Desktop app > Phone access ===== */
+.dk-pin{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:var(--r-md);border:1px solid color-mix(in srgb,var(--accent-fill) 45%,transparent);background:color-mix(in srgb,var(--accent-fill) 8%,transparent)}
+.dk-pin>div{display:flex;flex-direction:column;gap:2px}
+.dk-pin b{font-size:24px;letter-spacing:.12em;font-weight:600}
+.dk-addr{display:block;padding:6px 9px;border-radius:7px;background:var(--surface);border:1px solid var(--line);font-size:12.5px;user-select:all;word-break:break-all}
+.dk-addr+.dk-addr{margin-top:4px}
+.dk-dev{display:flex;align-items:center;gap:10px;padding:6px 0}
+.dk-dev>span:nth-child(2){flex:1;min-width:0;display:flex;flex-direction:column}
+.dk-dev b{font-weight:550;font-size:13px}
+.dk-dev em{font-style:normal}
+.dk-dev-dot{width:8px;height:8px;border-radius:50%;background:var(--ink-3);flex:none}
+.dk-dev-dot.on{background:var(--good)}
+.dk-port{display:flex;align-items:center;gap:10px}
+.dk-port .in{width:110px;height:32px}

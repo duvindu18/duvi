@@ -318,12 +318,32 @@
         field('Keep', seg('backupKeep', P.choices.backupKeep.map(function (x) { return [x, x + ' days']; }))) +
         '<div class="toolbar"><button type="button" class="btn sm" data-dk-act="backupNow">Back up now</button><button type="button" class="btn sm" data-dk-act="openBackups">Open backups folder</button></div>' +
       '</div>' +
+      phoneSec() +
       '<div class="dk-sec"><h3>Program</h3>' +
         '<p class="small muted">' + esc(P.name) + ' ' + esc(P.version) + (P.packaged ? '' : ' (development)') + '. Keys: Ctrl+K search, Ctrl+B sidebar, F11 full screen, Ctrl + and Ctrl − to zoom.</p>' +
         '<div class="toolbar"><button type="button" class="btn sm" data-dk-act="refreshShortcuts">Refresh Start menu and shortcuts</button><button type="button" class="btn sm" data-dk-act="relaunch">Restart</button><button type="button" class="btn sm danger ghost" data-dk-act="resetPrefs">Reset these settings</button></div>' +
       '</div>' +
       '</div></section>';
   }
+  /* ----- Phone access: the Android app (or a phone browser) on the same network ----- */
+  var RS = null;
+  function loadRemote() { if (!H.remoteStatus || window.MORFIS_REMOTE) return; H.remoteStatus().then(function (r) { RS = r; redrawCard(); }, function () {}); }
+  function phoneSec() {
+    if (!H.remoteStatus || window.MORFIS_REMOTE) return '';
+    var r = RS || { on: !!P.remoteOn, devices: [], addresses: [] }, ago = function (t) { return t ? new Date(t).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''; };
+    return '<div class="dk-sec dk-phone"><h3>Phone access</h3>' +
+      '<p class="small muted">Work on this computer’s projects, documents and folders from the Studio Morfis app on an Android phone, over the same Wi-Fi. Use it on networks you trust.</p>' +
+      '<label class="switch dk-sw"><input type="checkbox" data-dk-remote' + (r.on ? ' checked' : '') + '><span><span class="dk-l">Allow phones to connect</span><span class="small muted dk-s">' + (r.on ? 'On. Leave the app running (closing to the notification area works too).' : 'Off. Nothing listens on the network.') + '</span></span></label>' +
+      (r.error ? '<p class="small" style="color:var(--bad)">' + esc(r.error) + '</p>' : '') +
+      (r.on ? '<div class="dk-pin"><div><span class="fl">PIN for a new phone</span><b class="mono">' + esc(String(r.pin).replace(/(\d{3})(\d{3})/, '$1 $2')) + '</b></div><button type="button" class="btn sm" data-dk-act="newPin">New PIN</button></div>' +
+        '<div class="field"><span class="fl">Address on this network</span>' + (r.addresses.length ? r.addresses.map(function (a) { return '<code class="mono dk-addr">' + esc(a) + '</code>'; }).join('') : '<span class="small muted">No network connection found.</span>') + '</div>' +
+        '<p class="small muted">In the app, tap the computer when it appears, or type the address. Windows may ask once whether to allow the app on the network: allow it on private networks.</p>' : '') +
+      '<div class="field"><span class="fl">Paired phones</span>' + (r.devices.length ? r.devices.map(function (d) {
+        return '<div class="dk-dev"><span class="dk-dev-dot' + (d.online ? ' on' : '') + '"></span><span><b>' + esc(d.name) + '</b><em class="small muted">' + (d.online ? 'Connected now' : 'Last seen ' + esc(ago(d.seen))) + '</em></span><button type="button" class="btn sm ghost danger" data-dk-forget="' + esc(d.id) + '">Remove</button></div>';
+      }).join('') : '<span class="small muted">None yet.</span>') + '</div>' +
+      '<div class="dk-port"><span class="fl">Port</span><input class="in mono" data-dk-port type="number" min="1024" max="65535" value="' + esc(P.remotePort || 47820) + '"></div></div>';
+  }
+  if (H.onRemote) H.onRemote(function () { loadRemote(); });
   function placeCard() {
     if (!P) return;
     var brand = document.querySelector('#view .brand-card');
@@ -332,6 +352,7 @@
     if (old && old.previousElementSibling === brand) return;
     if (old) old.remove();
     brand.insertAdjacentHTML('afterend', cardHtml());
+    loadRemote();
   }
   function redrawCard() {
     var old = document.getElementById('dkCard');
@@ -354,6 +375,7 @@
     }, function (e) { P[key] = prev; if (CLASS_PREFS[key]) CLASS_PREFS[key](prev); redrawCard(); toast('Could not change that: ' + (e && e.message ? e.message : 'unknown error')); });
   }
   var ACTS = {
+    newPin: function () { H.remoteNewPin().then(function (r) { RS = r; redrawCard(); }); },
     backupNow: function () { H.backupNow().then(function (f) { toast(f ? 'Backup saved.' : 'There is nothing to back up yet.'); }, function () { toast('Could not save the backup.'); }); },
     openBackups: function () { H.openBackups().catch(function () { toast('Could not open the backups folder.'); }); },
     refreshShortcuts: function () { H.refreshShortcuts().then(function (r) { toast(r && r.updated ? 'Updated ' + r.updated + ' shortcut' + (r.updated === 1 ? '' : 's') + '.' : 'Shortcuts are up to date.'); }, function () { toast('Could not update the shortcuts.'); }); },
@@ -364,14 +386,24 @@
     }
   };
   document.addEventListener('click', function (e) {
-    var b = e.target.closest && e.target.closest('#dkCard [data-dk], #dkCard [data-dk-act]');
+    var b = e.target.closest && e.target.closest('#dkCard [data-dk], #dkCard [data-dk-act], #dkCard [data-dk-forget]');
     if (!b) return;
     if (b.dataset.dkAct) { ACTS[b.dataset.dkAct](); return; }
+    if (b.dataset.dkForget) { if (window.confirm('Remove this phone? It will need the PIN to connect again.')) H.remoteForget(b.dataset.dkForget).then(function (r) { RS = r; redrawCard(); }); return; }
     var k = b.dataset.dk, v = b.dataset.v;
     setPref(k, typeof P[k] === 'number' ? +v : v);
   });
   document.addEventListener('change', function (e) {
     var t = e.target;
+    if (t && t.matches && t.matches('#dkCard [data-dk-remote]')) {
+      t.disabled = true;
+      H.remoteSet(t.checked).then(function (r) { RS = r; P.remoteOn = r.on; redrawCard(); if (t.checked && !r.on) toast(r.error || 'Phone access could not start.'); }, function (x) { toast(x.message); loadRemote(); });
+      return;
+    }
+    if (t && t.matches && t.matches('#dkCard [data-dk-port]')) {
+      H.remotePort(+t.value).then(function (r) { RS = r; P.remotePort = +t.value; redrawCard(); toast('Phone access now uses port ' + t.value + '.'); }, function (x) { toast(x.message); t.value = P.remotePort; });
+      return;
+    }
     if (!t || !t.matches || !t.matches('#dkCard [data-dk-bool]')) return;
     setPref(t.dataset.dkBool, t.checked);
   });
@@ -507,6 +539,14 @@
   document.addEventListener('keydown', function (e) {
     if (e.target && e.target.id === 'lk-pick' && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openPicker(e.target); }
   }, true);
+
+  /* ===== changes saved on the phone (or, on the phone, on the computer) ===== */
+  if (H.onStore) H.onStore(function (ev) {
+    var pg = page(); if (!pg || !ev) return;
+    if (ev.t === 'p' || ev.t === 's') pg.applyRemote(ev);
+    else if (ev.t === 'doc' && window.MorfisDocs && window.MorfisDocs.reload) window.MorfisDocs.reload();
+    else if (ev.t === 'kv' && window.MorfisAuto && window.MorfisAuto.reload) window.MorfisAuto.reload(ev.key);
+  });
 
   /* ===== start ===== */
   H.getPrefs().then(function (p) { P = p; applyLook(); placeCard(); window.dispatchEvent(new CustomEvent('morfis:prefs', { detail: p })); });

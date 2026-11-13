@@ -103,7 +103,8 @@
       img.onerror = function () { if (tok === V.token) RENDER.other(stage, info, tok); };
       img.src = info.url;
     },
-    pdf: function (stage, info) { stage.innerHTML = '<iframe class="pv-frame" src="' + esc(info.url) + '#view=FitH" title="' + esc(info.name) + '"></iframe>'; },
+    /* a phone's web view has no PDF viewer: show the page as a file to open in the phone's own viewer */
+    pdf: function (stage, info, tok) { if (window.MORFIS_REMOTE) { RENDER.other(stage, info, tok); return; } stage.innerHTML = '<iframe class="pv-frame" src="' + esc(info.url) + '#view=FitH" title="' + esc(info.name) + '"></iframe>'; },
     video: function (stage, info) { stage.innerHTML = '<video class="pv-media" src="' + esc(info.url) + '" controls autoplay></video>'; },
     audio: function (stage, info) { stage.innerHTML = '<div class="pv-none">' + A.fileIcon(info.name, 84) + '<b>' + esc(info.name) + '</b><audio src="' + esc(info.url) + '" controls autoplay></audio></div>'; },
     text: function (stage, info, tok) {

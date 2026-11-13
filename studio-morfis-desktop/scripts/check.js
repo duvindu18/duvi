@@ -15,6 +15,12 @@ const used = Array.from(new Set((html.match(/HOST\.[a-zA-Z]+/g) || []).map((s) =
 const missing = used.filter((m) => bridge.indexOf("'" + m + "'") === -1 && bridge.indexOf('api.' + m + ' ') === -1);
 if (missing.length) { bad++; console.error('The dashboard calls bridge methods the shell does not provide: ' + missing.join(', ')); }
 
+/* the phone page's bridge offers the same calls (the window controls apart, which a phone does not have) */
+const rbridge = fs.readFileSync(path.join(__dirname, '..', 'src', 'shell', 'renderer', 'remote-bridge.js'), 'utf8');
+const phoneSkip = ['winAct', 'winState', 'onWin'];
+const rmissing = used.filter((m) => phoneSkip.indexOf(m) === -1 && rbridge.indexOf("'" + m + "'") === -1 && rbridge.indexOf('api.' + m + ' ') === -1);
+if (rmissing.length) { bad++; console.error('The dashboard calls methods the phone bridge does not provide: ' + rmissing.join(', ')); }
+
 if (!/id="wbarTitle"/.test(r.html) || !/data-act="winClose"/.test(r.html)) { bad++; console.error('Window bar markup was not replaced.'); }
 console.log(bad ? 'check failed' : 'check passed: ' + used.length + ' bridge methods used by the dashboard, all provided; patch applied cleanly.');
 process.exit(bad ? 1 : 0);

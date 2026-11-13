@@ -1,0 +1,49 @@
+plugins {
+    id 'com.android.application'
+}
+
+/* The app is signed with the key in sideload.keystore so a newer build installs over an older one.
+   A build can use another key by setting MORFIS_KEYSTORE, MORFIS_KEYSTORE_PASSWORD, MORFIS_KEY_ALIAS and MORFIS_KEY_PASSWORD. */
+def env = System.getenv()
+def versionFile = new File(rootDir, '../studio-morfis-desktop/package.json')
+def appVersion = versionFile.exists() ? new groovy.json.JsonSlurper().parse(versionFile).version : '1.0.0'
+def parts = appVersion.tokenize('.').collect { it as int }
+
+android {
+    namespace 'com.studiomorfis.remote'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.studiomorfis.remote'
+        minSdk 24
+        targetSdk 35
+        versionName appVersion
+        versionCode parts[0] * 10000 + parts[1] * 100 + parts[2]
+    }
+
+    signingConfigs {
+        release {
+            storeFile file(env.MORFIS_KEYSTORE ?: 'sideload.keystore')
+            storePassword env.MORFIS_KEYSTORE_PASSWORD ?: 'studiomorfis'
+            keyAlias env.MORFIS_KEY_ALIAS ?: 'studiomorfis'
+            keyPassword env.MORFIS_KEY_PASSWORD ?: 'studiomorfis'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}

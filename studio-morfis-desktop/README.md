@@ -134,6 +134,38 @@ Each one fires once per project, invoice, task or day. Things that are already t
 
 Everything an automation makes waits for your review under *Waiting for you*. When the assistant is not available, the follow-ups and the summary use plain templates instead.
 
+## Phone access and the Android app
+
+The Android app shows this computer's Studio Morfis on a phone: projects, stages, tasks, payments, invoices and quotations, Files with the real folders on this computer, Automations and Settings. Changes made on the phone are saved on the computer and appear in the desktop window straight away, and the other way round.
+
+**Turn it on:** Settings > Desktop app > Phone access > *Allow phones to connect*. The first time, Windows may ask whether the app may use the network: allow it on private networks.
+
+**Connect a phone:**
+
+1. Install `Studio-Morfis-<version>.apk` on the phone. Android asks once to allow installing apps from that source.
+2. Open the app on the same Wi-Fi. The computer shows up in the list; if it does not, type the address shown in Phone access (for example `192.168.1.20:47820`).
+3. Type the six-digit PIN shown on the computer, and give the phone a name.
+
+The phone stays paired. Phone access lists the paired phones, shows which are connected, and can remove any of them. A phone browser also works: open the address and type the PIN.
+
+**How it works on the phone:**
+
+| Action | Where it happens |
+|---|---|
+| Choosing files to add to a folder | They are sent from the phone to the computer |
+| Exports and PDFs | They download to the phone (Downloads/Studio Morfis) and open in its viewer |
+| Opening a file | It downloads to the phone and opens there |
+| Opening a folder | It opens in File Explorer on the computer |
+| Choosing a folder (for example the projects root) | You browse the computer's folders from the phone |
+| Automations | They run on the computer only, so nothing happens twice |
+
+**Safety:** it is off until you turn it on.
+
+- **Pairing:** a phone needs the PIN once. Five wrong tries replace the PIN, and only a hash of each phone's key is kept on the computer.
+- **Network:** traffic is plain HTTP on the local network, so use it on a network you trust (home or office Wi-Fi). To reach the computer from elsewhere, use a private VPN such as Tailscale or WireGuard and type the computer's VPN address. Do not forward the port on your router.
+
+The Android app's source is in `studio-morfis-android/`; GitHub Actions builds the APK (*Build Studio Morfis for Android*).
+
 ## Run and build
 
 You need Node.js 22.
@@ -163,6 +195,8 @@ Everything is under `%APPDATA%\Studio Morfis\`:
 | `branding\` | Your custom app icon (`.png`, `.ico`) |
 | `folder-icons\` | The status icons that project folders point to |
 | `desktop.json` | Desktop settings |
+| `phone-access.json` | Paired phones (names and key hashes) |
+| `phone-transfer\` | Files on their way to or from a phone, cleared after a day |
 
 ## How it is put together
 
@@ -174,6 +208,7 @@ src/shell/ai.js                the local AI engine (Ollama on this computer)
 src/shell/folder-icons.js      status icons on project folders (desktop.ini)
 src/shell/fsops.js             folder reading, sorting, moves, undo journals, Recycle Bin
 src/shell/branding.js          app name and icon in Windows
+src/shell/remote.js            phone access: pairing, the page and API for phones, live changes, finding the computer
 src/shell/store.js             projects, documents, automation state, daily backups
 src/shell/renderer/theme.css   the design system over the dashboard's tokens
 src/shell/renderer/desktop.*   sidebar, router, window bar, Settings > Desktop app
@@ -181,6 +216,8 @@ src/shell/renderer/files.js    Files
 src/shell/renderer/docs.js     Invoices & quotes and the A4 editor
 src/shell/renderer/automations.js  Automations
 src/shell/renderer/folder-art.js   status, folder artwork, file-type and Explorer icons
+src/shell/renderer/remote-bridge.js  the phone page's connection to the computer (uploads, downloads, live changes)
+src/shell/renderer/remote.*    the phone layout: menu drawer, Back button, this phone in Settings
 scripts/smoke.js               starts the app and tests views, folders, editor, AI paths, PDF and branding
 ```
 

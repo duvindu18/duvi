@@ -240,10 +240,10 @@
       ST.icons = {}; put('icons'); return dirs.length;
     });
   }
-  window.addEventListener('morfis:status', function (e) { if (e.detail && e.detail.pid) runFolderIcons(e.detail.pid); });
+  window.addEventListener('morfis:status', function (e) { if (!window.MORFIS_REMOTE && e.detail && e.detail.pid) runFolderIcons(e.detail.pid); });
   /* folders change as files are added, sorted or created: follow along, a few seconds behind */
   var iconT = 0;
-  window.addEventListener('morfis:render', function () { clearTimeout(iconT); iconT = setTimeout(function () { if (ready && pg() && pg().S.ready) runFolderIcons(); }, 2500); });
+  window.addEventListener('morfis:render', function () { if (window.MORFIS_REMOTE) return; clearTimeout(iconT); iconT = setTimeout(function () { if (ready && pg() && pg().S.ready) runFolderIcons(); }, 2500); });
 
   /* ===== AI: sort loose files ===== */
   function aiSort(pid) {
@@ -540,9 +540,9 @@
       return n;
     }, function () { customBusy = false; return n; });
   }
-  window.addEventListener('morfis:status', function () { setTimeout(function () { runCustom(); }, 300); });
+  window.addEventListener('morfis:status', function () { if (!window.MORFIS_REMOTE) setTimeout(function () { runCustom(); }, 300); });
   var customT = 0;
-  window.addEventListener('morfis:render', function () { clearTimeout(customT); customT = setTimeout(function () { runCustom(); }, 1500); });
+  window.addEventListener('morfis:render', function () { if (window.MORFIS_REMOTE) return; clearTimeout(customT); customT = setTimeout(function () { runCustom(); }, 1500); });
 
   /* the editor for one automation */
   function optHtml(list, v) { return list.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (String(v) === String(o[0]) ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join(''); }
@@ -736,14 +736,16 @@
 
   /* ===== schedule ===== */
   var lastDraft = 0;
+  /* the computer runs the automations; a phone only shows and changes them */
+  var PHONE = !!window.MORFIS_REMOTE;
   function tick() {
-    if (!ready || !pg() || !pg().S.ready) return;
+    if (PHONE || !ready || !pg() || !pg().S.ready) return;
     runDraftInvoices(); runQuoteExpiry(); runLateTasks(); runHoldNudge(); pruneFired();
     checkAi().then(function () { runFollowUps().then(function () { runDigest(false); }).then(function () { return runCustom(); }); });
     runFreshFolders().then(function () { runFolderIcons(); });
   }
-  window.addEventListener('morfis:render', function () { if (Date.now() - lastDraft > 60000 && ready && pg() && pg().S.ready) { lastDraft = Date.now(); runDraftInvoices(); } });
-  loadState().then(function () { checkAi(true); setTimeout(function () { runFolderIcons(); }, 2500); setTimeout(tick, 8000); setInterval(tick, 10 * 60 * 1000); });
+  window.addEventListener('morfis:render', function () { if (!PHONE && Date.now() - lastDraft > 60000 && ready && pg() && pg().S.ready) { lastDraft = Date.now(); runDraftInvoices(); } });
+  loadState().then(function () { checkAi(true); if (PHONE) return; setTimeout(function () { runFolderIcons(); }, 2500); setTimeout(tick, 8000); setInterval(tick, 10 * 60 * 1000); });
 
   /* redraw one project's folder icons now, even if nothing seems to have changed */
   function refreshIcons(pid) {
@@ -752,5 +754,10 @@
     Object.keys(ST.icons).forEach(function (d) { if (d === base || d.indexOf(base) === 0) delete ST.icons[d]; });
     return runFolderIcons(pid);
   }
-  window.MorfisAuto = { refreshIcons: refreshIcons, attention: attention, aiSort: aiSort, draftQuote: draftQuote, coverNote: coverNote, run: runRule, status: function () { return AI.status; } };
+  /* a record changed on another page (the phone, or the computer when this is the phone) */
+  function reloadKey(key) {
+    var k = Object.keys(KV).find(function (x) { return KV[x] === key; }); if (!k) return;
+    H.kvGet(key).then(function (v) { if (v != null) ST[k] = v; if (k === 'settings') ST.settings = Object.assign({}, DEF_SETTINGS, ST.settings); redraw(); M.redrawSide(); }, function () {});
+  }
+  window.MorfisAuto = { reload: reloadKey, refreshIcons: refreshIcons, attention: attention, aiSort: aiSort, draftQuote: draftQuote, coverNote: coverNote, run: runRule, status: function () { return AI.status; } };
 })();

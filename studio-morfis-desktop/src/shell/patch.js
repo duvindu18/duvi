@@ -46,6 +46,24 @@ const HOOK = [
   '  closeModal(); setView("settings");',
   '  setTimeout(function () { var c = document.getElementById("remCard"); if (!c) return; c.scrollIntoView({ block: "start", behavior: "smooth" }); c.classList.add("dk-flash"); setTimeout(function () { c.classList.remove("dk-flash"); }, 1600); }, 60);',
   '};',
+  /* a change saved on another page (the phone, or the computer when this is the phone): take it in and redraw.
+     A change this page is still writing wins, so nothing typed here is lost. */
+  'window.__morfisPage.applyRemote = function (ev) {',
+  '  if (!ev || !S.ready) return;',
+  '  if (DW.queue.has((ev.t === "s" ? "s" : "p") + ":" + ev.id)) return;',
+  '  if (ev.t === "p") { if (ev.value === null) delete S.projects[ev.id]; else S.projects[ev.id] = normProject(ev.value); }',
+  '  else if (ev.t === "s" && ev.value) { S.settings = normSettings(withLook(ev.value)); applyLook(); }',
+  '  else return;',
+  '  renderAll(true);',
+  '};',
+  /* everything again, after the phone was asleep or lost the connection */
+  'window.__morfisPage.applyAll = function (d) {',
+  '  if (!d || !S.ready || DW.queue.size) return;',
+  '  Object.keys(S.projects).forEach(function (id) { if (!d.projects[id]) delete S.projects[id]; });',
+  '  Object.keys(d.projects).forEach(function (id) { S.projects[id] = normProject(d.projects[id]); });',
+  '  if (d.settings) { S.settings = normSettings(withLook(d.settings)); applyLook(); }',
+  '  renderAll(true);',
+  '};',
   /* an empty Projects page explains where the projects are when they are all closed (imported folders come in as completed) */
   'function dkNoProjects() {',
   '  var closed = Object.values(S.projects).filter(function (p) { return p.status === "closed"; }).length;',
@@ -97,9 +115,11 @@ function build(html, o) {
 
 const STYLES = ['vendor/leaflet/leaflet.css', 'theme.css', 'desktop.css', 'views.css'];
 const SCRIPTS = ['vendor/leaflet/leaflet.js', 'folder-art.js', 'desktop.js', 'preview.js', 'files.js', 'folder-setup.js', 'docs.js', 'automations.js'];
-function tail(base) {
-  return STYLES.map((s) => '<link rel="stylesheet" href="' + base + s + '">').join('') +
-    SCRIPTS.map((s) => '<script src="' + base + s + '"></script>').join('') + '\n';
+/* the phone page adds its own layout and controls after the desktop ones */
+const REMOTE_STYLES = ['remote.css'], REMOTE_SCRIPTS = ['remote.js'];
+function tail(base, remote) {
+  return STYLES.concat(remote ? REMOTE_STYLES : []).map((s) => '<link rel="stylesheet" href="' + base + s + '">').join('') +
+    SCRIPTS.concat(remote ? REMOTE_SCRIPTS : []).map((s) => '<script src="' + base + s + '"></script>').join('') + '\n';
 }
 
 /* html classes the desktop stylesheet reads, set before first paint so nothing jumps */
@@ -108,4 +128,4 @@ function htmlClass(p) {
     p.pattern ? '' : 'no-pattern', p.glow ? '' : 'no-glow', p.followGlow ? '' : 'no-follow', p.roundCorners ? '' : 'square', p.sideCollapsed ? 'side-collapsed' : ''].filter(Boolean).join(' ');
 }
 
-module.exports = { build, tail, htmlClass, STYLES, SCRIPTS };
+module.exports = { build, tail, htmlClass, STYLES, SCRIPTS, REMOTE_STYLES, REMOTE_SCRIPTS };

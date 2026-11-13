@@ -13,6 +13,7 @@ const fsops = require('./fsops');
 const patch = require('./patch');
 const ai = require('./ai');
 const { FolderIcons } = require('./folder-icons');
+const { Remote } = require('./remote');
 
 const ROOT = path.join(__dirname, '..', '..');
 const DASHBOARD = path.join(ROOT, 'src', 'dashboard', 'dashboard.html');
@@ -48,10 +49,10 @@ const sendWin = () => { if (win && !win.isDestroyed()) win.webContents.send('win
 
 /* ----- the page, served from morfis://app/ ----- */
 const MIME = { '.woff2': 'font/woff2', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
-function pageHtml() {
-  const r = patch.build(fs.readFileSync(DASHBOARD, 'utf8'), { htmlClass: patch.htmlClass(prefs.public()), tail: patch.tail('') });
+function pageHtml(remote) {
+  const r = patch.build(fs.readFileSync(DASHBOARD, 'utf8'), { htmlClass: patch.htmlClass(prefs.public()) + (remote ? ' remote' : ''), tail: patch.tail('', remote) });
   if (r.missing.length) console.warn('[morfis] dashboard patch anchors missing:', r.missing);
-  return r.html.replace(/<head>/, '<head><script src="bridge.js"></script>');
+  return r.html.replace(/<head>/, remote ? '<head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0A0A10"><script src="remote-bridge.js"></script>' : '<head><script src="bridge.js"></script>');
 }
 /* ----- file preview: the page gets a link to one file at a time, never a general file server ----- */
 const PREVIEW = new Map();
@@ -78,19 +79,25 @@ function serveFile(req, file) {
   }
   return new Response(Readable.toWeb(fs.createReadStream(file)), { headers: { 'content-type': mime, 'content-length': String(st.size), 'accept-ranges': 'bytes', 'cache-control': 'no-store' } });
 }
+/* the scripts, styles, fonts and icon the page loads; shared by the window and the phone page */
+function asset(pathname) {
+  let file;
+  if (pathname === '/app-icon.png') return { body: fs.readFileSync(branding.iconPng()), type: 'image/png' };
+  if (pathname.indexOf('/vendor/leaflet/') === 0) file = path.join(LEAFLET, decodeURIComponent(pathname.slice('/vendor/leaflet/'.length)));
+  else if (pathname.indexOf('/vendor/mammoth/') === 0) file = path.join(MAMMOTH, decodeURIComponent(pathname.slice('/vendor/mammoth/'.length)));
+  else if (pathname.indexOf('/vendor/inter/') === 0) file = path.join(INTER, decodeURIComponent(pathname.slice('/vendor/inter/'.length)));
+  else file = path.join(RENDERER, decodeURIComponent(pathname.slice(1)));
+  const okRoot = [LEAFLET, INTER, MAMMOTH, RENDERER].some((r) => path.resolve(file).startsWith(path.resolve(r) + path.sep));
+  if (!okRoot || !fs.existsSync(file) || !fs.statSync(file).isFile()) return null;
+  return { body: fs.readFileSync(file), type: MIME[path.extname(file).toLowerCase()] || 'application/octet-stream' };
+}
 function serve(req) {
   const u = new URL(req.url);
-  let file;
   if (u.pathname.indexOf('/__file/') === 0) { const tok = u.pathname.split('/')[2], f = PREVIEW.get(tok); return f ? serveFile(req, f) : new Response('Not found', { status: 404 }); }
   if (u.pathname === '/' || u.pathname === '/index.html') return new Response(pageHtml(), { headers: { 'content-type': MIME['.html'], 'cache-control': 'no-store' } });
-  if (u.pathname === '/app-icon.png') return new Response(fs.readFileSync(branding.iconPng()), { headers: { 'content-type': 'image/png', 'cache-control': 'no-store' } });
-  if (u.pathname.indexOf('/vendor/leaflet/') === 0) file = path.join(LEAFLET, decodeURIComponent(u.pathname.slice('/vendor/leaflet/'.length)));
-  else if (u.pathname.indexOf('/vendor/mammoth/') === 0) file = path.join(MAMMOTH, decodeURIComponent(u.pathname.slice('/vendor/mammoth/'.length)));
-  else if (u.pathname.indexOf('/vendor/inter/') === 0) file = path.join(INTER, decodeURIComponent(u.pathname.slice('/vendor/inter/'.length)));
-  else file = path.join(RENDERER, decodeURIComponent(u.pathname.slice(1)));
-  const okRoot = [LEAFLET, INTER, MAMMOTH, RENDERER].some((r) => path.resolve(file).startsWith(path.resolve(r) + path.sep));
-  if (!okRoot || !fs.existsSync(file)) return new Response('Not found', { status: 404 });
-  return new Response(fs.readFileSync(file), { headers: { 'content-type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream' } });
+  const a = asset(u.pathname);
+  if (!a) return new Response('Not found', { status: 404 });
+  return new Response(a.body, { headers: { 'content-type': a.type, 'cache-control': u.pathname === '/app-icon.png' ? 'no-store' : 'no-cache' } });
 }
 
 /* ----- splash: a quick animated card while the dashboard loads ----- */
@@ -362,7 +369,20 @@ const API = {
   aiStatus: () => ai.status(prefs),
   aiChat: (o) => ai.chat(prefs, o || {}),
   aiPull(name) {
-    return ai.pull(prefs, name, (p) => { if (win && !win.isDestroyed()) win.webContents.send('ai:pull', p); });
+    return ai.pull(prefs, name, (p) => { if (win && !win.isDestroyed()) win.webContents.send('ai:pull', p); remote.push({ t: 'ai:pull', p: p }); });
+  },
+
+  /* phone access */
+  remoteStatus: () => remote.status(),
+  async remoteSet(on) { prefs.set('remoteOn', !!on); return on ? remote.start() : remote.stop(); },
+  remoteNewPin() { remote.newPin(); return remote.status(); },
+  remoteForget: (id) => remote.forget(id),
+  async remotePort(n) {
+    n = Math.round(+n);
+    if (!(n >= 1024 && n <= 65535)) throw new Error('Choose a port from 1024 to 65535.');
+    prefs.set('remotePort', n);
+    if (!remote.server) return remote.status();
+    await remote.stop(); return remote.start();
   },
 
   /* built-in preview */
@@ -407,8 +427,26 @@ ipcMain.handle('host', async (e, method, args) => {
   if (!win || e.sender !== win.webContents) return { e: { message: 'Not allowed' } };
   const fn = API[method];
   if (!fn) return { e: { message: 'Unknown request: ' + method } };
-  try { return { v: await fn.apply(API, Array.isArray(args) ? args : []) }; }
+  try { const a = Array.isArray(args) ? args : [], v = await fn.apply(API, a); changed(method, a, 'win'); return { v: v }; }
   catch (err) { return { e: { message: (err && err.message) || String(err), code: err && err.code } }; }
+});
+
+/* ----- keeping the window and the phones in step: a saved change is sent to every other open page ----- */
+function changed(method, args, origin) {
+  let ev = null;
+  if (method === 'storeSet') ev = { t: args[0] === 's' ? 's' : 'p', id: args[1], value: args[2] };
+  else if (method === 'docSave' || method === 'docDelete') ev = { t: 'doc' };
+  else if (method === 'kvSet') ev = { t: 'kv', key: args[0] };
+  if (!ev) return;
+  if (origin !== 'win' && win && !win.isDestroyed()) win.webContents.send('store:changed', ev);
+  remote.push(ev, origin);
+}
+const remote = new Remote({
+  dir: USER, api: API, prefs: prefs, version: app.getVersion(), name: () => branding.name(), iconPng: () => branding.iconPng(),
+  page: () => pageHtml(true), asset: asset, previewFile: (tok) => PREVIEW.get(tok), renderPdf: renderPdf,
+  mime: (file) => { const ext = path.extname(file).slice(1).toLowerCase(); return PMIME[ext] || MIME['.' + ext] || 'application/octet-stream'; },
+  after: changed,
+  onChange: (ev) => { if (win && !win.isDestroyed()) win.webContents.send('remote:status', ev); }
 });
 
 /* ----- start ----- */
@@ -425,11 +463,12 @@ app.whenReady().then(() => {
   loginItem();
   hotkey();
   if (prefs.get('closeToTray') || startHidden) ensureTray();
+  if (prefs.get('remoteOn')) remote.start();
   setTimeout(() => store.backup(prefs.get('backupKeep')), 5000);
   setInterval(() => store.backup(prefs.get('backupKeep')), 6 * 3600 * 1000);
   /* shortcuts made by the installer pick up a name or icon chosen before this version, once per start */
   if (app.isPackaged && (prefs.get('branding').name || prefs.get('branding').iconFile)) setTimeout(() => { try { branding.updateShortcuts(); } catch (e) { /* ignore */ } }, 4000);
 });
 app.on('before-quit', () => { quitting = true; });
-app.on('will-quit', () => globalShortcut.unregisterAll());
+app.on('will-quit', () => { globalShortcut.unregisterAll(); remote.stop(); });
 app.on('window-all-closed', () => app.quit());

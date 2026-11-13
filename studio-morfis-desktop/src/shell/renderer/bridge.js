@@ -19,12 +19,15 @@
     'renameItem', 'makeDir', 'moveItems', 'trashItems', 'geocode', 'reverse',
     'getPrefs', 'setPref', 'resetPrefs', 'relaunch', 'openBackups', 'backupNow', 'refreshShortcuts',
     'docsList', 'docSave', 'docDelete', 'kvGet', 'kvSet', 'savePdf', 'printHtml', 'notify', 'openExternal',
-    'aiStatus', 'aiChat', 'aiPull', 'folderIcon', 'folderIconClear', 'folderIconRefresh', 'preview', 'readText', 'thumb'].forEach(function (m) { api[m] = call(m); });
+    'aiStatus', 'aiChat', 'aiPull', 'remoteStatus', 'remoteSet', 'remoteNewPin', 'remoteForget', 'remotePort', 'folderIcon', 'folderIconClear', 'folderIconRefresh', 'preview', 'readText', 'thumb'].forEach(function (m) { api[m] = call(m); });
   /* the page sends Uint8Array bytes for saved files; that crosses to the main process as is */
   api.onWin = function (fn) { B.on('win:state', fn); };
   api.onFocus = function (fn) { B.on('app:focus', fn); };
   api.onZoom = function (fn) { B.on('app:zoom', fn); };
   api.onAiPull = function (fn) { B.on('ai:pull', fn); };
+  /* a change saved from a phone (or another page), and phones pairing or connecting */
+  api.onStore = function (fn) { B.on('store:changed', fn); };
+  api.onRemote = function (fn) { B.on('remote:status', fn); };
   api.pathsOf = function (files) {
     var out = [];
     for (var i = 0; files && i < files.length; i++) { var p = B.pathOf(files[i]); if (p) out.push(p); }

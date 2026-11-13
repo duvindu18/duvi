@@ -452,6 +452,6 @@
 
   window.MorfisDocs = {
     attention: function () { return DOCS.filter(function (d) { return d.status === 'draft'; }).length; },
-    all: function () { return DOCS; }, load: load, printHtml: printHtml, save: save, blank: blank, forMilestone: forMilestone, open: openDoc, totals: totals, fmt: fmt, liveStatus: liveStatus, byId: byId
+    all: function () { return DOCS; }, load: load, reload: function () { return load().then(function () { if (M.current() === 'documents' && !D.open) draw(); M.redrawSide(); }); }, printHtml: printHtml, save: save, blank: blank, forMilestone: forMilestone, open: openDoc, totals: totals, fmt: fmt, liveStatus: liveStatus, byId: byId
   };
 })();

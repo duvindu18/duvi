@@ -1,0 +1,73 @@
+/* The phone page: the same interface, laid out for a phone. The sidebar becomes a drawer behind a menu button,
+   two-pane views stack, and everything that needs a pointer to show up is always shown. */
+html.remote{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+html.remote body{overscroll-behavior-y:none}
+html.remote .dk-bg-glow,html.remote .dk-bg-spot{display:none}
+.rb-menu,.rb-scrim{display:none}
+
+@media (max-width:999px){
+  html.remote .page{padding:0;height:100%}
+  html.remote .shell{display:block;height:100%}
+  html.remote .window{height:100%;border-radius:0;border:0}
+  /* the sidebar as a drawer */
+  html.remote .dk-side{position:fixed;z-index:70;left:0;top:0;bottom:0;width:min(300px,86vw);background:var(--win);border-right:1px solid var(--line);
+    padding:calc(14px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px)) 10px;transform:translateX(-104%);transition:transform .22s var(--ease);box-shadow:var(--shadow-lg);align-items:stretch}
+  html.remote.rb-nav .dk-side{transform:none}
+  html.remote .rb-scrim{display:block;position:fixed;inset:0;z-index:69;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .2s var(--ease)}
+  html.remote.rb-nav .rb-scrim{opacity:1;pointer-events:auto}
+  html.remote .rb-menu{display:grid;flex:none}
+  html.remote .dk-it{height:42px;font-size:14.5px}
+  /* top bar */
+  html.remote .top{padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px;gap:6px;flex-wrap:nowrap;min-height:0}
+  html.remote .top .search{order:0;flex:1 1 auto;min-width:0}
+  html.remote .top kbd,html.remote #phaseWrap,html.remote .top .spacer{display:none}
+  html.remote .top .btn.primary{width:40px;padding:0}
+  html.remote .top .btn.primary .btn-t{display:none}
+  html.remote .content{padding:16px 14px 48px}
+  html.remote .toast{bottom:calc(20px + env(safe-area-inset-bottom,0px))}
+  /* dialogs fill the screen width */
+  html.remote .overlay,html.remote.has-wbar .overlay{top:0;padding:8px}
+  html.remote .overlay.drawer{top:0;bottom:0;right:0;padding:0}
+  html.remote .dialog{width:100%;padding:18px 16px}
+  html.remote .dialog.drawer{width:100%;border-radius:0}
+  html.remote .dlg-foot{flex-wrap:wrap}
+  /* Files: one column, the folder tree on top */
+  html.remote #dkView.dk-fill{overflow:auto}
+  html.remote .fx{display:block;height:auto}
+  html.remote .fx-tree{border-right:0;border-bottom:1px solid var(--line);padding:12px 10px}
+  html.remote .fx-nodes{max-height:220px}
+  html.remote .fx-main{overflow:visible;padding:14px 14px 48px}
+  html.remote .fx-head{align-items:flex-start}
+  html.remote .fx-head .toolbar{width:100%;flex-wrap:wrap}
+  html.remote .fx-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+  html.remote .fx-files{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+  html.remote .fx-tr{grid-template-columns:minmax(0,1fr) auto!important}
+  html.remote .fx-tr>span:not(.fx-fn):not(.fx-acts){display:none}
+  html.remote .fx-more,html.remote .fx-acts{opacity:1!important;visibility:visible!important}
+  /* Automations, documents, settings */
+  html.remote .au-cols{grid-template-columns:minmax(0,1fr)}
+  html.remote .au-rules{grid-template-columns:minmax(0,1fr)}
+  html.remote .dk-grid{grid-template-columns:minmax(0,1fr)}
+  html.remote .pv-bar{flex-wrap:wrap}
+}
+
+/* the connection to the computer dropped */
+.rb-off{display:none}
+html.rb-offline .rb-off{display:flex;position:fixed;z-index:90;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);align-items:center;gap:8px;padding:8px 14px;border-radius:99px;
+  background:var(--surface-3);border:1px solid var(--line-2);color:var(--ink);font:550 12.5px var(--f-body);box-shadow:var(--shadow-lg)}
+.rb-off i{width:8px;height:8px;border-radius:50%;background:var(--warn);animation:rbPulse 1.2s ease-in-out infinite alternate}
+@keyframes rbPulse{from{opacity:.35}to{opacity:1}}
+
+/* choosing a folder on the computer */
+.rb-pick{position:fixed;inset:0;z-index:95;background:rgba(0,0,0,.55);display:grid;place-items:center;padding:12px}
+.rb-pick-c{width:min(520px,100%);max-height:calc(100% - 24px);display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);overflow:hidden}
+.rb-pick-h{display:flex;flex-direction:column;gap:2px;padding:16px 16px 10px;border-bottom:1px solid var(--line)}
+.rb-pick-h span{font-size:12px;color:var(--ink-3);word-break:break-all}
+.rb-pick-l{flex:1;min-height:120px;overflow:auto;padding:6px;display:flex;flex-direction:column;gap:2px}
+.rb-pick-l>button{text-align:left;padding:12px;border-radius:8px;border:0;background:none;color:var(--ink);font:500 14px var(--f-body)}
+.rb-pick-l>button:active,.rb-pick-l>button:hover{background:var(--hover)}
+.rb-pick-l>p{padding:12px}
+.rb-pick-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--line)}
+
+/* this phone, on the Settings page */
+.rb-phone .toolbar{flex-wrap:wrap}
