@@ -24,9 +24,11 @@ import android.os.Handler
 import android.os.Looper
 import android.os.StatFs
 import android.util.Size
+import android.os.SystemClock
 import android.view.Gravity
 import android.view.ViewGroup
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -45,6 +47,9 @@ import com.veil.cam.core.CubeParser
 import com.veil.cam.core.Geom
 import com.veil.cam.core.Looks
 import com.veil.cam.core.Lut3D
+import com.veil.cam.core.PowerBudget
+import com.veil.cam.core.PowerMode
+import com.veil.cam.power.ThermalMonitor
 import com.veil.cam.face.FaceEngine
 import com.veil.cam.face.PersonSegmenter
 import com.veil.cam.gl.Renderer
@@ -125,6 +130,7 @@ class MainActivity : Activity(), Renderer.Listener {
         segmenter = PersonSegmenter()
         renderer = Renderer(applicationContext, engine, segmenter).also { it.listener = this }
         renderer.update(settings)
+        thermal = ThermalMonitor(this) { level, status -> onThermal(level, status) }
         camera = CameraController(applicationContext)
         camera.onReadout = { r -> main.post { readout = r; refreshChips() } }
         camera.onError = { msg -> main.post { flash(msg) } }
@@ -145,13 +151,22 @@ class MainActivity : Activity(), Renderer.Listener {
             requestPermissions(missing.toTypedArray(), 1)
             return
         }
+        if (sleeping) { sleeping = false; sleepView?.visibility = View.GONE; window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+        lastTouch = SystemClock.uptimeMillis()
         startCamera()
         startAudio()
         registerSensors()
+        thermal?.start()
+        pushBudget()
+        main.removeCallbacks(idleCheck)
+        main.postDelayed(idleCheck, 2_000)
     }
 
     override fun onPause() {
         resumed = false
+        main.removeCallbacks(idleCheck)
+        thermal?.stop()
+        setDim(false)
         if (recording) toggleRecording()
         camera.close()
         audio?.stop()
@@ -226,7 +241,7 @@ class MainActivity : Activity(), Renderer.Listener {
     private fun meterLoop() {
         val a = audio ?: return
         overlay.levels = a.levels
-        main.postDelayed({ meterLoop() }, 60)
+        main.postDelayed({ meterLoop() }, 100) // 10 Hz is smooth for a meter and halves the UI redraws
     }
 
     private fun displayDegrees(): Int = when (display?.rotation ?: Surface.ROTATION_90) {
@@ -256,6 +271,9 @@ class MainActivity : Activity(), Renderer.Listener {
         if (s.audio != old.audio) { if (s.audio) startAudio() else { audio?.stop(); audio = null; renderer.setAudio(null) } }
         if (s.blurOn && !old.blurOn) overlay.startingHint = !detectorReady
         if (!s.blurOn) overlay.startingHint = false
+        if (s.powerMode != old.powerMode || s.width != old.width || s.height != old.height) pushBudget()
+        if (s.fps != old.fps) votePreviewRate()
+        if (!s.dimWhileRecording) setDim(false)
         if (restart) {
             // Start the new camera only once the old one has stopped using its surface.
             camera.close { main.post { if (resumed) startCamera() } }
@@ -333,10 +351,14 @@ class MainActivity : Activity(), Renderer.Listener {
         surfaceView = SurfaceView(this)
         surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(h: SurfaceHolder) {}
-            override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, hgt: Int) { renderer.setPreview(h.surface, w, hgt) }
+            override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, hgt: Int) {
+                votePreviewRate()
+                renderer.setPreview(h.surface, w, hgt, surfaceView.width, surfaceView.height)
+            }
             override fun surfaceDestroyed(h: SurfaceHolder) { renderer.setPreview(null, 0, 0) }
         })
         root.addView(surfaceView, FrameLayout.LayoutParams(-1, -1))
+        surfaceView.addOnLayoutChangeListener { _, l, t, r, b, ol, ot, orr, ob -> if (r - l != orr - ol || b - t != ob - ot) applyPreviewSize() }
         overlay = OverlayView(this).apply { settings = this@MainActivity.settings }
         overlay.onTap = { _, _, ix, iy -> tapFocus(ix, iy) }
         overlay.onDoubleTap = { camera.resetFocus(); flash("Continuous autofocus") }
@@ -949,7 +971,123 @@ class MainActivity : Activity(), Renderer.Listener {
         }.onFailure { flash("No app to play the clip") }
     }
 
+    // ---- power -------------------------------------------------------------------------------------------
+    private var thermal: ThermalMonitor? = null
+    private var heat = 0
+    private var warnedHot = false
+    private var previewScale = 1f
+    private var appliedPreview = 0 to 0
+    private var lastTouch = 0L
+    private var dimmed = false
+    private var sleeping = false
+    private var sleepView: View? = null
+
+    private var lastThermalStatus = 0
+
+    private fun onThermal(level: Int, status: Int) {
+        val was = heat
+        heat = level
+        if (level != was) pushBudget()
+        if (level == 2 && !warnedHot) { warnedHot = true; flash("Phone is hot · Veil is saving power (every frame stays blurred)") }
+        val critical = android.os.PowerManager.THERMAL_STATUS_CRITICAL
+        if (status >= critical && lastThermalStatus < critical && recording) flash("Phone is very hot · consider stopping the take")
+        lastThermalStatus = status
+        if (level == 0) warnedHot = false
+    }
+
+    /** Recompute the work budget (mode, temperature, recording) and hand it to the pipeline. */
+    private fun pushBudget() {
+        val b = PowerBudget.of(settings.powerMode, heat, recording)
+        renderer.setBudget(b)
+        previewScale = b.previewScale
+        applyPreviewSize()
+        if (::statusPill.isInitialized) statusPill.heat = heat
+    }
+
+    /**
+     * Render the preview at the video's own resolution, not the panel's: a 1080p picture
+     * fitted on the 2992 x 1344 screen is upscaled anyway, so a smaller buffer looks the
+     * same while the hardware compositor does the scaling for free. Hot or saver modes
+     * go a little lower still.
+     */
+    private fun applyPreviewSize() {
+        if (!::surfaceView.isInitialized) return
+        val vw = surfaceView.width; val vh = surfaceView.height
+        if (vw <= 0 || vh <= 0) return
+        val long = maxOf(settings.width, settings.height).toDouble(); val short = minOf(settings.width, settings.height).toDouble()
+        val (rw, rh) = if (vw >= vh) long to short else short to long
+        val k = minOf(vw / rw, vh / rh) // screen px per video px
+        val f = ((if (k > 1.0) 1.0 / k else 1.0) * previewScale).coerceIn(0.35, 1.0)
+        val bw = ((vw * f).roundToInt() and 1.inv()).coerceAtLeast(2)
+        val bh = ((vh * f).roundToInt() and 1.inv()).coerceAtLeast(2)
+        val size = if (f >= 0.999) vw to vh else bw to bh
+        if (size == appliedPreview) return
+        appliedPreview = size
+        if (f >= 0.999) surfaceView.holder.setSizeFromLayout() else surfaceView.holder.setFixedSize(bw, bh)
+    }
+
+    /**
+     * Tell the 120 Hz LTPO panel the preview only changes at the video frame rate, so
+     * it can drop its refresh rate (a large share of display power) while the camera runs.
+     */
+    private fun votePreviewRate() {
+        if (!::surfaceView.isInitialized) return
+        val surface = surfaceView.holder.surface
+        if (surface == null || !surface.isValid) return
+        runCatching { surface.setFrameRate(settings.fps.toFloat(), Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE) }
+    }
+
+    private fun setDim(on: Boolean) {
+        if (on == dimmed) return
+        dimmed = on
+        // OLED power scales with brightness: 8 % keeps framing visible, a touch restores it.
+        window.attributes = window.attributes.apply { screenBrightness = if (on) 0.08f else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE }
+    }
+
+    private val idleCheck = object : Runnable {
+        override fun run() {
+            if (!resumed) return
+            val idle = SystemClock.uptimeMillis() - lastTouch
+            if (recording && settings.dimWhileRecording && idle > 10_000) setDim(true)
+            if (!recording && settings.autoStandby && !sleeping && idle > 180_000 && sheet.visibility != View.VISIBLE) goToSleep()
+            main.postDelayed(this, 2_000)
+        }
+    }
+
+    /** Idle in standby: camera, detector and microphone off; the screen may time out. */
+    private fun goToSleep() {
+        sleeping = true
+        camera.close()
+        audio?.stop(); renderer.setAudio(null); audio = null
+        val v = sleepView ?: TextView(this).apply {
+            setBackgroundColor(Color.BLACK); setTextColor(Theme.DIM); textSize = 15f; gravity = Gravity.CENTER; elevation = dp(30f).toFloat()
+            text = "Standby · camera off to save battery\n\nTap to wake"
+        }.also { sleepView = it; root.addView(it, FrameLayout.LayoutParams(-1, -1)) }
+        v.visibility = View.VISIBLE
+        v.bringToFront()
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
+    private fun wake() {
+        if (!sleeping) return
+        sleeping = false
+        sleepView?.visibility = View.GONE
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        lastTouch = SystemClock.uptimeMillis()
+        if (resumed) { startCamera(); startAudio() }
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        lastTouch = SystemClock.uptimeMillis()
+        if (dimmed) setDim(false)
+        if (sleeping) { if (ev.actionMasked == MotionEvent.ACTION_UP) wake(); return true }
+        return super.dispatchTouchEvent(ev)
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        lastTouch = SystemClock.uptimeMillis()
+        if (dimmed) setDim(false)
+        if (sleeping && (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_CAMERA)) { wake(); return true }
         if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_CAMERA) {
             if (event.repeatCount == 0) toggleRecording()
             return true
@@ -1041,6 +1179,18 @@ class MainActivity : Activity(), Renderer.Listener {
         add(Rows.section(this, "Storage"))
         add(Rows.switch(this, "Private gallery (hidden from phone gallery)", s.privateGallery) { apply(settings.copy(privateGallery = it)) })
         add(Rows.hint(this, "Private clips appear only in Veil's gallery; export any clip to the phone gallery from there."))
+
+        add(Rows.section(this, "Power"))
+        add(Rows.segments(this, PowerMode.names, s.powerMode) { apply(settings.copy(powerMode = it)) })
+        add(Rows.hint(this, when (s.powerMode) {
+            PowerMode.MAX -> "Face detection on every frame and all CPU cores while recording. Warmest; still steps down if the phone gets hot."
+            PowerMode.SAVER -> "Longest takes: sparser detection (frames in between are interpolated exactly), lighter preview, efficient cores only."
+            else -> "Detection paced by motion: every frame for fast faces, less often for calm or empty scenes. Mid cores only."
+        }))
+        add(Rows.switch(this, "Dim screen while recording", s.dimWhileRecording) { apply(settings.copy(dimWhileRecording = it)) })
+        add(Rows.hint(this, "After 10 s without a touch the screen dims to 8 %; tap anywhere to brighten it."))
+        add(Rows.switch(this, "Auto standby (3 min idle)", s.autoStandby) { apply(settings.copy(autoStandby = it)) })
+        add(Rows.hint(this, "Phone temperature: ${listOf("normal", "warm · saving power", "hot · saving power")[heat]}. Privacy never depends on the power mode: every frame waits for its faces."))
 
         add(Rows.section(this, "Video"))
         val sizes = c?.sizes?.filter { it.width in listOf(3840, 1920, 1280) }?.distinctBy { it.width } ?: emptyList()
@@ -1171,12 +1321,17 @@ class MainActivity : Activity(), Renderer.Listener {
                 if (!recording) {
                     recording = true; recPaused = false; refreshRecordUi(); closeSheet()
                     requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED // the take keeps its orientation
+                    lastTouch = SystemClock.uptimeMillis()
+                    pushBudget()
                 }
                 val sec = elapsedNs / 1_000_000_000L
                 timecode.text = "%02d:%02d:%02d".format(sec / 3600, sec / 60 % 60, sec % 60)
             } else {
+                val was = recording
                 recording = false
                 recPaused = false
+                setDim(false)
+                if (was) pushBudget()
                 refreshRecordUi()
                 requestedOrientation = orientationRequest()
                 if (uri != null) { lastUri = uri; flash(if (settings.privateGallery) "Saved to the Veil gallery" else "Saved to Movies/VeilCam"); timecode.text = "00:00:00" }
@@ -1218,4 +1373,4 @@ class MainActivity : Activity(), Renderer.Listener {
     }
 }
 
-object BuildConfigLite { const val VERSION = "1.2.0" }
+object BuildConfigLite { const val VERSION = "1.3.0" }

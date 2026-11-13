@@ -16,7 +16,10 @@ import com.veil.cam.core.FaceTimeline
 import com.veil.cam.core.FaceTracker
 import com.veil.cam.core.MultiAngleDetector
 import com.veil.cam.core.PassImage
+import com.veil.cam.core.PowerBudget
+import com.veil.cam.core.PowerMode
 import com.veil.cam.core.Scrfd
+import com.veil.cam.power.WorkHint
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** Pixels of the detector passes of one camera frame. */
@@ -52,15 +55,41 @@ class FaceEngine(private val context: Context) {
         private set
     var onError: ((String) -> Unit)? = null
     private var lastDone = 0L
+    private var threads = 2
+    @Volatile private var sweepEvery = 2
+    private var hint: WorkHint? = null
+    private var hintTargetNs = 20_000_000L
+    private var efficient = false
 
     val isBusy: Boolean get() = busy.get()
+
+    init {
+        handler.post { hint = WorkHint(context, android.os.Process.myTid(), hintTargetNs) }
+    }
+
+    /** Power budget: rotated-pass cadence, the deadline one detection should meet, efficiency bias. */
+    fun setBudget(b: PowerBudget, frameNs: Long) {
+        handler.post {
+            sweepEvery = b.sweepEvery
+            detector?.sweepEvery = b.sweepEvery
+            // Full speed: finish within half a frame; otherwise within ~80 % of a frame,
+            // which still keeps a frame's wait in the ring short.
+            hintTargetNs = (frameNs * if (b.tier == 0) 0.5 else 0.8).toLong()
+            hint?.target(hintTargetNs)
+            if (b.preferEfficiency != efficient) { efficient = b.preferEfficiency; hint?.preferEfficiency(efficient) }
+        }
+    }
 
     fun configure(s: Settings) {
         handler.post {
             cfg = BlurConfig(enabled = s.blurOn, maxFaces = s.maxFaces, holdFrames = s.holdFrames)
             tracker.configure(cfg)
             val want = if (s.accurateModel) "det_10g.onnx" else "det_500m.onnx"
-            if (want != modelName) load(want)
+            // Tensor G4: 1 prime + 3 mid + 4 little cores. Two threads land on the mid
+            // cores and run the small model in a few ms; four also wake the prime core,
+            // which is faster but far less efficient, so only Max quality uses them.
+            val wantThreads = if (s.powerMode == PowerMode.MAX) 4 else 2
+            if (want != modelName || wantThreads != threads) { threads = wantThreads; load(want) }
             val key = if (s.allAngles) "full" else "tilt"
             if (key != anglesKey || detector == null) {
                 anglesKey = key
@@ -68,7 +97,7 @@ class FaceEngine(private val context: Context) {
                 val perFrame = if (s.accurateModel) 1 else 2
                 detector = MultiAngleDetector(angles, perFrame) { p, th ->
                     scrfd?.detect(p.pixels, p.spec.width, p.spec.height, p.channels, th, p.bottomUp) ?: emptyList()
-                }
+                }.also { it.sweepEvery = sweepEvery }
                 plan = detector!!.nextPlan()
             }
         }
@@ -82,8 +111,12 @@ class FaceEngine(private val context: Context) {
             val bytes = context.assets.open(name).use { it.readBytes() }
             val opts = OrtSession.SessionOptions().apply {
                 setSessionLogLevel(OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR)
-                setIntraOpNumThreads(Runtime.getRuntime().availableProcessors().coerceIn(2, 4))
+                setIntraOpNumThreads(threads.coerceAtMost(Runtime.getRuntime().availableProcessors()))
                 setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+                // Worker threads sleep between inferences instead of busy-spinning: with one
+                // detection every few frames, spinning would keep cores at full clock for nothing.
+                addConfigEntry("session.intra_op.allow_spinning", "0")
+                addConfigEntry("session.inter_op.allow_spinning", "0")
             }
             scrfd = Scrfd(env.createSession(bytes, opts), env)
             modelName = name
@@ -119,6 +152,7 @@ class FaceEngine(private val context: Context) {
                     lastFaces = result
                     plan = det.nextPlan()
                     val t1 = SystemClock.elapsedRealtimeNanos()
+                    hint?.report(t1 - t0)
                     lastMs = (t1 - t0) / 1e6f
                     if (lastDone > 0) rate = 0.85f * rate + 0.15f * (1e9f / (t1 - lastDone).coerceAtLeast(1))
                     lastDone = t1
@@ -137,6 +171,7 @@ class FaceEngine(private val context: Context) {
         handler.post {
             runCatching { scrfd?.close() }
             scrfd = null
+            hint?.close(); hint = null
         }
         thread.quitSafely()
     }

@@ -213,6 +213,26 @@ def main():
     cf = float(np.corrcoef(highpass(clean[roi]), highpass(filmed[roi]))[0, 1])
     print(f"film pass: face detail correlation with the original {cf:.3f}")
     assert cf < 0.2, "film pass revealed the face"
+    # Direct path (no film / monitoring): composite straight to the output must equal
+    # composite -> film pass with every effect off, pixel for pixel.
+    off = dict(film, uGrain=0.0, uHalation=0.0, uBloom=0.0, uAberration=0.0, uLeak=0.0, uBurn=0.0, uVignette=0.0)
+    via = run(SH["FILM"], (outW, outH), off, [("uStage", stage)])[..., :3]
+    dmax = int(np.abs(via.astype(int) - anon[..., :3].astype(int)).max())
+    print(f"direct path vs film pass with effects off: max diff {dmax}")
+    assert dmax <= 1, "direct path differs from the staged path"
+    # The GPU blur chain (DOWN + 4 x BLUR, mediump colour sums) against an exact reference.
+    sw, shh = W // 4, H // 4
+    down = run(SH["DOWN"], (sw, shh), {"uSrcTexel": (1.0 / W, 1.0 / H), "uDstSize": (float(sw), float(shh))}, [("uSrc", color)])
+    t = ctx.texture((sw, shh), 4, down.tobytes()); t.filter = (moderngl.LINEAR, moderngl.LINEAR)
+    for sx, sy in ((1.0 / sw, 0.0), (0.0, 1.0 / shh), (1.0 / sw, 0.0), (0.0, 1.0 / shh)):
+        o = run(SH["BLUR"], (sw, shh), {"uStep": (sx, sy), "uDstSize": (float(sw), float(shh))}, [("uSrc", t)])
+        t = ctx.texture((sw, shh), 4, o.tobytes()); t.filter = (moderngl.LINEAR, moderngl.LINEAR)
+    gpu = np.flipud(o[..., :3]).astype(np.float32)
+    ref_small = cv2.resize(rgb, (sw, shh), interpolation=cv2.INTER_AREA).astype(np.float32)
+    ref_blur = cv2.GaussianBlur(ref_small, (0, 0), 2.0 * math.sqrt(2.0))
+    berr = float(np.abs(gpu - ref_blur)[8:-8, 8:-8].mean())
+    print(f"blur chain vs reference Gaussian: mean abs diff {berr:.2f}")
+    assert berr < 4.0, "blur chain is off"
     print("OK")
 
 

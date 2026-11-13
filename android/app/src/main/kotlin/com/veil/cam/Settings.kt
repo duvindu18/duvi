@@ -88,6 +88,10 @@ data class Settings(
     val shutterPriority: Boolean = false, // keep the shutter angle, adjust ISO automatically
     // Storage: private in-app gallery (hidden from the phone gallery) or the phone gallery
     val privateGallery: Boolean = true,
+    // Power: 0 max quality, 1 balanced, 2 battery saver (see core PowerBudget)
+    val powerMode: Int = 1,
+    val dimWhileRecording: Boolean = true, // lower the screen after 10 s without a touch
+    val autoStandby: Boolean = true, // camera off after 3 min idle in standby
 ) {
     val filmOn: Boolean get() = grain + halation + bloom + aberration + leaks + burn + vignette > 0.001f
     fun bitrate(): Int {
@@ -117,6 +121,7 @@ data class Settings(
         put("leaks", leaks.toDouble()); put("burn", burn.toDouble()); put("vignette", vignette.toDouble()); put("bakeFilm", bakeFilm)
         put("noiseReduction", noiseReduction); put("windFilter", windFilter); put("shutterPriority", shutterPriority)
         put("privateGallery", privateGallery)
+        put("powerMode", powerMode); put("dimWhileRecording", dimWhileRecording); put("autoStandby", autoStandby)
     }
 
     companion object {
@@ -159,6 +164,9 @@ data class Settings(
                 bakeFilm = j.optBoolean("bakeFilm", d.bakeFilm), noiseReduction = j.optInt("noiseReduction", d.noiseReduction),
                 windFilter = j.optBoolean("windFilter", d.windFilter), shutterPriority = j.optBoolean("shutterPriority", d.shutterPriority),
                 privateGallery = j.optBoolean("privateGallery", d.privateGallery),
+                powerMode = j.optInt("powerMode", d.powerMode).coerceIn(0, 2),
+                dimWhileRecording = j.optBoolean("dimWhileRecording", d.dimWhileRecording),
+                autoStandby = j.optBoolean("autoStandby", d.autoStandby),
             )
         }
 

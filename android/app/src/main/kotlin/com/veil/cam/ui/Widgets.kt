@@ -225,14 +225,19 @@ class StatusPill(ctx: Context) : View(ctx) {
         set(v) { field = v; invalidate() }
     var format = ""
         set(v) { field = v; requestLayout(); invalidate() }
+    /** Phone temperature: 0 normal, 1 warm, 2 hot (the app is saving power). */
+    var heat = 0
+        set(v) { if (v != field) { field = v; requestLayout(); invalidate() } }
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private val start = System.currentTimeMillis()
 
     private fun label() = if (recording) (if (paused) "PAUSED" else "REC") else "STBY"
+    private fun heatLabel() = when (heat) { 1 -> "WARM"; 2 -> "HOT"; else -> "" }
 
     override fun onMeasure(w: Int, h: Int) {
         p.textSize = Theme.dp(context, 15f); p.typeface = Theme.medium
-        val tw = p.measureText(label()) + p.measureText(format).let { if (format.isEmpty()) 0f else it + Theme.dp(context, 18f) }
+        var tw = p.measureText(label()) + p.measureText(format).let { if (format.isEmpty()) 0f else it + Theme.dp(context, 18f) }
+        if (heat > 0) { p.textSize = Theme.dp(context, 11f); p.typeface = Theme.mono; tw += p.measureText(heatLabel()) + Theme.dp(context, 12f) }
         setMeasuredDimension((tw + Theme.dp(context, 92f)).toInt(), Theme.dpi(context, 40f))
     }
 
@@ -254,6 +259,12 @@ class StatusPill(ctx: Context) : View(ctx) {
         if (format.isNotEmpty()) {
             p.color = Theme.DIM; p.textSize = Theme.dp(context, 12f); p.typeface = Theme.mono
             c.drawText(format, x, h / 2 - (p.descent() + p.ascent()) / 2, p)
+            x += p.measureText(format) + Theme.dp(context, 10f)
+        }
+        if (heat > 0) {
+            p.color = if (heat == 2) Theme.REC else Color.rgb(255, 159, 10)
+            p.textSize = Theme.dp(context, 11f); p.typeface = Theme.mono
+            c.drawText(heatLabel(), x, h / 2 - (p.descent() + p.ascent()) / 2, p)
         }
         // Video camera glyph at the right end.
         p.color = Theme.TEXT

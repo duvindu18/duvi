@@ -161,16 +161,19 @@ class MultiAngleDetector(
     val scheduler = AngleScheduler(angles, perFrame)
     private var frames = 0
 
+    /** While no tilted face is followed, rotated passes run on every n-th detection (power budget). */
+    @Volatile var sweepEvery = 2
+
     fun reset() { frames = 0; scheduler.reset() }
 
     /** Extra angles the GPU should render for the next detection. */
     fun nextPlan(): List<Int> {
         // Every angle on a new scene; otherwise, while no tilted face is being followed,
-        // rotated passes run on every other detection so the upright pass (most faces)
-        // runs at up to twice the rate and fast movement is sampled more densely.
+        // rotated passes run on every [sweepEvery]-th detection so the upright pass (most
+        // faces) runs faster and the CPU does less work per detection.
         return when {
             frames == 0 -> scheduler.all()
-            !scheduler.hasHot && frames % 2 == 1 -> emptyList()
+            !scheduler.hasHot && frames % sweepEvery.coerceAtLeast(1) != 0 -> emptyList()
             else -> scheduler.plan()
         }
     }

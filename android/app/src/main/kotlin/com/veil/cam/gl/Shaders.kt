@@ -29,7 +29,11 @@ void main() {
 }
 """
 
-    /** 4x downsample with a 4-tap box (each tap is a bilinear 2x2). */
+    /**
+     * 4x downsample with a 4-tap box (each tap is a bilinear 2x2). Colour sums are
+     * mediump (FP16 on Mali: twice the throughput, half the register file); texture
+     * coordinates stay highp.
+     */
     const val DOWN = """#version 300 es
 precision highp float;
 uniform sampler2D uSrc;
@@ -38,7 +42,7 @@ uniform vec2 uDstSize;
 out vec4 frag;
 void main() {
     vec2 t = gl_FragCoord.xy / uDstSize;
-    vec3 c = texture(uSrc, t + uSrcTexel * vec2(-1.0, -1.0)).rgb
+    mediump vec3 c = texture(uSrc, t + uSrcTexel * vec2(-1.0, -1.0)).rgb
            + texture(uSrc, t + uSrcTexel * vec2( 1.0, -1.0)).rgb
            + texture(uSrc, t + uSrcTexel * vec2(-1.0,  1.0)).rgb
            + texture(uSrc, t + uSrcTexel * vec2( 1.0,  1.0)).rgb;
@@ -55,7 +59,7 @@ uniform vec2 uDstSize;
 out vec4 frag;
 void main() {
     vec2 t = gl_FragCoord.xy / uDstSize;
-    vec3 c = texture(uSrc, t).rgb * 0.2270270270;
+    mediump vec3 c = texture(uSrc, t).rgb * 0.2270270270;
     c += texture(uSrc, t + uStep * 1.3846153846).rgb * 0.3162162162;
     c += texture(uSrc, t - uStep * 1.3846153846).rgb * 0.3162162162;
     c += texture(uSrc, t + uStep * 3.2307692308).rgb * 0.0702702703;

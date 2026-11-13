@@ -128,6 +128,11 @@ object Selector {
  * results at most [maxExtrapolateNs] old are carried forward by velocity.
  */
 class FaceTimeline(private val capacity: Int = 32, private val maxExtrapolateNs: Long = 400_000_000L) {
+    companion object {
+        /** Assumed speed of a face entering the shot, in face sizes per second (brisk walk, close up). */
+        const val ENTRY_SPEED = 3f
+    }
+
     private val items = ArrayDeque<FaceResult>()
 
     @Synchronized fun add(r: FaceResult) {
@@ -150,7 +155,7 @@ class FaceTimeline(private val capacity: Int = 32, private val maxExtrapolateNs:
         val out = ArrayList<Geom>()
         if (before == null) {
             val a = after ?: return emptyList()
-            if (a.timestampNs - t <= lookAheadNs) a.faces.forEach { out.add(it.geom) }
+            if (a.timestampNs - t <= lookAheadNs) a.faces.forEach { out.add(entering(it, a.timestampNs - t)) }
             return FaceGeometry.dedupe(out)
         }
         if (after == null) {
@@ -178,9 +183,25 @@ class FaceTimeline(private val capacity: Int = 32, private val maxExtrapolateNs:
         }
         val known = before.faces.map { it.id }.toSet()
         if (after.timestampNs - t <= lookAheadNs) {
-            for (b in after.faces) if (b.id !in known) out.add(b.geom)
+            for (b in after.faces) if (b.id !in known) out.add(entering(b, after.timestampNs - t))
         }
         return FaceGeometry.dedupe(out)
+    }
+
+    /**
+     * A face first seen [aheadNs] after the frame: it may have been elsewhere at the
+     * frame's moment, so it is moved back along its motion (when known) and grown by
+     * how far a face could travel in that time. This keeps sparse detection (power
+     * saving) as safe as detecting every frame.
+     */
+    private fun entering(v: FaceView, aheadNs: Long): Geom {
+        if (aheadNs <= 0) return v.geom
+        val dt = aheadNs / 1e9f
+        val side = maxOf(v.geom.w, v.geom.h)
+        val travel = maxOf(kotlin.math.hypot(v.vx, v.vy) * dt, ENTRY_SPEED * side * dt)
+        val grow = minOf(0.6f * side, travel)
+        val g = v.geom.shifted(-v.vx * dt, -v.vy * dt)
+        return g.copy(w = g.w + grow, h = g.h + grow)
     }
 
     private fun lerp(a: Geom, b: Geom, f: Float): Geom {

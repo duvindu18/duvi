@@ -76,6 +76,41 @@ detection, tracking and anonymization as the Veil desktop app.
   installs default to 24 fps and 180°.
 * No network permission: everything runs on the phone.
 
+## New in 1.3: battery and heat (tuned for Pixel 9 Pro XL)
+
+Settings → Power offers **Max quality**, **Balanced** (default) and **Battery saver**.
+Privacy never depends on the mode: every frame still waits for a detection taken at
+or after its own moment, and faces are interpolated to it exactly. A face first seen
+in the next detection is also grown by how far it could have moved in the gap.
+
+* **Paced face detection.** Detection runs every frame for fast or lost faces and less
+  often for calm or empty scenes. The gap is capped so a waiting frame never
+  overflows the ring and the preview never drops a frame (`tools/sched_sim.py`).
+  Standby (not recording) is one step lighter than recording.
+* **Thermal governor.** The thermal status and the 10 s headroom forecast step the
+  pipeline down *before* the SoC throttles. The status pill shows WARM or HOT.
+* **CPU (Tensor G4).** ONNX Runtime uses 2 threads, which land on the mid cores.
+  Only Max quality also wakes the prime core. Worker threads sleep instead of
+  busy-spinning between inferences. ADPF performance hints (Android 12+) tell the
+  scheduler each thread's real deadline, so cores run at the lowest clock that meets
+  it, and Android 15+ is asked to prefer efficiency.
+* **GPU (Mali-G715).**
+  * The background blur pyramid is built only when a blurred face, the privacy
+    start or cinematic depth needs it.
+  * Without film effects or monitoring tools, the picture is drawn straight to the
+    screen or encoder, skipping a full-resolution pass and its mipmaps.
+  * Blur colour math runs in FP16.
+  * The preview is redrawn only when a new frame is ready.
+* **Display.**
+  * The preview buffer is rendered at the video's resolution, not the panel's
+    2992 × 1344. The hardware compositor scales it up for free.
+  * The preview surface tells the 120 Hz LTPO panel it changes only at the video
+    frame rate.
+  * The screen dims to 8 % after 10 s without a touch while recording. A tap
+    restores it.
+* **Auto standby.** After 3 minutes idle without recording, the camera, detector
+  and microphone turn off. Tap to wake.
+
 ## Build
 
 ```bash
@@ -97,7 +132,11 @@ gradle :core:test :app:assembleRelease \
 * `tools/gl_check.py photo.jpg det_500m.onnx out/ [90|270]` runs the app's real
   GLSL shaders on a software GL (Mesa). It checks that the detector canvas
   finds the face, that the output is upright, and that every style hides the
-  face while leaving the background untouched, and it checks the LUT path.
+  face while leaving the background untouched. It also checks the LUT path, the
+  film pass, the direct (no-film) path and the GPU blur chain.
+* `tools/sched_sim.py` simulates the renderer's frame scheduling for every power
+  tier, frame rate and detection speed. It checks that no frame is emitted before
+  its detection and that the preview never drops a frame.
 
 The models are InsightFace research models (non-commercial licence) and are not
 stored in git.

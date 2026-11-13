@@ -23,13 +23,17 @@ import com.veil.cam.BlurStyle
 import com.veil.cam.Settings
 import com.veil.cam.camera.WhiteBalance
 import com.veil.cam.core.Coverage
+import com.veil.cam.core.DetectPacer
 import com.veil.cam.core.Geom
 import com.veil.cam.core.Lut3D
 import com.veil.cam.core.PassImage
 import com.veil.cam.core.PassPlanner
 import com.veil.cam.core.PassSpec
+import com.veil.cam.core.PowerBudget
+import com.veil.cam.core.PowerMode
 import com.veil.cam.face.DetectBatch
 import com.veil.cam.face.FaceEngine
+import com.veil.cam.power.WorkHint
 import com.veil.cam.record.AudioCapture
 import com.veil.cam.record.Recorder
 import java.nio.ByteBuffer
@@ -72,9 +76,12 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
 
     private class Slot(val color: GlUtil.Target, val blur: GlUtil.Target) {
         var ts = 0L
+        var blurReady = false // the 1/4-res blur is only built when a composite needs it
     }
 
-    private class Readback(val ts: Long, val specs: List<PassSpec>, val pbos: IntArray, val fence: Long)
+    private class Readback(
+        val ts: Long, val specs: List<PassSpec>, val pbos: IntArray, val fence: Long, val faces: Boolean, val people: Boolean,
+    )
 
     var listener: Listener? = null
     private val thread = HandlerThread("GL").apply { start(); priority = Thread.MAX_PRIORITY }
@@ -107,6 +114,11 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
 
     private var slots: List<Slot> = emptyList()
     private val pending = ArrayDeque<Slot>()
+    // Emitted frames not yet on the preview: one is presented per camera frame, so the
+    // preview stays smooth when one detection releases several frames at once.
+    private val toShow = ArrayDeque<Slot>()
+    private var drawnSlot: Slot? = null
+    private var previewDirty = true
     private var shown: Slot? = null
     private var newest: Slot? = null
     private var blurTmpA: GlUtil.Target? = null
@@ -118,6 +130,17 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
 
     private var preview: EGLSurface? = null
     private var previewW = 0; private var previewH = 0
+    private var viewW = 0; private var viewH = 0 // preview view size (the buffer may be smaller)
+
+    // Power: detection pacing and scheduler hints.
+    private var budget = PowerBudget.of(PowerMode.BALANCED, 0, recording = false)
+    private var frameNs = 33_333_333L
+    private var lastFrameTs = 0L
+    private var lastFaceCapture = Long.MIN_VALUE / 4
+    private var lastPeopleCapture = Long.MIN_VALUE / 4
+    private var lastHistCapture = 0L
+    private var glHint: WorkHint? = null
+    private var hintFrameNs = 0L
     private var encoderSurface: EGLSurface? = null
     private var recorder: Recorder? = null
     private var recordStartTs = -1L
@@ -158,20 +181,23 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
             uploadLut(Lut3D.build("Identity", 2) { r, g, b -> floatArrayOf(r, g, b) })
             lutLoaded = null
             maskTex = texture2D(Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888))
+            glHint = WorkHint(context, android.os.Process.myTid(), frameNs / 2)
         }
     }
 
     // ---- public API (any thread) ---------------------------------------------------
     /** Blocks until the GL thread has switched surfaces, so a destroyed window is never drawn to. */
-    fun setPreview(surface: Surface?, w: Int, h: Int) {
+    fun setPreview(surface: Surface?, w: Int, h: Int, viewW: Int = w, viewH: Int = h) {
         val done = java.util.concurrent.CountDownLatch(1)
         handler.post {
             try {
                 preview?.let { egl.destroySurface(it) }
                 preview = null
+                drawnSlot = null
                 if (surface != null && surface.isValid) {
                     preview = runCatching { egl.windowSurface(surface) }.getOrNull()
                     previewW = w; previewH = h
+                    this.viewW = if (viewW > 0) viewW else w; this.viewH = if (viewH > 0) viewH else h
                     publishTransform()
                 }
             } finally { done.countDown() }
@@ -188,6 +214,8 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         geometryKnown = false
         hasResult = false
         sceneStartTs = -1L
+        lastFrameTs = 0L
+        lastFaceCapture = Long.MIN_VALUE / 4; lastPeopleCapture = Long.MIN_VALUE / 4
         engine.reset()
         oesTex = GlUtil.oesTexture()
         val t = SurfaceTexture(oesTex)
@@ -208,11 +236,21 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
     fun update(s: Settings) = handler.post {
         val maskChanged = s.maskPath != settings.maskPath
         settings = s
+        previewDirty = true
         if (maskChanged) loadMask(s.maskPath)
         publishTransform()
     }
 
+    /** Power budget (mode, temperature, recording); see [PowerBudget]. */
+    fun setBudget(b: PowerBudget) = handler.post {
+        budget = b
+        previewDirty = true
+        glHint?.preferEfficiency(b.preferEfficiency)
+        engine.setBudget(b, frameNs)
+    }
+
     fun setLut(lut: Lut3D?) = handler.post {
+        previewDirty = true
         if (lut == null) { lutLoaded = null; return@post }
         uploadLut(lut)
         lutLoaded = lut
@@ -267,6 +305,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
             releaseCameraInput()
             preview?.let { egl.destroySurface(it) }
             preview = null
+            glHint?.close(); glHint = null
             egl.release()
         }
         thread.quitSafely()
@@ -276,7 +315,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
     private fun releaseCameraInput() {
         readback?.let { GLES30.glDeleteSync(it.fence) }
         readback = null
-        pending.clear(); shown = null; newest = null
+        pending.clear(); toShow.clear(); shown = null; newest = null; drawnSlot = null
         slots.forEach { it.color.release(); it.blur.release() }
         slots = emptyList()
         blurTmpA?.release(); blurTmpB?.release(); blurTmpA = null; blurTmpB = null
@@ -298,7 +337,10 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         val quarter = (swapped) xor (rot % 180 == 90)
         imgW = if (quarter) capSize.height else capSize.width
         imgH = if (quarter) capSize.width else capSize.height
-        val n = if (imgW.toLong() * imgH > 3_000_000L) 4 else 6
+        // Room for frames waiting on their detection plus the preview queue, sized for
+        // 60 fps with a slow (rotated-pass) detection; the phone has memory to spare
+        // (~110 MB at 1080p, ~350 MB at 4K) and a deeper ring lets detection run less often.
+        val n = if (imgW.toLong() * imgH > 3_000_000L) 10 else 12
         slots = List(n) { Slot(GlUtil.Target(imgW, imgH), GlUtil.Target(max(1, imgW / 4), max(1, imgH / 4), mipmaps = true)) }
         blurTmpA = GlUtil.Target(max(1, imgW / 4), max(1, imgH / 4))
         blurTmpB = GlUtil.Target(max(1, imgW / 4), max(1, imgH / 4))
@@ -318,6 +360,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
     // ---- per frame ---------------------------------------------------------------------------
     private fun onFrame() {
         val tex = st ?: return
+        val work0 = System.nanoTime()
         try {
             tex.updateTexImage()
         } catch (e: Exception) {
@@ -328,13 +371,18 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         if (!geometryKnown) setupGeometry()
         if (sceneStartTs < 0) sceneStartTs = ts
         countFps()
+        if (lastFrameTs > 0) {
+            val d = ts - lastFrameTs
+            if (d in 2_000_000L..250_000_000L) frameNs = (frameNs * 7 + d) / 8
+        }
+        lastFrameTs = ts
 
         egl.makeOffscreenCurrent()
         GLES30.glBindVertexArray(vao)
         val slot = acquireSlot()
         slot.ts = ts
         copyFrame(slot)
-        if (settings.blurOn || !hasResult) blurChain(slot)
+        slot.blurReady = false
         pending.addLast(slot)
         newest = slot
 
@@ -349,12 +397,26 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         drawPreview()
         if (photoRequested) { photoRequested = false; savePhoto() }
         publishStats()
+        syncHints()
+        glHint?.report(System.nanoTime() - work0)
     }
+
+    /** Keep the scheduler deadlines in step with the real frame rate. */
+    private fun syncHints() {
+        if (abs(frameNs - hintFrameNs) * 10 < hintFrameNs) return
+        hintFrameNs = frameNs
+        glHint?.target(frameNs / 2)
+        engine.setBudget(budget, frameNs)
+    }
+
+    private fun maxPending() = max(1, slots.size - 3)
 
     private fun acquireSlot(): Slot {
         while (true) {
-            val free = slots.firstOrNull { it !in pending && it !== shown }
+            val free = slots.firstOrNull { it !in pending && it !== shown && it !in toShow }
             if (free != null) return free
+            // Preview behind: skip a frame on the monitor (never in the recording).
+            if (toShow.isNotEmpty()) { toShow.pollFirst(); continue }
             // Ring full: the detector is behind. Emit the oldest frame with the best faces known.
             emitOne()
         }
@@ -370,6 +432,12 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         GLES30.glUniformMatrix3fv(loc(progCopy, "uPre"), 1, false, pre, 0)
         GLES30.glUniform2f(loc(progCopy, "uSize"), imgW.toFloat(), imgH.toFloat())
         GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
+    }
+
+    private fun ensureBlur(slot: Slot) {
+        if (slot.blurReady) return
+        blurChain(slot)
+        slot.blurReady = true
     }
 
     private fun blurChain(slot: Slot) {
@@ -405,14 +473,34 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
     // ---- detection input ------------------------------------------------------------------------
     private fun baseAngle(): Double = displayRotation.toDouble()
 
+    /**
+     * Detection is paced by the power budget: calm or empty scenes are sampled less
+     * often (frames in between are interpolated exactly), fast or lost faces at full
+     * rate, and never so sparsely that a waiting frame could overflow the ring.
+     */
     private fun maybeCaptureDetection(slot: Slot) {
-        val wantFaces = settings.blurOn && !engine.isBusy && engine.ready
-        val wantPeople = settings.depth > 0f && !segmenter.isBusy
-        if (readback != null || !(wantFaces || wantPeople)) return
+        if (readback != null) return
+        val s = settings
+        val ts = slot.ts
+        var faceEvery = if (!hasResult) 0L else DetectPacer.capped(
+            DetectPacer.intervalNs(budget, engine.lastFaces), frameNs, maxPending(), (engine.lastMs * 1e6f).toLong() + frameNs / 2,
+        )
+        // One detection releases the frames since the previous one; the exact preview
+        // presents them one per frame, so never release more than its queue holds.
+        if (!s.lowLatencyPreview) faceEvery = min(faceEvery, MAX_STRIDE * frameNs)
+        val wantFaces = s.blurOn && !engine.isBusy && engine.ready && DetectPacer.due(ts - lastFaceCapture, faceEvery, frameNs)
+        val wantPeople = s.depth > 0f && !segmenter.isBusy && DetectPacer.due(ts - lastPeopleCapture, budget.segmentNs, frameNs)
+        val now = SystemClock.uptimeMillis()
+        val wantHist = (s.histogram || s.shutterPriority) && now - lastHistCapture >= 150
+        if (!(wantFaces || wantPeople || wantHist)) return
+        if (wantFaces) lastFaceCapture = ts
+        if (wantPeople) lastPeopleCapture = ts
+        lastHistCapture = now
         val baseSide = if (settings.accurateModel) 640 else 480
         val base = PassPlanner.base(imgW, imgH, baseAngle(), baseSide)
         val scale = PassPlanner.scaleOf(base)
-        val specs = listOf(base) + engine.plan.take(4).map { PassPlanner.rotated(imgW, imgH, baseAngle(), it, scale) }
+        val rotated = if (wantFaces) engine.plan.take(4).map { PassPlanner.rotated(imgW, imgH, baseAngle(), it, scale) } else emptyList()
+        val specs = listOf(base) + rotated
         val ids = IntArray(specs.size)
         for ((i, spec) in specs.withIndex()) {
             val target = passTargets.getOrPut((spec.width.toLong() shl 32) or spec.height.toLong()) { GlUtil.Target(spec.width, spec.height) }
@@ -433,7 +521,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         }
         val fence = GLES30.glFenceSync(GLES30.GL_SYNC_GPU_COMMANDS_COMPLETE, 0)
         GLES30.glFlush()
-        readback = Readback(slot.ts, specs, ids, fence)
+        readback = Readback(slot.ts, specs, ids, fence, wantFaces, wantPeople)
     }
 
     /** One pixel-pack buffer per pass index and size, so passes of one batch never share. */
@@ -471,8 +559,8 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
             passes.add(PassImage(spec, arr, 4, bottomUp = true))
         }
         if (passes.isNotEmpty()) maybeHistogram(passes[0])
-        if (settings.depth > 0f && passes.isNotEmpty()) segmenter.submit(passes[0].pixels.copyOf(), passes[0].spec, rb.ts)
-        val ok = settings.blurOn && engine.submit(DetectBatch(rb.ts, imgW, imgH, passes) { owned.forEach { recycleArray(it) } })
+        if (rb.people && settings.depth > 0f && passes.isNotEmpty()) segmenter.submit(passes[0].pixels.copyOf(), passes[0].spec, rb.ts)
+        val ok = rb.faces && settings.blurOn && engine.submit(DetectBatch(rb.ts, imgW, imgH, passes) { owned.forEach { recycleArray(it) } })
         if (!ok) owned.forEach { recycleArray(it) }
     }
 
@@ -491,7 +579,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
 
     private fun maybeHistogram(p: PassImage) {
         val now = SystemClock.uptimeMillis()
-        if (!settings.histogram || now - lastHist < 120) return
+        if (!(settings.histogram || settings.shutterPriority) || now - lastHist < 120) return
         lastHist = now
         val l = IntArray(64); val r = IntArray(64); val g = IntArray(64); val b = IntArray(64)
         val px = p.pixels
@@ -511,7 +599,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
     /** Frames whose faces are known go to the recording (and the exact preview). */
     private fun emitReady(force: Boolean) {
         val latest = engine.timeline.latestTimestamp()
-        val limit = max(1, slots.size - 2)
+        val limit = maxPending()
         while (pending.isNotEmpty()) {
             val s = pending.peekFirst()!!
             val covered = !settings.blurOn || latest >= s.ts
@@ -541,23 +629,35 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
             val err = rec.failed
             if (err != null && !finishing) handler.post { finishRecording(err) }
         }
-        if (!settings.lowLatencyPreview) shown = s
+        if (!settings.lowLatencyPreview) toShow.addLast(s)
     }
 
     private fun drawPreview() {
         val p = preview ?: return
-        val slot = (if (settings.lowLatencyPreview) newest else shown) ?: return
-        egl.makeCurrent(p)
-        GLES30.glBindVertexArray(vao)
-        val faces = render(slot, previewW, previewH, fill = false, monitor = true, lut = settings.lutOnMonitor, mirror = false, film = true) {
-            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
-            GLES30.glViewport(0, 0, previewW, previewH)
+        val slot = if (settings.lowLatencyPreview) {
+            toShow.clear()
+            newest
+        } else {
+            while (toShow.size > MAX_PREVIEW_BACKLOG) toShow.pollFirst()
+            toShow.pollFirst()?.let { shown = it }
+            shown
+        } ?: return
+        // Nothing new to show (waiting on a detection): leave the screen as it is.
+        if (slot !== drawnSlot || previewDirty) {
+            egl.makeCurrent(p)
+            GLES30.glBindVertexArray(vao)
+            val faces = render(slot, previewW, previewH, fill = false, monitor = true, lut = settings.lutOnMonitor, mirror = false, film = true) {
+                GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+                GLES30.glViewport(0, 0, previewW, previewH)
+            }
+            egl.swap(p)
+            egl.makeOffscreenCurrent()
+            drawnSlot = slot
+            previewDirty = false
+            if (settings.lowLatencyPreview) shown = slot
+            val now = SystemClock.uptimeMillis()
+            if (settings.showBoxes && now - lastFacesSent > 66) { lastFacesSent = now; listener?.onFaces(faces) }
         }
-        egl.swap(p)
-        egl.makeOffscreenCurrent()
-        if (settings.lowLatencyPreview) shown = slot
-        val now = SystemClock.uptimeMillis()
-        if (settings.showBoxes && now - lastFacesSent > 66) { lastFacesSent = now; listener?.onFaces(faces) }
         val rec = recorder
         if (rec != null && recordStartTs >= 0) {
             val pausedFor = if (recPaused && pauseStartTs >= 0) lastEmittedTs - pauseStartTs else 0L
@@ -601,13 +701,25 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         slot: Slot, outW: Int, outH: Int, fill: Boolean, monitor: Boolean, lut: Boolean, mirror: Boolean, film: Boolean,
         bindDest: () -> Unit,
     ): List<Geom> {
+        val s = settings
+        val faces = if (s.blurOn) engine.timeline.at(slot.ts).sortedByDescending { it.w * it.h }.take(Shaders.MAX_FACES) else emptyList()
+        // The blur pyramid is only needed by blurred faces, the privacy start and depth.
+        val needBlur = (s.depth > 0f && peopleMask != null) || (s.blurOn && !hasResult) || (faces.isNotEmpty() && s.style == BlurStyle.GAUSSIAN)
+        if (needBlur) ensureBlur(slot)
+        val monitoring = monitor && (s.zebra || s.falseColor || s.peaking)
+        if (!(film && s.filmOn) && !monitoring) {
+            // Nothing to add after the grade: draw straight into the destination
+            // (saves a full-resolution pass and its memory traffic every frame).
+            bindDest()
+            composite(slot, outW, outH, fill, lut, mirror, faces)
+            return faces
+        }
         val stage = stages.getOrPut((outW.toLong() shl 32) or outH.toLong()) {
             if (stages.size > 4) { stages.values.forEach { it.release() }; stages.clear() }
             GlUtil.Target(outW, outH, mipmaps = true)
         }
         stage.bind()
-        val faces = composite(slot, outW, outH, fill, lut, mirror)
-        val s = settings
+        composite(slot, outW, outH, fill, lut, mirror, faces)
         val glow = film && (s.bloom > 0f || s.halation > 0f)
         if (glow) {
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, stage.tex)
@@ -640,9 +752,8 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         return faces
     }
 
-    private fun composite(slot: Slot, outW: Int, outH: Int, fill: Boolean, lut: Boolean, mirror: Boolean): List<Geom> {
+    private fun composite(slot: Slot, outW: Int, outH: Int, fill: Boolean, lut: Boolean, mirror: Boolean, faces: List<Geom>) {
         val s = settings
-        val faces = if (s.blurOn) engine.timeline.at(slot.ts).sortedByDescending { it.w * it.h }.take(Shaders.MAX_FACES) else emptyList()
         val p = progComp
         GLES30.glUseProgram(p)
         bindTex(0, slot.color.tex); GLES30.glUniform1i(loc(p, "uColor"), 0)
@@ -706,7 +817,6 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
             GLES30.glUniformMatrix3fv(loc(p, "uImgToPeople"), 1, false, mat3(a), 0)
         }
         GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
-        return faces
     }
 
     /** AWB presets the active camera supports (set by the activity). */
@@ -729,8 +839,14 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         val k = min(previewW.toDouble() / rwImg, previewH.toDouble() / rhImg)
         val rw = rwImg * k
         val rh = rhImg * k
-        val content = RectF(((previewW - rw) / 2).toFloat(), ((previewH - rh) / 2).toFloat(), ((previewW + rw) / 2).toFloat(), ((previewH + rh) / 2).toFloat())
-        listener?.onDisplayTransform(imgW, imgH, content, FloatArray(6) { inv[it].toFloat() })
+        // The overlay works in view pixels; the preview buffer may be scaled down from them.
+        val sx = previewW.toDouble() / viewW.coerceAtLeast(1); val sy = previewH.toDouble() / viewH.coerceAtLeast(1)
+        val content = RectF(
+            ((previewW - rw) / 2 / sx).toFloat(), ((previewH - rh) / 2 / sy).toFloat(),
+            ((previewW + rw) / 2 / sx).toFloat(), ((previewH + rh) / 2 / sy).toFloat(),
+        )
+        val viewToImg = doubleArrayOf(inv[0] * sx, inv[1] * sy, inv[2], inv[3] * sx, inv[4] * sy, inv[5])
+        listener?.onDisplayTransform(imgW, imgH, content, FloatArray(6) { viewToImg[it].toFloat() })
     }
 
     // ---- recording / photo ----------------------------------------------------------------------
@@ -861,5 +977,11 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         listener?.onStats(camFps, engine.rate, engine.lastMs, pending.size)
     }
 
-    companion object { private const val TAG = "VeilGL" }
+    companion object {
+        private const val TAG = "VeilGL"
+        // Simulated over 24-60 fps, every power tier and 8-35 ms detections: with these,
+        // no frame is ever emitted before its detection and the preview never drops one.
+        private const val MAX_PREVIEW_BACKLOG = 6
+        private const val MAX_STRIDE = 4 // frames between two detections, at most
+    }
 }
