@@ -43,6 +43,9 @@ detection, tracking and anonymization as the Veil desktop app.
 * **Framing:** frame guides (2.39, 1.85, 4:5, 9:16, 1:1), thirds grid, horizon
   level, timecode, storage time left, battery.
 * **Controls:** volume keys start and stop recording, photo capture (blurred), camera sounds.
+* **Horizontal or vertical video** (H/V button or Settings → Camera → Orientation, or
+  auto-rotate); the recording follows the screen and is locked while recording.
+  Controls keep clear of display cutouts and curved / rounded screen corners.
 * Videos go to `Movies/VeilCam`, photos to `Pictures/VeilCam`.
 
 ## Build

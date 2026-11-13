@@ -41,6 +41,9 @@ class OverlayView(ctx: Context) : View(ctx) {
         set(v) { if (abs(v - field) > 0.2f) { field = v; if (settings.level) invalidate() } }
     private var focusPoint: Pair<Float, Float>? = null
     private var focusAt = 0L
+    /** Free area between the controls (view px); histogram and meters sit in its top corners. */
+    var hud = RectF()
+        set(v) { field = v; invalidate() }
     var startingHint = false
         set(v) { field = v; invalidate() }
 
@@ -192,8 +195,9 @@ class OverlayView(ctx: Context) : View(ctx) {
     private fun drawHistogram(c: Canvas, r: RectF) {
         val h = hist ?: return
         val w = Theme.dp(context, 132f); val hh = Theme.dp(context, 56f)
-        val x0 = r.left + Theme.dp(context, 12f)
-        val y0 = r.bottom - Theme.dp(context, 12f) - hh
+        val area = if (hud.width() > 0) hud else r
+        val x0 = maxOf(r.left, area.left) + Theme.dp(context, 8f)
+        val y0 = maxOf(r.top, area.top) + Theme.dp(context, 8f)
         p.style = Paint.Style.FILL
         p.color = Theme.SCRIM
         c.drawRoundRect(x0, y0, x0 + w, y0 + hh, Theme.dp(context, 10f), Theme.dp(context, 10f), p)
@@ -217,8 +221,9 @@ class OverlayView(ctx: Context) : View(ctx) {
 
     private fun drawMeters(c: Canvas, r: RectF) {
         val w = Theme.dp(context, 8f); val hh = Theme.dp(context, 80f)
-        val x0 = r.right - Theme.dp(context, 28f)
-        val y0 = r.bottom - Theme.dp(context, 12f) - hh
+        val area = if (hud.width() > 0) hud else r
+        val x0 = minOf(r.right, area.right) - Theme.dp(context, 28f)
+        val y0 = maxOf(r.top, area.top) + Theme.dp(context, 8f)
         p.style = Paint.Style.FILL
         for (ch in 0..1) {
             val x = x0 + ch * (w + Theme.dp(context, 4f))

@@ -50,6 +50,7 @@ data class Settings(
     val histogram: Boolean = true,
     val grid: Boolean = false,
     val guide: String = "Off", // Off, 2.39:1, 1.85:1, 4:5, 9:16, 1:1
+    val orientation: String = "Landscape", // Landscape, Portrait, Auto
     val level: Boolean = true,
     val showBoxes: Boolean = false,
     val lowLatencyPreview: Boolean = false,
@@ -85,7 +86,7 @@ data class Settings(
         put("lut", lut); put("lutAmount", lutAmount.toDouble()); put("lutOnMonitor", lutOnMonitor); put("bakeLut", bakeLut)
         put("zebra", zebra); put("zebraLevel", zebraLevel.toDouble()); put("falseColor", falseColor); put("peaking", peaking)
         put("peakColor", peakColor); put("peakSensitivity", peakSensitivity.toDouble()); put("histogram", histogram)
-        put("grid", grid); put("guide", guide); put("level", level); put("showBoxes", showBoxes)
+        put("grid", grid); put("guide", guide); put("orientation", orientation); put("level", level); put("showBoxes", showBoxes)
         put("lowLatencyPreview", lowLatencyPreview); put("mirrorFront", mirrorFront); put("sounds", sounds)
         put("blurOn", blurOn); put("maxFaces", maxFaces); put("style", style.name); put("ellipse", ellipse)
         put("intensity", intensity); put("coverage", coverage.toDouble()); put("holdFrames", holdFrames)
@@ -114,6 +115,7 @@ data class Settings(
                 falseColor = j.optBoolean("falseColor", d.falseColor), peaking = j.optBoolean("peaking", d.peaking),
                 peakColor = j.optInt("peakColor", d.peakColor), peakSensitivity = j.optDouble("peakSensitivity", 0.5).toFloat(),
                 histogram = j.optBoolean("histogram", d.histogram), grid = j.optBoolean("grid", d.grid), guide = j.optString("guide", d.guide),
+                orientation = j.optString("orientation", d.orientation),
                 level = j.optBoolean("level", d.level), showBoxes = j.optBoolean("showBoxes", d.showBoxes),
                 lowLatencyPreview = j.optBoolean("lowLatencyPreview", d.lowLatencyPreview), mirrorFront = j.optBoolean("mirrorFront", d.mirrorFront),
                 sounds = j.optBoolean("sounds", d.sounds),

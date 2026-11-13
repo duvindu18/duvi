@@ -25,6 +25,7 @@ import android.os.Looper
 import android.os.StatFs
 import android.util.Size
 import android.view.Gravity
+import android.view.ViewGroup
 import android.view.KeyEvent
 import android.view.Surface
 import android.view.SurfaceHolder
@@ -102,6 +103,7 @@ class MainActivity : Activity(), Renderer.Listener {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.attributes = window.attributes.apply { layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES }
         settings = Settings.load(this)
+        requestedOrientation = orientationRequest()
         engine = FaceEngine(applicationContext)
         engine.onError = { msg -> main.post { flash(msg) } }
         engine.configure(settings)
@@ -300,6 +302,12 @@ class MainActivity : Activity(), Renderer.Listener {
     // ---- UI construction -----------------------------------------------------------------------------
     private fun dp(v: Float) = Theme.dpi(this, v)
 
+    private var leftRail: View? = null
+    private var rightRail: View? = null
+    private var controls: FrameLayout? = null
+    private var portraitLayout = false
+    private var safe = android.graphics.Rect()
+
     private fun buildUi() {
         root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
         surfaceView = SurfaceView(this)
@@ -310,49 +318,23 @@ class MainActivity : Activity(), Renderer.Listener {
         })
         root.addView(surfaceView, FrameLayout.LayoutParams(-1, -1))
         overlay = OverlayView(this).apply { settings = this@MainActivity.settings }
-        overlay.onTap = { vx, vy, ix, iy -> tapFocus(ix, iy) }
+        overlay.onTap = { _, _, ix, iy -> tapFocus(ix, iy) }
         overlay.onDoubleTap = { camera.resetFocus(); flash("Continuous autofocus") }
         overlay.onZoom = { f -> setZoom(settings.zoom * f) }
         root.addView(overlay, FrameLayout.LayoutParams(-1, -1))
 
-        // Top status bar
-        topBar = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xCC000000.toInt(), 0x00000000))
-            setPadding(dp(16f), dp(6f), dp(16f), dp(14f))
-        }
+        // Views that survive orientation changes (their parents are rebuilt).
+        topBar = LinearLayout(this)
         for ((key, cap) in listOf("RES" to "RES", "FPS" to "FPS", "CODEC" to "CODEC", "ISO" to "ISO", "SHUTTER" to "SHUTTER",
             "WB" to "WB", "TINT" to "TINT", "FOCUS" to "FOCUS", "EV" to "EV", "BLUR" to "BLUR", "LUT" to "LUT")) {
             val chip = ParamChip(this, cap)
             chip.setOnClickListener { onChip(key) }
             chips[key] = chip
-            topBar.addView(chip)
         }
-        topBar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         status = TextView(this).apply { setTextColor(Theme.DIM); textSize = 11f; typeface = Theme.mono; gravity = Gravity.END }
-        topBar.addView(status, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(14f) })
         timecode = TextView(this).apply { setTextColor(Theme.TEXT); textSize = 20f; typeface = Theme.mono; text = "00:00:00:00" }
-        topBar.addView(timecode)
-        root.addView(topBar, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
-
-        // Right rail: zoom, record, photo, gallery, flip, settings
-        val right = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(0, dp(60f), dp(14f), dp(12f)) }
-        zoomColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
-        right.addView(zoomColumn)
         recButton = RecordButton(this).apply { setOnClickListener { toggleRecording() } }
-        right.addView(recButton, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(10f); bottomMargin = dp(10f) })
-        val row = LinearLayout(this).apply { gravity = Gravity.CENTER }
-        row.addView(CircleButton(this, "PHOTO", "Photo", 46f).apply { setOnClickListener { photo() } }, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(6f) })
-        row.addView(CircleButton(this, "PLAY", "Last clip", 46f).apply { setOnClickListener { openLast() } })
-        right.addView(row)
-        val row2 = LinearLayout(this).apply { gravity = Gravity.CENTER }
-        row2.addView(CircleButton(this, "FLIP", "Switch camera", 46f).apply { setOnClickListener { switchLens() } }, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(6f); topMargin = dp(8f) })
-        row2.addView(CircleButton(this, "MENU", "Settings", 46f).apply { setOnClickListener { if (sheet.visibility == View.VISIBLE) closeSheet() else openSheet() } }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(8f) })
-        right.addView(row2)
-        root.addView(right, FrameLayout.LayoutParams(-2, -1, Gravity.END or Gravity.CENTER_VERTICAL))
-
-        // Left rail: quick toggles
-        val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14f), dp(60f), 0, dp(12f)) }
+        zoomColumn = LinearLayout(this).apply { gravity = Gravity.CENTER }
         for ((key, label, hint) in listOf(
             Triple("blur", "BLUR", "Face blur on / off"), Triple("zebra", "Z", "Zebras"), Triple("peak", "FP", "Focus peaking"),
             Triple("false", "FC", "False colour"), Triple("grid", "#", "Grid"), Triple("ael", "AE-L", "Lock exposure"), Triple("awbl", "WB-L", "Lock white balance"),
@@ -360,11 +342,7 @@ class MainActivity : Activity(), Renderer.Listener {
             val t = RoundToggle(this, label, hint)
             t.setOnClickListener { onToggle(key) }
             toggles[key] = t
-            left.addView(t, LinearLayout.LayoutParams(-2, -2).apply { bottomMargin = dp(8f) })
         }
-        root.addView(left, FrameLayout.LayoutParams(-2, -1, Gravity.START or Gravity.CENTER_VERTICAL))
-
-        // Bottom control panel (dial)
         panel = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(14f), dp(8f), dp(14f), dp(8f))
@@ -378,34 +356,190 @@ class MainActivity : Activity(), Renderer.Listener {
         dial = DialView(this)
         dial.onChange = { i -> onDial(i) }
         panel.addView(dial, LinearLayout.LayoutParams(0, -2, 1f))
-        root.addView(panel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { leftMargin = dp(80f); rightMargin = dp(130f); bottomMargin = dp(14f) })
-
-        // Settings sheet
         sheet = ScrollView(this).apply {
             setBackgroundColor(Theme.SURFACE)
             visibility = View.GONE
-            setPadding(dp(20f), dp(10f), dp(20f), dp(20f))
             isVerticalScrollBarEnabled = false
         }
-        root.addView(sheet, FrameLayout.LayoutParams(dp(380f), -1, Gravity.END))
-
         toast = TextView(this).apply {
             setTextColor(Theme.TEXT); textSize = 13f; typeface = Theme.medium
             background = Theme.pill(Theme.SURFACE3, Theme.dp(this@MainActivity, 18f))
             setPadding(dp(16f), dp(9f), dp(16f), dp(9f)); alpha = 0f
         }
-        root.addView(toast, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_HORIZONTAL or Gravity.TOP).apply { topMargin = dp(72f) })
 
-        root.setOnApplyWindowInsetsListener { v, insets ->
-            val cut = insets.getInsets(WindowInsets.Type.displayCutout() or WindowInsets.Type.systemGestures())
-            topBar.setPadding(dp(16f) + cut.left, dp(6f), dp(16f) + cut.right, dp(14f))
-            left.setPadding(dp(14f) + cut.left, dp(60f), 0, dp(12f))
-            right.setPadding(0, dp(60f), dp(14f) + cut.right, dp(12f))
+        root.setOnApplyWindowInsetsListener { _, insets ->
+            val r = safeInsets(insets)
+            if (r != safe) { safe = r; layoutControls() }
             insets
         }
         setContentView(root)
+        layoutControls()
         refreshChips()
         refreshToggles()
+    }
+
+    /**
+     * Space the controls must keep clear of: display cutout, curved / rounded
+     * screen corners and edge gesture areas, plus a comfortable base margin.
+     */
+    private fun safeInsets(insets: WindowInsets): android.graphics.Rect {
+        val cut = insets.getInsets(WindowInsets.Type.displayCutout())
+        val gest = insets.getInsets(WindowInsets.Type.systemGestures())
+        // Rounded-corner radii are only reported from Android 12; assume a typical curve before that.
+        fun corner(pos: Int) =
+            if (android.os.Build.VERSION.SDK_INT >= 31) insets.getRoundedCorner(pos)?.radius ?: 0 else dp(32f)
+        val tl = corner(android.view.RoundedCorner.POSITION_TOP_LEFT)
+        val tr = corner(android.view.RoundedCorner.POSITION_TOP_RIGHT)
+        val bl = corner(android.view.RoundedCorner.POSITION_BOTTOM_LEFT)
+        val br = corner(android.view.RoundedCorner.POSITION_BOTTOM_RIGHT)
+        // A control at 45° into a rounded corner of radius r is clipped up to ~0.3 r from each edge;
+        // curved-edge screens also distort the outermost pixels, so keep a larger base margin.
+        val base = dp(20f)
+        val edge = (maxOf(tl, tr, bl, br) * 0.32f).roundToInt()
+        return android.graphics.Rect(
+            base + maxOf(cut.left, gest.left / 2, edge),
+            base / 2 + maxOf(cut.top, (maxOf(tl, tr) * 0.25f).roundToInt()),
+            base + maxOf(cut.right, gest.right / 2, edge),
+            base / 2 + maxOf(cut.bottom, gest.bottom / 2, (maxOf(bl, br) * 0.25f).roundToInt()),
+        )
+    }
+
+    private fun detach(v: View) { (v.parent as? ViewGroup)?.removeView(v) }
+
+    /** Build the control layout for the current orientation (keeps every control's state). */
+    private fun layoutControls() {
+        val portrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+        portraitLayout = portrait
+        controls?.let { root.removeView(it) }
+        for (v in listOf<View>(topBar, status, timecode, recButton, zoomColumn, panel, sheet, toast) + chips.values + toggles.values) detach(v)
+        val ui = FrameLayout(this).apply { setPadding(safe.left, safe.top, safe.right, safe.bottom); clipToPadding = false }
+        controls = ui
+
+        // Status chips scroll sideways when they do not fit.
+        topBar.removeAllViews()
+        val chipRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        chips.values.forEach { chipRow.addView(it) }
+        val chipScroll = android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(chipRow) }
+        topBar.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xCC000000.toInt(), 0x00000000))
+        topBar.setPadding(0, 0, 0, dp(10f))
+
+        fun circle(label: String, desc: String, size: Float = 46f, onClick: () -> Unit) =
+            CircleButton(this, label, desc, size).apply { setOnClickListener { onClick() } }
+        val photoB = circle("PHOTO", "Photo") { photo() }
+        val playB = circle("PLAY", "Last clip") { openLast() }
+        val flipB = circle("FLIP", "Switch camera") { switchLens() }
+        val menuB = circle("MENU", "Settings") { if (sheet.visibility == View.VISIBLE) closeSheet() else openSheet() }
+        val orientB = circle(if (portrait) "HORZ" else "VERT", "Switch between horizontal and vertical") { toggleOrientation() }
+
+        if (!portrait) {
+            topBar.orientation = LinearLayout.HORIZONTAL
+            topBar.gravity = Gravity.CENTER_VERTICAL
+            topBar.addView(chipScroll, LinearLayout.LayoutParams(0, -2, 1f))
+            status.gravity = Gravity.END
+            topBar.addView(status, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(10f); rightMargin = dp(12f) })
+            topBar.addView(timecode)
+            ui.addView(topBar, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+
+            val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
+            toggles.values.sortedBy { listOf("blur", "zebra", "peak", "false", "grid", "ael", "awbl").indexOf(keyOf(it)) }
+                .forEach { left.addView(it, LinearLayout.LayoutParams(-2, -2).apply { bottomMargin = dp(8f) }) }
+            val leftScroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(left) }
+            leftRail = leftScroll
+            ui.addView(leftScroll, FrameLayout.LayoutParams(-2, -1, Gravity.START).apply { topMargin = dp(58f) })
+
+            val right = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
+            zoomColumn.orientation = LinearLayout.VERTICAL
+            right.addView(zoomColumn)
+            right.addView(recButton, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6f); bottomMargin = dp(8f) })
+            val r1 = LinearLayout(this).apply { gravity = Gravity.CENTER }
+            r1.addView(photoB, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(6f) }); r1.addView(playB)
+            val r2 = LinearLayout(this).apply { gravity = Gravity.CENTER }
+            r2.addView(flipB, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(6f) }); r2.addView(menuB)
+            right.addView(r1)
+            right.addView(r2, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6f) })
+            right.addView(orientB, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6f) })
+            val rightScroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false; isFillViewport = true; addView(right) }
+            rightRail = rightScroll
+            ui.addView(rightScroll, FrameLayout.LayoutParams(-2, -1, Gravity.END).apply { topMargin = dp(58f) })
+
+            // The dial sits between the two rails, never under them.
+            ui.addView(panel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { leftMargin = dp(60f); rightMargin = dp(112f) })
+            ui.addView(sheet, FrameLayout.LayoutParams(dp(380f), -1, Gravity.END))
+            sheet.setPadding(dp(20f), dp(10f), dp(20f), dp(20f))
+            overlayHud(dp(60f), dp(58f), dp(112f), dp(84f))
+        } else {
+            topBar.orientation = LinearLayout.VERTICAL
+            topBar.addView(chipScroll, LinearLayout.LayoutParams(-1, -2))
+            val second = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8f), dp(2f), dp(8f), 0) }
+            status.gravity = Gravity.START
+            second.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
+            second.addView(timecode)
+            topBar.addView(second)
+            ui.addView(topBar, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+
+            val bottom = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
+            bottom.addView(panel, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10f) })
+            val tRow = LinearLayout(this).apply { gravity = Gravity.CENTER }
+            toggles.values.sortedBy { listOf("blur", "zebra", "peak", "false", "grid", "ael", "awbl").indexOf(keyOf(it)) }
+                .forEach { tRow.addView(it, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(6f) }) }
+            bottom.addView(android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(tRow) },
+                LinearLayout.LayoutParams(-2, -2).apply { bottomMargin = dp(10f) })
+            zoomColumn.orientation = LinearLayout.HORIZONTAL
+            bottom.addView(zoomColumn, LinearLayout.LayoutParams(-2, -2).apply { bottomMargin = dp(8f) })
+            val ctl = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+            ctl.addView(photoB); ctl.addView(playB, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8f) })
+            ctl.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+            ctl.addView(recButton)
+            ctl.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+            ctl.addView(flipB, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(8f) }); ctl.addView(menuB)
+            bottom.addView(ctl, LinearLayout.LayoutParams(-1, -2))
+            bottom.addView(orientB, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(8f) })
+            leftRail = null; rightRail = bottom
+            ui.addView(bottom, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+            ui.addView(sheet, FrameLayout.LayoutParams(-1, (resources.displayMetrics.heightPixels * 0.62f).toInt(), Gravity.BOTTOM))
+            sheet.setPadding(dp(20f), dp(14f), dp(20f), dp(20f))
+            overlayHud(0, dp(86f), 0, dp(330f))
+        }
+        ui.addView(toast, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_HORIZONTAL or Gravity.TOP).apply { topMargin = dp(if (portrait) 96f else 66f) })
+        root.addView(ui, FrameLayout.LayoutParams(-1, -1))
+        buildZoomButtons()
+        activeParam?.let { k -> chips[k]?.active = true; panel.visibility = View.VISIBLE }
+    }
+
+    private fun keyOf(t: RoundToggle) = toggles.entries.first { it.value === t }.key
+
+    /** Free picture area for the histogram / meters, in view pixels. */
+    private fun overlayHud(left: Int, top: Int, right: Int, bottom: Int) {
+        root.post {
+            overlay.hud = RectF(
+                (safe.left + left).toFloat(), (safe.top + top).toFloat(),
+                (root.width - safe.right - right).toFloat(), (root.height - safe.bottom - bottom).toFloat(),
+            )
+        }
+    }
+
+    private fun orientationRequest(): Int = when (settings.orientation) {
+        "Portrait" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+        "Auto" -> ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+        else -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+    }
+
+    private fun toggleOrientation() {
+        if (recording) { flash("Stop recording to change orientation"); return }
+        apply(settings.copy(orientation = if (portraitLayout) "Landscape" else "Portrait"))
+        requestedOrientation = orientationRequest()
+        flash(if (portraitLayout) "Horizontal video" else "Vertical video")
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val portrait = newConfig.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+        if (portrait != portraitLayout) {
+            if (sheet.visibility == View.VISIBLE) sheet.visibility = View.GONE
+            layoutControls()
+            root.requestApplyInsets()
+        }
+        renderer.setDisplayRotation(displayDegrees())
     }
 
     private fun hideSystemBars() {
@@ -653,7 +787,7 @@ class MainActivity : Activity(), Renderer.Listener {
             val b = CircleButton(this, label, "Zoom $label", 40f)
             b.highlight = abs(settings.zoom - z) < 0.05f
             b.setOnClickListener { setZoom(z) }
-            zoomColumn.addView(b, LinearLayout.LayoutParams(-2, -2).apply { bottomMargin = dp(6f) })
+            zoomColumn.addView(b, LinearLayout.LayoutParams(-2, -2).apply { if (portraitLayout) { leftMargin = dp(4f); rightMargin = dp(4f) } else bottomMargin = dp(6f) })
         }
     }
 
@@ -736,7 +870,9 @@ class MainActivity : Activity(), Renderer.Listener {
 
     // ---- settings sheet ---------------------------------------------------------------------------------------
     private fun closeSheet() {
-        sheet.animate().translationX(sheet.width.toFloat()).setDuration(180).withEndAction { sheet.visibility = View.GONE; sheet.translationX = 0f }.start()
+        val anim = sheet.animate().setDuration(180).withEndAction { sheet.visibility = View.GONE; sheet.translationX = 0f; sheet.translationY = 0f }
+        if (portraitLayout) anim.translationY(sheet.height.toFloat()) else anim.translationX(sheet.width.toFloat())
+        anim.start()
     }
 
     private fun openSheet(scrollTo: String? = null) {
@@ -842,6 +978,13 @@ class MainActivity : Activity(), Renderer.Listener {
                 apply(settings.copy(cameraId = cameras[it].id, zoom = 1f), restart = true)
             })
         }
+        val orients = listOf("Landscape", "Portrait", "Auto")
+        add(Rows.hint(this, "Orientation (video is recorded the way the screen faces)"))
+        add(Rows.segments(this, listOf("Horizontal", "Vertical", "Auto-rotate"), orients.indexOf(s.orientation).coerceAtLeast(0)) {
+            if (recording) flash("Stop recording to change orientation") else {
+                apply(settings.copy(orientation = orients[it])); requestedOrientation = orientationRequest()
+            }
+        })
         add(Rows.switch(this, "Mirror front camera recordings", s.mirrorFront) { apply(settings.copy(mirrorFront = it)) })
         add(Rows.switch(this, "Camera sounds", s.sounds) { apply(settings.copy(sounds = it)) })
         add(Rows.hint(this, "Volume keys start / stop recording. Tap the picture to focus and meter, double-tap for continuous AF, pinch to zoom."))
@@ -852,8 +995,13 @@ class MainActivity : Activity(), Renderer.Listener {
         sheet.addView(col)
         if (sheet.visibility != View.VISIBLE) {
             sheet.visibility = View.VISIBLE
-            sheet.translationX = dp(380f).toFloat()
-            sheet.animate().translationX(0f).setDuration(200).start()
+            if (portraitLayout) {
+                sheet.translationY = resources.displayMetrics.heightPixels * 0.62f
+                sheet.animate().translationY(0f).setDuration(200).start()
+            } else {
+                sheet.translationX = dp(380f).toFloat()
+                sheet.animate().translationX(0f).setDuration(200).start()
+            }
         }
         if (scrollTo == "look") lookAnchor?.let { a -> sheet.post { sheet.smoothScrollTo(0, a.top) } }
     }
@@ -895,7 +1043,7 @@ class MainActivity : Activity(), Renderer.Listener {
                 recording = false
                 recButton.recording = false
                 timecode.setTextColor(Theme.TEXT)
-                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                requestedOrientation = orientationRequest()
                 if (uri != null) { lastUri = uri; flash("Saved to Movies/VeilCam") }
                 if (error != null) flash(error)
             }
@@ -935,4 +1083,4 @@ class MainActivity : Activity(), Renderer.Listener {
     }
 }
 
-object BuildConfigLite { const val VERSION = "1.0.0" }
+object BuildConfigLite { const val VERSION = "1.1.0" }
