@@ -25,17 +25,18 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 object Theme {
-    const val BG = 0xFF0B0B0C.toInt()
-    const val SURFACE = 0xFF141416.toInt()
-    const val SURFACE2 = 0xFF1E1E21.toInt()
-    const val SURFACE3 = 0xFF2A2A2E.toInt()
-    const val SCRIM = 0xB30B0B0C.toInt()
-    const val ACCENT = 0xFFE4F17A.toInt()
-    const val TEXT = 0xFFF4F4F5.toInt()
-    const val DIM = 0xFFA1A1AA.toInt()
-    const val FAINT = 0xFF5F5F67.toInt()
-    const val ON_LIGHT = 0xFF0B0B0C.toInt()
-    const val REC = 0xFFFF3B3B.toInt()
+    // Capsule design: pure black capsules, white type, one red accent.
+    const val BG = 0xFF000000.toInt()
+    const val SURFACE = 0xF2000000.toInt()   // capsule fill (slightly see-through over video)
+    const val SURFACE2 = 0xFF1C1C1E.toInt()
+    const val SURFACE3 = 0xFF2C2C2E.toInt()
+    const val SCRIM = 0xE6000000.toInt()
+    const val ACCENT = 0xFFFF453A.toInt()
+    const val TEXT = 0xFFFFFFFF.toInt()
+    const val DIM = 0xFFA1A1A6.toInt()
+    const val FAINT = 0xFF636366.toInt()
+    const val ON_LIGHT = 0xFFFFFFFF.toInt()
+    const val REC = 0xFFFF3B30.toInt()
     const val WARN = 0xFFF5C451.toInt()
 
     fun dp(ctx: Context, v: Float) = v * ctx.resources.displayMetrics.density
@@ -76,6 +77,7 @@ class ParamChip(ctx: Context, caption: String) : LinearLayout(ctx) {
     private fun refresh() {
         background = if (active) Theme.pill(Theme.SURFACE3, Theme.dp(context, 10f)) else null
         value.setTextColor(if (active) Theme.ACCENT else if (auto) Theme.DIM else Theme.TEXT)
+        cap.setTextColor(if (active) Theme.ACCENT else Theme.FAINT)
     }
 }
 
@@ -92,16 +94,16 @@ class RoundToggle(ctx: Context, private val label: String, private val hint: Str
     }
 
     override fun onMeasure(w: Int, h: Int) {
-        val s = Theme.dpi(context, 44f)
+        val s = Theme.dpi(context, 42f)
         setMeasuredDimension(s, s)
     }
 
     override fun onDraw(c: Canvas) {
         val r = width / 2f
         paint.style = Paint.Style.FILL
-        paint.color = if (on) accent else Theme.SCRIM
+        paint.color = if (on) Theme.TEXT else Theme.SURFACE3
         c.drawCircle(r, r, r - 1, paint)
-        paint.color = if (on) Theme.ON_LIGHT else Theme.TEXT
+        paint.color = if (on) Color.BLACK else Theme.TEXT
         paint.textAlign = Paint.Align.CENTER
         paint.typeface = Theme.mono
         paint.textSize = Theme.dp(context, if (label.length > 2) 10f else 12f)
@@ -109,17 +111,18 @@ class RoundToggle(ctx: Context, private val label: String, private val hint: Str
     }
 }
 
-/** Large record button: white ring, red disc that morphs to a rounded square while recording. */
-class RecordButton(ctx: Context) : View(ctx) {
+/** Record / stop: dark red disc with a red dot that morphs into a red square while recording. */
+class RecordButton(ctx: Context, private val sizeDp: Float = 64f) : View(ctx) {
     var recording = false
         set(v) {
             if (field == v) return
             field = v
             ValueAnimator.ofFloat(morph, if (v) 1f else 0f).apply {
-                duration = 180
+                duration = 200
                 addUpdateListener { morph = it.animatedValue as Float; invalidate() }
                 start()
             }
+            contentDescription = if (v) "Stop recording" else "Record"
         }
     var enabledLook = true
         set(v) { field = v; invalidate() }
@@ -129,24 +132,192 @@ class RecordButton(ctx: Context) : View(ctx) {
     init { contentDescription = "Record"; isClickable = true }
 
     override fun onMeasure(w: Int, h: Int) {
-        val s = Theme.dpi(context, 76f)
+        val s = Theme.dpi(context, sizeDp)
         setMeasuredDimension(s, s)
     }
 
     override fun onDraw(c: Canvas) {
         val cx = width / 2f; val cy = height / 2f
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = Theme.dp(context, 4f)
-        paint.color = if (enabledLook) Theme.TEXT else Theme.FAINT
-        c.drawCircle(cx, cy, cx - paint.strokeWidth, paint)
         paint.style = Paint.Style.FILL
+        paint.color = Color.argb(if (enabledLook) 90 else 40, 255, 59, 48)
+        c.drawCircle(cx, cy, cx, paint)
         paint.color = if (enabledLook) Theme.REC else Theme.FAINT
-        val big = cx - Theme.dp(context, 11f)
-        val small = cx * 0.42f
-        val half = big + (small - big) * morph
-        val radius = half * (1f - 0.7f * morph)
+        val dot = cx * 0.46f
+        val sq = cx * 0.34f
+        val half = dot + (sq - dot) * morph
+        val radius = half * (1f - 0.72f * morph)
         c.drawRoundRect(RectF(cx - half, cy - half, cx + half, cy + half), radius, radius, paint)
     }
+}
+
+enum class Icon { PAUSE, PLAY, GALLERY, PHOTO, FLIP, MENU, ORIENT, CAMERA }
+
+/** Round dark button with a drawn icon (the pause button of the reference). */
+class IconButton(ctx: Context, var icon: Icon, desc: String, private val sizeDp: Float = 52f) : View(ctx) {
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    var dim = false
+        set(v) { field = v; invalidate() }
+
+    init { contentDescription = desc; isClickable = true }
+
+    override fun onMeasure(w: Int, h: Int) {
+        val s = Theme.dpi(context, sizeDp)
+        setMeasuredDimension(s, s)
+    }
+
+    override fun onDraw(c: Canvas) {
+        val r = width / 2f
+        paint.style = Paint.Style.FILL
+        paint.color = Theme.SURFACE3
+        c.drawCircle(r, r, r, paint)
+        paint.color = if (dim) Theme.FAINT else Theme.TEXT
+        paint.strokeWidth = Theme.dp(context, 2f)
+        paint.strokeCap = Paint.Cap.ROUND
+        paint.strokeJoin = Paint.Join.ROUND
+        val u = r / 12f
+        when (icon) {
+            Icon.PAUSE -> { c.drawRoundRect(r - 4.5f * u, r - 5.5f * u, r - 1.5f * u, r + 5.5f * u, u, u, paint); c.drawRoundRect(r + 1.5f * u, r - 5.5f * u, r + 4.5f * u, r + 5.5f * u, u, u, paint) }
+            Icon.PLAY -> c.drawPath(android.graphics.Path().apply { moveTo(r - 3.5f * u, r - 5.5f * u); lineTo(r + 5.5f * u, r); lineTo(r - 3.5f * u, r + 5.5f * u); close() }, paint)
+            Icon.GALLERY -> {
+                paint.style = Paint.Style.STROKE
+                c.drawRoundRect(r - 5f * u, r - 3f * u, r + 3f * u, r + 5f * u, 1.5f * u, 1.5f * u, paint)
+                c.drawLine(r - 2.5f * u, r - 5.5f * u, r + 5.5f * u, r - 5.5f * u, paint)
+                c.drawLine(r + 5.5f * u, r - 5.5f * u, r + 5.5f * u, r + 2.5f * u, paint)
+            }
+            Icon.PHOTO -> { paint.style = Paint.Style.STROKE; c.drawCircle(r, r, 5.5f * u, paint); paint.style = Paint.Style.FILL; c.drawCircle(r, r, 3.2f * u, paint) }
+            Icon.FLIP -> {
+                paint.style = Paint.Style.STROKE
+                c.drawArc(RectF(r - 5f * u, r - 5f * u, r + 5f * u, r + 5f * u), 200f, 140f, false, paint)
+                c.drawArc(RectF(r - 5f * u, r - 5f * u, r + 5f * u, r + 5f * u), 20f, 140f, false, paint)
+                c.drawLine(r + 4.7f * u, r - 1.7f * u, r + 5.9f * u, r - 4.2f * u, paint)
+                c.drawLine(r - 4.7f * u, r + 1.7f * u, r - 5.9f * u, r + 4.2f * u, paint)
+            }
+            Icon.MENU -> {
+                for (k in -1..1) {
+                    val y = r + k * 3.5f * u
+                    c.drawLine(r - 5.5f * u, y, r + 5.5f * u, y, paint)
+                    paint.style = Paint.Style.FILL
+                    c.drawCircle(r + (if (k == 0) 2.5f else -2.5f) * u, y, 1.6f * u, paint)
+                }
+            }
+            Icon.ORIENT -> {
+                paint.style = Paint.Style.STROKE
+                c.drawRoundRect(r - 3f * u, r - 5.5f * u, r + 3f * u, r + 5.5f * u, 1.2f * u, 1.2f * u, paint)
+                c.drawArc(RectF(r - 7f * u, r - 7f * u, r + 7f * u, r + 7f * u), -60f, 50f, false, paint)
+            }
+            Icon.CAMERA -> {
+                c.drawRoundRect(r - 6f * u, r - 3.5f * u, r + 2f * u, r + 3.5f * u, 1.5f * u, 1.5f * u, paint)
+                c.drawPath(android.graphics.Path().apply { moveTo(r + 2.5f * u, r - 0.8f * u); lineTo(r + 6f * u, r - 3f * u); lineTo(r + 6f * u, r + 3f * u); lineTo(r + 2.5f * u, r + 0.8f * u); close() }, paint)
+            }
+        }
+        paint.style = Paint.Style.FILL
+    }
+}
+
+/**
+ * Status pill (top): "● REC" in red while recording, "● STBY" otherwise, with the
+ * format and a camera glyph, as in the reference design.
+ */
+class StatusPill(ctx: Context) : View(ctx) {
+    var recording = false
+        set(v) { field = v; invalidate() }
+    var paused = false
+        set(v) { field = v; invalidate() }
+    var format = ""
+        set(v) { field = v; requestLayout(); invalidate() }
+    private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val start = System.currentTimeMillis()
+
+    private fun label() = if (recording) (if (paused) "PAUSED" else "REC") else "STBY"
+
+    override fun onMeasure(w: Int, h: Int) {
+        p.textSize = Theme.dp(context, 15f); p.typeface = Theme.medium
+        val tw = p.measureText(label()) + p.measureText(format).let { if (format.isEmpty()) 0f else it + Theme.dp(context, 18f) }
+        setMeasuredDimension((tw + Theme.dp(context, 92f)).toInt(), Theme.dpi(context, 40f))
+    }
+
+    override fun onDraw(c: Canvas) {
+        val h = height.toFloat()
+        p.style = Paint.Style.FILL
+        p.color = Theme.SURFACE
+        c.drawRoundRect(0f, 0f, width.toFloat(), h, h / 2, h / 2, p)
+        val blink = recording && !paused && ((System.currentTimeMillis() - start) / 600) % 2 == 0L
+        p.color = if (recording) (if (blink || paused) Theme.REC else Color.argb(110, 255, 59, 48)) else Theme.FAINT
+        c.drawCircle(h * 0.62f, h / 2, h * 0.17f, p)
+        p.color = Theme.TEXT
+        p.textSize = Theme.dp(context, 15f); p.typeface = Theme.medium
+        p.textAlign = Paint.Align.LEFT
+        val base = h / 2 - (p.descent() + p.ascent()) / 2
+        var x = h * 0.95f
+        c.drawText(label(), x, base, p)
+        x += p.measureText(label()) + Theme.dp(context, 14f)
+        if (format.isNotEmpty()) {
+            p.color = Theme.DIM; p.textSize = Theme.dp(context, 12f); p.typeface = Theme.mono
+            c.drawText(format, x, h / 2 - (p.descent() + p.ascent()) / 2, p)
+        }
+        // Video camera glyph at the right end.
+        p.color = Theme.TEXT
+        val r = width - h * 0.62f
+        val u = h / 24f
+        c.drawRoundRect(r - 6f * u, h / 2 - 4f * u, r + 2f * u, h / 2 + 4f * u, 1.6f * u, 1.6f * u, p)
+        c.drawPath(android.graphics.Path().apply { moveTo(r + 2.5f * u, h / 2 - u); lineTo(r + 6.5f * u, h / 2 - 3.5f * u); lineTo(r + 6.5f * u, h / 2 + 3.5f * u); lineTo(r + 2.5f * u, h / 2 + u); close() }, p)
+        if (recording && !paused) postInvalidateDelayed(300)
+    }
+}
+
+/**
+ * Vertical tick ruler with a red centre mark (the zoom wheel of the reference).
+ * Drag up / down to zoom; ticks scroll with the value.
+ */
+class ZoomRuler(ctx: Context) : View(ctx) {
+    var onDrag: ((Float) -> Unit)? = null // relative steps (+ = zoom in)
+    private var offset = 0f
+    private var lastY = 0f
+    private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(Theme.dpi(context, 30f), Theme.dpi(context, 56f))
+
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(e: MotionEvent): Boolean {
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> { lastY = e.y; parent?.requestDisallowInterceptTouchEvent(true) }
+            MotionEvent.ACTION_MOVE -> {
+                val dy = lastY - e.y
+                lastY = e.y
+                offset += dy
+                onDrag?.invoke(dy / Theme.dp(context, 90f))
+                invalidate()
+            }
+        }
+        return true
+    }
+
+    override fun onDraw(c: Canvas) {
+        val cx = width / 2f
+        val step = Theme.dp(context, 7f)
+        val mid = height / 2f
+        p.strokeWidth = Theme.dp(context, 1.4f)
+        p.strokeCap = Paint.Cap.ROUND
+        val shift = ((offset % step) + step) % step
+        var y = mid - step * 4 + shift
+        while (y <= mid + step * 4) {
+            val fade = 1f - abs(y - mid) / (step * 4.5f)
+            p.color = Color.argb((60 + 150 * fade).toInt(), 255, 255, 255)
+            val half = Theme.dp(context, 5f)
+            c.drawLine(cx - half, y, cx + half, y, p)
+            y += step
+        }
+        p.color = Theme.REC
+        p.strokeWidth = Theme.dp(context, 2f)
+        c.drawLine(cx - Theme.dp(context, 11f), mid, cx + Theme.dp(context, 11f), mid, p)
+    }
+}
+
+/** Black rounded container (the capsules). */
+fun capsule(ctx: Context, vertical: Boolean = false, radiusDp: Float = 999f): LinearLayout = LinearLayout(ctx).apply {
+    orientation = if (vertical) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+    gravity = Gravity.CENTER
+    background = Theme.pill(Theme.SURFACE, Theme.dp(ctx, if (radiusDp > 200f) 40f else radiusDp))
 }
 
 /** Circular text button (photo, gallery, settings). */
@@ -321,7 +492,7 @@ object Rows {
         val views = ArrayList<TextView>()
         fun paint(sel: Int) = views.forEachIndexed { i, v ->
             v.background = Theme.pill(if (i == sel) Theme.TEXT else Theme.SURFACE2, Theme.dp(ctx, 16f))
-            v.setTextColor(if (i == sel) Theme.ON_LIGHT else Theme.DIM)
+            v.setTextColor(if (i == sel) Color.BLACK else Theme.DIM)
         }
         options.forEachIndexed { i, o ->
             val v = TextView(ctx).apply {
@@ -361,7 +532,7 @@ object Rows {
 
     fun button(ctx: Context, label: String, primary: Boolean = false, onClick: () -> Unit) = TextView(ctx).apply {
         text = label; textSize = 13f; typeface = Theme.medium; gravity = Gravity.CENTER
-        setTextColor(if (primary) Theme.ON_LIGHT else Theme.TEXT)
+        setTextColor(if (primary) Color.BLACK else Theme.TEXT)
         background = Theme.pill(if (primary) Theme.TEXT else Theme.SURFACE2, Theme.dp(ctx, 18f))
         setPadding(Theme.dpi(ctx, 16f), 0, Theme.dpi(ctx, 16f), 0)
         minHeight = Theme.dpi(ctx, 36f)

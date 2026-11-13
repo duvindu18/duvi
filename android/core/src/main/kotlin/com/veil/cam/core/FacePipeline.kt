@@ -159,8 +159,13 @@ class FaceTimeline(private val capacity: Int = 32, private val maxExtrapolateNs:
                 // Stale: keep the faces where they were (never drop a blur on a stall).
                 before.faces.forEach { out.add(it.geom) }
             } else {
+                // Predicted ahead of the last detection: move with the face and grow with
+                // its speed, so a fast face can never slip out from under the blur.
                 val dt = age / 1e9f
-                before.faces.forEach { out.add(it.geom.shifted(it.vx * dt, it.vy * dt)) }
+                before.faces.forEach {
+                    val grow = minOf(0.6f * maxOf(it.geom.w, it.geom.h), kotlin.math.hypot(it.vx, it.vy) * dt)
+                    out.add(it.geom.shifted(it.vx * dt, it.vy * dt).let { g -> g.copy(w = g.w + grow, h = g.h + grow) })
+                }
             }
             return FaceGeometry.dedupe(out)
         }

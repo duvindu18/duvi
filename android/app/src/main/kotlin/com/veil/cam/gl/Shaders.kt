@@ -91,6 +91,9 @@ uniform sampler2D uColor;
 uniform sampler2D uBlur;      // 1/4-res blurred copy with mipmaps
 uniform sampler3D uLut;
 uniform sampler2D uMask;
+uniform sampler2D uPeople;    // person mask (cinematic depth), canvas of the detector base pass
+uniform mat3 uImgToPeople;    // image px -> person-mask uv (y up)
+uniform float uDepth;         // background blur level (0 = off)
 uniform mat3 uOutToImg;       // output px (y down) -> image px
 uniform vec2 uImgSize;
 uniform vec2 uBlurSize;
@@ -106,13 +109,6 @@ uniform vec3 uGains;
 uniform int uLutOn;
 uniform float uLutAmount;
 uniform float uLutSize;
-uniform int uZebra;
-uniform float uZebraLevel;
-uniform int uFalse;
-uniform int uPeak;
-uniform vec3 uPeakColor;
-uniform float uPeakThresh;
-uniform float uPxPerOut;      // image px per output px (for peaking taps)
 out vec4 frag;
 
 vec3 img(vec2 p) { return texture(uColor, vec2(p.x / uImgSize.x, 1.0 - p.y / uImgSize.y)).rgb; }
@@ -134,23 +130,18 @@ vec3 lut(vec3 c) {
     return mix(c, texture(uLut, s).rgb, uLutAmount);
 }
 
-vec3 falseColor(float y) {
-    if (y < 0.02) return vec3(0.45, 0.0, 0.6);
-    if (y < 0.10) return vec3(0.0, 0.25, 1.0);
-    if (y < 0.38) return vec3(y);
-    if (y < 0.45) return vec3(0.1, 0.8, 0.2);
-    if (y < 0.52) return vec3(y);
-    if (y < 0.58) return vec3(1.0, 0.55, 0.7);
-    if (y < 0.90) return vec3(y);
-    if (y < 0.97) return vec3(1.0, 0.9, 0.0);
-    return vec3(1.0, 0.0, 0.0);
-}
-
 void main() {
     vec2 q = vec2(gl_FragCoord.x, uOutH - gl_FragCoord.y);
     vec2 p = (uOutToImg * vec3(q, 1.0)).xy;
     if (p.x < 0.0 || p.y < 0.0 || p.x > uImgSize.x || p.y > uImgSize.y) { frag = vec4(0.0, 0.0, 0.0, 1.0); return; }
     vec3 base = img(p) * uGains;
+    if (uDepth > 0.0) {
+        // Cinematic depth: people stay sharp, the background is defocused.
+        vec2 mu = (uImgToPeople * vec3(p, 1.0)).xy;
+        float person = (mu.x < 0.0 || mu.y < 0.0 || mu.x > 1.0 || mu.y > 1.0) ? 0.0 : texture(uPeople, mu).r;
+        person = smoothstep(0.35, 0.75, person);
+        base = mix(blurAt(p, uDepth) * uGains, base, person);
+    }
 
     // Strongest face mask at this pixel.
     float m = 0.0;
@@ -212,23 +203,139 @@ void main() {
     vec3 graded = lut(col);
     if (useSolid) graded = mix(graded, solid, m);
 
-    // Monitoring tools (preview only; disabled for the recording).
-    float y = luma(graded);
-    if (uFalse == 1) graded = falseColor(luma(base));
+    frag = vec4(graded, 1.0);
+}
+"""
+
+    /**
+     * Film emulation and monitoring on the finished (already anonymized) picture,
+     * so no effect can ever bring back original face pixels.
+     */
+    const val FILM = """#version 300 es
+precision highp float;
+uniform sampler2D uStage;     // anonymized + graded picture, mipmapped
+uniform vec2 uSize;
+uniform float uTime;
+uniform float uGrain;
+uniform float uGrainSize;
+uniform float uHalation;
+uniform float uBloom;
+uniform float uAberration;
+uniform float uLeak;
+uniform float uBurn;
+uniform float uVignette;
+uniform int uZebra;
+uniform float uZebraLevel;
+uniform int uFalse;
+uniform int uPeak;
+uniform vec3 uPeakColor;
+uniform float uPeakThresh;
+out vec4 frag;
+
+float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+float hash(vec3 p) {
+    p = fract(p * vec3(443.897, 441.423, 437.195));
+    p += dot(p, p.yzx + 19.19);
+    return fract((p.x + p.y) * p.z);
+}
+float vnoise(vec2 x, float t) {
+    vec2 i = floor(x), f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = hash(vec3(i, t)), b = hash(vec3(i + vec2(1, 0), t));
+    float c = hash(vec3(i + vec2(0, 1), t)), d = hash(vec3(i + vec2(1, 1), t));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+float fbm(vec2 x, float t) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 4; i++) { v += a * vnoise(x, t); x *= 2.03; a *= 0.5; }
+    return v;
+}
+vec3 falseColor(float y) {
+    if (y < 0.02) return vec3(0.45, 0.0, 0.6);
+    if (y < 0.10) return vec3(0.0, 0.25, 1.0);
+    if (y < 0.38) return vec3(y);
+    if (y < 0.45) return vec3(0.1, 0.8, 0.2);
+    if (y < 0.52) return vec3(y);
+    if (y < 0.58) return vec3(1.0, 0.55, 0.7);
+    if (y < 0.90) return vec3(y);
+    if (y < 0.97) return vec3(1.0, 0.9, 0.0);
+    return vec3(1.0, 0.0, 0.0);
+}
+
+void main() {
+    vec2 uv = gl_FragCoord.xy / uSize;
+    vec3 c;
+    if (uAberration > 0.0) {
+        // Lateral chromatic aberration: red and blue scale apart towards the edges.
+        vec2 d = (uv - 0.5) * uAberration * 0.0045;
+        c = vec3(texture(uStage, uv + d).r, texture(uStage, uv).g, texture(uStage, uv - d).b);
+    } else {
+        c = texture(uStage, uv).rgb;
+    }
+    if (uBloom > 0.0 || uHalation > 0.0) {
+        vec3 wide = textureLod(uStage, uv, 5.0).rgb * 0.5 + textureLod(uStage, uv, 4.0).rgb * 0.5;
+        vec3 near = textureLod(uStage, uv, 2.5).rgb;
+        // Bloom: only the top of the range glows, screen-blended so it can never blow out.
+        vec3 bright = clamp((wide - 0.8) / 0.2, 0.0, 1.0);
+        c = 1.0 - (1.0 - c) * (1.0 - bright * uBloom * 0.45);
+        // Halation: a tight red-orange fringe around strong highlights (light reflected
+        // back through the emulsion by the film base); dark areas next to them pick it up.
+        float h = clamp((luma(near) - 0.86) / 0.14, 0.0, 1.0) * 0.7 + clamp((luma(wide) - 0.86) / 0.14, 0.0, 1.0) * 0.3;
+        float room = 1.0 - luma(c);
+        c = 1.0 - (1.0 - c) * (1.0 - vec3(1.0, 0.32, 0.12) * h * uHalation * 0.5 * (0.35 + 0.65 * room));
+    }
+    if (uLeak > 0.0) {
+        // Slowly drifting warm light leaks from the frame edges (screen blend).
+        float t = uTime * 0.07;
+        vec2 q = uv * vec2(uSize.x / uSize.y, 1.0);
+        float f = fbm(q * 1.3 + vec2(t, -t * 0.6), 0.0);
+        float edge = smoothstep(0.55, 1.0, max(abs(uv.x - 0.5), abs(uv.y - 0.5)) * 2.0 * (0.75 + 0.5 * sin(t * 2.0 + uv.y * 3.0)));
+        vec3 leak = mix(vec3(1.0, 0.35, 0.1), vec3(1.0, 0.8, 0.35), f) * edge * smoothstep(0.35, 0.8, f) * uLeak;
+        c = 1.0 - (1.0 - c) * (1.0 - clamp(leak, 0.0, 1.0));
+    }
+    if (uBurn > 0.0) {
+        // Film burn: occasional over-exposed bursts that flare in from a corner.
+        float cycle = floor(uTime / 7.0);
+        float phase = fract(uTime / 7.0);
+        float env = smoothstep(0.0, 0.15, phase) * (1.0 - smoothstep(0.25, 0.55, phase)) * step(0.45, hash(vec3(cycle, 3.1, 7.7)));
+        vec2 corner = vec2(step(0.5, hash(vec3(cycle, 1.0, 2.0))), step(0.5, hash(vec3(cycle, 5.0, 9.0))));
+        float dist = length(uv - corner);
+        float n = fbm(uv * 3.0 + cycle, cycle);
+        float burn = clamp((1.0 - dist * 1.4) + n * 0.6 - 0.35, 0.0, 1.0) * env * uBurn;
+        c = mix(c, vec3(1.0, 0.55, 0.15) * 1.4, burn * 0.8);
+        c += vec3(1.0, 0.85, 0.6) * burn * burn * 0.6;
+    }
+    if (uVignette > 0.0) {
+        vec2 d = (uv - 0.5) * vec2(uSize.x / uSize.y, 1.0);
+        c *= mix(1.0, smoothstep(1.05, 0.25, length(d)), uVignette);
+    }
+    if (uGrain > 0.0) {
+        // Luminance-dependent grain: strongest in the mid-tones, as with real stock.
+        vec2 gp = gl_FragCoord.xy / uGrainSize;
+        float t = floor(uTime * 24.0);
+        float g = (vnoise(gp, t) + vnoise(gp * 1.9 + 7.3, t) * 0.5) / 1.5 - 0.5;
+        float y = luma(c);
+        c += g * uGrain * 0.16 * (1.0 - abs(y - 0.45) * 1.2);
+    }
+    c = clamp(c, 0.0, 1.0);
+
+    // Monitoring tools (preview only; never recorded).
+    float y = luma(c);
+    if (uFalse == 1) c = falseColor(y);
     if (uPeak == 1) {
-        float s = 1.5 * uPxPerOut;
-        float l00 = luma(img(p + vec2(-s, -s))), l10 = luma(img(p + vec2(0.0, -s))), l20 = luma(img(p + vec2(s, -s)));
-        float l01 = luma(img(p + vec2(-s, 0.0))), l21 = luma(img(p + vec2(s, 0.0)));
-        float l02 = luma(img(p + vec2(-s, s))), l12 = luma(img(p + vec2(0.0, s))), l22 = luma(img(p + vec2(s, s)));
+        vec2 px = 1.5 / uSize;
+        float l00 = luma(texture(uStage, uv + vec2(-px.x, -px.y)).rgb), l10 = luma(texture(uStage, uv + vec2(0.0, -px.y)).rgb);
+        float l20 = luma(texture(uStage, uv + vec2(px.x, -px.y)).rgb), l01 = luma(texture(uStage, uv + vec2(-px.x, 0.0)).rgb);
+        float l21 = luma(texture(uStage, uv + vec2(px.x, 0.0)).rgb), l02 = luma(texture(uStage, uv + vec2(-px.x, px.y)).rgb);
+        float l12 = luma(texture(uStage, uv + vec2(0.0, px.y)).rgb), l22 = luma(texture(uStage, uv + vec2(px.x, px.y)).rgb);
         float gx = (l20 + 2.0 * l21 + l22) - (l00 + 2.0 * l01 + l02);
         float gy = (l02 + 2.0 * l12 + l22) - (l00 + 2.0 * l10 + l20);
-        if (length(vec2(gx, gy)) > uPeakThresh && m < 0.5) graded = uPeakColor;
+        if (length(vec2(gx, gy)) > uPeakThresh) c = uPeakColor;
     }
     if (uZebra == 1 && y >= uZebraLevel) {
-        float stripe = mod(gl_FragCoord.x + gl_FragCoord.y, 16.0);
-        if (stripe < 8.0) graded = mix(graded, vec3(0.0), 0.75);
+        if (mod(gl_FragCoord.x + gl_FragCoord.y, 16.0) < 8.0) c = mix(c, vec3(0.0), 0.75);
     }
-    frag = vec4(graded, 1.0);
+    frag = vec4(c, 1.0);
 }
 """
 }

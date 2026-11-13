@@ -84,6 +84,8 @@ class AngleScheduler(private val angles: IntArray, private val perFrame: Int) {
 
     fun all(): List<Int> = angles.toList()
 
+    val hasHot: Boolean get() = hot.isNotEmpty()
+
     fun report(angle: Int) { hot[angle] = Angles.HOT_FRAMES }
 
     fun tick() {
@@ -163,8 +165,14 @@ class MultiAngleDetector(
 
     /** Extra angles the GPU should render for the next detection. */
     fun nextPlan(): List<Int> {
-        val p = if (frames == 0) scheduler.all() else scheduler.plan()
-        return p
+        // Every angle on a new scene; otherwise, while no tilted face is being followed,
+        // rotated passes run on every other detection so the upright pass (most faces)
+        // runs at up to twice the rate and fast movement is sampled more densely.
+        return when {
+            frames == 0 -> scheduler.all()
+            !scheduler.hasHot && frames % 2 == 1 -> emptyList()
+            else -> scheduler.plan()
+        }
     }
 
     fun run(passes: List<PassImage>, imgW: Int, imgH: Int, threshold: Float): List<Detection> {

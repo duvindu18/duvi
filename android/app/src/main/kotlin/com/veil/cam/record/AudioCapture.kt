@@ -17,6 +17,15 @@ import kotlin.math.max
  * video line up without drift.
  */
 class AudioCapture(private val bootTimeClock: Boolean) {
+    /** 0 off, 1 standard, 2 strong. */
+    @Volatile var noiseReduction = 1
+        set(v) { field = v; denoiser?.strength = strengthFor(v); suppressor?.enabled = v > 0 }
+    @Volatile var windFilter = true
+        set(v) { field = v; denoiser?.highPass = v }
+    private var denoiser: com.veil.cam.core.Denoiser? = null
+    private var suppressor: android.media.audiofx.NoiseSuppressor? = null
+
+    private fun strengthFor(level: Int) = when (level) { 0 -> 0f; 1 -> 0.55f; else -> 1.2f }
     interface Sink { fun onPcm(data: ShortArray, frames: Int, channels: Int, ptsNs: Long) }
 
     val sampleRate = 48_000
@@ -44,6 +53,12 @@ class AudioCapture(private val bootTimeClock: Boolean) {
             break
         }
         val r = record ?: return false
+        // The platform suppressor first (tuned for the device's mics), then our spectral gate.
+        if (android.media.audiofx.NoiseSuppressor.isAvailable()) {
+            suppressor = runCatching { android.media.audiofx.NoiseSuppressor.create(r.audioSessionId) }.getOrNull()
+            suppressor?.enabled = noiseReduction > 0
+        }
+        denoiser = com.veil.cam.core.Denoiser(channels, sampleRate, strengthFor(noiseReduction), windFilter)
         running = true
         r.startRecording()
         thread = Thread({ loop(r) }, "Audio").apply { priority = Thread.MAX_PRIORITY; start() }
@@ -69,8 +84,13 @@ class AudioCapture(private val bootTimeClock: Boolean) {
                 now() - f * 1_000_000_000L / sampleRate
             }
             framesRead += f
+            val d = denoiser
+            val out = if (d != null && (noiseReduction > 0 || windFilter)) {
+                d.process(buf, f)
+                pts - d.latencySamples * 1_000_000_000L / sampleRate // the gate delays the audio by one block
+            } else pts
             meter(buf, n)
-            sink?.onPcm(buf, f, channels, pts)
+            sink?.onPcm(buf, f, channels, out)
         }
     }
 
@@ -94,6 +114,9 @@ class AudioCapture(private val bootTimeClock: Boolean) {
         runCatching { record?.stop() }
         record?.release()
         record = null
+        runCatching { suppressor?.release() }
+        suppressor = null
+        denoiser = null
         levels = floatArrayOf(-90f, -90f)
     }
 }

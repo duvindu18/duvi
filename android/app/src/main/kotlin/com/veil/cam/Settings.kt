@@ -12,14 +12,14 @@ data class Settings(
     val cameraId: String = "",
     val width: Int = 1920,
     val height: Int = 1080,
-    val fps: Int = 30,
+    val fps: Int = 24, // cinema standard; 25/30/50/60 available
     val hevc: Boolean = true,
     val bitrateLevel: Int = 1, // 0 low, 1 standard, 2 high
     val audio: Boolean = true,
     // Exposure
     val autoExposure: Boolean = true,
     val iso: Int = 400,
-    val shutterNs: Long = 1_000_000_000L / 50,
+    val shutterNs: Long = 1_000_000_000L / 48, // 180° at 24 fps (natural motion blur)
     val ev: Int = 0, // exposure compensation steps
     val aeLock: Boolean = false,
     val shutterAngle: Boolean = true, // show shutter as angle (180°) instead of 1/x
@@ -68,7 +68,28 @@ data class Settings(
     val accurateModel: Boolean = false,
     val allAngles: Boolean = true,
     val maskPath: String = "",
+    // Cinematic depth: background defocus behind people (0 = off .. 1 = strongest)
+    val depth: Float = 0f,
+    // Film emulation (0..1 each, applied after anonymization)
+    val filmPreset: String = "Off",
+    val grain: Float = 0f,
+    val grainSize: Float = 0.35f,
+    val halation: Float = 0f,
+    val bloom: Float = 0f,
+    val aberration: Float = 0f,
+    val leaks: Float = 0f,
+    val burn: Float = 0f,
+    val vignette: Float = 0f,
+    val bakeFilm: Boolean = true,
+    // Audio
+    val noiseReduction: Int = 1, // 0 off, 1 standard, 2 strong
+    val windFilter: Boolean = true,
+    // Exposure helpers
+    val shutterPriority: Boolean = false, // keep the shutter angle, adjust ISO automatically
+    // Storage: private in-app gallery (hidden from the phone gallery) or the phone gallery
+    val privateGallery: Boolean = true,
 ) {
+    val filmOn: Boolean get() = grain + halation + bloom + aberration + leaks + burn + vignette > 0.001f
     fun bitrate(): Int {
         val px = width.toLong() * height * fps
         val base = px * (if (hevc) 0.07 else 0.11) // bits per pixel
@@ -91,6 +112,11 @@ data class Settings(
         put("blurOn", blurOn); put("maxFaces", maxFaces); put("style", style.name); put("ellipse", ellipse)
         put("intensity", intensity); put("coverage", coverage.toDouble()); put("holdFrames", holdFrames)
         put("softEdges", softEdges); put("accurateModel", accurateModel); put("allAngles", allAngles); put("maskPath", maskPath)
+        put("depth", depth.toDouble()); put("filmPreset", filmPreset); put("grain", grain.toDouble()); put("grainSize", grainSize.toDouble())
+        put("halation", halation.toDouble()); put("bloom", bloom.toDouble()); put("aberration", aberration.toDouble())
+        put("leaks", leaks.toDouble()); put("burn", burn.toDouble()); put("vignette", vignette.toDouble()); put("bakeFilm", bakeFilm)
+        put("noiseReduction", noiseReduction); put("windFilter", windFilter); put("shutterPriority", shutterPriority)
+        put("privateGallery", privateGallery)
     }
 
     companion object {
@@ -125,6 +151,14 @@ data class Settings(
                 coverage = j.optDouble("coverage", 0.2).toFloat(), holdFrames = j.optInt("holdFrames", d.holdFrames),
                 softEdges = j.optBoolean("softEdges", d.softEdges), accurateModel = j.optBoolean("accurateModel", d.accurateModel),
                 allAngles = j.optBoolean("allAngles", d.allAngles), maskPath = j.optString("maskPath", d.maskPath),
+                depth = j.optDouble("depth", 0.0).toFloat(), filmPreset = j.optString("filmPreset", d.filmPreset),
+                grain = j.optDouble("grain", 0.0).toFloat(), grainSize = j.optDouble("grainSize", 0.35).toFloat(),
+                halation = j.optDouble("halation", 0.0).toFloat(), bloom = j.optDouble("bloom", 0.0).toFloat(),
+                aberration = j.optDouble("aberration", 0.0).toFloat(), leaks = j.optDouble("leaks", 0.0).toFloat(),
+                burn = j.optDouble("burn", 0.0).toFloat(), vignette = j.optDouble("vignette", 0.0).toFloat(),
+                bakeFilm = j.optBoolean("bakeFilm", d.bakeFilm), noiseReduction = j.optInt("noiseReduction", d.noiseReduction),
+                windFilter = j.optBoolean("windFilter", d.windFilter), shutterPriority = j.optBoolean("shutterPriority", d.shutterPriority),
+                privateGallery = j.optBoolean("privateGallery", d.privateGallery),
             )
         }
 
@@ -136,5 +170,23 @@ data class Settings(
         fun save(ctx: Context, s: Settings) {
             ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, s.toJson().toString()).apply()
         }
+    }
+}
+
+/** Film stock looks (strengths 0..1), tuned by eye against reference footage characteristics. */
+object FilmPresets {
+    val names = listOf("Off", "35mm", "16mm", "Super 8", "Dream", "Custom")
+
+    fun apply(s: Settings, name: String): Settings = when (name) {
+        "Off" -> s.copy(filmPreset = name, grain = 0f, halation = 0f, bloom = 0f, aberration = 0f, leaks = 0f, burn = 0f, vignette = 0f)
+        // Fine grain, gentle halation and bloom, light vignette (modern 35mm print).
+        "35mm" -> s.copy(filmPreset = name, grain = 0.3f, grainSize = 0.3f, halation = 0.35f, bloom = 0.15f, aberration = 0.1f, leaks = 0f, burn = 0f, vignette = 0.25f)
+        // Coarser grain, stronger halation, softer edges and some fringing.
+        "16mm" -> s.copy(filmPreset = name, grain = 0.6f, grainSize = 0.55f, halation = 0.5f, bloom = 0.2f, aberration = 0.25f, leaks = 0.1f, burn = 0f, vignette = 0.45f)
+        // Heavy grain, leaks and burns, strong vignette (home-movie look).
+        "Super 8" -> s.copy(filmPreset = name, grain = 0.9f, grainSize = 0.8f, halation = 0.45f, bloom = 0.25f, aberration = 0.45f, leaks = 0.45f, burn = 0.35f, vignette = 0.65f)
+        // Soft highlights for music videos / romance.
+        "Dream" -> s.copy(filmPreset = name, grain = 0.15f, grainSize = 0.3f, halation = 0.55f, bloom = 0.7f, aberration = 0.05f, leaks = 0.15f, burn = 0f, vignette = 0.3f)
+        else -> s.copy(filmPreset = "Custom")
     }
 }

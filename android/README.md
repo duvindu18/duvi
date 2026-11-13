@@ -48,6 +48,34 @@ detection, tracking and anonymization as the Veil desktop app.
   Controls keep clear of display cutouts and curved / rounded screen corners.
 * Videos go to `Movies/VeilCam`, photos to `Pictures/VeilCam`.
 
+## New in 1.2
+
+* **Capsule design:** a black status pill ("● REC" / "● STBY" with the format),
+  the control capsule (● timecode · zoom ruler · 1× · ruler · pause · record/stop),
+  capsule toggle and tool columns, and a red accent.
+* **Pause / resume** inside one clip.
+* **Cinematic depth:** people stay sharp and the background is defocused, using
+  on-device person segmentation. Strength is shown as an aperture (f/16 to f/1.4)
+  on the DEPTH dial, which opens right after tap-to-focus.
+* **Film look:** grain (luminance-weighted, size scales with resolution),
+  halation, bloom, chromatic aberration, light leaks, film burn and vignette,
+  with presets (35mm, 16mm, Super 8, Dream). These run as a second GPU pass on
+  the already-anonymized picture, so no effect can bring back face pixels.
+* **Noise cancellation:** the platform noise suppressor, an 80 Hz wind / rumble
+  filter and a spectral noise gate (minimum-statistics noise floor, Wiener gain
+  with a floor); *Standard* or *Strong*.
+* **Private gallery:** recordings and photos stay in app storage, never in the
+  phone gallery. The in-app gallery has a player, frame stepping, share, export
+  to the phone gallery and delete.
+* **Editing:** remove parts by dragging on the timeline or with In/Out marks.
+  *Auto-trim* finds pauses from the clip's own room tone. The edit is saved as a
+  new clip with frame-accurate video (re-encoded) and copied audio.
+* **Tracking:** while no tilted face is followed, the upright detector pass runs
+  up to twice as often; predicted positions grow with a face's speed.
+* **Exposure:** shutter priority (fixed shutter such as 180°, auto ISO); new
+  installs default to 24 fps and 180°.
+* No network permission: everything runs on the phone.
+
 ## Build
 
 ```bash

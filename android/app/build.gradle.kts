@@ -15,9 +15,9 @@ android {
         applicationId = "com.veil.cam"
         minSdk = 30
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        versionCode = 3
+        versionName = "1.2.0"
+        ndk { abiFilters += listOf("arm64-v8a") } // 64-bit phones (all current devices)
     }
 
     signingConfigs {
@@ -54,10 +54,12 @@ android {
         abortOnError = false
         checkReleaseBuilds = false
     }
-    packaging { jniLibs { useLegacyPackaging = false } }
+    packaging { jniLibs { useLegacyPackaging = true } } // compressed native libs: smaller download
 }
 
 dependencies {
     implementation(project(":core"))
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
+    // On-device person segmentation for the cinematic depth effect (model bundled in the APK).
+    implementation("com.google.mlkit:segmentation-selfie:16.0.0-beta6")
 }

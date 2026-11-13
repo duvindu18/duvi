@@ -58,7 +58,7 @@ import kotlin.math.sin
  * never recorded unblurred. The preview shows the same frames by default; "low
  * latency preview" shows the newest frame with faces predicted from their motion.
  */
-class Renderer(private val context: Context, private val engine: FaceEngine) {
+class Renderer(private val context: Context, private val engine: FaceEngine, private val segmenter: com.veil.cam.face.PersonSegmenter) {
     interface Listener {
         fun onCameraSurface(surface: Surface, size: Size)
         fun onDisplayTransform(imgW: Int, imgH: Int, content: RectF, viewToImg: FloatArray)
@@ -81,6 +81,15 @@ class Renderer(private val context: Context, private val engine: FaceEngine) {
     private val handler = Handler(thread.looper)
     private lateinit var egl: EglCore
     private var progCopy = 0; private var progDown = 0; private var progBlur = 0; private var progPass = 0; private var progComp = 0
+    private var progFilm = 0
+    private val stages = HashMap<Long, GlUtil.Target>() // output size -> anonymized intermediate (mipmapped)
+    private var peopleTex = 0
+    private var peopleMask: com.veil.cam.face.PersonMask? = null
+    private val startNs = System.nanoTime()
+    // Pause: frames are not encoded while paused; later frames are shifted to close the gap.
+    private var recPaused = false
+    private var pauseStartTs = -1L
+    private var pauseOffsetNs = 0L
     private val u = HashMap<String, Int>()
     private var vao = 0
 
@@ -139,6 +148,8 @@ class Renderer(private val context: Context, private val engine: FaceEngine) {
             progBlur = GlUtil.program(Shaders.VS, Shaders.BLUR)
             progPass = GlUtil.program(Shaders.VS, Shaders.PASS)
             progComp = GlUtil.program(Shaders.VS, Shaders.COMPOSITE)
+            progFilm = GlUtil.program(Shaders.VS, Shaders.FILM)
+            peopleTex = maskTexture(1, 1, byteArrayOf(0))
             val v = IntArray(1)
             GLES30.glGenVertexArrays(1, v, 0)
             vao = v[0]
@@ -217,11 +228,12 @@ class Renderer(private val context: Context, private val engine: FaceEngine) {
         }
         val (w, h) = outputSize()
         try {
-            val r = Recorder(context, w, h, settings.fps, settings.bitrate(), settings.hevc, if (settings.audio) audio else null)
+            val r = Recorder(context, w, h, settings.fps, settings.bitrate(), settings.hevc, if (settings.audio) audio else null, settings.privateGallery)
             encoderSurface = egl.windowSurface(r.inputSurface)
             r.start()
             recorder = r
             recordStartTs = -1L
+            recPaused = false; pauseStartTs = -1L; pauseOffsetNs = 0L
             listener?.onRecording(true, 0, null, null)
         } catch (e: Exception) {
             Log.e(TAG, "record start", e)
@@ -234,6 +246,20 @@ class Renderer(private val context: Context, private val engine: FaceEngine) {
     fun stopRecording() = handler.post { finishRecording() }
 
     fun takePhoto() = handler.post { photoRequested = true }
+
+    /** Pause or resume the running recording (one file, the pause is cut out). */
+    fun setRecordingPaused(paused: Boolean) = handler.post {
+        val rec = recorder ?: return@post
+        if (paused == recPaused) return@post
+        if (paused) {
+            pauseStartTs = lastEmittedTs
+        } else if (pauseStartTs >= 0) {
+            pauseOffsetNs += (newest?.ts ?: lastEmittedTs) - pauseStartTs
+            pauseStartTs = -1L
+        }
+        recPaused = paused
+        rec.setPaused(paused, pauseOffsetNs)
+    }
 
     fun release() {
         handler.post {
@@ -314,6 +340,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine) {
 
         pollReadback()
         maybeCaptureDetection(slot)
+        segmenter.latest?.let { m -> if (m !== peopleMask) { uploadMask(m); peopleMask = m } }
         if (!hasResult && engine.timeline.latestTimestamp() >= sceneStartTs) {
             hasResult = true
             listener?.onDetectorReady(true)
@@ -379,7 +406,9 @@ class Renderer(private val context: Context, private val engine: FaceEngine) {
     private fun baseAngle(): Double = displayRotation.toDouble()
 
     private fun maybeCaptureDetection(slot: Slot) {
-        if (!settings.blurOn || readback != null || engine.isBusy || !engine.ready) return
+        val wantFaces = settings.blurOn && !engine.isBusy && engine.ready
+        val wantPeople = settings.depth > 0f && !segmenter.isBusy
+        if (readback != null || !(wantFaces || wantPeople)) return
         val baseSide = if (settings.accurateModel) 640 else 480
         val base = PassPlanner.base(imgW, imgH, baseAngle(), baseSide)
         val scale = PassPlanner.scaleOf(base)
@@ -442,7 +471,8 @@ class Renderer(private val context: Context, private val engine: FaceEngine) {
             passes.add(PassImage(spec, arr, 4, bottomUp = true))
         }
         if (passes.isNotEmpty()) maybeHistogram(passes[0])
-        val ok = engine.submit(DetectBatch(rb.ts, imgW, imgH, passes) { owned.forEach { recycleArray(it) } })
+        if (settings.depth > 0f && passes.isNotEmpty()) segmenter.submit(passes[0].pixels.copyOf(), passes[0].spec, rb.ts)
+        val ok = settings.blurOn && engine.submit(DetectBatch(rb.ts, imgW, imgH, passes) { owned.forEach { recycleArray(it) } })
         if (!ok) owned.forEach { recycleArray(it) }
     }
 
@@ -496,14 +526,18 @@ class Renderer(private val context: Context, private val engine: FaceEngine) {
         val rec = recorder
         if (enc != null && rec != null) {
             if (recordStartTs < 0) recordStartTs = s.ts
-            egl.makeCurrent(enc)
-            GLES30.glBindVertexArray(vao)
-            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
-            GLES30.glViewport(0, 0, rec.width, rec.height)
-            composite(s, rec.width, rec.height, fill = true, monitor = false, lut = settings.bakeLut, mirror = front && !settings.mirrorFront)
-            egl.setPresentationTime(enc, s.ts)
-            egl.swap(enc)
-            egl.makeOffscreenCurrent()
+            if (!recPaused) {
+                egl.makeCurrent(enc)
+                GLES30.glBindVertexArray(vao)
+                render(s, rec.width, rec.height, fill = true, monitor = false, lut = settings.bakeLut,
+                    mirror = front && !settings.mirrorFront, film = settings.bakeFilm) {
+                    GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+                    GLES30.glViewport(0, 0, rec.width, rec.height)
+                }
+                egl.setPresentationTime(enc, s.ts - pauseOffsetNs)
+                egl.swap(enc)
+                egl.makeOffscreenCurrent()
+            }
             val err = rec.failed
             if (err != null && !finishing) handler.post { finishRecording(err) }
         }
@@ -515,18 +549,20 @@ class Renderer(private val context: Context, private val engine: FaceEngine) {
         val slot = (if (settings.lowLatencyPreview) newest else shown) ?: return
         egl.makeCurrent(p)
         GLES30.glBindVertexArray(vao)
-        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
-        GLES30.glViewport(0, 0, previewW, previewH)
-        GLES30.glClearColor(0f, 0f, 0f, 1f)
-        GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
-        val faces = composite(slot, previewW, previewH, fill = false, monitor = true, lut = settings.lutOnMonitor, mirror = false)
+        val faces = render(slot, previewW, previewH, fill = false, monitor = true, lut = settings.lutOnMonitor, mirror = false, film = true) {
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+            GLES30.glViewport(0, 0, previewW, previewH)
+        }
         egl.swap(p)
         egl.makeOffscreenCurrent()
         if (settings.lowLatencyPreview) shown = slot
         val now = SystemClock.uptimeMillis()
         if (settings.showBoxes && now - lastFacesSent > 66) { lastFacesSent = now; listener?.onFaces(faces) }
         val rec = recorder
-        if (rec != null && recordStartTs >= 0) listener?.onRecording(true, lastEmittedTs - recordStartTs, null, null)
+        if (rec != null && recordStartTs >= 0) {
+            val pausedFor = if (recPaused && pauseStartTs >= 0) lastEmittedTs - pauseStartTs else 0L
+            listener?.onRecording(true, lastEmittedTs - recordStartTs - pauseOffsetNs - pausedFor, null, null)
+        }
     }
 
     // ---- composite ------------------------------------------------------------------------------
@@ -557,7 +593,54 @@ class Renderer(private val context: Context, private val engine: FaceEngine) {
     /** Row-major 2x3 (a b c / d e f) -> column-major mat3. */
     private fun mat3(m: FloatArray) = floatArrayOf(m[0], m[3], 0f, m[1], m[4], 0f, m[2], m[5], 1f)
 
-    private fun composite(slot: Slot, outW: Int, outH: Int, fill: Boolean, monitor: Boolean, lut: Boolean, mirror: Boolean): List<Geom> {
+    /**
+     * Anonymize + depth + grade into an intermediate at the output size, then the
+     * film / monitoring pass into the destination [bindDest] binds.
+     */
+    private fun render(
+        slot: Slot, outW: Int, outH: Int, fill: Boolean, monitor: Boolean, lut: Boolean, mirror: Boolean, film: Boolean,
+        bindDest: () -> Unit,
+    ): List<Geom> {
+        val stage = stages.getOrPut((outW.toLong() shl 32) or outH.toLong()) {
+            if (stages.size > 4) { stages.values.forEach { it.release() }; stages.clear() }
+            GlUtil.Target(outW, outH, mipmaps = true)
+        }
+        stage.bind()
+        val faces = composite(slot, outW, outH, fill, lut, mirror)
+        val s = settings
+        val glow = film && (s.bloom > 0f || s.halation > 0f)
+        if (glow) {
+            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, stage.tex)
+            GLES30.glGenerateMipmap(GLES30.GL_TEXTURE_2D)
+        }
+        bindDest()
+        val p = progFilm
+        GLES30.glUseProgram(p)
+        bindTex(0, stage.tex); GLES30.glUniform1i(loc(p, "uStage"), 0)
+        GLES30.glUniform2f(loc(p, "uSize"), outW.toFloat(), outH.toFloat())
+        GLES30.glUniform1f(loc(p, "uTime"), ((slot.ts / 1_000_000L) % 3_600_000L) / 1000f)
+        fun f(v: Float) = if (film) v else 0f
+        GLES30.glUniform1f(loc(p, "uGrain"), f(s.grain))
+        // Grain size in output pixels: scale with resolution so the look matches across formats.
+        GLES30.glUniform1f(loc(p, "uGrainSize"), (0.6f + 2.4f * s.grainSize) * max(1f, min(outW, outH) / 1080f))
+        GLES30.glUniform1f(loc(p, "uHalation"), f(s.halation))
+        GLES30.glUniform1f(loc(p, "uBloom"), f(s.bloom))
+        GLES30.glUniform1f(loc(p, "uAberration"), f(s.aberration))
+        GLES30.glUniform1f(loc(p, "uLeak"), f(s.leaks))
+        GLES30.glUniform1f(loc(p, "uBurn"), f(s.burn))
+        GLES30.glUniform1f(loc(p, "uVignette"), f(s.vignette))
+        GLES30.glUniform1i(loc(p, "uZebra"), if (monitor && s.zebra) 1 else 0)
+        GLES30.glUniform1f(loc(p, "uZebraLevel"), s.zebraLevel)
+        GLES30.glUniform1i(loc(p, "uFalse"), if (monitor && s.falseColor) 1 else 0)
+        GLES30.glUniform1i(loc(p, "uPeak"), if (monitor && s.peaking) 1 else 0)
+        val pc = when (s.peakColor) { 1 -> floatArrayOf(1f, 0.2f, 0.2f); 2 -> floatArrayOf(1f, 1f, 1f); 3 -> floatArrayOf(0.3f, 0.6f, 1f); else -> floatArrayOf(0.894f, 0.945f, 0.478f) }
+        GLES30.glUniform3f(loc(p, "uPeakColor"), pc[0], pc[1], pc[2])
+        GLES30.glUniform1f(loc(p, "uPeakThresh"), 0.45f - 0.38f * s.peakSensitivity.coerceIn(0f, 1f))
+        GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
+        return faces
+    }
+
+    private fun composite(slot: Slot, outW: Int, outH: Int, fill: Boolean, lut: Boolean, mirror: Boolean): List<Geom> {
         val s = settings
         val faces = if (s.blurOn) engine.timeline.at(slot.ts).sortedByDescending { it.w * it.h }.take(Shaders.MAX_FACES) else emptyList()
         val p = progComp
@@ -609,14 +692,19 @@ class Renderer(private val context: Context, private val engine: FaceEngine) {
         GLES30.glUniform1i(loc(p, "uLutOn"), if (useLut) 1 else 0)
         GLES30.glUniform1f(loc(p, "uLutAmount"), s.lutAmount)
         GLES30.glUniform1f(loc(p, "uLutSize"), lutSize.toFloat())
-        GLES30.glUniform1i(loc(p, "uZebra"), if (monitor && s.zebra) 1 else 0)
-        GLES30.glUniform1f(loc(p, "uZebraLevel"), s.zebraLevel)
-        GLES30.glUniform1i(loc(p, "uFalse"), if (monitor && s.falseColor) 1 else 0)
-        GLES30.glUniform1i(loc(p, "uPeak"), if (monitor && s.peaking) 1 else 0)
-        val pc = when (s.peakColor) { 1 -> floatArrayOf(1f, 0.2f, 0.2f); 2 -> floatArrayOf(1f, 1f, 1f); 3 -> floatArrayOf(0.3f, 0.6f, 1f); else -> floatArrayOf(0.894f, 0.945f, 0.478f) }
-        GLES30.glUniform3f(loc(p, "uPeakColor"), pc[0], pc[1], pc[2])
-        GLES30.glUniform1f(loc(p, "uPeakThresh"), 0.45f - 0.38f * s.peakSensitivity.coerceIn(0f, 1f))
-        GLES30.glUniform1f(loc(p, "uPxPerOut"), abs(inv[0]).toFloat().coerceAtLeast(abs(inv[1]).toFloat()).coerceAtLeast(1f))
+        // Cinematic depth: background defocus outside the person mask.
+        val pm = peopleMask
+        val depthOn = s.depth > 0f && pm != null
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE4)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, peopleTex); GLES30.glUniform1i(loc(p, "uPeople"), 4)
+        GLES30.glUniform1f(loc(p, "uDepth"), if (depthOn) (0.6f + s.depth * (maxLod - 0.6f).coerceAtLeast(1f)).coerceAtMost(maxLod) else 0f)
+        if (pm != null) {
+            val m = pm.spec.toCanvas
+            // image px -> canvas px -> mask uv (mask rows are top-down, uploaded as-is)
+            val sx = 1.0 / pm.spec.width; val sy = 1.0 / pm.spec.height
+            val a = floatArrayOf((m.a * sx).toFloat(), (m.b * sx).toFloat(), (m.c * sx).toFloat(), (m.d * sy).toFloat(), (m.e * sy).toFloat(), (m.f * sy).toFloat())
+            GLES30.glUniformMatrix3fv(loc(p, "uImgToPeople"), 1, false, mat3(a), 0)
+        }
         GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
         return faces
     }
@@ -666,9 +754,11 @@ class Renderer(private val context: Context, private val engine: FaceEngine) {
         val slot = shown ?: newest ?: return
         val (w, h) = outputSize()
         val target = GlUtil.Target(w, h)
-        target.bind()
         GLES30.glBindVertexArray(vao)
-        composite(slot, w, h, fill = true, monitor = false, lut = settings.bakeLut, mirror = front && !settings.mirrorFront)
+        render(slot, w, h, fill = true, monitor = false, lut = settings.bakeLut, mirror = front && !settings.mirrorFront, film = settings.bakeFilm) {
+            target.bind()
+        }
+        target.bind()
         val buf = ByteBuffer.allocateDirect(w * h * 4).order(ByteOrder.nativeOrder())
         GLES30.glReadPixels(0, 0, w, h, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, buf)
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
@@ -679,17 +769,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine) {
                 buf.rewind()
                 bmp.copyPixelsFromBuffer(buf)
                 val flipped = Bitmap.createBitmap(bmp, 0, 0, w, h, android.graphics.Matrix().apply { preScale(1f, -1f) }, false)
-                val name = "VeilCam_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) + ".jpg"
-                val values = ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-                    put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/VeilCam")
-                    put(MediaStore.MediaColumns.IS_PENDING, 1)
-                }
-                val r = context.contentResolver
-                val uri = r.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: error("Cannot create the photo")
-                r.openOutputStream(uri)!!.use { flipped.compress(Bitmap.CompressFormat.JPEG, 95, it) }
-                r.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+                val uri = com.veil.cam.media.MediaStorage.savePhoto(context, settings.privateGallery) { flipped.compress(Bitmap.CompressFormat.JPEG, 95, it) }
                 listener?.onPhoto(uri, null)
             } catch (e: Exception) {
                 listener?.onPhoto(null, e.message)
@@ -715,6 +795,25 @@ class Renderer(private val context: Context, private val engine: FaceEngine) {
         GLES30.glTexParameteri(GLES30.GL_TEXTURE_3D, GLES30.GL_TEXTURE_WRAP_R, GLES30.GL_CLAMP_TO_EDGE)
         lutSize = l.size
         GlUtil.check("lut")
+    }
+
+    private fun maskTexture(w: Int, h: Int, data: ByteArray): Int {
+        val t = IntArray(1)
+        GLES30.glGenTextures(1, t, 0)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, t[0])
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_LINEAR)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_LINEAR)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_CLAMP_TO_EDGE)
+        GLES30.glPixelStorei(GLES30.GL_UNPACK_ALIGNMENT, 1)
+        GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D, 0, GLES30.GL_R8, w, h, 0, GLES30.GL_RED, GLES30.GL_UNSIGNED_BYTE, ByteBuffer.wrap(data))
+        return t[0]
+    }
+
+    private fun uploadMask(m: com.veil.cam.face.PersonMask) {
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, peopleTex)
+        GLES30.glPixelStorei(GLES30.GL_UNPACK_ALIGNMENT, 1)
+        GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D, 0, GLES30.GL_R8, m.width, m.height, 0, GLES30.GL_RED, GLES30.GL_UNSIGNED_BYTE, ByteBuffer.wrap(m.data))
     }
 
     private fun texture2D(bmp: Bitmap): Int {

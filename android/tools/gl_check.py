@@ -194,6 +194,25 @@ def main():
     db = img[..., 2].astype(int).mean() - clean[..., 2].astype(int).mean()
     print(f"LUT: red {dr:+.1f}, blue {db:+.1f}")
     assert dr > 3 and db < -3
+    # Film pass on top of the anonymized picture must not bring the face back.
+    uni.update({"uStyle": 0, "uEllipse": 1, "uLutOn": 0})
+    for i in range(len(faces[:12])):
+        fb = list(uni["uFB"][i]); fb[3] = lods[i]; uni["uFB"][i] = tuple(fb)
+    anon = run(SH["COMPOSITE"], (outW, outH), uni, [("uColor", color), ("uBlur", blur), ("uLut", lut), ("uMask", mask)])
+    stage = ctx.texture((outW, outH), 4, anon.tobytes())
+    stage.build_mipmaps(); stage.filter = (moderngl.LINEAR_MIPMAP_LINEAR, moderngl.LINEAR)
+    film = {"uSize": (float(outW), float(outH)), "uTime": 3.3, "uGrain": 0.9, "uGrainSize": 1.5, "uHalation": 0.8, "uBloom": 0.8,
+            "uAberration": 1.0, "uLeak": 0.6, "uBurn": 0.0, "uVignette": 0.5, "uZebra": 0, "uZebraLevel": 0.95, "uFalse": 0,
+            "uPeak": 0, "uPeakColor": (1.0, 0.2, 0.2), "uPeakThresh": 0.2}
+    filmed = np.flipud(run(SH["FILM"], (outW, outH), film, [("uStage", stage)])[..., :3])
+    cv2.imwrite(str(out / f"film_rot{rot}.png"), cv2.cvtColor(filmed, cv2.COLOR_RGB2BGR))
+    # The 35mm preset, for a look at normal strength.
+    film35 = dict(film, uGrain=0.3, uGrainSize=1.3, uHalation=0.35, uBloom=0.15, uAberration=0.1, uLeak=0.0, uVignette=0.25)
+    look = np.flipud(run(SH["FILM"], (outW, outH), film35, [("uStage", stage)])[..., :3])
+    cv2.imwrite(str(out / f"film35_rot{rot}.png"), cv2.cvtColor(look, cv2.COLOR_RGB2BGR))
+    cf = float(np.corrcoef(highpass(clean[roi]), highpass(filmed[roi]))[0, 1])
+    print(f"film pass: face detail correlation with the original {cf:.3f}")
+    assert cf < 0.2, "film pass revealed the face"
     print("OK")
 
 

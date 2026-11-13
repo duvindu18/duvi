@@ -46,11 +46,17 @@ import com.veil.cam.core.Geom
 import com.veil.cam.core.Looks
 import com.veil.cam.core.Lut3D
 import com.veil.cam.face.FaceEngine
+import com.veil.cam.face.PersonSegmenter
 import com.veil.cam.gl.Renderer
 import com.veil.cam.record.AudioCapture
 import com.veil.cam.record.Recorder
 import com.veil.cam.ui.CircleButton
 import com.veil.cam.ui.DialView
+import com.veil.cam.ui.Icon
+import com.veil.cam.ui.IconButton
+import com.veil.cam.ui.StatusPill
+import com.veil.cam.ui.ZoomRuler
+import com.veil.cam.ui.capsule
 import com.veil.cam.ui.OverlayView
 import com.veil.cam.ui.ParamChip
 import com.veil.cam.ui.RecordButton
@@ -67,6 +73,7 @@ class MainActivity : Activity(), Renderer.Listener {
     private lateinit var settings: Settings
     private lateinit var engine: FaceEngine
     private lateinit var renderer: Renderer
+    private lateinit var segmenter: PersonSegmenter
     private lateinit var camera: CameraController
     private var audio: AudioCapture? = null
     private var cameras: List<CameraCaps> = emptyList()
@@ -94,6 +101,14 @@ class MainActivity : Activity(), Renderer.Listener {
     private lateinit var sheet: ScrollView
     private lateinit var toast: TextView
     private lateinit var zoomColumn: LinearLayout
+    private lateinit var pauseBtn: IconButton
+    private lateinit var statusPill: StatusPill
+    private lateinit var zoomLabel: TextView
+    private lateinit var rulerL: ZoomRuler
+    private lateinit var rulerR: ZoomRuler
+    private lateinit var recDot: View
+    private var recPaused = false
+    private var filmAnchor: View? = null
     private val chips = LinkedHashMap<String, ParamChip>()
     private val toggles = HashMap<String, RoundToggle>()
     private var activeParam: String? = null
@@ -107,7 +122,8 @@ class MainActivity : Activity(), Renderer.Listener {
         engine = FaceEngine(applicationContext)
         engine.onError = { msg -> main.post { flash(msg) } }
         engine.configure(settings)
-        renderer = Renderer(applicationContext, engine).also { it.listener = this }
+        segmenter = PersonSegmenter()
+        renderer = Renderer(applicationContext, engine, segmenter).also { it.listener = this }
         renderer.update(settings)
         camera = CameraController(applicationContext)
         camera.onReadout = { r -> main.post { readout = r; refreshChips() } }
@@ -149,6 +165,7 @@ class MainActivity : Activity(), Renderer.Listener {
         renderer.release()
         camera.release()
         engine.release()
+        segmenter.release()
         sound.release()
         super.onDestroy()
     }
@@ -197,6 +214,8 @@ class MainActivity : Activity(), Renderer.Listener {
         audio?.stop()
         audioBoot = boot
         val a = AudioCapture(bootTimeClock = boot)
+        a.noiseReduction = settings.noiseReduction
+        a.windFilter = settings.windFilter
         if (a.start()) {
             audio = a
             renderer.setAudio(a)
@@ -233,6 +252,7 @@ class MainActivity : Activity(), Renderer.Listener {
         engine.configure(s)
         overlay.settings = s
         if (s.lut != old.lut) loadLut(s.lut)
+        audio?.let { it.noiseReduction = s.noiseReduction; it.windFilter = s.windFilter }
         if (s.audio != old.audio) { if (s.audio) startAudio() else { audio?.stop(); audio = null; renderer.setAudio(null) } }
         if (s.blurOn && !old.blurOn) overlay.startingHint = !detectorReady
         if (!s.blurOn) overlay.startingHint = false
@@ -326,14 +346,23 @@ class MainActivity : Activity(), Renderer.Listener {
         // Views that survive orientation changes (their parents are rebuilt).
         topBar = LinearLayout(this)
         for ((key, cap) in listOf("RES" to "RES", "FPS" to "FPS", "CODEC" to "CODEC", "ISO" to "ISO", "SHUTTER" to "SHUTTER",
-            "WB" to "WB", "TINT" to "TINT", "FOCUS" to "FOCUS", "EV" to "EV", "BLUR" to "BLUR", "LUT" to "LUT")) {
+            "WB" to "WB", "TINT" to "TINT", "FOCUS" to "FOCUS", "EV" to "EV", "DEPTH" to "DEPTH", "BLUR" to "FACES", "LUT" to "LUT", "FILM" to "FILM")) {
             val chip = ParamChip(this, cap)
             chip.setOnClickListener { onChip(key) }
             chips[key] = chip
         }
         status = TextView(this).apply { setTextColor(Theme.DIM); textSize = 11f; typeface = Theme.mono; gravity = Gravity.END }
-        timecode = TextView(this).apply { setTextColor(Theme.TEXT); textSize = 20f; typeface = Theme.mono; text = "00:00:00:00" }
-        recButton = RecordButton(this).apply { setOnClickListener { toggleRecording() } }
+        timecode = TextView(this).apply { setTextColor(Theme.TEXT); textSize = 19f; typeface = Theme.medium; text = "00:00:00" }
+        recButton = RecordButton(this, 60f).apply { setOnClickListener { toggleRecording() } }
+        pauseBtn = IconButton(this, Icon.PAUSE, "Pause recording", 52f).apply { dim = true; setOnClickListener { togglePause() } }
+        statusPill = StatusPill(this)
+        zoomLabel = TextView(this).apply {
+            setTextColor(Theme.TEXT); textSize = 17f; typeface = Theme.mono; gravity = Gravity.CENTER; minWidth = dp(46f)
+            setOnClickListener { cycleZoom() }
+        }
+        rulerL = ZoomRuler(this).apply { onDrag = { d -> setZoom(settings.zoom * Math.pow(2.0, d.toDouble()).toFloat()) } }
+        rulerR = ZoomRuler(this).apply { onDrag = { d -> setZoom(settings.zoom * Math.pow(2.0, d.toDouble()).toFloat()) } }
+        recDot = View(this).apply { background = Theme.pill(Theme.FAINT, Theme.dp(this@MainActivity, 6f)) }
         zoomColumn = LinearLayout(this).apply { gravity = Gravity.CENTER }
         for ((key, label, hint) in listOf(
             Triple("blur", "BLUR", "Face blur on / off"), Triple("zebra", "Z", "Zebras"), Triple("peak", "FP", "Focus peaking"),
@@ -411,99 +440,124 @@ class MainActivity : Activity(), Renderer.Listener {
         val portrait = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
         portraitLayout = portrait
         controls?.let { root.removeView(it) }
-        for (v in listOf<View>(topBar, status, timecode, recButton, zoomColumn, panel, sheet, toast) + chips.values + toggles.values) detach(v)
+        for (v in listOf<View>(topBar, status, timecode, recButton, pauseBtn, statusPill, zoomLabel, rulerL, rulerR, recDot, zoomColumn, panel, sheet, toast) +
+            chips.values + toggles.values) detach(v)
         val ui = FrameLayout(this).apply { setPadding(safe.left, safe.top, safe.right, safe.bottom); clipToPadding = false }
         controls = ui
 
-        // Status chips scroll sideways when they do not fit.
+        // ---- parameter capsule (scrolls sideways when it does not fit)
         topBar.removeAllViews()
+        topBar.background = Theme.pill(Theme.SURFACE, Theme.dp(this, 22f))
+        topBar.orientation = LinearLayout.HORIZONTAL
+        topBar.gravity = Gravity.CENTER_VERTICAL
+        topBar.setPadding(dp(6f), dp(2f), dp(10f), dp(2f))
         val chipRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         chips.values.forEach { chipRow.addView(it) }
         val chipScroll = android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(chipRow) }
-        topBar.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xCC000000.toInt(), 0x00000000))
-        topBar.setPadding(0, 0, 0, dp(10f))
+        topBar.addView(chipScroll, LinearLayout.LayoutParams(0, -2, 1f))
+        status.gravity = Gravity.END
+        status.textSize = 10f
+        topBar.addView(status, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8f) })
 
-        fun circle(label: String, desc: String, size: Float = 46f, onClick: () -> Unit) =
-            CircleButton(this, label, desc, size).apply { setOnClickListener { onClick() } }
-        val photoB = circle("PHOTO", "Photo") { photo() }
-        val playB = circle("PLAY", "Last clip") { openLast() }
-        val flipB = circle("FLIP", "Switch camera") { switchLens() }
-        val menuB = circle("MENU", "Settings") { if (sheet.visibility == View.VISIBLE) closeSheet() else openSheet() }
-        val orientB = circle(if (portrait) "HORZ" else "VERT", "Switch between horizontal and vertical") { toggleOrientation() }
+        // ---- the control capsule of the reference: ● timecode | ruler 1× ruler | pause | record
+        val control = capsule(this).apply { setPadding(dp(18f), dp(6f), dp(8f), dp(6f)) }
+        control.addView(recDot, LinearLayout.LayoutParams(dp(12f), dp(12f)).apply { rightMargin = dp(8f) })
+        control.addView(timecode, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(14f) })
+        control.addView(rulerL)
+        control.addView(zoomLabel, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(2f); rightMargin = dp(2f) })
+        control.addView(rulerR, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(14f) })
+        control.addView(pauseBtn, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(10f) })
+        control.addView(recButton)
+
+        fun icon(i: Icon, desc: String, onClick: () -> Unit) = IconButton(this, i, desc, 46f).apply { setOnClickListener { onClick() } }
+        val tools = listOf(
+            icon(Icon.GALLERY, "Gallery") { openGallery() },
+            icon(Icon.PHOTO, "Take photo") { photo() },
+            icon(Icon.FLIP, "Switch camera") { switchLens() },
+            icon(Icon.ORIENT, if (portrait) "Horizontal video" else "Vertical video") { toggleOrientation() },
+            icon(Icon.MENU, "Settings") { if (sheet.visibility == View.VISIBLE) closeSheet() else openSheet() },
+        )
+        val order = listOf("blur", "zebra", "peak", "false", "grid", "ael", "awbl")
+        val sortedToggles = toggles.values.sortedBy { order.indexOf(keyOf(it)) }
 
         if (!portrait) {
-            topBar.orientation = LinearLayout.HORIZONTAL
-            topBar.gravity = Gravity.CENTER_VERTICAL
-            topBar.addView(chipScroll, LinearLayout.LayoutParams(0, -2, 1f))
-            status.gravity = Gravity.END
-            topBar.addView(status, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(10f); rightMargin = dp(12f) })
-            topBar.addView(timecode)
-            ui.addView(topBar, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+            val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+            top.addView(statusPill, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(10f) })
+            top.addView(topBar, LinearLayout.LayoutParams(0, dp(48f), 1f))
+            ui.addView(top, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
 
-            val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
-            toggles.values.sortedBy { listOf("blur", "zebra", "peak", "false", "grid", "ael", "awbl").indexOf(keyOf(it)) }
-                .forEach { left.addView(it, LinearLayout.LayoutParams(-2, -2).apply { bottomMargin = dp(8f) }) }
+            val left = capsule(this, vertical = true, radiusDp = 28f).apply { setPadding(dp(5f), dp(6f), dp(5f), dp(6f)) }
+            sortedToggles.forEach { left.addView(it, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(3f); bottomMargin = dp(3f) }) }
             val leftScroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(left) }
             leftRail = leftScroll
-            ui.addView(leftScroll, FrameLayout.LayoutParams(-2, -1, Gravity.START).apply { topMargin = dp(58f) })
+            ui.addView(leftScroll, FrameLayout.LayoutParams(-2, -2, Gravity.START or Gravity.CENTER_VERTICAL).apply { topMargin = dp(28f) })
 
-            val right = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
-            zoomColumn.orientation = LinearLayout.VERTICAL
-            right.addView(zoomColumn)
-            right.addView(recButton, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6f); bottomMargin = dp(8f) })
-            val r1 = LinearLayout(this).apply { gravity = Gravity.CENTER }
-            r1.addView(photoB, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(6f) }); r1.addView(playB)
-            val r2 = LinearLayout(this).apply { gravity = Gravity.CENTER }
-            r2.addView(flipB, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(6f) }); r2.addView(menuB)
-            right.addView(r1)
-            right.addView(r2, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6f) })
-            right.addView(orientB, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(6f) })
-            val rightScroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false; isFillViewport = true; addView(right) }
+            val right = capsule(this, vertical = true, radiusDp = 30f).apply { setPadding(dp(5f), dp(6f), dp(5f), dp(6f)) }
+            tools.forEach { right.addView(it, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(3f); bottomMargin = dp(3f) }) }
+            val rightScroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(right) }
             rightRail = rightScroll
-            ui.addView(rightScroll, FrameLayout.LayoutParams(-2, -1, Gravity.END).apply { topMargin = dp(58f) })
+            ui.addView(rightScroll, FrameLayout.LayoutParams(-2, -2, Gravity.END or Gravity.CENTER_VERTICAL).apply { topMargin = dp(28f) })
 
-            // The dial sits between the two rails, never under them.
-            ui.addView(panel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { leftMargin = dp(60f); rightMargin = dp(112f) })
+            ui.addView(control, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
+            // The dial floats above the control capsule, between the side capsules.
+            ui.addView(panel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { leftMargin = dp(64f); rightMargin = dp(64f); bottomMargin = dp(82f) })
             ui.addView(sheet, FrameLayout.LayoutParams(dp(380f), -1, Gravity.END))
             sheet.setPadding(dp(20f), dp(10f), dp(20f), dp(20f))
-            overlayHud(dp(60f), dp(58f), dp(112f), dp(84f))
+            overlayHud(dp(64f), dp(58f), dp(64f), dp(84f))
         } else {
-            topBar.orientation = LinearLayout.VERTICAL
-            topBar.addView(chipScroll, LinearLayout.LayoutParams(-1, -2))
-            val second = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8f), dp(2f), dp(8f), 0) }
-            status.gravity = Gravity.START
-            second.addView(status, LinearLayout.LayoutParams(0, -2, 1f))
-            second.addView(timecode)
-            topBar.addView(second)
-            ui.addView(topBar, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+            val top = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
+            top.addView(statusPill, LinearLayout.LayoutParams(-2, -2).apply { bottomMargin = dp(8f) })
+            top.addView(topBar, LinearLayout.LayoutParams(-1, dp(48f)))
+            ui.addView(top, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
 
             val bottom = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
             bottom.addView(panel, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10f) })
-            val tRow = LinearLayout(this).apply { gravity = Gravity.CENTER }
-            toggles.values.sortedBy { listOf("blur", "zebra", "peak", "false", "grid", "ael", "awbl").indexOf(keyOf(it)) }
-                .forEach { tRow.addView(it, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(6f) }) }
+            val tRow = capsule(this).apply { setPadding(dp(6f), dp(5f), dp(6f), dp(5f)) }
+            sortedToggles.forEach { tRow.addView(it, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(2f); rightMargin = dp(2f) }) }
             bottom.addView(android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(tRow) },
                 LinearLayout.LayoutParams(-2, -2).apply { bottomMargin = dp(10f) })
-            zoomColumn.orientation = LinearLayout.HORIZONTAL
-            bottom.addView(zoomColumn, LinearLayout.LayoutParams(-2, -2).apply { bottomMargin = dp(8f) })
-            val ctl = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-            ctl.addView(photoB); ctl.addView(playB, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8f) })
-            ctl.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-            ctl.addView(recButton)
-            ctl.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-            ctl.addView(flipB, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(8f) }); ctl.addView(menuB)
-            bottom.addView(ctl, LinearLayout.LayoutParams(-1, -2))
-            bottom.addView(orientB, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(8f) })
+            val toolRow = capsule(this).apply { setPadding(dp(6f), dp(5f), dp(6f), dp(5f)) }
+            tools.forEach { toolRow.addView(it, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(3f); rightMargin = dp(3f) }) }
+            bottom.addView(toolRow, LinearLayout.LayoutParams(-2, -2).apply { bottomMargin = dp(10f) })
+            bottom.addView(control, LinearLayout.LayoutParams(-2, -2))
             leftRail = null; rightRail = bottom
             ui.addView(bottom, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
             ui.addView(sheet, FrameLayout.LayoutParams(-1, (resources.displayMetrics.heightPixels * 0.62f).toInt(), Gravity.BOTTOM))
             sheet.setPadding(dp(20f), dp(14f), dp(20f), dp(20f))
-            overlayHud(0, dp(86f), 0, dp(330f))
+            overlayHud(0, dp(110f), 0, dp(300f))
         }
-        ui.addView(toast, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_HORIZONTAL or Gravity.TOP).apply { topMargin = dp(if (portrait) 96f else 66f) })
+        sheet.background = Theme.pill(0xFA0C0C0E.toInt(), Theme.dp(this, 26f))
+        ui.addView(toast, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_HORIZONTAL or Gravity.TOP).apply { topMargin = dp(if (portrait) 120f else 66f) })
         root.addView(ui, FrameLayout.LayoutParams(-1, -1))
         buildZoomButtons()
+        refreshRecordUi()
         activeParam?.let { k -> chips[k]?.active = true; panel.visibility = View.VISIBLE }
+    }
+
+    /** Status pill, dot, pause button for the current record state. */
+    private fun refreshRecordUi() {
+        statusPill.recording = recording
+        statusPill.paused = recPaused
+        recButton.recording = recording
+        pauseBtn.icon = if (recPaused) Icon.PLAY else Icon.PAUSE
+        pauseBtn.dim = !recording
+        pauseBtn.contentDescription = if (recPaused) "Resume recording" else "Pause recording"
+        pauseBtn.invalidate()
+        recDot.background = Theme.pill(if (recording) Theme.REC else Theme.FAINT, Theme.dp(this, 6f))
+        val s = settings
+        statusPill.format = "${when (s.width) { 3840 -> "4K"; 1920 -> "1080p"; else -> "720p" }} · ${s.fps} · ${if (s.hevc) "H.265" else "H.264"}"
+    }
+
+    private fun togglePause() {
+        if (!recording) { flash("Start recording first"); return }
+        recPaused = !recPaused
+        renderer.setRecordingPaused(recPaused)
+        refreshRecordUi()
+        flash(if (recPaused) "Paused · press again to continue the same clip" else "Recording")
+    }
+
+    private fun openGallery() {
+        startActivity(Intent(this, com.veil.cam.ui.GalleryActivity::class.java))
     }
 
     private fun keyOf(t: RoundToggle) = toggles.entries.first { it.value === t }.key
@@ -609,6 +663,9 @@ class MainActivity : Activity(), Renderer.Listener {
             value.setTextColor(if (s.blurOn) Theme.ACCENT else Theme.REC)
         }
         chips["LUT"]?.set(if (s.lut == "None") "OFF" else s.lut.take(10))
+        chips["DEPTH"]?.apply { auto = s.depth <= 0f; set(if (s.depth <= 0f) "OFF" else apertureLabel(s.depth)) }
+        chips["FILM"]?.set(if (!s.filmOn) "OFF" else s.filmPreset.uppercase().take(8))
+        if (::statusPill.isInitialized) refreshRecordUi()
         refreshStatus()
     }
 
@@ -646,6 +703,7 @@ class MainActivity : Activity(), Renderer.Listener {
             }
             "CODEC" -> { if (recording) flash("Stop recording to change this") else apply(settings.copy(hevc = !settings.hevc)); return }
             "BLUR" -> { openSheet(); return }
+            "FILM" -> { openSheet(scrollTo = "film"); return }
             "LUT" -> { openSheet(scrollTo = "look"); return }
         }
         if (activeParam == key) { closePanel(); return }
@@ -700,6 +758,12 @@ class MainActivity : Activity(), Renderer.Listener {
                 dial.setIndex(st.indexOfFirst { it >= s.focusDiopters }.coerceAtLeast(0))
                 markAuto(s.autoFocus)
             }
+            "DEPTH" -> {
+                panelAuto.text = "OFF"
+                dial.labels = APERTURES.map { it.second }
+                dial.setIndex(APERTURES.indexOfFirst { it.first >= s.depth - 0.001f }.coerceAtLeast(0))
+                panelAuto.background = Theme.pill(if (s.depth <= 0f) Theme.ACCENT else Theme.SURFACE2, Theme.dp(this, 18f))
+            }
             "EV" -> {
                 panelAuto.text = "0"
                 val st = (c.evRange.lower..c.evRange.upper).toList()
@@ -728,6 +792,7 @@ class MainActivity : Activity(), Renderer.Listener {
             "WB", "TINT" -> apply(s.copy(autoWb = !s.autoWb))
             "FOCUS" -> apply(s.copy(autoFocus = !s.autoFocus, focusDiopters = readout?.focusDiopters ?: s.focusDiopters))
             "EV" -> apply(s.copy(ev = 0))
+            "DEPTH" -> apply(s.copy(depth = 0f))
         }
         activeParam?.let { configureDial(it) }
     }
@@ -744,8 +809,9 @@ class MainActivity : Activity(), Renderer.Listener {
             "TINT" -> apply(s.copy(autoWb = false, tint = i - 50))
             "FOCUS" -> apply(s.copy(autoFocus = false, focusDiopters = focusStops(c)[i]))
             "EV" -> apply(s.copy(ev = c.evRange.lower + i))
+            "DEPTH" -> apply(s.copy(depth = APERTURES[i].first))
         }
-        activeParam?.let { if (it != "EV") markAuto(when (it) { "ISO", "SHUTTER" -> settings.autoExposure; "WB", "TINT" -> settings.autoWb; else -> settings.autoFocus }) }
+        activeParam?.let { if (it != "EV" && it != "DEPTH") markAuto(when (it) { "ISO", "SHUTTER" -> settings.autoExposure; "WB", "TINT" -> settings.autoWb; else -> settings.autoFocus }) }
     }
 
     // ---- toggles / zoom / lens ------------------------------------------------------------------------------
@@ -776,19 +842,22 @@ class MainActivity : Activity(), Renderer.Listener {
         toggles["awbl"]?.on = s.awbLock
     }
 
+    private fun zoomStops(): List<Float> {
+        val c = caps ?: return listOf(1f)
+        return listOf(0.5f, 0.6f, 1f, 2f, 3f, 5f, 10f).filter { it >= c.zoomRange.lower - 0.01f && it <= c.zoomRange.upper + 0.01f }
+            .let { l -> if (c.zoomRange.lower < 0.99f && l.none { it < 1f }) listOf(c.zoomRange.lower) + l else l }.distinct()
+    }
+
     private fun buildZoomButtons() {
-        zoomColumn.removeAllViews()
-        val c = caps ?: return
-        val stops = listOf(0.5f, 0.6f, 1f, 2f, 3f, 5f, 10f).filter { it >= c.zoomRange.lower - 0.01f && it <= c.zoomRange.upper + 0.01f }
-            .let { l -> if (c.zoomRange.lower < 0.99f && l.none { it < 1f }) listOf(c.zoomRange.lower) + l else l }
-            .distinct().take(5)
-        for (z in stops) {
-            val label = if (z < 1f) "%.1f".format(z) else "${z.roundToInt()}x"
-            val b = CircleButton(this, label, "Zoom $label", 40f)
-            b.highlight = abs(settings.zoom - z) < 0.05f
-            b.setOnClickListener { setZoom(z) }
-            zoomColumn.addView(b, LinearLayout.LayoutParams(-2, -2).apply { if (portraitLayout) { leftMargin = dp(4f); rightMargin = dp(4f) } else bottomMargin = dp(6f) })
-        }
+        val z = settings.zoom
+        zoomLabel.text = if (z < 0.995f) "%.1f×".format(z) else if (abs(z - z.roundToInt()) < 0.05f) "${z.roundToInt()}×" else "%.1f×".format(z)
+    }
+
+    /** Tap the zoom value: next preset (0.5×, 1×, 2×, 3×, 5× as the lenses allow). */
+    private fun cycleZoom() {
+        val stops = zoomStops()
+        val next = stops.firstOrNull { it > settings.zoom + 0.05f } ?: stops.first()
+        setZoom(next)
     }
 
     private fun setZoom(z: Float) {
@@ -796,10 +865,7 @@ class MainActivity : Activity(), Renderer.Listener {
         val v = z.coerceIn(c.zoomRange.lower, c.zoomRange.upper)
         if (abs(v - settings.zoom) < 0.005f) return
         apply(settings.copy(zoom = v))
-        for (i in 0 until zoomColumn.childCount) (zoomColumn.getChildAt(i) as? CircleButton)?.let { b ->
-            val t = b.contentDescription.toString().removePrefix("Zoom ").removeSuffix("x").toFloatOrNull() ?: return@let
-            b.highlight = abs(v - t) < 0.05f
-        }
+        buildZoomButtons()
     }
 
     private fun switchLens() {
@@ -823,13 +889,45 @@ class MainActivity : Activity(), Renderer.Listener {
             else -> u to v
         }
         camera.focusAt(sx, sy)
+        // After focusing, offer the background-blur (depth) dial right away.
+        if (activeParam == null && settings.depth > 0f) onChip("DEPTH")
     }
+
+    /** Simulated aperture for the depth effect: background blur strength 0..1. */
+    private val APERTURES = listOf(0f to "OFF", 0.12f to "f/16", 0.24f to "f/11", 0.36f to "f/8", 0.48f to "f/5.6",
+        0.6f to "f/4", 0.72f to "f/2.8", 0.86f to "f/2", 1f to "f/1.4")
+
+    private fun apertureLabel(d: Float) = APERTURES.minByOrNull { abs(it.first - d) }!!.second
+
+    /**
+     * Shutter priority: keep the chosen shutter (e.g. 180°) and steer ISO so the
+     * average picture level sits near mid-grey, in 1/3-stop steps with damping.
+     */
+    private var lastIsoStep = 0L
+    private fun shutterPriority(luma: IntArray) {
+        val s = settings
+        val c = caps ?: return
+        if (!s.shutterPriority || s.autoExposure || !c.manualSensor || recordingLocked()) return
+        val now = System.currentTimeMillis()
+        if (now - lastIsoStep < 350) return
+        var sum = 0.0; var n = 0L
+        for (i in luma.indices) { sum += luma[i] * (i + 0.5) / luma.size; n += luma[i] }
+        if (n == 0L) return
+        val mean = (sum / n).coerceIn(0.01, 1.0)
+        val stops = kotlin.math.ln(0.42 / mean) / kotlin.math.ln(2.0)
+        if (abs(stops) < 0.2) return
+        val iso = isoStops(c)
+        val cur = iso.indexOfFirst { it >= s.iso }.coerceAtLeast(0)
+        val next = (cur + if (stops > 0) 1 else -1).coerceIn(0, iso.size - 1)
+        if (next != cur) { lastIsoStep = now; apply(s.copy(iso = iso[next])) }
+    }
+
+    private fun recordingLocked() = false
 
     // ---- record / photo -------------------------------------------------------------------------------------
     private fun toggleRecording() {
         if (recording) {
             renderer.stopRecording()
-            recButton.recording = false
             if (settings.sounds) sound.play(MediaActionSound.STOP_VIDEO_RECORDING)
         } else {
             if (caps == null) return
@@ -880,6 +978,7 @@ class MainActivity : Activity(), Renderer.Listener {
         val c = caps
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         var lookAnchor: View? = null
+        filmAnchor = null
         fun add(v: View) = col.addView(v, LinearLayout.LayoutParams(-1, -2))
 
         add(TextView(this).apply { text = "Veil Cam"; setTextColor(Theme.TEXT); textSize = 22f; typeface = Theme.regular; setPadding(0, dp(8f), 0, 0) })
@@ -911,6 +1010,37 @@ class MainActivity : Activity(), Renderer.Listener {
         add(maskRow)
         add(Rows.switch(this, "Show tracked face shapes", s.showBoxes) { apply(settings.copy(showBoxes = it)) })
         add(Rows.hint(this, "Recordings are blurred frame-exactly: each frame waits until its faces are known. The picture stays fully blurred until face detection has started."))
+
+        add(Rows.section(this, "Cinematic depth"))
+        add(Rows.slider(this, "Background blur", 0, 100, (s.depth * 100).roundToInt(), { if (it == 0) "Off" else apertureLabel(it / 100f) }) { apply(settings.copy(depth = it / 100f)) })
+        add(Rows.hint(this, "People stay sharp, the background is defocused. Tap to focus, then adjust on the DEPTH dial."))
+
+        filmAnchor = Rows.section(this, "Film look")
+        add(filmAnchor!!)
+        add(Rows.segments(this, FilmPresets.names, FilmPresets.names.indexOf(s.filmPreset).coerceAtLeast(0)) {
+            apply(FilmPresets.apply(settings, FilmPresets.names[it])); openSheet(scrollTo = "film")
+        })
+        fun film(label: String, v: Float, set: (Settings, Float) -> Settings) =
+            add(Rows.slider(this, label, 0, 100, (v * 100).roundToInt(), { "$it" }) { apply(set(settings, it / 100f).copy(filmPreset = "Custom")) })
+        film("Grain", s.grain) { x, v -> x.copy(grain = v) }
+        film("Grain size", s.grainSize) { x, v -> x.copy(grainSize = v) }
+        film("Halation", s.halation) { x, v -> x.copy(halation = v) }
+        film("Bloom", s.bloom) { x, v -> x.copy(bloom = v) }
+        film("Chromatic aberration", s.aberration) { x, v -> x.copy(aberration = v) }
+        film("Light leaks", s.leaks) { x, v -> x.copy(leaks = v) }
+        film("Film burn", s.burn) { x, v -> x.copy(burn = v) }
+        film("Vignette", s.vignette) { x, v -> x.copy(vignette = v) }
+        add(Rows.switch(this, "Bake film look into recording", s.bakeFilm) { apply(settings.copy(bakeFilm = it)) })
+        add(Rows.hint(this, "Film effects are applied after face blur, so they can never reveal a face."))
+
+        add(Rows.section(this, "Audio"))
+        add(Rows.hint(this, "Noise reduction"))
+        add(Rows.segments(this, listOf("Off", "Standard", "Strong"), s.noiseReduction) { apply(settings.copy(noiseReduction = it)) })
+        add(Rows.switch(this, "Wind / rumble filter (80 Hz)", s.windFilter) { apply(settings.copy(windFilter = it)) })
+
+        add(Rows.section(this, "Storage"))
+        add(Rows.switch(this, "Private gallery (hidden from phone gallery)", s.privateGallery) { apply(settings.copy(privateGallery = it)) })
+        add(Rows.hint(this, "Private clips appear only in Veil's gallery; export any clip to the phone gallery from there."))
 
         add(Rows.section(this, "Video"))
         val sizes = c?.sizes?.filter { it.width in listOf(3840, 1920, 1280) }?.distinctBy { it.width } ?: emptyList()
@@ -968,6 +1098,10 @@ class MainActivity : Activity(), Renderer.Listener {
         val guides = listOf("Off", "2.39:1", "1.85:1", "4:5", "9:16", "1:1")
         add(Rows.hint(this, "Frame guide"))
         add(Rows.segments(this, guides, guides.indexOf(s.guide).coerceAtLeast(0)) { apply(settings.copy(guide = guides[it])) })
+        add(Rows.switch(this, "Shutter priority (auto ISO, fixed shutter)", s.shutterPriority) {
+            apply(settings.copy(shutterPriority = it, autoExposure = if (it) false else settings.autoExposure))
+        })
+        add(Rows.hint(this, "Keeps the shutter (e.g. 180° for natural motion blur) and adjusts ISO to the scene."))
         add(Rows.hint(this, "Shutter display"))
         add(Rows.segments(this, listOf("Angle", "Speed"), if (s.shutterAngle) 0 else 1) { apply(settings.copy(shutterAngle = it == 0)) })
 
@@ -1004,6 +1138,7 @@ class MainActivity : Activity(), Renderer.Listener {
             }
         }
         if (scrollTo == "look") lookAnchor?.let { a -> sheet.post { sheet.smoothScrollTo(0, a.top) } }
+        if (scrollTo == "film") filmAnchor?.let { a -> sheet.post { sheet.smoothScrollTo(0, a.top) } }
     }
 
     // ---- helpers ------------------------------------------------------------------------------------------------
@@ -1024,7 +1159,7 @@ class MainActivity : Activity(), Renderer.Listener {
 
     override fun onFaces(faces: List<Geom>) { main.post { overlay.setFaces(faces) } }
 
-    override fun onHistogram(luma: IntArray, r: IntArray, g: IntArray, b: IntArray) { main.post { overlay.setHistogram(luma, r, g, b) } }
+    override fun onHistogram(luma: IntArray, r: IntArray, g: IntArray, b: IntArray) { main.post { overlay.setHistogram(luma, r, g, b); shutterPriority(luma) } }
 
     override fun onStats(cameraFps: Float, detectFps: Float, detectMs: Float, delayFrames: Int) {
         main.post { lastDetectFps = detectFps; if (!recording) refreshStatus() }
@@ -1034,23 +1169,23 @@ class MainActivity : Activity(), Renderer.Listener {
         main.post {
             if (active) {
                 if (!recording) {
-                    recording = true; recButton.recording = true; closeSheet()
+                    recording = true; recPaused = false; refreshRecordUi(); closeSheet()
                     requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED // the take keeps its orientation
                 }
-                timecode.text = Recorder.durationText(elapsedNs, settings.fps)
-                timecode.setTextColor(Theme.REC)
+                val sec = elapsedNs / 1_000_000_000L
+                timecode.text = "%02d:%02d:%02d".format(sec / 3600, sec / 60 % 60, sec % 60)
             } else {
                 recording = false
-                recButton.recording = false
-                timecode.setTextColor(Theme.TEXT)
+                recPaused = false
+                refreshRecordUi()
                 requestedOrientation = orientationRequest()
-                if (uri != null) { lastUri = uri; flash("Saved to Movies/VeilCam") }
+                if (uri != null) { lastUri = uri; flash(if (settings.privateGallery) "Saved to the Veil gallery" else "Saved to Movies/VeilCam"); timecode.text = "00:00:00" }
                 if (error != null) flash(error)
             }
         }
     }
 
-    override fun onPhoto(uri: Uri?, error: String?) { main.post { if (uri != null) flash("Photo saved to Pictures/VeilCam") else flash("Photo failed: $error") } }
+    override fun onPhoto(uri: Uri?, error: String?) { main.post { if (uri != null) flash(if (settings.privateGallery) "Photo saved to the Veil gallery" else "Photo saved to Pictures/VeilCam") else flash("Photo failed: $error") } }
 
     override fun onDetectorReady(ready: Boolean) { main.post { detectorReady = ready; overlay.startingHint = settings.blurOn && !ready } }
 
@@ -1083,4 +1218,4 @@ class MainActivity : Activity(), Renderer.Listener {
     }
 }
 
-object BuildConfigLite { const val VERSION = "1.1.0" }
+object BuildConfigLite { const val VERSION = "1.2.0" }

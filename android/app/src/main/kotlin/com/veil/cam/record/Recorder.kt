@@ -1,6 +1,5 @@
 package com.veil.cam.record
 
-import android.content.ContentValues
 import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
@@ -8,17 +7,11 @@ import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.net.Uri
-import android.os.Environment
 import android.os.Handler
 import android.os.HandlerThread
-import android.os.ParcelFileDescriptor
-import android.provider.MediaStore
 import android.util.Log
 import android.view.Surface
 import java.nio.ByteBuffer
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
@@ -35,14 +28,14 @@ class Recorder(
     bitrate: Int,
     hevc: Boolean,
     private val audio: AudioCapture?,
+    private val privateStorage: Boolean = true,
 ) : AudioCapture.Sink {
     val inputSurface: Surface
     val mime: String
     private val video: MediaCodec
     private val muxerLock = Object()
     private var muxer: MediaMuxer? = null
-    private var pfd: ParcelFileDescriptor? = null
-    private val uri: Uri
+    private val output: com.veil.cam.media.MediaOutput
     private var videoTrack = -1
     private var audioTrack = -1
     private var muxerStarted = false
@@ -97,17 +90,8 @@ class Recorder(
         video.configure(fmt, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
         inputSurface = video.createInputSurface()
 
-        val name = "VeilCam_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) + ".mp4"
-        val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-            put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/VeilCam")
-            put(MediaStore.MediaColumns.IS_PENDING, 1)
-        }
-        uri = context.contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
-            ?: error("Cannot create the video file")
-        pfd = context.contentResolver.openFileDescriptor(uri, "rw")
-        muxer = MediaMuxer(pfd!!.fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        output = com.veil.cam.media.MediaStorage.newVideo(context, privateStorage)
+        muxer = MediaMuxer(output.fd, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
 
         if (audio != null) {
             val af = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, audio.sampleRate, audio.channels).apply {
@@ -140,9 +124,15 @@ class Recorder(
         }
     }
 
+    @Volatile private var paused = false
+    @Volatile private var pauseOffsetNs = 0L
+
+    /** Pause / resume: audio is dropped while paused and later audio is shifted to close the gap. */
+    fun setPaused(p: Boolean, offsetNs: Long) { pauseOffsetNs = offsetNs; paused = p }
+
     override fun onPcm(data: ShortArray, frames: Int, channels: Int, ptsNs: Long) {
-        if (!audioRunning) return
-        pcm.offer(Pcm(data.copyOf(frames * channels), frames, ptsNs))
+        if (!audioRunning || paused) return
+        pcm.offer(Pcm(data.copyOf(frames * channels), frames, ptsNs - pauseOffsetNs))
     }
 
     private fun audioLoop(codec: MediaCodec) {
@@ -262,15 +252,8 @@ class Recorder(
             runCatching { muxer?.release() }
             muxer = null
         }
-        runCatching { pfd?.close() }
-        val resolver = context.contentResolver
-        return if (ok) {
-            resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
-            uri
-        } else {
-            resolver.delete(uri, null, null)
-            null
-        }
+        output.finish(ok)
+        return if (ok) output.uri else null
     }
 
     companion object {
