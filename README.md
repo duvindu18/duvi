@@ -21,6 +21,9 @@ primary actions and a single lime accent for anything active (the timeline
 playhead, toggles, face brackets). Pages fade and rise in, the inspector
 slides in as a drawer on narrow windows, and notifications fade.
 
+**Android:** `android/` holds **Veil Cam**, a pro video camera app with the same
+live face blur (see [android/README.md](android/README.md)).
+
 ---
 
 ## 0. Install with VeilSetup.exe (recommended)

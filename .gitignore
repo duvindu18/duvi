@@ -20,3 +20,12 @@ faces/*
 *.engine
 build/
 dist/
+
+# Android build outputs / local SDK path / face models
+android/.gradle/
+android/build/
+android/*/build/
+android/local.properties
+android/models/
+*.jks
+*.keystore
