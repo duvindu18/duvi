@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Capacitor } from '@capacitor/core';
 import { Viewer, type Pick } from './render/viewer';
-import { build2D, buildMeshes, loadMainThread, MODEL_EXT, WORKER_MESH, type Scene2D, type Scene3D } from './render/scene';
+import { build2D, buildMeshes, buildSkp, loadMainThread, MODEL_EXT, WORKER_MESH, type Scene2D, type Scene3D } from './render/scene';
 import { textUniforms } from './render/text';
 import type { Drawing } from './cad/dxf';
 import type { SnapGrid } from './cad/snapgrid';
@@ -207,7 +207,8 @@ async function openBytes(name: string, data: ArrayBuffer, fromLibrary = false) {
       if (ext === 'skp') {
         const r = await jobs.run({ type: 'skp', buf: data }, [data], loading.progress);
         if (r.type === 'skpfail') { loading.hide(); return skpFallback(name, r); }
-        s3 = await loadMainThread('glb', r.glb.buffer, viewer.renderer, loading.progress);
+        loading.progress('Building view', 1);
+        s3 = buildSkp(r.model);
         s3.root.addEventListener('edges' as any, () => viewer.requestRender());
       } else if (WORKER_MESH.includes(ext)) {
         const r = await jobs.run({ type: 'mesh', ext, buf: data }, [data], loading.progress);
@@ -218,7 +219,7 @@ async function openBytes(name: string, data: ArrayBuffer, fromLibrary = false) {
       }
       next = {
         id, name, ext, size, mode: '3d', units: ext === 'glb' || ext === 'gltf' || ext === 'skp' ? 'm' : 'units', origin: [0, 0, 0], meta, s3, grid: s3.grid, ms: 0,
-        stats: [`${Math.round(s3.tris).toLocaleString()} triangles`, `${s3.parts.length} parts`],
+        stats: [`${Math.round(s3.tris).toLocaleString()} triangles`, `${s3.parts.length} ${s3.kind === 'tags' ? 'tags' : 'parts'}`, ...(s3.note ? [s3.note] : [])],
       };
     }
     if (cancelled) return;
@@ -252,10 +253,12 @@ function mount() {
   if (d.mode === '2d') {
     viewer.setContent(d.s2!.root, '2d', { bounds: d.s2!.bounds });
     viewer.lod = d.s2!.lod;
+    viewer.lod3d = null;
     viewer.snap = { grid: d.grid, accept: (layer) => d.s2!.layers[layer]?.visible !== false };
   } else {
-    viewer.setContent(d.s3!.root, '3d');
+    viewer.setContent(d.s3!.root, '3d', { bounds: d.s3!.bounds });
     viewer.lod = [];
+    viewer.lod3d = d.s3!.update ?? null;
     viewer.snap = { grid: d.grid, accept: (part) => d.s3!.parts[part]?.visible !== false };
     viewer.prepareRaycast();
   }
@@ -364,7 +367,7 @@ function buildDock() {
       { id: 'measure', icon: 'ruler', label: 'Measure', run: () => setTool('measure') },
       { id: 'section', icon: 'section', label: 'Section', run: showSection },
       { id: 'note', icon: 'pin', label: 'Note', run: () => setTool('note') },
-      { id: 'layers', icon: 'layers', label: 'Parts', run: showLayers },
+      { id: 'layers', icon: 'layers', label: doc!.s3?.kind === 'tags' ? 'Tags' : 'Parts', run: showLayers },
       { id: 'more', icon: 'more', label: 'More', run: showMore },
     ];
   const dock = $('#dock');
@@ -637,7 +640,7 @@ function redrawAnnotations() {
 
 // ---------------- sheets: layers, more, find, section, views, info ----------------
 function showLayers() {
-  type G = { name: string; obj: THREE.Object3D; color: number | null };
+  type G = { name: string; obj: { visible: boolean }; color: number | null };
   let groups: G[];
   if (compare) return toast('Use the legend to show or hide changes');
   if (doc!.mode === '2d') groups = doc!.drawing!.layers.map((l, i) => ({ name: l.name, obj: doc!.s2!.layers[i], color: l.color }));
@@ -645,7 +648,7 @@ function showLayers() {
   if (!groups.length) return toast('Nothing to list');
   const fg = fgColor();
   const sw = (c: number | null) => (c === null ? '' : `<span class="swatch" style="background:#${(c < 0 ? fg : c).toString(16).padStart(6, '0')}"></span>`);
-  const title = doc!.mode === '2d' ? `Layers (${groups.length})` : `Parts (${groups.length})`;
+  const title = `${doc!.mode === '2d' ? 'Layers' : doc!.s3?.kind === 'tags' ? 'Tags' : 'Parts'} (${groups.length})`;
   openSheet(title, `
     ${groups.length > 10 ? '<input type="search" id="lq" placeholder="Filter…" autocomplete="off" style="margin-bottom:8px">' : ''}
     <div class="btns" style="margin:0 0 6px"><button class="btn" id="allOn">Show all</button><button class="btn" id="allOff">Hide all</button></div>

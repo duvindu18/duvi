@@ -10,6 +10,7 @@ import { diffDrawings } from './cad/diff';
 import { buildGrid, type SnapGrid } from './cad/snapgrid';
 import { tileDrawing } from './cad/tiles';
 import { dwgToDxf } from './cad/dwg';
+import { readSkp } from './cad/skp';
 
 export const EDGE_TRI_LIMIT = 600_000;
 
@@ -51,24 +52,20 @@ self.onmessage = async (e: MessageEvent<Req>) => {
       // SketchUp: open-source reverse-engineered reader (openskp, MIT), loaded only when needed.
       // Reads both the 2021+ (VFF/zip) and 2013–2020 (MFC CArchive) containers, entirely on the device.
       progress(m.id, 'Reading SketchUp model', 0.05);
-      const skp = await import('openskp');
-      let glb: Uint8Array;
+      let model;
       try {
-        const scene = skp.buildInstancedScene(m.buf, {
-          onProgress: (p: any) => progress(m.id, 'Reading SketchUp model', Math.min(0.9, 0.1 + 0.8 * (p.fraction ?? (p.total ? p.current / p.total : 0.5)))),
-        } as any);
-        progress(m.id, 'Building 3D model', 0.92);
-        glb = skp.toInstancedGLB(scene);
+        model = await readSkp(m.buf, (stage, f) => progress(m.id, stage, f));
       } catch (err: any) {
         // fall back to the preview image SketchUp stores inside the file, so the user still sees the model
+        const skp = await import('openskp');
         let thumb: { data: Uint8Array; mimeType: string } | null = null;
         try { thumb = skp.extractThumbnail(m.buf); } catch { /* no preview either */ }
         const data = thumb ? thumb.data.slice() : null;
         post({ type: 'skpfail', id: m.id, error: String(err?.message ?? err).slice(0, 200), thumb: data, mime: thumb?.mimeType }, data ? [data.buffer] : []);
         return;
       }
-      const out = glb.byteOffset === 0 && glb.byteLength === glb.buffer.byteLength ? glb : glb.slice();
-      post({ type: 'skp', id: m.id, glb: out }, [out.buffer]);
+      const res = { type: 'skp', id: m.id, model };
+      post(res, transferables(res));
       return;
     }
     if (m.type === 'dxf' || m.type === 'dwg') {

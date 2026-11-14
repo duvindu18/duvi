@@ -10,6 +10,7 @@ import { MeshBVH } from 'three-mesh-bvh';
 import type { Drawing } from '../cad/dxf';
 import { buildGrid, type SnapGrid } from '../cad/snapgrid';
 import type { MeshOut } from '../worker';
+import type { SkpModel } from '../cad/skp';
 import { buildText } from './text';
 
 export const WORKER_MESH = ['stl', 'obj', 'ply'];
@@ -55,7 +56,9 @@ export function build2D(d: Drawing, fg: number, maxTex: number): Scene2D {
 }
 
 // ---------------- 3D models ----------------
-export interface Scene3D { root: THREE.Group; parts: THREE.Object3D[]; grid: SnapGrid; tris: number }
+/** Something the Parts/Tags panel can switch on and off. */
+export interface Part { name: string; visible: boolean }
+export interface Scene3D { root: THREE.Group; parts: Part[]; grid: SnapGrid; tris: number; kind?: 'tags' | 'parts'; note?: string; bounds?: THREE.Box3; /** per-frame level of detail */ update?: (cam: THREE.PerspectiveCamera, heightPx: number) => void }
 
 const edgeMat = () => new THREE.LineBasicMaterial({ color: 0x1b1e24, transparent: true, opacity: 0.8 });
 const surfaceMat = (color: number, vertexColors: boolean, opacity = 1) =>
@@ -64,7 +67,7 @@ const surfaceMat = (color: number, vertexColors: boolean, opacity = 1) =>
 /** Meshes parsed in the worker → scene, re-attaching the BVH built there. */
 export function buildMeshes(meshes: MeshOut[], grid: SnapGrid, tris: number): Scene3D {
   const root = new THREE.Group();
-  const parts: THREE.Object3D[] = [];
+  const parts: Part[] = [];
   const em = edgeMat();
   for (const m of meshes) {
     const g = new THREE.BufferGeometry();
@@ -128,7 +131,7 @@ export async function loadMainThread(ext: string, buf: ArrayBuffer, renderer: TH
   while (partsRoot.children.length === 1 && !(partsRoot.children[0] as any).isMesh) partsRoot = partsRoot.children[0];
   obj.updateMatrixWorld(true);
   const root = new THREE.Group();
-  const parts: THREE.Object3D[] = [];
+  const parts: Part[] = [];
   const topLevel = partsRoot.children.length ? partsRoot.children : [partsRoot];
   let tris = 0;
   for (const top of topLevel) {
@@ -147,7 +150,7 @@ export async function loadMainThread(ext: string, buf: ArrayBuffer, renderer: TH
   const pts = new Float32Array(n * 3), tags = new Uint16Array(n);
   let off = 0;
   const v = new THREE.Vector3();
-  parts.forEach((p, pi) => p.traverse((o: any) => {
+  parts.forEach((p, pi) => (p as THREE.Object3D).traverse((o: any) => {
     if (!o.isMesh) return;
     const pos = o.geometry.attributes.position;
     for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld); pts[off * 3] = v.x; pts[off * 3 + 1] = v.y; pts[off * 3 + 2] = v.z; tags[off++] = pi; }
@@ -241,4 +244,168 @@ function prettyName(n: string): string {
   let suffix = '';
   if (m && m[1] && +m[2] < 100) { s = m[1]; suffix = ` (${+m[2] + 1})`; } // exporter de-dup suffix, not part of the name
   return s.replace(/_/g, ' ').trim() + suffix;
+}
+
+// ---------------- SketchUp (instanced, with level of detail) ----------------
+const DETAIL_PX = 20; // a placement smaller than this on screen is drawn as a box in its main colour
+const CULL_PX = 0.8; // smaller than this: not drawn at all
+
+interface ResLod {
+  meshes: THREE.InstancedMesh[]; // one per material primitive, all sharing `attr`
+  attr: THREE.InstancedBufferAttribute;
+  proxy: THREE.InstancedMesh | null;
+  orig: Float32Array; tags: Uint16Array;
+  centers: Float32Array; radii: Float32Array;
+}
+
+/**
+ * One InstancedMesh per unique component primitive: geometry once, a matrix per placement.
+ * Every frame, placements are sorted into: off-screen/sub-pixel (skipped), far (box proxy) and
+ * near (full detail), so a model with thousands of detailed components stays fluid.
+ */
+export function buildSkp(m: SkpModel): Scene3D {
+  const root = new THREE.Group();
+  const textures = m.textures.map((t) => {
+    const tex = new THREE.Texture();
+    const url = URL.createObjectURL(new Blob([t.data], { type: t.mime }));
+    const img = new Image();
+    img.onload = () => { tex.image = img; tex.needsUpdate = true; URL.revokeObjectURL(url); root.dispatchEvent({ type: 'edges' } as any); };
+    img.src = url;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  });
+  const mats = m.materials.map((x) => new THREE.MeshStandardMaterial({
+    color: new THREE.Color().setRGB(x.color[0], x.color[1], x.color[2], THREE.SRGBColorSpace),
+    opacity: x.color[3], transparent: x.color[3] < 1, side: THREE.DoubleSide, roughness: 0.8, metalness: 0,
+    map: x.texture >= 0 ? textures[x.texture] ?? null : null,
+  }));
+  const fallback = new THREE.MeshStandardMaterial({ color: 0xc8ccd2, side: THREE.DoubleSide, roughness: 0.8 });
+  const hidden = new Uint8Array(m.tags.length);
+  m.tags.forEach((t, i) => (hidden[i] = t.hidden ? 1 : 0));
+
+  const res: ResLod[] = [];
+  const box = new THREE.Box3(), v = new THREE.Vector3(), M = new THREE.Matrix4(), sph = new THREE.Sphere();
+  m.instances.forEach((inst, ri) => {
+    const n = inst.tags.length;
+    const prims = m.prims.filter((p) => p.res === ri);
+    if (!n || !prims.length) return;
+    // local bounds of the component
+    box.makeEmpty();
+    for (const p of prims) for (let i = 0; i < p.positions.length; i += 3) box.expandByPoint(v.set(p.positions[i], p.positions[i + 1], p.positions[i + 2]));
+    box.getBoundingSphere(sph);
+    const centers = new Float32Array(n * 3), radii = new Float32Array(n);
+    for (let k = 0; k < n; k++) {
+      M.fromArray(inst.matrices, k * 16);
+      v.copy(sph.center).applyMatrix4(M);
+      centers[k * 3] = v.x; centers[k * 3 + 1] = v.y; centers[k * 3 + 2] = v.z;
+      radii[k] = sph.radius * M.getMaxScaleOnAxis();
+    }
+    const attr = new THREE.InstancedBufferAttribute(new Float32Array(n * 16), 16);
+    attr.setUsage(THREE.DynamicDrawUsage);
+    const meshes: THREE.InstancedMesh[] = [];
+    let mainMat: THREE.Material = fallback, mainTris = -1;
+    for (const p of prims) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(p.positions, 3));
+      g.setAttribute('normal', new THREE.BufferAttribute(p.normals, 3));
+      if (p.uvs) g.setAttribute('uv', new THREE.BufferAttribute(p.uvs, 2));
+      if (p.bvh) (g as any).boundsTree = MeshBVH.deserialize({ roots: p.bvh.roots, index: p.bvh.index, indirectBuffer: p.bvh.indirectBuffer } as any, g, { setIndex: true });
+      else g.setIndex(new THREE.BufferAttribute(p.indices, 1));
+      g.computeBoundingBox(); g.computeBoundingSphere();
+      const mat = mats[p.material] ?? fallback;
+      const mesh = new THREE.InstancedMesh(g, mat, n);
+      mesh.instanceMatrix = attr;
+      mesh.frustumCulled = false; // culling is done per placement below
+      meshes.push(mesh);
+      root.add(mesh);
+      const t = p.indices.length / 3;
+      if (t > mainTris) { mainTris = t; mainMat = mat; }
+    }
+    // box proxy for components worth simplifying
+    let proxy: THREE.InstancedMesh | null = null;
+    const tris = prims.reduce((s2, p) => s2 + p.indices.length / 3, 0);
+    if (n > 1 && tris > 48) {
+      const size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+      const bg = new THREE.BoxGeometry(Math.max(size.x, 1e-4), Math.max(size.y, 1e-4), Math.max(size.z, 1e-4)).translate(c.x, c.y, c.z);
+      proxy = new THREE.InstancedMesh(bg, mainMat, n);
+      proxy.instanceMatrix = new THREE.InstancedBufferAttribute(new Float32Array(n * 16), 16);
+      proxy.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      proxy.frustumCulled = false;
+      proxy.raycast = () => {};
+      proxy.userData.noSnap = true;
+      root.add(proxy);
+    }
+    res.push({ meshes, attr, proxy, orig: inst.matrices, tags: inst.tags, centers, radii });
+  });
+
+  const em = edgeMat();
+  const edgeObjs: THREE.LineSegments[][] = m.tags.map(() => []);
+  for (const e of m.edges) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(e.data, 3));
+    g.computeBoundingSphere();
+    const l = new THREE.LineSegments(g, em);
+    l.raycast = () => {};
+    l.visible = !hidden[e.tag];
+    edgeObjs[e.tag].push(l);
+    root.add(l);
+  }
+
+  // per-frame placement sorting
+  const frustum = new THREE.Frustum(), pv = new THREE.Matrix4(), camPos = new THREE.Vector3(), cw = new THREE.Vector3();
+  const update = (cam: THREE.PerspectiveCamera, heightPx: number) => {
+    root.updateMatrixWorld();
+    const rw = root.matrixWorld; // "stand up" rotates the root
+    pv.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse).multiply(rw);
+    frustum.setFromProjectionMatrix(pv);
+    camPos.setFromMatrixPosition(cam.matrixWorld).applyMatrix4(new THREE.Matrix4().copy(rw).invert());
+    const k = heightPx / (2 * Math.tan((cam.fov * Math.PI) / 360));
+    for (const r of res) {
+      const det = r.attr.array as Float32Array, prx = r.proxy ? (r.proxy.instanceMatrix.array as Float32Array) : null;
+      let nd = 0, np = 0;
+      for (let i = 0; i < r.tags.length; i++) {
+        if (hidden[r.tags[i]]) continue;
+        cw.set(r.centers[i * 3], r.centers[i * 3 + 1], r.centers[i * 3 + 2]);
+        sph.center.copy(cw); sph.radius = r.radii[i];
+        if (!frustum.intersectsSphere(sph)) continue;
+        const px = (r.radii[i] / Math.max(cw.distanceTo(camPos), 1e-6)) * k;
+        if (px < CULL_PX) continue;
+        const src = r.orig.subarray(i * 16, i * 16 + 16);
+        if (prx && px < DETAIL_PX) prx.set(src, (np++) * 16); else det.set(src, (nd++) * 16);
+      }
+      for (const mesh of r.meshes) mesh.count = nd;
+      r.attr.needsUpdate = true;
+      r.attr.clearUpdateRanges(); r.attr.addUpdateRange(0, nd * 16);
+      if (r.proxy) { r.proxy.count = np; r.proxy.instanceMatrix.needsUpdate = true; r.proxy.instanceMatrix.clearUpdateRanges(); r.proxy.instanceMatrix.addUpdateRange(0, np * 16); }
+    }
+  };
+  // whole-model bounds straight from the placements (Box3.setFromObject can't see instances):
+  // each placement's local box corners, transformed
+  const bounds = new THREE.Box3();
+  m.instances.forEach((inst, ri) => {
+    const prims = m.prims.filter((p) => p.res === ri);
+    if (!prims.length) return;
+    const lb = new THREE.Box3();
+    for (const p of prims) lb.union(new THREE.Box3().setFromArray(p.positions));
+    const tb = new THREE.Box3();
+    for (let k = 0; k < inst.tags.length; k++) { M.fromArray(inst.matrices, k * 16); tb.copy(lb).applyMatrix4(M); bounds.union(tb); }
+  });
+  for (const e of m.edges) bounds.union(new THREE.Box3().setFromArray(e.data));
+  const all = bounds.getBoundingSphere(new THREE.Sphere());
+  // before the first frame: everything at full detail, so raycasting works immediately.
+  // Fixed bounding volumes: the per-frame compaction changes which instances sit where.
+  for (const r of res) {
+    (r.attr.array as Float32Array).set(r.orig);
+    for (const mesh of r.meshes) { mesh.count = r.tags.length; mesh.boundingSphere = all.clone(); mesh.boundingBox = bounds.clone(); }
+    if (r.proxy) { r.proxy.count = 0; r.proxy.boundingSphere = all.clone(); r.proxy.boundingBox = bounds.clone(); }
+  }
+
+  const parts: Part[] = m.tags.map((t, ti) => ({
+    name: t.name,
+    get visible() { return !hidden[ti]; },
+    set visible(on: boolean) { hidden[ti] = on ? 0 : 1; for (const l of edgeObjs[ti]) l.visible = on; },
+  }));
+  const note = `${m.placements.toLocaleString()} placements of ${res.length.toLocaleString()} unique components (${Math.round(m.tris).toLocaleString()} unique triangles, ${Math.round(m.placedTris).toLocaleString()} as placed)`;
+  return { root, parts, grid: m.grid, tris: m.placedTris, kind: m.groupKind, note, update, bounds };
 }

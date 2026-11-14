@@ -34,6 +34,8 @@ export class Viewer {
   handlers: GestureHandlers = {};
   /** 2D level of detail: per tile, draw only segments longer than ~1 px */
   lod: { geom: THREE.BufferGeometry; len: Float32Array; text?: boolean }[] = [];
+  /** 3D level of detail hook (SketchUp components) */
+  lod3d: ((cam: THREE.PerspectiveCamera, heightPx: number) => void) | null = null;
   onFrame?: () => void;
   private plane = new THREE.Plane();
   private labels = new Map<string, { el: HTMLElement; pos: THREE.Vector3 }>();
@@ -209,7 +211,7 @@ export class Viewer {
   private updateLod() {
     const ppu = this.controls.pixelsPerUnit();
     textUniforms.uPPU.value = ppu;
-    if (this.mode !== '2d') return;
+    if (this.mode !== '2d') { this.cam3.updateMatrixWorld(); this.lod3d?.(this.cam3, this.host.clientHeight || 1); return; }
     const minLen = 0.7 / ppu; // shorter than ~0.7 px: invisible, skip it
     const minText = textUniforms.uMinPx.value / ppu; // text smaller than this is unreadable: don't draw it
     for (const t of this.lod) {
