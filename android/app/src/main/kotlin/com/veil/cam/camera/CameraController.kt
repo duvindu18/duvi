@@ -58,6 +58,7 @@ data class CameraCaps(
     val maxAeRegions: Int,
     val toneCurve: Boolean,
     val bootTimeTimestamps: Boolean, // frame timestamps on CLOCK_BOOTTIME (else monotonic)
+    val flash: Boolean = false, // has a torch
 ) {
     fun supportsFps(fps: Int) = fpsRanges.any { it.upper == fps }
 }
@@ -141,6 +142,7 @@ class CameraController(context: Context) {
             maxAeRegions = c.get(CameraCharacteristics.CONTROL_MAX_REGIONS_AE) ?: 0,
             toneCurve = tone,
             bootTimeTimestamps = c.get(CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE) == CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME,
+            flash = c.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true,
         )
     }
 
@@ -270,6 +272,7 @@ class CameraController(context: Context) {
                 b.set(CaptureRequest.CONTROL_AE_LOCK, s.aeLock)
             }
             b.set(CaptureRequest.CONTROL_AE_ANTIBANDING_MODE, CameraMetadata.CONTROL_AE_ANTIBANDING_MODE_AUTO)
+            if (c.flash) b.set(CaptureRequest.FLASH_MODE, if (s.torch) CameraMetadata.FLASH_MODE_TORCH else CameraMetadata.FLASH_MODE_OFF)
 
             // White balance: the camera uses the nearest preset; the renderer corrects the rest.
             if (s.autoWb) {

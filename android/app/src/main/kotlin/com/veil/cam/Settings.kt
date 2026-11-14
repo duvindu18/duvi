@@ -50,7 +50,7 @@ data class Settings(
     val histogram: Boolean = true,
     val grid: Boolean = false,
     val guide: String = "Off", // Off, 2.39:1, 1.85:1, 4:5, 9:16, 1:1
-    val orientation: String = "Landscape", // Landscape, Portrait, Auto
+    val orientation: String = "Auto", // Auto (follow the phone), Landscape, Portrait
     val level: Boolean = true,
     val showBoxes: Boolean = false,
     val lowLatencyPreview: Boolean = false,
@@ -92,7 +92,14 @@ data class Settings(
     val powerMode: Int = 1,
     val dimWhileRecording: Boolean = true, // lower the screen after 10 s without a touch
     val autoStandby: Boolean = true, // camera off after 3 min idle in standby
+    // Capture mode: CINEMATIC (video + depth), VIDEO, PHOTO, PORTRAIT (photo + depth)
+    val mode: String = "VIDEO",
+    val cineDepth: Float = 0.72f, // remembered depth for the depth modes (f/2.8)
+    val torch: Boolean = false,
 ) {
+    val photoMode: Boolean get() = mode == "PHOTO" || mode == "PORTRAIT"
+    val depthMode: Boolean get() = mode == "CINEMATIC" || mode == "PORTRAIT"
+
     val filmOn: Boolean get() = grain + halation + bloom + aberration + leaks + burn + vignette > 0.001f
     fun bitrate(): Int {
         val px = width.toLong() * height * fps
@@ -122,6 +129,7 @@ data class Settings(
         put("noiseReduction", noiseReduction); put("windFilter", windFilter); put("shutterPriority", shutterPriority)
         put("privateGallery", privateGallery)
         put("powerMode", powerMode); put("dimWhileRecording", dimWhileRecording); put("autoStandby", autoStandby)
+        put("mode", mode); put("cineDepth", cineDepth.toDouble()); put("ui", 2)
     }
 
     companion object {
@@ -146,7 +154,8 @@ data class Settings(
                 falseColor = j.optBoolean("falseColor", d.falseColor), peaking = j.optBoolean("peaking", d.peaking),
                 peakColor = j.optInt("peakColor", d.peakColor), peakSensitivity = j.optDouble("peakSensitivity", 0.5).toFloat(),
                 histogram = j.optBoolean("histogram", d.histogram), grid = j.optBoolean("grid", d.grid), guide = j.optString("guide", d.guide),
-                orientation = j.optString("orientation", d.orientation),
+                // Layouts before 1.4 rotated the whole screen; the new one follows the phone.
+                orientation = if (j.optInt("ui", 1) < 2) d.orientation else j.optString("orientation", d.orientation),
                 level = j.optBoolean("level", d.level), showBoxes = j.optBoolean("showBoxes", d.showBoxes),
                 lowLatencyPreview = j.optBoolean("lowLatencyPreview", d.lowLatencyPreview), mirrorFront = j.optBoolean("mirrorFront", d.mirrorFront),
                 sounds = j.optBoolean("sounds", d.sounds),
@@ -167,6 +176,8 @@ data class Settings(
                 powerMode = j.optInt("powerMode", d.powerMode).coerceIn(0, 2),
                 dimWhileRecording = j.optBoolean("dimWhileRecording", d.dimWhileRecording),
                 autoStandby = j.optBoolean("autoStandby", d.autoStandby),
+                mode = j.optString("mode", d.mode).takeIf { it in listOf("CINEMATIC", "VIDEO", "PHOTO", "PORTRAIT") } ?: d.mode,
+                cineDepth = j.optDouble("cineDepth", d.cineDepth.toDouble()).toFloat().coerceIn(0.1f, 1f),
             )
         }
 

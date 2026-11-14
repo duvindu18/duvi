@@ -3,6 +3,9 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val snapshots = providers.gradleProperty("veilSnapshots").isPresent
+if (snapshots) apply(plugin = "app.cash.paparazzi")
+
 // Face models are not kept in git (InsightFace licence, size). Point -PveilModels
 // (or VEIL_MODELS) at a folder with det_500m.onnx and optionally det_10g.onnx.
 val modelsDir = (findProperty("veilModels") as String?) ?: System.getenv("VEIL_MODELS") ?: "${rootDir}/models"
@@ -15,8 +18,8 @@ android {
         applicationId = "com.veil.cam"
         minSdk = 30
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.3.0"
+        versionCode = 5
+        versionName = "1.4.0"
         ndk { abiFilters += listOf("arm64-v8a") } // 64-bit phones (all current devices)
     }
 
@@ -55,6 +58,8 @@ android {
         checkReleaseBuilds = false
     }
     packaging { jniLibs { useLegacyPackaging = true } } // compressed native libs: smaller download
+    // UI screenshots (Paparazzi): gradle -PveilSnapshots :app:recordPaparazziRelease
+    if (snapshots) sourceSets["test"].kotlin.srcDir("src/snapshotTest/kotlin")
 }
 
 dependencies {

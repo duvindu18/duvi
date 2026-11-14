@@ -76,6 +76,54 @@ detection, tracking and anonymization as the Veil desktop app.
   installs default to 24 fps and 180°.
 * No network permission: everything runs on the phone.
 
+## New in 1.4: camera-app interface
+
+The screen is laid out in portrait like a phone camera and never rotates. Its buttons
+turn upright with the phone, and recordings follow how the phone is held (Settings →
+Camera → Video orientation can lock horizontal or vertical).
+
+* **Top bar.**
+  * Left: torch and face blur (hold the face button for blur strength).
+  * Centre: the chevron opens the settings tray. While recording, a red timer
+    replaces it.
+  * Right: the format pill. Tap "4K" for resolution and "24" for frame rate. In
+    Cinematic and Portrait, an ƒ button sets the depth.
+* **Modes.** CINEMATIC (video with background blur), VIDEO, PHOTO and PORTRAIT
+  (photo with background blur). Swipe sideways on the picture or tap a label; the
+  carousel springs to it.
+* **Shutter.**
+  * The red disc morphs into a rounded square while recording. In the photo modes
+    it is white.
+  * While recording, Pause replaces the thumbnail and a still-capture button
+    replaces Flip.
+* **Zoom.**
+  * Lens buttons .5, 1×, 2 and 5 glide to their zoom.
+  * Press and hold, drag sideways or pinch to open the zoom wheel, an arc scale that
+    turns under the finger.
+* **Focus and exposure.**
+  * Tap: a yellow square springs in with a sun beside it. Drag up or down to change
+    exposure.
+  * Press and hold: AE/AF lock.
+  * Double-tap: continuous AF.
+* **Camera controls (dial button).** A picker of controls on a curved row, then a
+  curved ruler with haptic ticks and AUTO. Controls: Exposure, ISO, Shutter, White
+  Balance, Tint, Focus, Zoom, Depth, Face Blur, Style, Style Strength and Film.
+* **Settings tray.** Swipe up or tap the chevron for Faces, Exposure, Styles, Film,
+  Resolution, Frame rate, Codec, Stabilize, Assist (zebras, peaking, false color,
+  grid, level, histogram), Locks, Audio, Power and Settings.
+* **Settings sheet.** A grouped list that slides up and can be dragged down to
+  dismiss. Pages push in from the right.
+* **Library and viewers.**
+  * Three-column library, newest at the bottom; long-press for a menu.
+  * The viewer zooms out of the camera thumbnail. Photos support pinch and
+    double-tap zoom.
+  * The player has a filmstrip scrubber and an Edit mode with a yellow frame.
+* All icons are drawn in code. Springs, glass surfaces and haptics are in
+  `ui/Theme.kt`.
+* UI screenshots without a phone:
+  `gradle -PveilSnapshots :app:recordPaparazziRelease` (images land in
+  `app/src/test/snapshots/`, ignored by git).
+
 ## New in 1.3: battery and heat (tuned for Pixel 9 Pro XL)
 
 Settings → Power offers **Max quality**, **Balanced** (default) and **Battery saver**.

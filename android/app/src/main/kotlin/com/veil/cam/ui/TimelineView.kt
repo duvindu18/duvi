@@ -28,6 +28,8 @@ class TimelineView(ctx: Context) : View(ctx) {
     val cuts = ArrayList<Span>()
     var cutMode = false
         set(v) { field = v; invalidate() }
+    var editing = false
+        set(v) { field = v; invalidate() }
     var onScrub: ((Long, Boolean) -> Unit)? = null // position, finished
     var onCutsChanged: (() -> Unit)? = null
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -36,14 +38,14 @@ class TimelineView(ctx: Context) : View(ctx) {
     private var downX = 0f
 
     private val strip: RectF get() {
-        val pad = Theme.dp(context, 14f)
-        return RectF(pad, Theme.dp(context, 8f), width - pad, height - Theme.dp(context, 8f))
+        val pad = Theme.dp(context, 6f)
+        return RectF(pad, Theme.dp(context, 9f), width - pad, height - Theme.dp(context, 9f))
     }
 
     private fun xOf(us: Long) = strip.left + strip.width() * us / durationUs.coerceAtLeast(1)
     private fun usOf(x: Float) = ((x - strip.left) / strip.width() * durationUs).toLong().coerceIn(0, durationUs)
 
-    override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(MeasureSpec.getSize(w), Theme.dpi(context, 64f))
+    override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(MeasureSpec.getSize(w), Theme.dpi(context, 60f))
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(e: MotionEvent): Boolean {
@@ -76,14 +78,14 @@ class TimelineView(ctx: Context) : View(ctx) {
 
     override fun onDraw(c: Canvas) {
         val r = strip
-        val rad = Theme.dp(context, 10f)
+        val rad = Theme.dp(context, 7f)
         p.style = Paint.Style.FILL
-        p.color = Theme.SURFACE2
+        p.color = Theme.SHEET
         c.drawRoundRect(r, rad, rad, p)
+        c.save()
+        val clip = android.graphics.Path().apply { addRoundRect(r, rad, rad, android.graphics.Path.Direction.CW) }
+        c.clipPath(clip)
         if (thumbs.isNotEmpty()) {
-            c.save()
-            val clip = android.graphics.Path().apply { addRoundRect(r, rad, rad, android.graphics.Path.Direction.CW) }
-            c.clipPath(clip)
             val tw = r.width() / thumbs.size
             for ((i, b) in thumbs.withIndex()) {
                 val dst = RectF(r.left + i * tw, r.top, r.left + (i + 1) * tw, r.bottom)
@@ -95,23 +97,46 @@ class TimelineView(ctx: Context) : View(ctx) {
                 }
                 c.drawBitmap(b, src, dst, null)
             }
+        }
+        // Removed parts: dimmed and hatched.
+        fun removed(a: Float, b: Float, alpha: Int) {
+            p.style = Paint.Style.FILL
+            p.color = Color.argb(alpha, 0, 0, 0)
+            c.drawRect(a, r.top, b, r.bottom, p)
+            p.color = Color.argb(70, 255, 255, 255)
+            p.strokeWidth = Theme.dp(context, 1f)
+            val step = Theme.dp(context, 7f)
+            var x = a - r.height()
+            c.save(); c.clipRect(a, r.top, b, r.bottom)
+            while (x < b) { c.drawLine(x, r.bottom, x + r.height(), r.top, p); x += step }
             c.restore()
         }
-        // Cut regions
-        p.color = Color.argb(170, 255, 69, 58)
-        for (s in cuts) c.drawRect(xOf(s.startUs), r.top, xOf(s.endUs), r.bottom, p)
-        if (dragFrom >= 0) {
-            p.color = Color.argb(120, 255, 69, 58)
-            c.drawRect(xOf(min(dragFrom, dragTo)), r.top, xOf(max(dragFrom, dragTo)), r.bottom, p)
+        for (sp in cuts) removed(xOf(sp.startUs), xOf(sp.endUs), 185)
+        if (dragFrom >= 0) removed(xOf(min(dragFrom, dragTo)), xOf(max(dragFrom, dragTo)), 130)
+        c.restore()
+        if (editing) {
+            // Edit frame: yellow border with grips at both ends.
+            p.style = Paint.Style.STROKE
+            p.strokeWidth = Theme.dp(context, 3f)
+            p.color = Theme.YELLOW
+            c.drawRoundRect(r, rad, rad, p)
+            p.style = Paint.Style.FILL
+            val g = Theme.dp(context, 10f)
+            c.drawRoundRect(r.left - 1, r.top, r.left + g, r.bottom, rad, rad, p)
+            c.drawRoundRect(r.right - g, r.top, r.right + 1, r.bottom, rad, rad, p)
+            p.color = Color.argb(160, 0, 0, 0)
+            p.strokeWidth = Theme.dp(context, 2f)
+            val cy = r.centerY(); val h = Theme.dp(context, 6f)
+            c.drawLine(r.left + g / 2, cy - h, r.left + g / 2, cy + h, p)
+            c.drawLine(r.right - g / 2, cy - h, r.right - g / 2, cy + h, p)
         }
-        p.style = Paint.Style.STROKE
-        p.strokeWidth = Theme.dp(context, 2f)
-        p.color = if (cutMode) Theme.ACCENT else Color.argb(90, 255, 255, 255)
-        c.drawRoundRect(r, rad, rad, p)
-        // Playhead
+        // Playhead.
         p.style = Paint.Style.FILL
         p.color = Color.WHITE
+        p.setShadowLayer(Theme.dp(context, 2f), 0f, 0f, 0x80000000.toInt())
         val x = xOf(positionUs)
-        c.drawRoundRect(x - Theme.dp(context, 1.5f), r.top - Theme.dp(context, 5f), x + Theme.dp(context, 1.5f), r.bottom + Theme.dp(context, 5f), 3f, 3f, p)
+        val w = Theme.dp(context, 1.8f)
+        c.drawRoundRect(x - w, r.top - Theme.dp(context, 5f), x + w, r.bottom + Theme.dp(context, 5f), w, w, p)
+        p.clearShadowLayer()
     }
 }

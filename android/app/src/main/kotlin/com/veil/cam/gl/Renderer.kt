@@ -72,6 +72,8 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         fun onRecording(active: Boolean, elapsedNs: Long, uri: Uri?, error: String?)
         fun onPhoto(uri: Uri?, error: String?)
         fun onDetectorReady(ready: Boolean)
+        /** The first frame of a (re)started camera arrived. */
+        fun onFirstFrame()
     }
 
     private class Slot(val color: GlUtil.Target, val blur: GlUtil.Target) {
@@ -110,7 +112,12 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
     private val stM = FloatArray(16)
     private var sensorOrientation = 90
     private var front = false
-    private var displayRotation = 90
+    // The screen is laid out in portrait; the recording and the face detector follow
+    // how the phone is held.
+    private var previewRotation = 0
+    private var outputRotation = 0
+    private var faceRotation = 0
+    private var wantedOutputRotation = 0
 
     private var slots: List<Slot> = emptyList()
     private val pending = ArrayDeque<Slot>()
@@ -227,9 +234,16 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         listener?.onCameraSurface(s, size)
     }
 
-    fun setDisplayRotation(deg: Int) = handler.post {
-        if (recorder != null) return@post // orientation is locked while recording
-        displayRotation = deg
+    /**
+     * [preview]: screen rotation; [output]: orientation of recordings and photos (locked
+     * while recording); [faces]: how the phone is held, so faces are upright for the detector.
+     */
+    fun setRotations(preview: Int, output: Int, faces: Int) = handler.post {
+        previewRotation = preview
+        wantedOutputRotation = output
+        if (recorder == null) outputRotation = output
+        faceRotation = faces
+        previewDirty = true
         publishTransform()
     }
 
@@ -345,6 +359,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         blurTmpA = GlUtil.Target(max(1, imgW / 4), max(1, imgH / 4))
         blurTmpB = GlUtil.Target(max(1, imgW / 4), max(1, imgH / 4))
         geometryKnown = true
+        listener?.onFirstFrame()
         publishTransform()
         Log.i(TAG, "frames ${capSize.width}x${capSize.height} -> upright ${imgW}x$imgH (st swapped=$swapped, pre=$rot)")
     }
@@ -471,7 +486,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
     }
 
     // ---- detection input ------------------------------------------------------------------------
-    private fun baseAngle(): Double = displayRotation.toDouble()
+    private fun baseAngle(): Double = faceRotation.toDouble()
 
     /**
      * Detection is paced by the power budget: calm or empty scenes are sampled less
@@ -617,7 +632,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
             if (!recPaused) {
                 egl.makeCurrent(enc)
                 GLES30.glBindVertexArray(vao)
-                render(s, rec.width, rec.height, fill = true, monitor = false, lut = settings.bakeLut,
+                render(s, rec.width, rec.height, outputRotation, fill = true, monitor = false, lut = settings.bakeLut,
                     mirror = front && !settings.mirrorFront, film = settings.bakeFilm) {
                     GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
                     GLES30.glViewport(0, 0, rec.width, rec.height)
@@ -646,7 +661,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         if (slot !== drawnSlot || previewDirty) {
             egl.makeCurrent(p)
             GLES30.glBindVertexArray(vao)
-            val faces = render(slot, previewW, previewH, fill = false, monitor = true, lut = settings.lutOnMonitor, mirror = false, film = true) {
+            val faces = render(slot, previewW, previewH, previewRotation, fill = false, monitor = true, lut = settings.lutOnMonitor, mirror = false, film = true) {
                 GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
                 GLES30.glViewport(0, 0, previewW, previewH)
             }
@@ -670,10 +685,10 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
     private val fb = FloatArray(Shaders.MAX_FACES * 4)
 
     /** Output transform: image px -> output px (column-major 3x3 of the inverse is uploaded). */
-    private fun outputAffine(outW: Int, outH: Int, fill: Boolean, mirror: Boolean): DoubleArray {
-        val theta = Math.toRadians(-displayRotation.toDouble()) // clockwise on screen
+    private fun outputAffine(outW: Int, outH: Int, rot: Int, fill: Boolean, mirror: Boolean): DoubleArray {
+        val theta = Math.toRadians(-rot.toDouble()) // clockwise on screen
         val c = cos(theta); val s = sin(theta)
-        val quarter = (displayRotation / 90) % 2 == 1
+        val quarter = (rot / 90) % 2 == 1
         val rw = if (quarter) imgH else imgW
         val rh = if (quarter) imgW else imgH
         val k = if (fill) max(outW.toDouble() / rw, outH.toDouble() / rh) else min(outW.toDouble() / rw, outH.toDouble() / rh)
@@ -698,7 +713,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
      * film / monitoring pass into the destination [bindDest] binds.
      */
     private fun render(
-        slot: Slot, outW: Int, outH: Int, fill: Boolean, monitor: Boolean, lut: Boolean, mirror: Boolean, film: Boolean,
+        slot: Slot, outW: Int, outH: Int, rot: Int, fill: Boolean, monitor: Boolean, lut: Boolean, mirror: Boolean, film: Boolean,
         bindDest: () -> Unit,
     ): List<Geom> {
         val s = settings
@@ -711,7 +726,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
             // Nothing to add after the grade: draw straight into the destination
             // (saves a full-resolution pass and its memory traffic every frame).
             bindDest()
-            composite(slot, outW, outH, fill, lut, mirror, faces)
+            composite(slot, outW, outH, rot, fill, lut, mirror, faces)
             return faces
         }
         val stage = stages.getOrPut((outW.toLong() shl 32) or outH.toLong()) {
@@ -719,7 +734,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
             GlUtil.Target(outW, outH, mipmaps = true)
         }
         stage.bind()
-        composite(slot, outW, outH, fill, lut, mirror, faces)
+        composite(slot, outW, outH, rot, fill, lut, mirror, faces)
         val glow = film && (s.bloom > 0f || s.halation > 0f)
         if (glow) {
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, stage.tex)
@@ -752,7 +767,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         return faces
     }
 
-    private fun composite(slot: Slot, outW: Int, outH: Int, fill: Boolean, lut: Boolean, mirror: Boolean, faces: List<Geom>) {
+    private fun composite(slot: Slot, outW: Int, outH: Int, rot: Int, fill: Boolean, lut: Boolean, mirror: Boolean, faces: List<Geom>) {
         val s = settings
         val p = progComp
         GLES30.glUseProgram(p)
@@ -761,7 +776,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         GLES30.glActiveTexture(GLES30.GL_TEXTURE2)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_3D, lutTex); GLES30.glUniform1i(loc(p, "uLut"), 2)
         bindTex(3, maskTex); GLES30.glUniform1i(loc(p, "uMask"), 3)
-        val inv = invert(outputAffine(outW, outH, fill, mirror))
+        val inv = invert(outputAffine(outW, outH, rot, fill, mirror))
         GLES30.glUniformMatrix3fv(loc(p, "uOutToImg"), 1, false, mat3(FloatArray(6) { inv[it].toFloat() }), 0)
         GLES30.glUniform2f(loc(p, "uImgSize"), imgW.toFloat(), imgH.toFloat())
         GLES30.glUniform2f(loc(p, "uBlurSize"), slot.blur.width.toFloat(), slot.blur.height.toFloat())
@@ -823,7 +838,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
     @Volatile var availableAwb: IntArray = IntArray(0)
 
     private fun outputSize(): Pair<Int, Int> {
-        val quarter = (displayRotation / 90) % 2 == 1
+        val quarter = (outputRotation / 90) % 2 == 1
         val w = if (quarter) imgH else imgW
         val h = if (quarter) imgW else imgH
         return (w and 1.inv()) to (h and 1.inv())
@@ -831,9 +846,9 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
 
     private fun publishTransform() {
         if (!geometryKnown || previewW == 0) return
-        val m = outputAffine(previewW, previewH, fill = false, mirror = false)
+        val m = outputAffine(previewW, previewH, previewRotation, fill = false, mirror = false)
         val inv = invert(m)
-        val quarter = (displayRotation / 90) % 2 == 1
+        val quarter = (previewRotation / 90) % 2 == 1
         val rwImg = if (quarter) imgH else imgW
         val rhImg = if (quarter) imgW else imgH
         val k = min(previewW.toDouble() / rwImg, previewH.toDouble() / rhImg)
@@ -858,6 +873,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         if (error == null) emitReady(force = true) // nothing captured is lost
         finishing = false
         recorder = null
+        outputRotation = wantedOutputRotation
         encoderSurface?.let { egl.destroySurface(it) }
         encoderSurface = null
         Thread {
@@ -871,7 +887,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         val (w, h) = outputSize()
         val target = GlUtil.Target(w, h)
         GLES30.glBindVertexArray(vao)
-        render(slot, w, h, fill = true, monitor = false, lut = settings.bakeLut, mirror = front && !settings.mirrorFront, film = settings.bakeFilm) {
+        render(slot, w, h, outputRotation, fill = true, monitor = false, lut = settings.bakeLut, mirror = front && !settings.mirrorFront, film = settings.bakeFilm) {
             target.bind()
         }
         target.bind()

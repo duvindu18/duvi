@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Viewer folds back into the thumbnail. -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@android:interpolator/accelerate_cubic"
+    android:duration="260">
+    <scale android:fromXScale="1" android:toXScale="0.12" android:fromYScale="1" android:toYScale="0.12"
+        android:pivotX="12%" android:pivotY="88%" />
+    <alpha android:fromAlpha="1" android:toAlpha="0" />
+</set>
