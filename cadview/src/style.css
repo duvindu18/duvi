@@ -139,7 +139,7 @@ svg { display: block; flex: none; }
 :root.site .label.dim { background: #000; font-size: 16px; }
 .label.dot { width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: #facc15; border: 2.5px solid #fff; pointer-events: none; box-shadow: 0 0 0 1px #0005; }
 .label.dot.free { background: #fb923c; border-style: dashed; }
-.label.pin { width: 32px; height: 40px; margin: -40px 0 0 -16px; display: grid; place-items: start center; filter: drop-shadow(0 2px 3px #0008); }
+.label.pin { pointer-events: none; width: 32px; height: 40px; margin: -40px 0 0 -16px; display: grid; place-items: start center; filter: drop-shadow(0 2px 3px #0008); }
 .label.pin::before { content: ''; position: absolute; width: 30px; height: 30px; border-radius: 50% 50% 50% 0; background: var(--danger); rotate: -45deg; top: 1px; left: 1px; border: 2px solid #fff; }
 .label.pin b { position: relative; margin-top: 7px; font-size: 12px; color: #fff; }
 .label.hit { width: 48px; height: 48px; margin: -24px 0 0 -24px; border: 3px solid #facc15; border-radius: 50%; pointer-events: none; animation: pulse 1s ease-in-out 3; }

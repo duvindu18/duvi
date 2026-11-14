@@ -186,9 +186,9 @@ async function openBytes(name: string, data: ArrayBuffer, fromLibrary = false) {
         ? await jobs.run({ type: 'dxf', buf: cached, utf8: true }, [cached], loading.progress)
         : await jobs.run({ type: ext, buf: data }, [data], loading.progress);
       if (r.dwg) {
-        dwgNote = `Converted from DWG (${dwgVersionName(r.dwg.version)}) to DXF in ${(r.dwg.ms / 1000).toFixed(1)} s on this device`;
+        dwgNote = `DWG (${dwgVersionName(r.dwg.version)}), converted to DXF in ${(r.dwg.ms / 1000).toFixed(1)} s`;
         lib.saveDerived(id, 'dxf', new Blob([r.dwg.dxf]));
-      } else if (cached) dwgNote = 'DWG: opened from the DXF converted earlier on this device';
+      } else if (cached) dwgNote = 'DWG, opened from the DXF converted earlier';
       const tParsed = performance.now();
       const d: Drawing = r.drawing;
       loading.progress('Building view', 1);
@@ -278,7 +278,7 @@ function skpFallback(name: string, r: { error: string; thumb: Uint8Array | null;
   const img = r.thumb ? URL.createObjectURL(new Blob([r.thumb], { type: r.mime })) : '';
   openSheet(name, `
     ${img ? `<img src="${img}" alt="Preview of ${esc(name)}" style="width:100%;border-radius:14px;background:#fff;margin-bottom:10px">` : ''}
-    <p>${img ? 'This is the preview saved inside the file. ' : ''}The 3D model uses a part of the SketchUp format the built-in reader can't decode yet.</p>
+    <p>${img ? 'Preview stored in the file. ' : ''}This model uses SketchUp features the reader doesn't support yet.</p>
     <p class="muted">To get the full 3D model, open it in SketchUp and use <b>File → Export → 3D Model</b> (.dae or .glb), then open that file here.</p>
     <p class="muted" style="font-size:12px">Details: ${esc(r.error)}</p>`, undefined, { onClose: () => img && URL.revokeObjectURL(img) });
 }
@@ -294,7 +294,7 @@ async function renderLibrary() {
     return `<li class="card"><div class="thumb" ${thumb}>${f.thumb ? '' : icon(ext === 'DXF' ? 'shapes' : 'cube', 26)}</div>
       <div class="meta"><div class="name">${esc(f.name)}</div><div class="sub"><span class="badge">${esc(ext)}</span>${fmtBytes(f.size)} · ${fmtAgo(f.opened)}</div></div>
       <button class="open" data-id="${f.id}" aria-label="Open ${esc(f.name)}"></button>
-      <button class="icon-btn del" data-del="${f.id}" aria-label="Remove ${esc(f.name)}">${icon('trash', 19)}</button></li>`;
+      <button class="icon-btn del" data-del="${f.id}" aria-label="Remove ${esc(f.name)} from list">${icon('trash', 19)}</button></li>`;
   }).join('');
   ul.querySelectorAll<HTMLElement>('[data-id]').forEach((b) => (b.onclick = async () => {
     const f = files.find((x) => x.id === b.dataset.id)!;
@@ -303,10 +303,15 @@ async function renderLibrary() {
   }));
   ul.querySelectorAll<HTMLElement>('[data-del]').forEach((b) => (b.onclick = () => {
     const f = files.find((x) => x.id === b.dataset.del)!;
-    openSheet('Remove file?', `<p>${esc(f.name)} and its notes and measurements will be removed from this device.</p>
-      <div class="btns"><button class="btn" id="no">Keep</button><button class="btn primary" id="yes" style="background:var(--danger)">Remove</button></div>`, (body) => {
+    openSheet('Remove from list?', `<p>${esc(f.name)} will be removed from this list. The original file on your phone is not changed or deleted.</p>
+      <label class="row"><span class="grow">Also delete its notes and measurements</span><input type="checkbox" class="switch" id="delNotes"></label>
+      <div class="btns"><button class="btn" id="no">Cancel</button><button class="btn primary" id="yes" style="background:var(--danger)">Remove</button></div>`, (body) => {
       $('#no', body).onclick = () => closeSheet();
-      $('#yes', body).onclick = async () => { await lib.deleteFile(f.id); closeSheet(); renderLibrary(); };
+      $('#yes', body).onclick = async () => {
+        await lib.deleteFile(f.id, ($('#delNotes', body) as HTMLInputElement).checked);
+        closeSheet();
+        renderLibrary();
+      };
     });
   }));
   const s = await lib.storageInfo();
@@ -396,7 +401,7 @@ function setTool(t: Tool, toggle = true) {
   refreshHint();
 }
 function refreshHint() {
-  if (tool === 'measure') hint(draft.length ? 'Now tap the second point' : 'Tap two points · long-press for the magnifier', [['Done', () => setTool('none')]]);
+  if (tool === 'measure') hint(draft.length ? 'Tap the second point' : 'Tap two points. Hold a point to move it.', [['Done', () => setTool('none')]]);
   else if (tool === 'area') {
     const a = draft.length >= 3 ? ` · ${fmtArea(polyArea(draft))}` : '';
     hint(draft.length < 3 ? `Tap the corners (${draft.length})${a}` : `Tap the first point to close${a}`, [
@@ -410,10 +415,53 @@ function refreshHint() {
 
 // ---------------- gestures → actions ----------------
 let pressPick: Pick | null = null;
+
+// ---- moving points that are already placed: press and hold on one, then drag ----
+type Handle = { kind: 'm'; m: lib.Measure; i: number } | { kind: 'd'; i: number } | { kind: 'n'; n: lib.Note };
+let dragging: Handle | null = null;
+const HANDLE_PX = 28;
+function findHandle(x: number, y: number): Handle | null {
+  if (!doc) return null;
+  let best: Handle | null = null, bd = HANDLE_PX;
+  const test = (pos: THREE.Vector3, h: Handle, pinOffset = 0) => {
+    const s = viewer.toScreen(pos);
+    if (!s.visible) return;
+    const d = Math.min(Math.hypot(s.x - x, s.y - y), pinOffset ? Math.hypot(s.x - x, s.y - pinOffset - y) : Infinity);
+    if (d < bd) { bd = d; best = h; }
+  };
+  draft.forEach((p, i) => test(p, { kind: 'd', i }));
+  for (const m of doc.meta.measures) m.pts.forEach((p, i) => test(toLocal(p), { kind: 'm', m, i }));
+  for (const n of doc.meta.notes) test(toLocal([n.x, n.y, n.z]), { kind: 'n', n }, 22); // the pin is drawn above its point
+  return best;
+}
+function moveHandle(h: Handle, p: THREE.Vector3) {
+  const r = toReal(p);
+  if (h.kind === 'm') {
+    h.m.pts[h.i] = r;
+    viewer.overlay.getObjectByName(`m:${h.m.id}`)?.removeFromParent();
+    viewer.clearLabels(`m:${h.m.id}`);
+    drawMeasure(h.m);
+  } else if (h.kind === 'd') {
+    draft[h.i] = p.clone();
+    viewer.setLabel({ id: `draft:${h.i + 1}`, pos: draft[h.i], html: '', cls: 'dot' });
+    drawDraft();
+    refreshHint();
+  } else {
+    [h.n.x, h.n.y, h.n.z] = r;
+    drawNotes();
+  }
+}
+
 viewer.handlers = {
   tap: (x, y) => {
     hidePopover();
-    if (!doc || tool === 'none') return;
+    if (!doc) return;
+    // tapping a note pin opens it (unless you're placing measurement points)
+    if (tool === 'none' || tool === 'note') {
+      const h = findHandle(x, y);
+      if (h?.kind === 'n') return editNote(h.n);
+    }
+    if (tool === 'none') return;
     const p = viewer.pick(x, y);
     if (!p) return toast('Nothing there');
     place(p, x, y);
@@ -421,20 +469,35 @@ viewer.handlers = {
   longPress: (x, y) => {
     if (!doc) return;
     haptic.strong();
+    const h = findHandle(x, y);
+    if (h) {
+      dragging = h;
+      hint('Drag to move the point, then let go');
+      pressPick = viewer.pick(x, y);
+      viewer.showLoupe(x, y, pressPick?.snapped ? pressPick.point : null);
+      return;
+    }
     if (tool === 'none') return contextMenu(x, y);
     pressPick = viewer.pick(x, y);
     viewer.showLoupe(x, y, pressPick?.snapped ? pressPick.point : null);
   },
   pressMove: (x, y) => {
-    if (tool === 'none') return;
+    if (tool === 'none' && !dragging) return;
     const p = viewer.pick(x, y);
     if (p?.snapped && (!pressPick?.snapped || !p.point.equals(pressPick.point))) haptic.tick();
     pressPick = p;
+    if (dragging && p) moveHandle(dragging, p.point);
     viewer.showLoupe(x, y, p?.snapped ? p.point : null);
   },
   pressEnd: (x, y) => {
     viewer.hideLoupe();
-    if (tool !== 'none' && pressPick) place(pressPick, x, y);
+    if (dragging) {
+      if (pressPick) moveHandle(dragging, pressPick.point);
+      if (dragging.kind !== 'd') lib.saveMeta(doc!.id, doc!.meta);
+      dragging = null;
+      haptic.tap();
+      refreshHint();
+    } else if (tool !== 'none' && pressPick) place(pressPick, x, y);
     pressPick = null;
     viewer.requestRender();
   },
@@ -583,7 +646,8 @@ function wireUnitPicker(b: HTMLElement, after?: () => void) {
 // ---------------- notes ----------------
 function drawNotes() {
   viewer.clearLabels('n:');
-  doc!.meta.notes.forEach((n, i) => viewer.setLabel({ id: `n:${n.id}`, pos: toLocal([n.x, n.y, n.z]), html: `<b>${i + 1}</b>`, cls: 'pin', onTap: () => editNote(n) }));
+  // pins don't take touches themselves: the drawing handles tap (open) and hold (move) on them
+  doc!.meta.notes.forEach((n, i) => viewer.setLabel({ id: `n:${n.id}`, pos: toLocal([n.x, n.y, n.z]), html: `<b>${i + 1}</b>`, cls: 'pin' }));
 }
 function editNote(n: lib.Note | null, at?: THREE.Vector3) {
   const idx = n ? doc!.meta.notes.indexOf(n) + 1 : doc!.meta.notes.length + 1;
@@ -689,7 +753,7 @@ function showMore() {
   });
 }
 function showUnits() {
-  openSheet('Units', `<p class="muted">Set what one drawing unit means, so measurements read correctly. Files exported without units (OBJ, STL, many DAE files) need this.</p>${unitPicker()}`, (b) => wireUnitPicker(b, showUnits));
+  openSheet('Units', `<p class="muted">Choose the unit the drawing was made in. OBJ, STL and some DAE files don't store units.</p>${unitPicker()}`, (b) => wireUnitPicker(b, showUnits));
 }
 function toggleRotLock() {
   rotLock = !rotLock;
@@ -745,7 +809,7 @@ function showSection() {
     <div class="seg" style="margin:12px 0">${['Across (X)', 'Height', 'Depth (Z)'].map((a, i) => `<button data-ax="${i}" class="${s.axis === i ? 'on' : ''}">${a}</button>`).join('')}</div>
     <input type="range" id="secT" min="0" max="1" step="0.001" value="${s.t}" aria-label="Cut position">
     <div class="btns"><button class="btn" id="secFlip">${icon('reset', 18)}Flip side</button><button class="btn" id="secTop">${icon('cube', 18)}Look from above</button></div>
-    <p class="muted">Tip: choose Height and slide to see each floor as a plan.</p>`, (b) => {
+    <p class="muted">Choose Height and move the slider to see each floor.</p>`, (b) => {
     const on = $('#secOn', b) as HTMLInputElement;
     const upd = () => { viewer.applySection(); document.querySelector('#dock [data-tool=section]')?.classList.toggle('on', s.enabled); };
     on.onchange = () => { s.enabled = on.checked; upd(); };
@@ -763,7 +827,7 @@ function showViews() {
   const views: [string, 'top' | 'front' | 'side' | 'back' | 'iso'][] = [['Top', 'top'], ['Front', 'front'], ['Side', 'side'], ['Back', 'back'], ['3D', 'iso']];
   openSheet('Views', `<div class="tiles">${views.map(([l, v]) => `<button class="tile" data-v="${v}">${icon('cube', 24)}<span>${l}</span></button>`).join('')}
     <button class="tile" id="zup">${icon('reset', 24)}<span>Stand model up</span></button></div>
-    <p class="muted">"Stand model up" fixes files exported with Z pointing up (common from SketchUp, OBJ and STL).</p>`, (b) => {
+    <p class="muted">Use "Stand model up" if the model appears lying on its side.</p>`, (b) => {
     b.querySelectorAll<HTMLElement>('[data-v]').forEach((x) => (x.onclick = () => { viewer.view(x.dataset.v as any); haptic.tick(); }));
     $('#zup', b).onclick = () => {
       const r = doc!.s3!.root;
@@ -787,11 +851,11 @@ function showInfo() {
   openSheet('File info', `<div class="list">
     <div class="row"><span class="grow">Name</span><span class="sub">${esc(d.name)}</span></div>
     <div class="row"><span class="grow">Size</span><span class="sub">${fmtBytes(d.size)}</span></div>
-    <div class="row"><span class="grow">Opened in</span><span class="sub">${(d.ms / 1000).toFixed(2)} s, on this device</span></div>
+    <div class="row"><span class="grow">Load time</span><span class="sub">${(d.ms / 1000).toFixed(2)} s</span></div>
     <div class="row"><span class="grow">Units</span><span class="sub">${esc(units())}</span></div>
     ${d.stats.map((s) => `<div class="row"><span class="grow" style="white-space:normal">${esc(s)}</span></div>`).join('')}
   </div>${d.ext === 'dwg' ? `<div class="btns"><button class="btn" id="shareDxf">${icon('share', 18)}Share as DXF</button></div>` : ''}
-  <p class="muted">Everything is processed on this phone. Nothing is uploaded.</p>`, (b) => {
+  <p class="muted">Files are processed on this device only.</p>`, (b) => {
     $('#shareDxf', b)?.addEventListener('click', async () => {
       const dxf = await lib.getDerived(d.id, 'dxf');
       if (!dxf) return toast('The converted DXF is not stored on this device');

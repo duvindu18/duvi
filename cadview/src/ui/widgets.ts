@@ -25,6 +25,7 @@ export function toast(msg: string, ms = 2600) {
 
 // ---------- bottom sheet ----------
 let onSheetClose: (() => void) | null = null;
+let sheetOpenedAt = 0;
 /** history.back() used to close a sheet must not be treated as "leave the viewer". */
 let skipPop = false;
 export const consumeSkipPop = () => { const v = skipPop; skipPop = false; return v; };
@@ -39,6 +40,7 @@ export function openSheet(title: string, html: string, wire?: (body: HTMLElement
   sheet.classList.toggle('tall', !!opts.tall);
   sheet.style.transform = '';
   sheet.classList.add('open');
+  sheetOpenedAt = performance.now();
   $('#scrim').classList.add('show');
   if (!history.state?.sheet) history.pushState({ ...history.state, sheet: true }, '');
   wire?.(body);
@@ -81,7 +83,9 @@ export function wireSheetDrag() {
   };
   grab.addEventListener('pointerup', end);
   grab.addEventListener('pointercancel', end);
-  $('#scrim').addEventListener('click', () => closeSheet());
+  // the tap that opened a panel is followed by the browser's own "click" at the same spot, which
+  // would land on the backdrop and close the panel straight away on real phones: ignore it
+  $('#scrim').addEventListener('click', () => { if (performance.now() - sheetOpenedAt > 500) closeSheet(); });
   $('#sheetClose').addEventListener('click', () => closeSheet());
 }
 

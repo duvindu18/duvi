@@ -51,6 +51,8 @@ export class GestureControls {
     el.addEventListener('pointercancel', this.cancel);
     el.addEventListener('wheel', this.wheel, { passive: false });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
+    // taps are handled from pointer events; cancel the browser's extra synthesised click
+    el.addEventListener('touchend', (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
   }
 
   get w() { return this.el.clientWidth || 1; }

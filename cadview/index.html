@@ -22,13 +22,13 @@
     </header>
     <div class="home-body">
       <div class="hero">
-        <h1>Your drawings,<br />in your pocket.</h1>
-        <p>DWG and DXF plans, SketchUp and 3D models with measuring, notes and revision compare. Works with no signal, needs no account, and nothing is uploaded.</p>
+        <h1>Open a drawing</h1>
+        <p>View DWG, DXF and SketchUp files and 3D models. Measure, add notes and compare revisions. Works offline.</p>
         <button class="btn primary xl" id="btnOpen"><i data-icon="open"></i>Open a file</button>
         <div class="formats">DWG · DXF · SKP (SketchUp) · GLB/glTF · OBJ · STL · DAE · PLY · 3MF</div>
       </div>
       <div class="samples">
-        <span class="label-sm">Try a sample</span>
+        <span class="label-sm">Samples</span>
         <div class="chips">
           <button class="chip" data-sample="floorplan-rev-A.dxf"><i data-icon="shapes" data-size="16"></i>Floor plan</button>
           <button class="chip" data-sample="floorplan-2018.dwg"><i data-icon="shapes" data-size="16"></i>AutoCAD DWG</button>
@@ -39,7 +39,7 @@
       </div>
       <div class="lib-head"><h2 id="recentTitle">On this device</h2><span id="storage" class="label-sm"></span></div>
       <ul id="recent" class="cards"></ul>
-      <div id="empty" class="empty">Files you open appear here and stay available offline.</div>
+      <div id="empty" class="empty">No files yet. Files you open are listed here and can be reopened offline.</div>
     </div>
     <input id="fileInput" type="file" hidden />
     <input id="compareInput" type="file" accept=".dxf,.dwg" hidden />
@@ -99,9 +99,9 @@
         <li><b>Drag</b><span id="coachDrag">Move around</span></li>
         <li><b>Pinch</b><span>Zoom in and out</span></li>
         <li><b>Twist</b><span id="coachTwist">Rotate the drawing</span></li>
-        <li><b>Double-tap</b><span>Zoom in there</span></li>
+        <li><b>Double-tap</b><span>Zoom in</span></li>
         <li><b>Two-finger tap</b><span>Zoom out</span></li>
-        <li><b>Long-press</b><span>Options, or precise placement with a magnifier while measuring</span></li>
+        <li><b>Hold</b><span>Options. While measuring: magnifier. On a placed point: move it.</span></li>
       </ul>
       <button class="btn primary" id="coachOk">Got it</button>
     </div>

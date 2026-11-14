@@ -1,128 +1,84 @@
-# CADView: an offline CAD and 3D viewer for Android and iOS
+# CADView
 
-CADView opens CAD drawings and 3D models on a phone with **no internet, no account and no uploads**.
-It is a TypeScript + three.js app packaged as native Android and iOS apps with [Capacitor](https://capacitorjs.com).
-The whole app ships inside the APK/IPA, and the Android build doesn't even request the INTERNET permission.
+Offline viewer for CAD drawings and 3D models on Android and iOS. Built with TypeScript and three.js, packaged with Capacitor. Files are processed on the device; the Android app has no INTERNET permission.
 
-## Gestures
+## Supported files
 
-| | 2D drawings | 3D models |
-|---|---|---|
-| One finger | pan, with fling momentum | orbit |
-| Pinch | zoom around the point between your fingers | zoom toward what's under your fingers |
-| Twist | rotate (can be locked; the compass resets it) | spin |
-| Two fingers drag | pan | pan |
-| Double-tap | zoom in ×2 there | fly in and re-centre the orbit there |
-| Two-finger tap | zoom out ×2 | zoom out ×2 |
-| Long-press | menu: measure from here, add a note, zoom, copy coordinates | same |
-| Long-press while measuring | **magnifier loupe** for precise placement; a haptic tick on each snap | same |
-| Swipe a panel down | close it | close it |
-
-Taps snap to real corners, line ends, midpoints, circle centres and quadrants. In 3D they snap to vertices on the surface you touched (never through walls).
+| Format | Notes |
+|---|---|
+| DXF (ASCII) | Lines, polylines with arcs, 3D polylines and meshes, circles, arcs, ellipses, splines, solids, 3D faces, leaders, text/MTEXT/attributes, blocks (nested, rotated, scaled, arrays) and dimensions. Layers, ACI and true colour, ByLayer/ByBlock, OCS/extrusion, code pages. Paper space is skipped. Unsupported entities (e.g. HATCH) are listed in File info. |
+| DWG (R12 to 2018+) | Converted to DXF on the device with [acad-ts](https://github.com/node-projects/acad-ts) (MIT), then shown like a DXF. The converted file is cached and can be shared from File info. |
+| SKP (SketchUp 2013+) | Read with [openskp](https://github.com/iamahsanmehmood/openskp) (MIT). Components are kept instanced, so large models with many repeated components stay light. If a file can't be read, the preview image stored in it is shown. |
+| GLB/glTF, OBJ, STL, PLY, DAE, 3MF | glTF Draco, meshopt and KTX2 decoders are bundled. |
+| Binary DXF | Not supported yet. |
 
 ## Features
 
-- **Fully offline library.** Opened files are kept on the device with thumbnails, and the last view, notes and measurements are restored when you reopen one.
-- **Measure** distance (Δx/Δy, or height difference in 3D) and area plus perimeter. Units are set per file: mm, cm, m, in, or ft with feet-inches.
-- **Pinned notes** that can be shared as text, and **share a marked-up image** through the phone's share sheet.
-- **Revision compare** (DXF): added lines show green, removed red, unchanged grey, each toggleable. Matching is by geometry, so re-saves and reordering don't count as changes.
-- **Find text** (room numbers, tags), including block attributes.
-- **Section cuts** in 3D (across, height or depth), plus standard views and "stand model up" for Z-up exports.
-- **Site mode**: high contrast for sunlight, with larger targets.
-- Follows the system **dark/light** theme. On light backgrounds pale CAD colours are darkened automatically so yellow and cyan stay readable.
-- **Open with CADView** from file managers, email, WhatsApp or Drive (Android intent filters and iOS document types).
+- Pan, pinch-zoom, rotate (lockable), double-tap / two-finger-tap zoom, fling.
+- Distance and area measuring with snapping to corners, ends, midpoints and centres. Hold a placed point to move it.
+- Notes pinned to the drawing; hold a pin to move it. Notes can be shared as text.
+- Revision compare for DXF/DWG (added / removed / unchanged).
+- Text search, layer and tag visibility, section cuts and standard views in 3D.
+- Library of opened files with thumbnails; last view, notes and measurements are restored.
+- Dark, light and high-contrast site mode.
+- "Open with" from other apps on Android and iOS.
 
-## Built for big files
+Removing a file from the list only deletes the app's own copy. The original file is never modified.
 
-Measured in headless Chromium on a laptop CPU (`e2e/bigfiles.cjs`; GPU rendering there is software-emulated, so frame rates on a real phone GPU are much better):
+## Large files
 
-| File | Opens in | Longest UI-thread pause while loading | Snap tap |
-|---|---|---|---|
-| DXF, 53 MB: 806k entities, 3.6M segments, 115k texts | **2.8 s** | 34 ms | 0.05 ms |
-| STL, 196 MB: 3.9M triangles | **4.1 s** | 179 ms | 0.35 ms |
+DXF and DWG are parsed in a Web Worker straight into typed arrays and split into spatial tiles. Segments and text too small to see are skipped when zoomed out. Snapping uses a grid index and 3D picking uses a BVH. SketchUp components are drawn with GPU instancing; distant ones are drawn as boxes.
 
-With level of detail, the 53 MB plan draws 691k segments and 0 glyphs at full view, and 69k segments when zoomed in 8× (instead of 3.6M segments plus 1.8M glyph triangles every frame).
+Measured in headless Chromium on a laptop (`e2e/bigfiles.cjs`):
 
-| Technique | Effect |
-|---|---|
-| **Streaming byte-level DXF reader** in a Web Worker | 53 MB / 806k entities parses in ~2 s on a laptop CPU. Memory is a small multiple of the output, not 30-40× the file like object-based parsers. The UI keeps animating while it loads, and loading can be cancelled. |
-| Geometry goes straight into **fixed-size typed-array chunks** | no doubling or final copy; handed to the GPU with zero-copy transfer |
-| **Adaptive arc tessellation** from the drawing extents | half the segments of a fixed 64-per-circle approach, still smooth when zoomed in |
-| **Spatial tiles + length-sorted level of detail** | off-screen tiles are culled when zoomed in; sub-pixel segments are skipped when zoomed out; one draw call per tile |
-| **GPU-instanced text** from one glyph atlas, tiled and sorted by height | only labels big enough to read are drawn; off-screen tiles are culled |
-| **Uniform-grid snap index** | snapping is a cell lookup instead of a scan of millions of points |
-| **BVH ray casting** (three-mesh-bvh), built in the worker for OBJ/STL/PLY | instant taps on multi-million-triangle models |
-| Mesh **merging per part and material**, edges added progressively | thousands of SketchUp components become a handful of draw calls |
-| **Render on demand** plus **adaptive resolution while moving** | no battery drain when idle; heavy scenes drop resolution mid-gesture and sharpen the moment fingers stop |
-| Survey coordinates **re-centred** before the GPU | no float32 jitter on drawings at x ≈ 500 000 |
+| File | Open time | Longest UI pause |
+|---|---|---|
+| DXF, 53 MB, 806k entities | 2.8 s | 34 ms |
+| DWG, 0.9 MB, 40k entities | 2.4 s | 20 ms |
+| STL, 196 MB, 3.9M triangles | 4.1 s | 179 ms |
+| SKP, 5.7 MB, 3,000 components (10.8M triangles as placed) | 1.6 s | 19 ms |
 
-## Formats
-
-| Format | Status |
-|---|---|
-| DXF (ASCII, R12–2018+) | ✅ LINE, (LW)POLYLINE with bulges/arcs, 3D polylines, polyface and polygon meshes, CIRCLE, ARC, ELLIPSE, SPLINE (rational, de Boor), SOLID/TRACE/3DFACE, LEADER, TEXT/MTEXT/ATTRIB with alignment, INSERT (nested, rotated, scaled, arrays), DIMENSION. Handles OCS/extrusion (mirrored entities), layer on/off/frozen, ACI and true colour, ByLayer/ByBlock, code pages and `\U+` escapes. Paper-space layouts are skipped. Anything not drawn yet (e.g. HATCH) is **listed in File info**, never silently dropped. |
-| GLB/glTF (incl. Draco, meshopt, KTX2), OBJ, STL, PLY, DAE, 3MF | ✅ 3D. Decoders are bundled locally. |
-| **SKP** (SketchUp) | ✅ Opened **directly on the phone** with [openskp](https://github.com/iamahsanmehmood/openskp) (MIT), an open-source reader reverse-engineered from SketchUp 2013–2020 and 2021+ files. It runs in the background worker and is converted in memory to glTF, so components/groups become toggleable parts, materials are kept, and units are real metres. If a file uses something the reader can't decode, the app shows the preview image SketchUp embeds in the file and explains how to export .dae/.glb. |
-| **DWG** (AutoCAD R12 → 2018+, AC1009–AC1032) | ✅ **Converted to DXF on the phone when importing**, using [acad-ts](https://github.com/node-projects/acad-ts) (MIT; TypeScript port of ACadSharp), then shown by the same DXF engine (layers, blocks, text, snapping, find, compare). The converted DXF is cached, so reopening skips conversion, and **File info → Share as DXF** exports it. DWGs can also be compared with DXF or DWG revisions. |
-| Binary DXF | ❌ Not yet. The app says so. |
-
-## Run, test, build
+## Development
 
 ```bash
-cd cadview
 npm install
-npm run dev                         # open the printed URL on your phone (same Wi-Fi)
-npm test                            # unit tests: DXF geometry, OCS, blocks, bulges, diff, snap index
+npm run dev            # dev server, open on a phone on the same network
+npm test               # unit tests
 npm run build && npx vite preview --port 4173 &
-node e2e/gestures.cjs http://localhost:4173/ /tmp     # real multi-touch: pinch, twist, fling, long-press, loupe…
-node e2e/screens.cjs  http://localhost:4173/ /tmp     # layout check on 6 screen sizes / orientations
-npx vite-node scripts/make-big.ts /tmp 4              # 53 MB DXF + 196 MB STL stress files
-node e2e/bigfiles.cjs http://localhost:4173/ /tmp/big-city.dxf /tmp/big-terrain.stl
+node e2e/gestures.cjs http://localhost:4173/ /tmp   # touch gestures and tools
+node e2e/screens.cjs  http://localhost:4173/ /tmp   # layouts on several screen sizes
+node e2e/dwg.cjs      http://localhost:4173/ /tmp
+node e2e/skp.cjs      http://localhost:4173/ /tmp
 ```
 
-### Phone apps
+Test files: `scripts/make-samples.ts`, `scripts/make-big.ts`, `scripts/make-dwg.ts`, `scripts/make-skp.ts`, `scripts/make-big-skp.ts`.
 
-The native projects are already generated in `android/` and `ios/`.
-
-Build a test APK from the command line (JDK 17+ and the Android SDK, platform 34):
+## Building the apps
 
 ```bash
 npm run build && npx cap sync android
-cd android && ./gradlew assembleDebug      # → app/build/outputs/apk/debug/app-debug.apk
+cd android && ./gradlew assembleDebug   # app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Or use Android Studio / Xcode:
+Use `npm run cap:ios` on a Mac for Xcode. Launcher icons and splash screens are generated with `node scripts/make-icons.cjs`.
 
-```bash
-npm run cap:android   # builds the web bundle, syncs it, opens Android Studio → Run / Build APK
-npm run cap:ios       # same for Xcode (needs a Mac) → Run / Archive
-```
-
-## Code map
+## Source layout
 
 ```
-src/cad/dxf.ts        streaming DXF reader → chunked line buffers, text, snap points
-src/cad/tiles.ts      spatial tiles + length classes for level of detail
-src/cad/diff.ts       revision compare (53-bit geometric hashes, multiset matching)
-src/cad/snapgrid.ts   uniform-grid nearest-point index
-src/worker.ts         parsing, compare, mesh parsing + BVH + edges, off the UI thread
-src/render/controls.ts touch gesture engine (pan/pinch/twist/fling/double-tap/long-press)
-src/render/viewer.ts  renderer, adaptive resolution, picking, loupe, sections, labels
-src/render/text.ts    instanced glyph-atlas text with size-based culling
-src/render/scene.ts   scene building for 2D tiles and 3D models (glTF/DAE/3MF on the main thread)
-src/ui/*              icons, bottom sheet, popover, loading, haptics
-src/main.ts           app: library, tools, sheets, compare, notes, share
+src/cad/dxf.ts         DXF reader
+src/cad/dwg.ts         DWG → DXF conversion
+src/cad/skp.ts         SketchUp reader → instanced geometry
+src/cad/tiles.ts       tiles and level of detail for 2D
+src/cad/diff.ts        revision compare
+src/cad/snapgrid.ts    snap index
+src/worker.ts          background parsing
+src/render/            gestures, viewer, text, scene building
+src/ui/                icons, panels, popover, haptics
+src/main.ts            app
 ```
 
-## Decisions needed
+## Known limitations
 
-1. **DWG:** done with acad-ts (MIT), so the app doesn't need to be GPL. It was verified on DWG files written in AutoCAD 2000, 2004 and 2018 formats and cross-checked with LibreDWG (test-only). Please try real drawings from your AutoCAD: unusual objects (proxy entities, some custom objects) may not convert.
-2. **SKP coverage:** openskp is a third-party reverse-engineered reader and can't be perfect for every file. Test with your real SketchUp files and report any that fail.
-
-## Roadmap
-
-- [ ] Binary DXF, HATCH fills, linetypes and line weights
-- [ ] 3D level of detail for 10M+ triangle models
-- [ ] Calibrate scale from a known dimension; angle and polyline-length measuring
-- [ ] PDF report of notes and measurements; photos attached to notes
-- [ ] AR placement at real scale (ARCore/ARKit)
+- DWG: some objects from add-ons (proxy entities, Civil 3D objects) may not convert.
+- SKP: the reader is reverse-engineered; some files may only show their preview image.
+- HATCH fills, linetypes and line weights are not drawn yet.

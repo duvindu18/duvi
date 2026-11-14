@@ -66,12 +66,16 @@ export async function saveDerived(id: string, kind: string, data: Blob) {
 export async function getDerived(id: string, kind: string): Promise<ArrayBuffer | null> {
   return getData(`${id}#${kind}`);
 }
-export async function deleteFile(id: string) {
+/**
+ * Remove a file from the app's list. This only deletes CADView's own copy inside the app's storage;
+ * the user's original file (in Downloads, Drive, WhatsApp…) is never touched. Notes are kept unless asked.
+ */
+export async function deleteFile(id: string, deleteNotes = false) {
   try {
     await req('blobs', 'readwrite', (s) => s.delete(`${id}#dxf`));
     await req('blobs', 'readwrite', (s) => s.delete(id));
     await req('index', 'readwrite', (s) => s.delete(id));
-    await req('meta', 'readwrite', (s) => s.delete(id));
+    if (deleteNotes) await req('meta', 'readwrite', (s) => s.delete(id));
   } catch { /* ignore */ }
 }
 export async function getMeta(id: string): Promise<FileMeta> {
