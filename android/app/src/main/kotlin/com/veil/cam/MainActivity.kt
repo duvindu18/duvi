@@ -146,6 +146,7 @@ class MainActivity : Activity(), Renderer.Listener {
     private lateinit var surfaceView: SurfaceView
     private lateinit var viewfinder: FrameLayout
     private lateinit var scrim: View
+    private lateinit var topScrim: View
     private lateinit var shutterRow: FrameLayout
     private var barTop = 0 // top of the top bar (below the camera hole)
     private lateinit var overlay: OverlayView
@@ -399,6 +400,7 @@ class MainActivity : Activity(), Renderer.Listener {
         if (s.orientation != old.orientation) applyRotations()
         if (!s.dimWhileRecording) setDim(false)
         if (s.embedGps != old.embedGps) startLocation()
+        if (s.fullView != old.fullView) { snapshotTransition(flip = false); layoutFrame() }
         if (restart) {
             snapshotTransition(flip = s.cameraId != old.cameraId)
             // Start the new camera only once the old one has stopped using its surface.
@@ -507,6 +509,13 @@ class MainActivity : Activity(), Renderer.Listener {
             isClickable = false
         }
         root.addView(scrim, FrameLayout.LayoutParams(-1, dp(220f), Gravity.TOP))
+        // Full-screen view: the top bar sits on the picture too.
+        topScrim = View(this).apply {
+            background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(0xB3000000.toInt(), 0x66000000, 0x00000000))
+            isClickable = false; visibility = View.GONE
+        }
+        root.addView(topScrim, FrameLayout.LayoutParams(-1, dp(120f), Gravity.TOP))
 
         ui = FrameLayout(this).apply { clipToPadding = false; clipChildren = false }
 
@@ -622,18 +631,24 @@ class MainActivity : Activity(), Renderer.Listener {
     private fun layoutFrame() {
         val w = root.width; val h = root.height
         if (w == 0 || h == 0) return
-        val vh = (w * 16f / 9f).roundToInt().coerceAtMost(h)
-        val top = (barTop + dp(BAR_H + 6f)).coerceAtMost(h - vh)
+        val full = settings.fullView
+        val vh = if (full) h else (w * 16f / 9f).roundToInt().coerceAtMost(h)
+        val top = if (full) 0 else (barTop + dp(BAR_H + 6f)).coerceAtMost(h - vh)
+        topScrim.visibility = if (full) View.VISIBLE else View.GONE
+        (topScrim.layoutParams as FrameLayout.LayoutParams).let { val th = barTop + dp(BAR_H + 40f); if (it.height != th) { it.height = th; topScrim.layoutParams = it } }
         (viewfinder.layoutParams as FrameLayout.LayoutParams).let { if (it.height != vh || it.topMargin != top) { it.height = vh; it.topMargin = top; viewfinder.layoutParams = it } }
         (topBar.layoutParams as FrameLayout.LayoutParams).let { if (it.topMargin != barTop) { it.topMargin = barTop; topBar.layoutParams = it } }
-        (toast.layoutParams as FrameLayout.LayoutParams).let { it.topMargin = top + dp(12f); toast.layoutParams = it }
-        // Shutter band: whatever is below the picture (at least 96 dp, overlapping if it must).
-        val band = (h - safe.bottom - (top + vh)).coerceAtLeast(dp(96f))
+        val pictureTop = if (full) barTop + dp(BAR_H + 6f) else top
+        (toast.layoutParams as FrameLayout.LayoutParams).let { it.topMargin = pictureTop + dp(12f); toast.layoutParams = it }
+        // Shutter band: whatever is below the 9:16 picture (at least 96 dp, overlapping if it must).
+        val framedBottom = barTop + dp(BAR_H + 6f) + (w * 16f / 9f).roundToInt()
+        val band = (h - safe.bottom - if (full) framedBottom.coerceAtMost(h) else (top + vh)).coerceAtLeast(dp(96f))
         (shutterRow.layoutParams as LinearLayout.LayoutParams).let { if (it.height != band) { it.height = band; shutterRow.layoutParams = it } }
         root.post {
             val bandTop = h - safe.bottom - band
             val scrimTop = (bandTop - dp(190f)).coerceAtLeast(top)
             (scrim.layoutParams as FrameLayout.LayoutParams).let { it.topMargin = scrimTop; it.height = (top + vh) - scrimTop; scrim.layoutParams = it }
+            // Full screen: the shutter row sits on the picture, so the scrim runs to the bottom (set above).
             layoutHud()
         }
     }
@@ -643,7 +658,9 @@ class MainActivity : Activity(), Renderer.Listener {
         root.post {
             val vTop = viewfinder.top
             val bottomY = bottom.top + zoomRow.top + zoomRow.height - dp(56f) - vTop
-            overlay.hud = RectF(0f, dp(6f).toFloat(), viewfinder.width.toFloat(), bottomY.toFloat())
+            // Full screen: keep the readouts clear of the top bar.
+            val topY = if (settings.fullView) barTop + dp(BAR_H + 12f) - vTop else dp(6f)
+            overlay.hud = RectF(0f, topY.toFloat(), viewfinder.width.toFloat(), bottomY.toFloat())
         }
     }
 
@@ -811,6 +828,7 @@ class MainActivity : Activity(), Renderer.Listener {
         }
         if (c?.ois == true || c?.eis == true || c?.previewStabilization == true)
             out += TrayItem("stab", Glyph.STAB, "Stabilize", s.eis, listOf("Off", "Standard", "Enhanced"), List(3) { it == stabIndex() })
+        out += TrayItem("view", Glyph.FORMAT, "View", s.fullView, listOf("Framed", "Full screen"), listOf(!s.fullView, s.fullView))
         out += TrayItem("tools", Glyph.PEAK, "Assist", s.zebra || s.peaking || s.falseColor || s.grid,
             listOf("Zebras", "Peaking", "False color", "Grid", "Level", "Histogram"),
             listOf(s.zebra, s.peaking, s.falseColor, s.grid, s.level, s.histogram), multi = true)
@@ -851,6 +869,7 @@ class MainActivity : Activity(), Renderer.Listener {
             "lock" -> apply(if (i == 0) s.copy(aeLock = !s.aeLock) else s.copy(awbLock = !s.awbLock, autoWb = true))
             "mic" -> apply(if (i == 0) s.copy(audio = false) else s.copy(audio = true, noiseReduction = i - 1))
             "power" -> apply(s.copy(powerMode = i))
+            "view" -> apply(s.copy(fullView = i == 1))
             "pull" -> when (i) {
                 0 -> setMark(false); 1 -> setMark(true); 2 -> runPull(false); 3 -> runPull(true)
                 else -> { stopPull(); markA = null; markB = null; overlay.markA = null; overlay.markB = null }
@@ -1922,6 +1941,9 @@ class MainActivity : Activity(), Renderer.Listener {
                 if (recording) flash("Stop recording to change orientation") else apply(settings.copy(orientation = orients[it]))
             }
         }
+        f.section("Viewfinder", if (s.fullView) "The picture fills the screen behind the controls. The sides of the recording run past the screen edges; frame guides still show the whole recording." else "The whole recording is shown, between the top bar and the shutter.") {
+            segmented(listOf("Framed", "Full screen"), if (s.fullView) 1 else 0) { apply(settings.copy(fullView = it == 1)); sheet.refresh() }
+        }
         f.section("Controls", "Volume buttons take the picture or start and stop recording. Swipe sideways on the picture to change mode, up for camera settings.") {
             switch("Mirror Front Camera", s.mirrorFront) { apply(settings.copy(mirrorFront = it)) }
             switch("Camera Sounds", s.sounds) { apply(settings.copy(sounds = it)) }
@@ -2069,4 +2091,4 @@ class MainActivity : Activity(), Renderer.Listener {
     }
 }
 
-object BuildConfigLite { const val VERSION = "1.8.1" }
+object BuildConfigLite { const val VERSION = "1.8.2" }

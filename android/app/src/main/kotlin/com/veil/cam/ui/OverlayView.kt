@@ -266,12 +266,12 @@ class OverlayView(ctx: Context) : View(ctx) {
         turned(c, r, uiRotation) { f ->
             if (settings.level && abs(roll) < 12f) drawLevel(c, f)
             if (startingHint) drawStarting(c, f)
-            sceneBadge?.let { drawBadge(c, f, it) }
             if (palmHold > 0f || countdown > 0) drawPalm(c, f)
         }
         drawMarks(c)
         val area = RectF(r).apply { if (hud.width() > 0 && !intersect(hud)) set(r) }
         turned(c, area, uiRotation) { f ->
+            sceneBadge?.let { drawBadge(c, f, it) }
             hint?.let { drawHintLabel(c, f, it.message) }
             if (settings.histogram) drawHistogram(c, f)
             if (settings.audio) drawMeters(c, f)

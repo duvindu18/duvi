@@ -770,7 +770,7 @@ class Renderer(
         if (slot !== drawnSlot || previewDirty) {
             egl.makeCurrent(p)
             GLES30.glBindVertexArray(vao)
-            val faces = render(slot, previewW, previewH, previewRotation, fill = false, monitor = true, lut = settings.lutOnMonitor, mirror = false, film = true, squeeze = squeeze()) {
+            val faces = render(slot, previewW, previewH, previewRotation, fill = settings.fullView, monitor = true, lut = settings.lutOnMonitor, mirror = false, film = true, squeeze = squeeze()) {
                 GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
                 GLES30.glViewport(0, 0, previewW, previewH)
             }
@@ -1010,10 +1010,12 @@ class Renderer(
     private fun publishTransform() {
         if (!geometryKnown || previewW == 0) return
         val q = squeeze()
-        val m = outputAffine(previewW, previewH, previewRotation, fill = false, mirror = false, squeeze = q)
+        val fill = settings.fullView
+        val m = outputAffine(previewW, previewH, previewRotation, fill = fill, mirror = false, squeeze = q)
         val inv = invert(m)
         val (rwImg, rhImg) = extent(unitAffine(previewRotation, false, q))
-        val k = min(previewW / rwImg, previewH / rhImg)
+        // Full screen: the picture fills the view and its sides run past the edges.
+        val k = if (fill) max(previewW / rwImg, previewH / rhImg) else min(previewW / rwImg, previewH / rhImg)
         val rw = rwImg * k
         val rh = rhImg * k
         // The overlay works in view pixels; the preview buffer may be scaled down from them.

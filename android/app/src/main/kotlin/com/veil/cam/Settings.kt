@@ -115,6 +115,7 @@ data class Settings(
     val accessoryKeys: String = "", // learnt buttons, AccessoryKeys.format
     val volumeShutter: Boolean = true, // volume keys (and gimbal shutter buttons) record
     val palmCountdownS: Int = 3, // countdown after the palm before recording starts
+    val fullView: Boolean = false, // viewfinder fills the screen behind the controls (crops the sides)
 ) {
     val photoMode: Boolean get() = mode == "PHOTO" || mode == "PORTRAIT"
     val depthMode: Boolean get() = mode == "CINEMATIC" || mode == "PORTRAIT"
@@ -153,7 +154,7 @@ data class Settings(
         put("prerollS", prerollS); put("cinemaNaming", cinemaNaming); put("movExtension", movExtension); put("cameraLetter", cameraLetter)
         put("newReelDaily", newReelDaily); put("embedGps", embedGps); put("desqueeze", desqueeze.toDouble()); put("palmGesture", palmGesture)
         put("framingGuide", framingGuide); put("sceneAuto", sceneAuto); put("burstMerge", burstMerge); put("pullDurationMs", pullDurationMs); put("pullEase", pullEase)
-        put("accessoryKeys", accessoryKeys); put("volumeShutter", volumeShutter); put("palmCountdownS", palmCountdownS)
+        put("accessoryKeys", accessoryKeys); put("volumeShutter", volumeShutter); put("palmCountdownS", palmCountdownS); put("fullView", fullView)
     }
 
     companion object {
@@ -214,6 +215,7 @@ data class Settings(
                 pullEase = j.optInt("pullEase", d.pullEase).coerceIn(0, 4),
                 accessoryKeys = j.optString("accessoryKeys", d.accessoryKeys), volumeShutter = j.optBoolean("volumeShutter", d.volumeShutter),
                 palmCountdownS = j.optInt("palmCountdownS", d.palmCountdownS).coerceIn(0, 10),
+                fullView = j.optBoolean("fullView", d.fullView),
             )
         }
 
