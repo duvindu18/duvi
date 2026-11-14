@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0f1115" />
+  <title>CADView</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <header id="bar">
+    <button id="btnHome" class="icon" aria-label="Library">☰</button>
+    <div id="title">CADView</div>
+    <button id="btnOpen" class="primary">Open</button>
+    <input id="fileInput" type="file" hidden />
+    <input id="compareInput" type="file" accept=".dxf" hidden />
+  </header>
+
+  <main id="stage">
+    <div id="canvasHost"></div>
+    <div id="labels"></div>
+    <div id="hint" hidden></div>
+    <div id="legend" hidden></div>
+  </main>
+
+  <section id="home">
+    <div class="home-inner">
+      <h1>CADView</h1>
+      <p class="sub">Open CAD drawings and 3D models on your phone. Works fully offline, needs no account, and files never leave your device.</p>
+      <button id="homeOpen" class="primary big">Open a file</button>
+      <p class="formats">DXF · glTF/GLB · OBJ · STL · DAE (SketchUp export) · PLY · 3MF</p>
+      <h2 id="recentTitle" hidden>On this device</h2>
+      <ul id="recent"></ul>
+    </div>
+  </section>
+
+  <nav id="tools" hidden>
+    <button data-tool="fit"><span>⤢</span>Fit</button>
+    <button data-tool="layers"><span>☷</span>Layers</button>
+    <button data-tool="measure"><span>📏</span>Measure</button>
+    <button data-tool="area"><span>▱</span>Area</button>
+    <button data-tool="note"><span>📍</span>Note</button>
+    <button data-tool="find" data-only="2d"><span>🔎</span>Find</button>
+    <button data-tool="compare" data-only="2d"><span>⇄</span>Compare</button>
+    <button data-tool="section" data-only="3d"><span>◧</span>Section</button>
+    <button data-tool="views" data-only="3d"><span>⬚</span>Views</button>
+    <button data-tool="site"><span>☀</span>Site</button>
+    <button data-tool="snap"><span>📷</span>Share</button>
+  </nav>
+
+  <div id="sheet" hidden>
+    <div class="sheet-head"><strong id="sheetTitle"></strong><button id="sheetClose" class="icon" aria-label="Close">✕</button></div>
+    <div id="sheetBody"></div>
+  </div>
+
+  <div id="toast" hidden></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
