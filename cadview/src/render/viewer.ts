@@ -33,7 +33,7 @@ export class Viewer {
   snap: { grid: SnapGrid | null; accept?: (tag: number) => boolean } = { grid: null };
   handlers: GestureHandlers = {};
   /** 2D level of detail: per tile, draw only segments longer than ~1 px */
-  lod: { geom: THREE.BufferGeometry; len: Float32Array }[] = [];
+  lod: { geom: THREE.BufferGeometry; len: Float32Array; text?: boolean }[] = [];
   onFrame?: () => void;
   private plane = new THREE.Plane();
   private labels = new Map<string, { el: HTMLElement; pos: THREE.Vector3 }>();
@@ -211,7 +211,11 @@ export class Viewer {
     textUniforms.uPPU.value = ppu;
     if (this.mode !== '2d') return;
     const minLen = 0.7 / ppu; // shorter than ~0.7 px: invisible, skip it
-    for (const t of this.lod) t.geom.setDrawRange(0, visibleCount(t.len, minLen) * 2);
+    const minText = textUniforms.uMinPx.value / ppu; // text smaller than this is unreadable: don't draw it
+    for (const t of this.lod) {
+      if (t.text) (t.geom as THREE.InstancedBufferGeometry).instanceCount = visibleCount(t.len, minText * 0.999);
+      else t.geom.setDrawRange(0, visibleCount(t.len, minLen) * 2);
+    }
   }
 
   /** Render now and copy the frame into a 2D canvas (for sharing). */

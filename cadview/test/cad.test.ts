@@ -126,7 +126,7 @@ describe('snap grid', () => {
 import { tileDrawing, visibleCount } from '../src/cad/tiles';
 describe('display tiles', () => {
   it('keep every segment, sorted longest-first per tile', () => {
-    const ents = [];
+    const ents: ReturnType<typeof line>[] = [];
     for (let i = 0; i < 200; i++) ents.push(line(i, 0, i + (i % 7) + 0.01, 3));
     const d = parse(dxf(ents));
     const before = d.buckets.reduce((s, b) => s + b.length / 6, 0);

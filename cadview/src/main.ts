@@ -176,15 +176,18 @@ async function openBytes(name: string, data: ArrayBuffer, fromLibrary = false) {
   let cancelled = false;
   loading.show(name, () => { cancelled = true; jobs.restart(); });
   const t0 = performance.now();
+  let timing = '';
   try {
     const meta = await lib.getMeta(id);
     let next: Doc;
     if (ext === 'dxf') {
       const r = await jobs.run({ type: 'dxf', buf: data }, [data], loading.progress);
+      const tParsed = performance.now();
       const d: Drawing = r.drawing;
       loading.progress('Building view', 1);
       await new Promise((res) => setTimeout(res, 0));
       const s2 = build2D(d, fgColor(), viewer.maxTexture);
+      timing = `read in background ${((tParsed - t0) / 1000).toFixed(1)} s (worker: ${r.ms?.map((x: number) => (x / 1000).toFixed(1)).join(' / ')} s) · view built ${((performance.now() - tParsed) / 1000).toFixed(1)} s`;
       const segs = d.buckets.reduce((s, b) => s + b.length / 6, 0), tiles = d.tiles?.length ?? 0;
       next = {
         id, name, ext, size, mode: '2d', units: d.units, origin: d.origin, meta, drawing: d, s2, grid: r.grid, ms: 0,
@@ -211,6 +214,7 @@ async function openBytes(name: string, data: ArrayBuffer, fromLibrary = false) {
     if (doc && $('#viewer').classList.contains('active')) saveView();
     doc = next;
     doc.ms = performance.now() - t0;
+    if (timing) doc.stats.push(timing);
     // the viewer must be laid out before fitting, or the camera is framed for a 0×0 canvas
     if (!$('#viewer').classList.contains('active')) { history.pushState({ viewer: true }, ''); show('viewer'); }
     measurePadding();
@@ -218,9 +222,9 @@ async function openBytes(name: string, data: ArrayBuffer, fromLibrary = false) {
     mount();
     loading.hide();
     restoreView();
-    if (blob) await lib.saveFile({ id, name, size, opened: Date.now() }, blob);
+    if (blob) lib.saveFile({ id, name, size, opened: Date.now() }, blob); // in the background: viewing doesn't wait for storage
     else lib.touch(id, { opened: Date.now() });
-    setTimeout(() => saveThumb(id), 700);
+    setTimeout(() => requestIdleCallbackSafe(() => saveThumb(id)), 1200);
     maybeCoach();
   } catch (err: any) {
     loading.hide();
@@ -290,6 +294,7 @@ async function renderLibrary() {
   $('#storage').textContent = s && files.length ? `${fmtBytes(s.used)} used` : '';
 }
 
+const requestIdleCallbackSafe = (fn: () => void) => ((window as any).requestIdleCallback ? (window as any).requestIdleCallback(fn, { timeout: 4000 }) : setTimeout(fn, 200));
 function saveThumb(id: string) {
   if (doc?.id !== id) return;
   const src = viewer.capture();

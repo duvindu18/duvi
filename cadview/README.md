@@ -34,13 +34,22 @@ Taps snap to real corners, line ends, midpoints, circle centres and quadrants. I
 
 ## Built for big files
 
+Measured in headless Chromium on a laptop CPU (`e2e/bigfiles.cjs`; GPU rendering there is software-emulated, so frame rates on a real phone GPU are much better):
+
+| File | Opens in | Longest UI-thread pause while loading | Snap tap |
+|---|---|---|---|
+| DXF, 53 MB: 806k entities, 3.6M segments, 115k texts | **2.8 s** | 34 ms | 0.05 ms |
+| STL, 196 MB: 3.9M triangles | **4.1 s** | 179 ms | 0.35 ms |
+
+With level of detail, the 53 MB plan draws 691k segments and 0 glyphs at full view, and 69k segments when zoomed in 8× (instead of 3.6M segments plus 1.8M glyph triangles every frame).
+
 | Technique | Effect |
 |---|---|
 | **Streaming byte-level DXF reader** in a Web Worker | 53 MB / 806k entities parses in ~2 s on a laptop CPU. Memory is a small multiple of the output, not 30-40× the file like object-based parsers. The UI keeps animating while it loads, and loading can be cancelled. |
 | Geometry goes straight into **fixed-size typed-array chunks** | no doubling or final copy; handed to the GPU with zero-copy transfer |
 | **Adaptive arc tessellation** from the drawing extents | half the segments of a fixed 64-per-circle approach, still smooth when zoomed in |
 | **Spatial tiles + length-sorted level of detail** | off-screen tiles are culled when zoomed in; sub-pixel segments are skipped when zoomed out; one draw call per tile |
-| **GPU-instanced text** from one glyph atlas | 100k+ labels in one draw call per layer, hidden automatically below a readable size |
+| **GPU-instanced text** from one glyph atlas, tiled and sorted by height | only labels big enough to read are drawn; off-screen tiles are culled |
 | **Uniform-grid snap index** | snapping is a cell lookup instead of a scan of millions of points |
 | **BVH ray casting** (three-mesh-bvh), built in the worker for OBJ/STL/PLY | instant taps on multi-million-triangle models |
 | Mesh **merging per part and material**, edges added progressively | thousands of SketchUp components become a handful of draw calls |

@@ -45,13 +45,16 @@ self.onmessage = (e: MessageEvent<Req>) => {
   const m = e.data;
   try {
     if (m.type === 'dxf') {
+      const w0 = performance.now();
       const d = parseDxf(new Uint8Array(m.buf), { onProgress: (f) => progress(m.id, 'Reading drawing', f) });
+      const w1 = performance.now();
       progress(m.id, 'Optimising for touch', 1);
       d.tiles = tileDrawing(d);
+      const w2 = performance.now();
       d.pieces = new Uint32Array(0); // compare re-reads the file, so these aren't needed for display
       progress(m.id, 'Preparing snapping', 1);
       const grid = dxfGrid(d);
-      const res = { type: 'dxf', id: m.id, drawing: d, grid };
+      const res = { type: 'dxf', id: m.id, drawing: d, grid, ms: [w1 - w0, w2 - w1, performance.now() - w2] };
       post(res, transferables(res));
     } else if (m.type === 'compare') {
       const a = parseDxf(new Uint8Array(m.base), { origin: m.origin, onProgress: (f) => progress(m.id, 'Reading current revision', f) });

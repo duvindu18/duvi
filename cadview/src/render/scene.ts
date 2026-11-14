@@ -17,7 +17,7 @@ export const MAIN_MESH = ['glb', 'gltf', 'dae', '3mf'];
 export const MODEL_EXT = [...WORKER_MESH, ...MAIN_MESH];
 
 // ---------------- 2D drawings ----------------
-export interface LodItem { geom: THREE.BufferGeometry; len: Float32Array }
+export interface LodItem { geom: THREE.BufferGeometry; len: Float32Array; text?: boolean }
 export interface Scene2D { root: THREE.Group; layers: THREE.Group[]; fgMaterials: THREE.LineBasicMaterial[]; materials: THREE.LineBasicMaterial[]; bounds: THREE.Box3; lod: LodItem[] }
 
 export function build2D(d: Drawing, fg: number, maxTex: number): Scene2D {
@@ -49,7 +49,7 @@ export function build2D(d: Drawing, fg: number, maxTex: number): Scene2D {
   };
   if (d.tiles) for (const t of d.tiles) add(t.layer, t.color, t.data, t.len, t.bounds);
   else for (const b of d.buckets) for (const chunk of b.chunks) add(b.layer, b.color, chunk);
-  for (const t of buildText(d.text, maxTex)) layers[t.layer]?.add(t.mesh);
+  for (const t of buildText(d.text, maxTex)) { layers[t.layer]?.add(t.mesh); lod.push({ geom: t.mesh.geometry, len: t.heights, text: true }); }
   const [x0, y0, z0, x1, y1, z1] = d.bounds;
   return { root, layers, fgMaterials, materials: [...mats.values()], lod, bounds: new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1)) };
 }
