@@ -89,6 +89,7 @@ void main() {
     /** Final picture: face anonymization + white balance + LUT (+ monitoring tools on the preview). */
     const val COMPOSITE = """#version 300 es
 precision highp float;
+precision highp sampler2D;
 precision mediump sampler3D;
 #define MAXF 12
 uniform sampler2D uColor;
@@ -96,8 +97,11 @@ uniform sampler2D uBlur;      // 1/4-res blurred copy with mipmaps
 uniform sampler3D uLut;
 uniform sampler2D uMask;
 uniform sampler2D uPeople;    // person mask (cinematic depth), canvas of the detector base pass
-uniform mat3 uImgToPeople;    // image px -> person-mask uv (y up)
-uniform float uDepth;         // background blur level (0 = off)
+uniform mat3 uImgToPeople;    // image px -> person-mask uv (rows top-down)
+uniform float uDepth;         // background blur on (> 0): fallback blur level
+uniform int uRefined;         // 1 = edge-refined alpha (uCoef) and bokeh (uBokeh) are valid
+uniform sampler2D uCoef;      // guided-filter coefficients: alpha = dot(a, I - 0.5) + b
+uniform sampler2D uBokeh;     // background-only lens blur: rgb, a = background coverage
 uniform mat3 uOutToImg;       // output px (y down) -> image px
 uniform vec2 uImgSize;
 uniform vec2 uBlurSize;
@@ -140,11 +144,26 @@ void main() {
     if (p.x < 0.0 || p.y < 0.0 || p.x > uImgSize.x || p.y > uImgSize.y) { frag = vec4(0.0, 0.0, 0.0, 1.0); return; }
     vec3 base = img(p) * uGains;
     if (uDepth > 0.0) {
-        // Cinematic depth: people stay sharp, the background is defocused.
-        vec2 mu = (uImgToPeople * vec3(p, 1.0)).xy;
-        float person = (mu.x < 0.0 || mu.y < 0.0 || mu.x > 1.0 || mu.y > 1.0) ? 0.0 : texture(uPeople, mu).r;
-        person = smoothstep(0.35, 0.75, person);
-        base = mix(blurAt(p, uDepth) * uGains, base, person);
+        // Cinematic depth: people stay sharp, the background gets a lens blur.
+        vec2 tuv = vec2(p.x / uImgSize.x, 1.0 - p.y / uImgSize.y);
+        if (uRefined == 1) {
+            // Alpha rebuilt at full resolution from the guided-filter coefficients, so the
+            // edge follows the real outline (hair, shoulders) of this very frame.
+            vec4 A = texture(uCoef, tuv);
+            float person = smoothstep(0.12, 0.88, clamp(dot(A.rgb, img(p) - 0.5) + A.a, 0.0, 1.0));
+            // Small tent filter over the 1/4-res lens blur: soft, round disc rims.
+            vec2 bo = 0.7 / uBlurSize;
+            vec4 bk = 0.25 * (texture(uBokeh, tuv + vec2(bo.x, bo.y)) + texture(uBokeh, tuv + vec2(-bo.x, bo.y))
+                            + texture(uBokeh, tuv + vec2(bo.x, -bo.y)) + texture(uBokeh, tuv + vec2(-bo.x, -bo.y)));
+            // Where the lens blur found no background (deep inside a person) use the plain blur.
+            vec3 bg = mix(blurAt(p, uDepth), bk.rgb, clamp(bk.a * 3.0, 0.0, 1.0));
+            base = mix(bg * uGains, base, person);
+        } else {
+            vec2 mu = (uImgToPeople * vec3(p, 1.0)).xy;
+            float person = (mu.x < 0.0 || mu.y < 0.0 || mu.x > 1.0 || mu.y > 1.0) ? 0.0 : texture(uPeople, mu).r;
+            person = smoothstep(0.35, 0.75, person);
+            base = mix(blurAt(p, uDepth) * uGains, base, person);
+        }
     }
 
     // Strongest face mask at this pixel.
@@ -208,6 +227,203 @@ void main() {
     if (useSolid) graded = mix(graded, solid, m);
 
     frag = vec4(graded, 1.0);
+}
+"""
+
+    // ---- Cinematic depth: edge refinement (colour guided filter) and lens bokeh ----------------
+    // Guided filter (He et al.): the coarse person mask p is refined with the frame I as the
+    // guide, q = a . I + b, with a, b smooth; evaluated per output pixel the edge snaps to
+    // the frame's own edges. Colour version (3x3 covariance) so a person and a background
+    // of equal brightness still separate.
+
+    /** Guide-resolution products: I (centred), p, I*p, hair, and the upper triangle of I*I^T. */
+    const val DEPTH_PREP = """#version 300 es
+precision highp float;
+precision highp sampler2D;
+uniform sampler2D uColor;     // the frame (image space, rows bottom-up)
+uniform sampler2D uPeople;    // coarse mask: r person, g hair (canvas space, rows top-down)
+uniform mat3 uImgToPeople;    // image px -> mask uv
+uniform vec2 uImgSize;
+uniform vec2 uSize;           // guide resolution
+layout(location = 0) out vec4 o0;
+layout(location = 1) out vec4 o1;
+layout(location = 2) out vec4 o2;
+layout(location = 3) out vec4 o3;
+void main() {
+    vec2 uv = gl_FragCoord.xy / uSize;
+    vec2 d = 0.25 / uSize;
+    vec3 I = (texture(uColor, uv + vec2(-d.x, -d.y)).rgb + texture(uColor, uv + vec2(d.x, -d.y)).rgb
+            + texture(uColor, uv + vec2(-d.x, d.y)).rgb + texture(uColor, uv + vec2(d.x, d.y)).rgb) * 0.25 - 0.5;
+    vec2 p = vec2(uv.x, 1.0 - uv.y) * uImgSize;
+    vec2 mu = (uImgToPeople * vec3(p, 1.0)).xy;
+    vec2 m = (mu.x < 0.0 || mu.y < 0.0 || mu.x > 1.0 || mu.y > 1.0) ? vec2(0.0) : texture(uPeople, mu).rg;
+    // Sharpen the coarse mask first: where the frame has no edge the filter keeps its
+    // input, so a soft input would leave a soft fringe; edges are then re-found from I.
+    float pp = mix(smoothstep(0.3, 0.7, m.r), m.r, 0.35 * m.g);
+    o0 = vec4(I, pp);
+    o1 = vec4(I * pp, m.g);
+    o2 = vec4(I.r * I.r, I.r * I.g, I.r * I.b, I.g * I.g);
+    o3 = vec4(I.g * I.b, I.b * I.b, 0.0, 0.0);
+}
+"""
+
+    /** Separable box mean of four textures at once (radius uR along uDir). */
+    const val DEPTH_BOX4 = """#version 300 es
+precision highp float;
+uniform highp sampler2D uT0;
+uniform highp sampler2D uT1;
+uniform highp sampler2D uT2;
+uniform highp sampler2D uT3;
+uniform ivec2 uDir;
+uniform int uR;
+layout(location = 0) out vec4 o0;
+layout(location = 1) out vec4 o1;
+layout(location = 2) out vec4 o2;
+layout(location = 3) out vec4 o3;
+void main() {
+    ivec2 c = ivec2(gl_FragCoord.xy);
+    ivec2 hi = textureSize(uT0, 0) - 1;
+    vec4 s0 = vec4(0.0), s1 = vec4(0.0), s2 = vec4(0.0), s3 = vec4(0.0);
+    for (int k = -16; k <= 16; k++) {
+        if (k < -uR || k > uR) continue;
+        ivec2 q = clamp(c + uDir * k, ivec2(0), hi);
+        s0 += texelFetch(uT0, q, 0); s1 += texelFetch(uT1, q, 0);
+        s2 += texelFetch(uT2, q, 0); s3 += texelFetch(uT3, q, 0);
+    }
+    float n = float(2 * uR + 1);
+    o0 = s0 / n; o1 = s1 / n; o2 = s2 / n; o3 = s3 / n;
+}
+"""
+
+    /** Per-pixel coefficients a (3) and b from the box means; smaller epsilon on hair. */
+    const val DEPTH_COEF = """#version 300 es
+precision highp float;
+uniform highp sampler2D uT0;
+uniform highp sampler2D uT1;
+uniform highp sampler2D uT2;
+uniform highp sampler2D uT3;
+uniform float uEps;
+out vec4 frag;
+void main() {
+    ivec2 c = ivec2(gl_FragCoord.xy);
+    vec4 t0 = texelFetch(uT0, c, 0), t1 = texelFetch(uT1, c, 0), t2 = texelFetch(uT2, c, 0), t3 = texelFetch(uT3, c, 0);
+    vec3 mI = t0.rgb; float mp = t0.a;
+    vec3 cov = t1.rgb - mI * mp;
+    float e = uEps * mix(1.0, 0.2, clamp(t1.a * 1.5, 0.0, 1.0));
+    float rr = t2.r - mI.r * mI.r + e, rg = t2.g - mI.r * mI.g, rb = t2.b - mI.r * mI.b;
+    float gg = t2.a - mI.g * mI.g + e, gb = t3.r - mI.g * mI.b, bb = t3.g - mI.b * mI.b + e;
+    mat3 S = mat3(rr, rg, rb, rg, gg, gb, rb, gb, bb);
+    vec3 a = inverse(S) * cov;
+    frag = vec4(a, mp - dot(a, mI));
+}
+"""
+
+    /** Separable box mean of one texture. */
+    const val DEPTH_BOX1 = """#version 300 es
+precision highp float;
+uniform highp sampler2D uT0;
+uniform ivec2 uDir;
+uniform int uR;
+out vec4 frag;
+void main() {
+    ivec2 c = ivec2(gl_FragCoord.xy);
+    ivec2 hi = textureSize(uT0, 0) - 1;
+    vec4 s = vec4(0.0);
+    for (int k = -16; k <= 16; k++) {
+        if (k < -uR || k > uR) continue;
+        s += texelFetch(uT0, clamp(c + uDir * k, ivec2(0), hi), 0);
+    }
+    frag = s / float(2 * uR + 1);
+}
+"""
+
+    /**
+     * Lens-blur source at 1/4 resolution: background only (people weighted out, so they
+     * never bleed into the blur as a halo), highlights weighted up so they open into
+     * bright discs like out-of-focus lights.
+     */
+    const val BOKEH_PREP = """#version 300 es
+precision highp float;
+precision highp sampler2D;
+uniform sampler2D uColor;
+uniform sampler2D uCoef;
+uniform sampler2D uLocal;     // 1/4-res blurred frame with mipmaps (local brightness)
+uniform vec2 uSize;
+uniform float uBloom;
+out vec4 frag;
+float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+void main() {
+    vec2 uv = gl_FragCoord.xy / uSize;
+    vec2 d = 1.0 / uSize * 0.25;
+    vec3 c0 = texture(uColor, uv + vec2(-d.x, -d.y)).rgb, c1 = texture(uColor, uv + vec2(d.x, -d.y)).rgb;
+    vec3 c2 = texture(uColor, uv + vec2(-d.x, d.y)).rgb, c3 = texture(uColor, uv + vec2(d.x, d.y)).rgb;
+    vec3 c = (c0 + c1 + c2 + c3) * 0.25;
+    // The brightest quarter, so small lights survive the downsampling.
+    vec3 hi = c0;
+    if (luma(c1) > luma(hi)) hi = c1;
+    if (luma(c2) > luma(hi)) hi = c2;
+    if (luma(c3) > luma(hi)) hi = c3;
+    vec4 A = texture(uCoef, uv);
+    float person = clamp(dot(A.rgb, c - 0.5) + A.a, 0.0, 1.0);
+    float bg = 1.0 - smoothstep(0.15, 0.5, person);
+    // Lights: clearly brighter than their surroundings. An 8-bit light is clipped, so it
+    // gets the weight its real brightness would have had: it opens into a full disc.
+    float local = luma(textureLod(uLocal, uv, 3.0).rgb);
+    float t = clamp((luma(hi) - max(local * 1.3 + 0.08, 0.55)) / 0.25, 0.0, 1.0);
+    float h = 1.0 + uBloom * 160.0 * t * t;
+    vec3 col = mix(c, hi, min(1.0, t * 2.0));
+    frag = vec4(col * bg * h, bg * h);
+}
+"""
+
+    /**
+     * Lens blur: a gather over a disc of [uTaps] golden-angle samples (radius uRadius px of
+     * this 1/4-res target), shaped like a lens aperture. 0 circle (with cat-eye at the frame
+     * edges, as real lenses vignette), 1 six-blade aperture, 2 anamorphic (tall ovals in the
+     * recorded frame), 3 swirl (spinning towards the edges, like vintage Petzval lenses).
+     */
+    const val BOKEH = """#version 300 es
+precision highp float;
+precision highp sampler2D;
+uniform sampler2D uPrep;      // mipmapped
+uniform vec2 uSize;
+uniform float uRadius;
+uniform int uTaps;
+uniform int uShape;
+uniform vec2 uAxisX;          // recorded frame's x and y axes in this texture (unit, px)
+uniform vec2 uAxisY;
+out vec4 frag;
+void main() {
+    vec2 px = gl_FragCoord.xy;
+    vec2 c = (px / uSize - 0.5) * vec2(uSize.x / uSize.y, 1.0);
+    float rr = clamp(length(c) / 0.75, 0.0, 1.2);
+    vec2 dir = length(c) > 1e-4 ? normalize(c) : vec2(0.0, 1.0);
+    vec2 tang = vec2(-dir.y, dir.x);
+    // Prefilter to the tap spacing, so every tap sees the light around it (no speckle).
+    float lod = max(0.0, log2(uRadius * 1.77 / sqrt(float(uTaps))) + 0.4);
+    // Per-pixel rotation of the pattern: structured ripples become fine, stable grain.
+    float jitter = 6.2831853 * fract(52.9829189 * fract(dot(px, vec2(0.06711056, 0.00583715))));
+    vec4 acc = vec4(0.0);
+    float n = 0.0;
+    for (int i = 0; i < 96; i++) {
+        if (i >= uTaps) break;
+        float t = (float(i) + 0.5) / float(uTaps);
+        float a = float(i) * 2.39996323 + jitter;
+        vec2 o = sqrt(t) * vec2(cos(a), sin(a));
+        if (uShape == 1) {
+            float s = mod(a + 0.2618, 1.0472) - 0.5236;
+            o *= 0.866 / cos(s);
+        } else if (uShape == 2) {
+            o = o.x * 0.6 * uAxisX + o.y * uAxisY;
+        } else if (uShape == 3) {
+            o = dir * dot(o, dir) * (1.0 - 0.4 * rr) + tang * dot(o, tang) * (1.0 + 0.7 * rr);
+        }
+        // Optical vignetting: discs turn into cat's eyes towards the corners.
+        if (uShape != 3 && length(o + dir * rr * 0.42) > 1.0) continue;
+        acc += textureLod(uPrep, (px + o * uRadius) / uSize, lod);
+        n += 1.0;
+    }
+    frag = vec4(acc.a > 1e-4 ? acc.rgb / acc.a : vec3(0.0), clamp(acc.a / max(n, 1.0), 0.0, 1.0));
 }
 """
 

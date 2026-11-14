@@ -76,6 +76,27 @@ detection, tracking and anonymization as the Veil desktop app.
   installs default to 24 fps and 180°.
 * No network permission: everything runs on the phone.
 
+## New in 1.5: cinematic depth rebuilt
+
+* **Segmentation.** MediaPipe image segmenter on the GPU with the multiclass selfie
+  model, which separates hair, skin and clothes from the background. A light temporal
+  blend keeps the outline steady. The model `selfie_multiclass_256x256.tflite`
+  (Apache 2.0, from `storage.googleapis.com/mediapipe-models`) goes into `models/`
+  next to the face models.
+* **Edges.** The coarse mask is refined on every frame with a colour guided filter,
+  using the frame itself as the guide. The alpha is rebuilt at full resolution from
+  its coefficients, so the outline follows hair, shoulders and hands of the frame
+  being recorded. Hair gets a finer setting.
+* **Lens blur (bokeh).** Only the background is blurred: people are weighted out, so
+  they never bleed into the blur as a halo. Lights clearly brighter than their
+  surroundings open into discs.
+  * Shapes: Circle (cat's eyes towards the corners), six-blade, anamorphic (tall
+    ovals in the recorded frame) and swirl.
+  * Set the shape and highlight strength in Settings → Cinematic Depth or on the
+    camera controller.
+* **Check.** `tools/depth_check.py` runs the real model and the app's shaders on a
+  photo, comparing the old and new paths and every bokeh shape.
+
 ## New in 1.4: camera-app interface
 
 The screen is laid out in portrait like a phone camera and never rotates. Its buttons

@@ -18,8 +18,8 @@ android {
         applicationId = "com.veil.cam"
         minSdk = 30
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.4.0"
+        versionCode = 6
+        versionName = "1.5.0"
         ndk { abiFilters += listOf("arm64-v8a") } // 64-bit phones (all current devices)
     }
 
@@ -45,7 +45,7 @@ android {
 
     sourceSets["main"].assets.srcDirs("src/main/assets", modelsDir)
 
-    androidResources { noCompress += listOf("onnx") }
+    androidResources { noCompress += listOf("onnx", "tflite") }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -65,6 +65,7 @@ android {
 dependencies {
     implementation(project(":core"))
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
-    // On-device person segmentation for the cinematic depth effect (model bundled in the APK).
-    implementation("com.google.mlkit:segmentation-selfie:16.0.0-beta6")
+    // Person segmentation for cinematic depth: MediaPipe image segmenter (GPU) with the
+    // multiclass selfie model (hair / skin / clothes), models/selfie_multiclass_256x256.tflite.
+    implementation("com.google.mediapipe:tasks-vision:0.10.26")
 }

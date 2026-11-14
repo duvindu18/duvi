@@ -160,7 +160,7 @@ class MainActivity : Activity(), Renderer.Listener {
         engine = FaceEngine(applicationContext)
         engine.onError = { msg -> main.post { flash(msg) } }
         engine.configure(settings)
-        segmenter = PersonSegmenter()
+        segmenter = PersonSegmenter(applicationContext).also { it.onError = { msg -> main.post { flash(msg) } } }
         renderer = Renderer(applicationContext, engine, segmenter).also { it.listener = this }
         renderer.update(settings)
         thermal = ThermalMonitor(this) { level, status -> onThermal(level, status) }
@@ -822,7 +822,11 @@ class MainActivity : Activity(), Renderer.Listener {
         out += ControlSpec("TINT", "Tint", Glyph.TINT)
         if ((c?.minFocusDiopters ?: 0f) > 0f) out += ControlSpec("FOCUS", "Focus", Glyph.FOCUS)
         out += ControlSpec("ZOOM", "Zoom", Glyph.ZOOM)
-        if (s.depthMode) out += ControlSpec("DEPTH", "Depth", Glyph.DEPTH)
+        if (s.depthMode) {
+            out += ControlSpec("DEPTH", "Depth", Glyph.DEPTH)
+            out += ControlSpec("BOKEH", "Bokeh", Glyph.SHUTTER)
+            out += ControlSpec("LIGHTS", "Bokeh Highlights", Glyph.SUN)
+        }
         out += ControlSpec("FACES", "Face Blur", Glyph.FACE)
         out += ControlSpec("STYLE", "Style", Glyph.STYLE)
         if (s.lut != "None") out += ControlSpec("TONE", "Style Strength", Glyph.TONE)
@@ -832,6 +836,7 @@ class MainActivity : Activity(), Renderer.Listener {
 
     /** Depth: simulated aperture (background blur strength 0..1). */
     private val APERTURES = listOf(0.12f to "ƒ16", 0.24f to "ƒ11", 0.36f to "ƒ8", 0.48f to "ƒ5.6", 0.6f to "ƒ4", 0.72f to "ƒ2.8", 0.86f to "ƒ2", 1f to "ƒ1.4")
+    private val BOKEH_SHAPES = listOf("Circle", "Blades", "Anamorphic", "Swirl")
     private fun apertureLabel(d: Float) = if (d <= 0f) "ƒ" else APERTURES.minByOrNull { abs(it.first - d) }!!.second
 
     private val controls = object : ControlSource {
@@ -847,6 +852,8 @@ class MainActivity : Activity(), Renderer.Listener {
                 "ZOOM" -> zoomList().map { zoom.label(it).removeSuffix("×") }
                 "DEPTH" -> APERTURES.map { it.second.removePrefix("ƒ") }
                 "FACES", "TONE" -> strengths.map { "$it" }
+                "BOKEH" -> BOKEH_SHAPES
+                "LIGHTS" -> (0..10).map { "${it * 10}" }
                 "STYLE" -> lutNames()
                 "FILM" -> filmNames()
                 else -> emptyList()
@@ -867,6 +874,8 @@ class MainActivity : Activity(), Renderer.Listener {
                 "ZOOM" -> zoomList().indexOfFirst { it >= s.zoom - 0.01f }.let { if (it < 0) zoomList().size - 1 else it }
                 "DEPTH" -> APERTURES.indexOfFirst { it.first >= s.cineDepth - 0.001f }.coerceAtLeast(0)
                 "FACES" -> strengths.indexOfFirst { it >= s.intensity }.coerceAtLeast(0)
+                "BOKEH" -> s.bokehShape
+                "LIGHTS" -> (s.bokehHighlights * 10).roundToInt()
                 "TONE" -> strengths.indexOfFirst { it >= (s.lutAmount * 100).roundToInt() }.coerceAtLeast(0)
                 "STYLE" -> lutNames().indexOf(s.lut).coerceAtLeast(0)
                 "FILM" -> filmNames().indexOf(s.filmPreset).coerceAtLeast(0)
@@ -890,6 +899,8 @@ class MainActivity : Activity(), Renderer.Listener {
                 "ZOOM" -> setZoom(zoomList()[i])
                 "DEPTH" -> apply(s.copy(depth = APERTURES[i].first, cineDepth = APERTURES[i].first))
                 "FACES" -> apply(s.copy(intensity = strengths[i], blurOn = true))
+                "BOKEH" -> apply(s.copy(bokehShape = i))
+                "LIGHTS" -> apply(s.copy(bokehHighlights = i / 10f))
                 "TONE" -> apply(s.copy(lutAmount = strengths[i] / 100f))
                 "STYLE" -> apply(s.copy(lut = lutNames()[i]))
                 "FILM" -> apply(FilmPresets.apply(s, filmNames()[i]))
@@ -932,6 +943,8 @@ class MainActivity : Activity(), Renderer.Listener {
                 "ZOOM" -> zoom.label(s.zoom)
                 "DEPTH" -> apertureLabel(s.cineDepth)
                 "FACES" -> if (s.blurOn) "Strength ${s.intensity}" else "Off"
+                "BOKEH" -> BOKEH_SHAPES[s.bokehShape]
+                "LIGHTS" -> "${(s.bokehHighlights * 100).roundToInt()} %"
                 "TONE" -> "${(s.lutAmount * 100).roundToInt()} %"
                 "STYLE" -> if (s.lut == "None") "Standard" else s.lut
                 "FILM" -> if (s.filmPreset == "Off") "Off" else s.filmPreset
@@ -1347,11 +1360,21 @@ class MainActivity : Activity(), Renderer.Listener {
 
     private fun pageDepth(f: Form) {
         val s = settings
-        f.section(null, "Cinematic and Portrait keep people sharp and defocus the background. Tap ƒ on the camera screen to change it while you frame.") {
+        f.section(null, "Cinematic and Portrait keep people sharp and give the background a lens blur. Tap ƒ on the camera screen to change it while you frame.") {
             slider("Aperture", 0, APERTURES.size - 1, APERTURES.indexOfFirst { it.first >= s.cineDepth - 0.001f }.coerceAtLeast(0), { APERTURES[it].second }) {
                 apply(settings.copy(cineDepth = APERTURES[it].first, depth = if (settings.depthMode) APERTURES[it].first else 0f))
             }
         }
+        f.section("Bokeh", when (s.bokehShape) {
+            1 -> "Six aperture blades: lights become soft hexagons, like a stopped-down cine lens."
+            2 -> "Anamorphic: tall oval lights, the classic widescreen cinema look."
+            3 -> "Swirl: the background spins towards the edges, like a vintage Petzval or Helios lens."
+            else -> "Round lights that turn into cat's eyes towards the corners, as with a fast prime."
+        }) {
+            segmented(BOKEH_SHAPES, s.bokehShape) { apply(settings.copy(bokehShape = it)); sheet.refresh() }
+            slider("Highlights", 0, 100, (s.bokehHighlights * 100).roundToInt(), { "$it %" }) { apply(settings.copy(bokehHighlights = it / 100f)) }
+        }
+        f.note("Edges are traced on every frame from the picture itself (hair, shoulders, hands) and people never bleed into the background blur.")
     }
 
     private fun pageLook(f: Form) {
@@ -1558,4 +1581,4 @@ class MainActivity : Activity(), Renderer.Listener {
     }
 }
 
-object BuildConfigLite { const val VERSION = "1.4.0" }
+object BuildConfigLite { const val VERSION = "1.5.0" }

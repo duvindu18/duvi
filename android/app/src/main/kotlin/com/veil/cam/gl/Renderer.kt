@@ -93,6 +93,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
     private var progFilm = 0
     private val stages = HashMap<Long, GlUtil.Target>() // output size -> anonymized intermediate (mipmapped)
     private var peopleTex = 0
+    private val depthFx = DepthFx({ p, n -> loc(p, n) }, { u, t -> bindTex(u, t) })
     private var peopleMask: com.veil.cam.face.PersonMask? = null
     private val startNs = System.nanoTime()
     // Pause: frames are not encoded while paused; later frames are shifted to close the gap.
@@ -179,7 +180,8 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
             progPass = GlUtil.program(Shaders.VS, Shaders.PASS)
             progComp = GlUtil.program(Shaders.VS, Shaders.COMPOSITE)
             progFilm = GlUtil.program(Shaders.VS, Shaders.FILM)
-            peopleTex = maskTexture(1, 1, byteArrayOf(0))
+            peopleTex = maskTexture(1, 1, byteArrayOf(0, 0))
+            depthFx.init()
             val v = IntArray(1)
             GLES30.glGenVertexArrays(1, v, 0)
             vao = v[0]
@@ -320,6 +322,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
             preview?.let { egl.destroySurface(it) }
             preview = null
             glHint?.close(); glHint = null
+            depthFx.release()
             egl.release()
         }
         thread.quitSafely()
@@ -359,6 +362,8 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         blurTmpA = GlUtil.Target(max(1, imgW / 4), max(1, imgH / 4))
         blurTmpB = GlUtil.Target(max(1, imgW / 4), max(1, imgH / 4))
         geometryKnown = true
+        depthFx.configure(imgW, imgH)
+        depthFx.invalidate()
         listener?.onFirstFrame()
         publishTransform()
         Log.i(TAG, "frames ${capSize.width}x${capSize.height} -> upright ${imgW}x$imgH (st swapped=$swapped, pre=$rot)")
@@ -721,12 +726,13 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         // The blur pyramid is only needed by blurred faces, the privacy start and depth.
         val needBlur = (s.depth > 0f && peopleMask != null) || (s.blurOn && !hasResult) || (faces.isNotEmpty() && s.style == BlurStyle.GAUSSIAN)
         if (needBlur) ensureBlur(slot)
+        val depth = ensureDepth(slot)
         val monitoring = monitor && (s.zebra || s.falseColor || s.peaking)
         if (!(film && s.filmOn) && !monitoring) {
             // Nothing to add after the grade: draw straight into the destination
             // (saves a full-resolution pass and its memory traffic every frame).
             bindDest()
-            composite(slot, outW, outH, rot, fill, lut, mirror, faces)
+            composite(slot, outW, outH, rot, fill, lut, mirror, faces, depth)
             return faces
         }
         val stage = stages.getOrPut((outW.toLong() shl 32) or outH.toLong()) {
@@ -734,7 +740,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
             GlUtil.Target(outW, outH, mipmaps = true)
         }
         stage.bind()
-        composite(slot, outW, outH, rot, fill, lut, mirror, faces)
+        composite(slot, outW, outH, rot, fill, lut, mirror, faces, depth)
         val glow = film && (s.bloom > 0f || s.halation > 0f)
         if (glow) {
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, stage.tex)
@@ -767,7 +773,29 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         return faces
     }
 
-    private fun composite(slot: Slot, outW: Int, outH: Int, rot: Int, fill: Boolean, lut: Boolean, mirror: Boolean, faces: List<Geom>) {
+    /** image px -> canvas px -> mask uv (mask rows are top-down, uploaded as-is), column-major mat3. */
+    private fun peopleMatrix(pm: com.veil.cam.face.PersonMask): FloatArray {
+        val m = pm.spec.toCanvas
+        val sx = 1.0 / pm.spec.width; val sy = 1.0 / pm.spec.height
+        return mat3(floatArrayOf((m.a * sx).toFloat(), (m.b * sx).toFloat(), (m.c * sx).toFloat(), (m.d * sy).toFloat(), (m.e * sy).toFloat(), (m.f * sy).toFloat()))
+    }
+
+    /**
+     * Cinematic depth for this frame: refined edges and lens blur (computed once per
+     * frame and mask, shared by the preview and the recording).
+     */
+    private fun ensureDepth(slot: Slot): DepthFx.Result? {
+        val s = settings
+        val pm = peopleMask ?: return null
+        if (s.depth <= 0f || !depthFx.available) return null
+        val taps = when { budget.tier <= 2 -> 96; budget.tier == 3 -> 64; else -> 48 }
+        val quarter = (outputRotation / 90) % 2 == 1
+        val params = DepthFx.Params(0.008f + 0.045f * s.depth, taps, s.bokehShape, s.bokehHighlights, quarter)
+        val key = "${System.identityHashCode(slot)}:${slot.ts}:${pm.serial}:${s.depth}:$taps:${s.bokehShape}:${s.bokehHighlights}:$quarter"
+        return depthFx.ensure(key, slot.color.tex, peopleTex, peopleMatrix(pm), imgW, imgH, slot.blur.tex, params)
+    }
+
+    private fun composite(slot: Slot, outW: Int, outH: Int, rot: Int, fill: Boolean, lut: Boolean, mirror: Boolean, faces: List<Geom>, depth: DepthFx.Result? = null) {
         val s = settings
         val p = progComp
         GLES30.glUseProgram(p)
@@ -824,13 +852,12 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         GLES30.glActiveTexture(GLES30.GL_TEXTURE4)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, peopleTex); GLES30.glUniform1i(loc(p, "uPeople"), 4)
         GLES30.glUniform1f(loc(p, "uDepth"), if (depthOn) (0.6f + s.depth * (maxLod - 0.6f).coerceAtLeast(1f)).coerceAtMost(maxLod) else 0f)
-        if (pm != null) {
-            val m = pm.spec.toCanvas
-            // image px -> canvas px -> mask uv (mask rows are top-down, uploaded as-is)
-            val sx = 1.0 / pm.spec.width; val sy = 1.0 / pm.spec.height
-            val a = floatArrayOf((m.a * sx).toFloat(), (m.b * sx).toFloat(), (m.c * sx).toFloat(), (m.d * sy).toFloat(), (m.e * sy).toFloat(), (m.f * sy).toFloat())
-            GLES30.glUniformMatrix3fv(loc(p, "uImgToPeople"), 1, false, mat3(a), 0)
-        }
+        if (pm != null) GLES30.glUniformMatrix3fv(loc(p, "uImgToPeople"), 1, false, peopleMatrix(pm), 0)
+        // Refined edges + lens blur when available (the plain mask otherwise).
+        val refined = depthOn && depth != null
+        bindTex(5, if (refined) depth!!.coef else peopleTex); GLES30.glUniform1i(loc(p, "uCoef"), 5)
+        bindTex(6, if (refined) depth!!.bokeh else peopleTex); GLES30.glUniform1i(loc(p, "uBokeh"), 6)
+        GLES30.glUniform1i(loc(p, "uRefined"), if (refined) 1 else 0)
         GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
     }
 
@@ -938,14 +965,15 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE)
         GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_CLAMP_TO_EDGE)
         GLES30.glPixelStorei(GLES30.GL_UNPACK_ALIGNMENT, 1)
-        GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D, 0, GLES30.GL_R8, w, h, 0, GLES30.GL_RED, GLES30.GL_UNSIGNED_BYTE, ByteBuffer.wrap(data))
+        GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D, 0, GLES30.GL_RG8, w, h, 0, GLES30.GL_RG, GLES30.GL_UNSIGNED_BYTE, ByteBuffer.wrap(data))
         return t[0]
     }
 
     private fun uploadMask(m: com.veil.cam.face.PersonMask) {
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, peopleTex)
         GLES30.glPixelStorei(GLES30.GL_UNPACK_ALIGNMENT, 1)
-        GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D, 0, GLES30.GL_R8, m.width, m.height, 0, GLES30.GL_RED, GLES30.GL_UNSIGNED_BYTE, ByteBuffer.wrap(m.data))
+        // Two channels: person, hair.
+        GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D, 0, GLES30.GL_RG8, m.width, m.height, 0, GLES30.GL_RG, GLES30.GL_UNSIGNED_BYTE, ByteBuffer.wrap(m.data))
     }
 
     private fun texture2D(bmp: Bitmap): Int {

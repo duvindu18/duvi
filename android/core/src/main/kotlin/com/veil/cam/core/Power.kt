@@ -39,7 +39,7 @@ data class PowerBudget(
             val t = if (mode == PowerMode.MAX && recording && thermal == 0) 0 else base.coerceIn(1, 4)
             return when (t) {
                 0 -> PowerBudget(0, 0, 0, 0, 2, 0, 1f, false)
-                1 -> PowerBudget(1, 100 * MS, 66 * MS, 0, 2, 66 * MS, 1f, true)
+                1 -> PowerBudget(1, 100 * MS, 66 * MS, 0, 2, 50 * MS, 1f, true) // depth mask at 20 fps
                 2 -> PowerBudget(2, 150 * MS, 100 * MS, 33 * MS, 3, 100 * MS, 0.85f, true)
                 3 -> PowerBudget(3, 200 * MS, 125 * MS, 50 * MS, 3, 150 * MS, 0.7f, true)
                 else -> PowerBudget(4, 250 * MS, 150 * MS, 66 * MS, 4, 200 * MS, 0.6f, true)

@@ -95,6 +95,8 @@ data class Settings(
     // Capture mode: CINEMATIC (video + depth), VIDEO, PHOTO, PORTRAIT (photo + depth)
     val mode: String = "VIDEO",
     val cineDepth: Float = 0.72f, // remembered depth for the depth modes (f/2.8)
+    val bokehShape: Int = 0, // 0 circle, 1 six blades, 2 anamorphic, 3 swirl
+    val bokehHighlights: Float = 0.5f, // how strongly lights open into discs
     val torch: Boolean = false,
 ) {
     val photoMode: Boolean get() = mode == "PHOTO" || mode == "PORTRAIT"
@@ -130,6 +132,7 @@ data class Settings(
         put("privateGallery", privateGallery)
         put("powerMode", powerMode); put("dimWhileRecording", dimWhileRecording); put("autoStandby", autoStandby)
         put("mode", mode); put("cineDepth", cineDepth.toDouble()); put("ui", 2)
+        put("bokehShape", bokehShape); put("bokehHighlights", bokehHighlights.toDouble())
     }
 
     companion object {
@@ -178,6 +181,8 @@ data class Settings(
                 autoStandby = j.optBoolean("autoStandby", d.autoStandby),
                 mode = j.optString("mode", d.mode).takeIf { it in listOf("CINEMATIC", "VIDEO", "PHOTO", "PORTRAIT") } ?: d.mode,
                 cineDepth = j.optDouble("cineDepth", d.cineDepth.toDouble()).toFloat().coerceIn(0.1f, 1f),
+                bokehShape = j.optInt("bokehShape", d.bokehShape).coerceIn(0, 3),
+                bokehHighlights = j.optDouble("bokehHighlights", d.bokehHighlights.toDouble()).toFloat().coerceIn(0f, 1f),
             )
         }
 
