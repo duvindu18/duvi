@@ -41,6 +41,7 @@ import android.widget.PopupWindow
 import android.widget.TextView
 import com.veil.cam.R
 import com.veil.cam.media.MediaStorage
+import com.veil.cam.media.isVideo
 import com.veil.cam.media.SilenceDetector
 import com.veil.cam.media.Span
 import com.veil.cam.media.Spans
@@ -72,7 +73,7 @@ class ClipProvider : ContentProvider() {
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor? =
         fileFor(uri)?.let { ParcelFileDescriptor.open(it, ParcelFileDescriptor.MODE_READ_ONLY) }
 
-    override fun getType(uri: Uri) = if (uri.lastPathSegment?.endsWith(".mp4") == true) "video/mp4" else "image/jpeg"
+    override fun getType(uri: Uri) = uri.lastPathSegment?.substringAfterLast(".")?.lowercase().let { when (it) { "mp4" -> "video/mp4"; "mov" -> "video/quicktime"; else -> "image/jpeg" } }
 
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, args: Array<out String>?, sort: String?): Cursor? {
         val f = fileFor(uri) ?: return null
@@ -88,7 +89,7 @@ class ClipProvider : ContentProvider() {
 
         fun share(a: Activity, f: File) {
             val i = Intent(Intent.ACTION_SEND).apply {
-                type = if (f.extension == "mp4") "video/mp4" else "image/jpeg"
+                type = if (f.isVideo) (if (f.extension.lowercase() == "mov") "video/quicktime" else "video/mp4") else "image/jpeg"
                 putExtra(Intent.EXTRA_STREAM, uriFor(f))
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
@@ -209,7 +210,7 @@ class GalleryActivity : Activity() {
     override fun onResume() {
         super.onResume()
         files = MediaStorage.list(this).reversed() // oldest first, newest at the bottom
-        val clips = files.count { it.extension == "mp4" }
+        val clips = files.count { it.isVideo }
         val photos = files.size - clips
         subtitle.text = listOfNotNull(
             if (clips > 0) "$clips video${if (clips == 1) "" else "s"}" else null,
@@ -222,7 +223,7 @@ class GalleryActivity : Activity() {
     override fun onDestroy() { pool.shutdownNow(); super.onDestroy() }
 
     private fun open(f: File, v: View?) {
-        startActivity(Intent(this, if (f.extension == "mp4") PlayerActivity::class.java else PhotoActivity::class.java).putExtra("path", f.absolutePath))
+        startActivity(Intent(this, if (f.isVideo) PlayerActivity::class.java else PhotoActivity::class.java).putExtra("path", f.absolutePath))
         @Suppress("DEPRECATION") overridePendingTransition(R.anim.veil_zoom_in, R.anim.veil_hold)
     }
 
@@ -237,7 +238,7 @@ class GalleryActivity : Activity() {
             when (which) {
                 0 -> exportAsync(this, f)
                 1 -> ClipProvider.share(this, f)
-                2 -> G.confirmDelete(this, if (f.extension == "mp4") "video" else "photo") { f.delete(); onResume() }
+                2 -> G.confirmDelete(this, if (f.isVideo) "video" else "photo") { f.delete(); onResume() }
             }
         }
     }
@@ -261,9 +262,9 @@ class GalleryActivity : Activity() {
             val img = cell.findViewWithTag<ImageView>("img")
             val label = cell.findViewWithTag<TextView>("label")
             img.setImageBitmap(cache.get(f.path))
-            label.text = if (f.extension == "mp4") durations[f.path] ?: "" else ""
+            label.text = if (f.isVideo) durations[f.path] ?: "" else ""
             cell.setTag(R.id.cell_file, f.path)
-            if (cache.get(f.path) == null || (f.extension == "mp4" && durations[f.path] == null)) pool.execute {
+            if (cache.get(f.path) == null || (f.isVideo && durations[f.path] == null)) pool.execute {
                 val (bmp, dur) = thumb(f)
                 main.post {
                     if (bmp != null) cache.put(f.path, bmp)
@@ -279,7 +280,7 @@ class GalleryActivity : Activity() {
     }
 
     private fun thumb(f: File): Pair<Bitmap?, String?> = runCatching {
-        if (f.extension == "mp4") {
+        if (f.isVideo) {
             MediaMetadataRetriever().use { r ->
                 r.setDataSource(f.absolutePath)
                 val dur = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0

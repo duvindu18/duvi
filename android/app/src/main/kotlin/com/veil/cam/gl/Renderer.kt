@@ -73,7 +73,13 @@ class Renderer(
         fun onHistogram(luma: IntArray, r: IntArray, g: IntArray, b: IntArray)
         fun onStats(cameraFps: Float, detectFps: Float, detectMs: Float, delayFrames: Int)
         fun onRecording(active: Boolean, elapsedNs: Long, uri: Uri?, error: String?)
+        /** A take was saved: its spec and the per-second camera metadata written into it. */
+        fun onTakeSaved(spec: com.veil.cam.record.TakeSpec, meta: List<String>, startUs: Long) {}
         fun onPhoto(uri: Uri?, error: String?)
+        /** A merged photo is being saved ([frames] frames went into it). */
+        fun onBurstMerged(frames: Int) {}
+        /** Cinematic focus is following a tapped subject, now at image point ([x], [y]). */
+        fun onFocusTrack(x: Float, y: Float) {}
         fun onDetectorReady(ready: Boolean)
         /** The first frame of a (re)started camera arrived. */
         fun onFirstFrame()
@@ -88,7 +94,7 @@ class Renderer(
 
     private class Readback(
         val ts: Long, val specs: List<PassSpec>, val pbos: IntArray, val fence: Long, val faces: Boolean, val people: Boolean,
-        val depth: Boolean = false,
+        val depth: Boolean = false, val gesture: Boolean = false,
     )
 
     var listener: Listener? = null
@@ -107,6 +113,12 @@ class Renderer(
     private var focusNow = Float.NaN; private var halfNow = 0f; private var farNow = 0f
     private var lastDepthCapture = Long.MIN_VALUE / 4
     @Volatile private var focusPoint: FloatArray? = null // image px, or null for automatic
+    @Volatile private var manualFocus = Float.NaN // A-B focus pull: the depth to hold in focus
+    /** Palm gesture recogniser (fed from the detector's base canvas), or null. */
+    @Volatile var gesture: com.veil.cam.face.GestureWatcher? = null
+    private var lastGestureCapture = 0L
+    private var progLuma = 0; private var progMerge = 0; private var progMean = 0; private var progTone = 0
+    private var burst: Burst? = null
     private val depthFx = DepthFx({ p, n -> loc(p, n) }, { u, t -> bindTex(u, t) })
     private var peopleMask: com.veil.cam.face.PersonMask? = null
     private val startNs = System.nanoTime()
@@ -164,8 +176,11 @@ class Renderer(
     private var glHint: WorkHint? = null
     private var hintFrameNs = 0L
     private var encoderSurface: EGLSurface? = null
+    // The encoder: armed (pre-record ring) or taking. Frames go to it whenever it exists.
     private var recorder: Recorder? = null
-    private var recordStartTs = -1L
+    private var taking = false
+    private var armAllowed = true
+    private var currentTake: com.veil.cam.record.TakeSpec? = null
     private var lastEmittedTs = 0L
     private var audio: AudioCapture? = null
 
@@ -194,6 +209,10 @@ class Renderer(
             progPass = GlUtil.program(Shaders.VS, Shaders.PASS)
             progComp = GlUtil.program(Shaders.VS, Shaders.COMPOSITE)
             progFilm = GlUtil.program(Shaders.VS, Shaders.FILM)
+            progLuma = GlUtil.program(Shaders.VS, Shaders.BURST_LUMA)
+            progMerge = GlUtil.program(Shaders.VS, Shaders.BURST_MERGE)
+            progMean = GlUtil.program(Shaders.VS, Shaders.BURST_MEAN)
+            progTone = GlUtil.program(Shaders.VS, Shaders.BURST_TONE)
             peopleTex = maskTexture(1, 1, byteArrayOf(0, 0))
             depthFx.init()
             val v = IntArray(1)
@@ -257,7 +276,10 @@ class Renderer(
     fun setRotations(preview: Int, output: Int, faces: Int) = handler.post {
         previewRotation = preview
         wantedOutputRotation = output
-        if (recorder == null) outputRotation = output
+        if (!taking && output != outputRotation) {
+            outputRotation = output
+            if (recorder != null) { disarm(); arm() } // the armed encoder has the old frame size
+        }
         faceRotation = faces
         previewDirty = true
         publishTransform()
@@ -265,7 +287,11 @@ class Renderer(
 
     fun update(s: Settings) = handler.post {
         val maskChanged = s.maskPath != settings.maskPath
+        val old = settings
         settings = s
+        val encoderChanged = s.prerollS != old.prerollS || s.width != old.width || s.height != old.height || s.fps != old.fps ||
+            s.bitrateLevel != old.bitrateLevel || s.hevc != old.hevc || s.audio != old.audio
+        if (encoderChanged && !taking) { disarm(); arm() }
         previewDirty = true
         if (maskChanged) loadMask(s.maskPath)
         publishTransform()
@@ -286,38 +312,80 @@ class Renderer(
         lutLoaded = lut
     }
 
-    fun setAudio(a: AudioCapture?) = handler.post { audio = a }
+    fun setAudio(a: AudioCapture?) = handler.post {
+        val changed = a !== audio
+        audio = a
+        if (changed && !taking && recorder != null) { disarm(); arm() } // the armed encoder needs the new microphone
+    }
 
-    fun startRecording() = handler.post {
-        if (recorder != null || !geometryKnown) return@post
+    /** Create and start the encoder (armed when pre-record is on). GL thread. */
+    private fun createEncoder(prerollUs: Long): Recorder {
+        val (w, h) = outputSize()
+        val r = Recorder(context, w, h, settings.fps, settings.bitrate(), settings.hevc, if (settings.audio) audio else null, prerollUs)
+        encoderSurface = egl.windowSurface(r.inputSurface)
+        r.start()
+        recPaused = false; pauseStartTs = -1L; pauseOffsetNs = 0L
+        return r
+    }
+
+    /** Pre-record: keep the encoder running into its RAM ring while not recording. */
+    private fun arm() {
+        if (recorder != null || !geometryKnown || !armAllowed || settings.prerollS <= 0) return
+        try {
+            recorder = createEncoder(settings.prerollS * 1_000_000L)
+        } catch (e: Exception) {
+            Log.e(TAG, "pre-record", e)
+            encoderSurface?.let { egl.destroySurface(it) }; encoderSurface = null
+        }
+    }
+
+    private fun disarm() {
+        if (taking) return
+        val r = recorder ?: return
+        recorder = null
+        encoderSurface?.let { egl.destroySurface(it) }; encoderSurface = null
+        Thread { runCatching { r.stop() } }.start()
+    }
+
+    /** Allow or stop pre-recording (off while the app is in the background). */
+    fun setArmAllowed(allowed: Boolean) = handler.post { armAllowed = allowed; if (allowed) arm() else disarm() }
+
+    /** Camera settings for the take's metadata track (call about once a second while recording). */
+    fun addTakeMetadata(json: String) = handler.post {
+        val r = recorder ?: return@post
+        if (taking) r.addMetadata(json, (lastEmittedTs - pauseOffsetNs) / 1000)
+    }
+
+    fun startRecording(take: () -> com.veil.cam.record.TakeSpec) = handler.post {
+        if (taking || !geometryKnown) return@post
         if (settings.blurOn && !hasResult) {
             listener?.onRecording(false, 0, null, "Face detection is still starting. Try again in a moment.")
             return@post
         }
-        val (w, h) = outputSize()
         try {
-            val r = Recorder(context, w, h, settings.fps, settings.bitrate(), settings.hevc, if (settings.audio) audio else null, settings.privateGallery)
-            encoderSurface = egl.windowSurface(r.inputSurface)
-            r.start()
-            recorder = r
-            recordStartTs = -1L
-            recPaused = false; pauseStartTs = -1L; pauseOffsetNs = 0L
+            val r = recorder ?: createEncoder(0).also { recorder = it }
+            val spec = take()
+            r.beginTake(spec)
+            currentTake = spec
+            taking = true
             listener?.onRecording(true, 0, null, null)
         } catch (e: Exception) {
             Log.e(TAG, "record start", e)
-            encoderSurface?.let { egl.destroySurface(it) }
-            encoderSurface = null
+            if (recorder != null && settings.prerollS <= 0) { encoderSurface?.let { egl.destroySurface(it) }; encoderSurface = null; recorder = null }
             listener?.onRecording(false, 0, null, e.message ?: "Cannot start recording")
         }
     }
 
     fun stopRecording() = handler.post { finishRecording() }
 
-    fun takePhoto() = handler.post { photoRequested = true }
+    fun takePhoto(merge: BurstRequest? = null) = handler.post {
+        if (merge != null && merge.frames > 1 && burst == null && geometryKnown) startBurst(merge) else photoRequested = true
+    }
 
     /** Pause or resume the running recording (one file, the pause is cut out). */
     fun setRecordingPaused(paused: Boolean) = handler.post {
         val rec = recorder ?: return@post
+        if (!taking) return@post
         if (paused == recPaused) return@post
         if (paused) {
             pauseStartTs = lastEmittedTs
@@ -332,6 +400,7 @@ class Renderer(
     fun release() {
         handler.post {
             finishRecording()
+            armAllowed = false; disarm()
             releaseCameraInput()
             preview?.let { egl.destroySurface(it) }
             preview = null
@@ -344,8 +413,10 @@ class Renderer(
 
     // ---- camera input ------------------------------------------------------------------
     private fun releaseCameraInput() {
+        disarm()
         readback?.let { GLES30.glDeleteSync(it.fence) }
         readback = null
+        burst?.let { b -> burst = null; b.ping.release(); b.pong.release(); b.luma.release(); b.ref.color.release(); b.ref.blur.release(); listener?.onPhoto(null, "The camera stopped during the merge") }
         pending.clear(); toShow.clear(); shown = null; newest = null; drawnSlot = null
         slots.forEach { it.color.release(); it.blur.release() }
         slots = emptyList()
@@ -378,6 +449,7 @@ class Renderer(
         geometryKnown = true
         depthFx.configure(imgW, imgH)
         depthFx.invalidate()
+        arm()
         listener?.onFirstFrame()
         publishTransform()
         Log.i(TAG, "frames ${capSize.width}x${capSize.height} -> upright ${imgW}x$imgH (st swapped=$swapped, pre=$rot)")
@@ -418,8 +490,9 @@ class Renderer(
         copyFrame(slot)
         slot.blurReady = false
         slot.depth = easeDepth(ts)
-        depthNet.latest?.let { m -> if (m !== depthMap) { uploadDepth(m); depthMap = m } }
+        depthNet.latest?.let { m -> if (m !== depthMap) { uploadDepth(m); depthMap = m; followTap(m) } }
         easeFocus(slot)
+        burst?.let { burstStep(it, slot) }
         pending.addLast(slot)
         newest = slot
 
@@ -529,8 +602,11 @@ class Renderer(
         val wantPeople = s.depth > 0f && !segmenter.isBusy && DetectPacer.due(ts - lastPeopleCapture, budget.segmentNs, frameNs)
         val wantDepth = s.depth > 0f && depthNet.usable && !depthNet.isBusy && DetectPacer.due(ts - lastDepthCapture, budget.depthNs, frameNs)
         val now = SystemClock.uptimeMillis()
-        val wantHist = (s.histogram || s.shutterPriority) && now - lastHistCapture >= 150
-        if (!(wantFaces || wantPeople || wantDepth || wantHist)) return
+        val wantHist = (s.histogram || s.shutterPriority || s.sceneAuto) && now - lastHistCapture >= 150
+        val g = gesture
+        val wantGesture = s.palmGesture && g != null && g.usable && !g.isBusy && now - lastGestureCapture >= GESTURE_EVERY_MS
+        if (wantGesture) lastGestureCapture = now
+        if (!(wantFaces || wantPeople || wantDepth || wantHist || wantGesture)) return
         if (wantFaces) lastFaceCapture = ts
         if (wantPeople) lastPeopleCapture = ts
         if (wantDepth) lastDepthCapture = ts
@@ -560,7 +636,7 @@ class Renderer(
         }
         val fence = GLES30.glFenceSync(GLES30.GL_SYNC_GPU_COMMANDS_COMPLETE, 0)
         GLES30.glFlush()
-        readback = Readback(slot.ts, specs, ids, fence, wantFaces, wantPeople, wantDepth)
+        readback = Readback(slot.ts, specs, ids, fence, wantFaces, wantPeople, wantDepth, wantGesture)
     }
 
     /** One pixel-pack buffer per pass index and size, so passes of one batch never share. */
@@ -598,6 +674,7 @@ class Renderer(
             passes.add(PassImage(spec, arr, 4, bottomUp = true))
         }
         if (passes.isNotEmpty()) maybeHistogram(passes[0])
+        if (rb.gesture && passes.isNotEmpty()) gesture?.submit(passes[0].pixels.copyOf(), passes[0].spec, rb.ts)
         if (rb.people && settings.depth > 0f && passes.isNotEmpty()) segmenter.submit(passes[0].pixels.copyOf(), passes[0].spec, rb.ts)
         if (rb.depth && settings.depth > 0f && passes.isNotEmpty()) {
             val spec = passes[0].spec
@@ -627,7 +704,7 @@ class Renderer(
 
     private fun maybeHistogram(p: PassImage) {
         val now = SystemClock.uptimeMillis()
-        if (!(settings.histogram || settings.shutterPriority) || now - lastHist < 120) return
+        if (!(settings.histogram || settings.shutterPriority || settings.sceneAuto) || now - lastHist < 120) return
         lastHist = now
         val l = IntArray(64); val r = IntArray(64); val g = IntArray(64); val b = IntArray(64)
         val px = p.pixels
@@ -661,7 +738,6 @@ class Renderer(
         val enc = encoderSurface
         val rec = recorder
         if (enc != null && rec != null) {
-            if (recordStartTs < 0) recordStartTs = s.ts
             if (!recPaused) {
                 egl.makeCurrent(enc)
                 GLES30.glBindVertexArray(vao)
@@ -694,7 +770,7 @@ class Renderer(
         if (slot !== drawnSlot || previewDirty) {
             egl.makeCurrent(p)
             GLES30.glBindVertexArray(vao)
-            val faces = render(slot, previewW, previewH, previewRotation, fill = false, monitor = true, lut = settings.lutOnMonitor, mirror = false, film = true) {
+            val faces = render(slot, previewW, previewH, previewRotation, fill = false, monitor = true, lut = settings.lutOnMonitor, mirror = false, film = true, squeeze = squeeze()) {
                 GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
                 GLES30.glViewport(0, 0, previewW, previewH)
             }
@@ -704,12 +780,13 @@ class Renderer(
             previewDirty = false
             if (settings.lowLatencyPreview) shown = slot
             val now = SystemClock.uptimeMillis()
-            if (settings.showBoxes && now - lastFacesSent > 66) { lastFacesSent = now; listener?.onFaces(faces) }
+            if ((settings.showBoxes || settings.framingGuide || settings.sceneAuto) && now - lastFacesSent > 66) { lastFacesSent = now; listener?.onFaces(faces) }
         }
         val rec = recorder
-        if (rec != null && recordStartTs >= 0) {
+        if (rec != null && taking && rec.takeStartUs >= 0) {
+            // Clip length so far, pre-recorded seconds included.
             val pausedFor = if (recPaused && pauseStartTs >= 0) lastEmittedTs - pauseStartTs else 0L
-            listener?.onRecording(true, lastEmittedTs - recordStartTs - pauseOffsetNs - pausedFor, null, null)
+            listener?.onRecording(true, (lastEmittedTs - pauseOffsetNs - pausedFor) - rec.takeStartUs * 1000, null, null)
         }
     }
 
@@ -718,19 +795,39 @@ class Renderer(
     private val fb = FloatArray(Shaders.MAX_FACES * 4)
 
     /** Output transform: image px -> output px (column-major 3x3 of the inverse is uploaded). */
-    private fun outputAffine(outW: Int, outH: Int, rot: Int, fill: Boolean, mirror: Boolean): DoubleArray {
-        val theta = Math.toRadians(-rot.toDouble()) // clockwise on screen
-        val c = cos(theta); val s = sin(theta)
-        val quarter = (rot / 90) % 2 == 1
-        val rw = if (quarter) imgH else imgW
-        val rh = if (quarter) imgW else imgH
-        val k = if (fill) max(outW.toDouble() / rw, outH.toDouble() / rh) else min(outW.toDouble() / rw, outH.toDouble() / rh)
-        val mx = if (mirror) -1.0 else 1.0
-        // out = k * R * diag(mx, 1) * (p - imgCentre) + outCentre
-        val a = k * c * mx; val b = -k * s; val d = k * s * mx; val e = k * c
+    private fun outputAffine(outW: Int, outH: Int, rot: Int, fill: Boolean, mirror: Boolean, squeeze: Double = 1.0): DoubleArray {
+        val m = unitAffine(rot, mirror, squeeze)
+        val (bw, bh) = extent(m)
+        val k = if (fill) max(outW / bw, outH / bh) else min(outW / bw, outH / bh)
+        // out = k * M * (p - imgCentre) + outCentre
+        val a = k * m[0]; val b = k * m[1]; val d = k * m[2]; val e = k * m[3]
         val cx = imgW / 2.0; val cy = imgH / 2.0
         return doubleArrayOf(a, b, outW / 2.0 - a * cx - b * cy, d, e, outH / 2.0 - d * cx - e * cy)
     }
+
+    /**
+     * M = R(rot) * diag(mirror, 1) * S, row-major 2x2. S stretches the image by [squeeze]
+     * along the recording's horizontal axis: anamorphic de-squeeze, on the monitor only.
+     */
+    private fun unitAffine(rot: Int, mirror: Boolean, squeeze: Double): DoubleArray {
+        val theta = Math.toRadians(-rot.toDouble()) // clockwise on screen
+        val c = cos(theta); val s = sin(theta)
+        val mx = if (mirror) -1.0 else 1.0
+        var r = doubleArrayOf(c * mx, -s, s * mx, c)
+        if (squeeze != 1.0) {
+            // The recording's horizontal axis, in image space.
+            val t = Math.toRadians(-outputRotation.toDouble())
+            val ux = cos(t); val uy = -sin(t); val q = squeeze - 1.0
+            val s00 = 1 + q * ux * ux; val s01 = q * ux * uy; val s11 = 1 + q * uy * uy
+            r = doubleArrayOf(r[0] * s00 + r[1] * s01, r[0] * s01 + r[1] * s11, r[2] * s00 + r[3] * s01, r[2] * s01 + r[3] * s11)
+        }
+        return r
+    }
+
+    /** Size of the image's bounding box under [m]. */
+    private fun extent(m: DoubleArray) = (abs(m[0]) * imgW + abs(m[1]) * imgH) to (abs(m[2]) * imgW + abs(m[3]) * imgH)
+
+    private fun squeeze(): Double = settings.desqueeze.toDouble().coerceIn(1.0, 2.0)
 
     private fun invert(m: DoubleArray): DoubleArray {
         val det = m[0] * m[4] - m[1] * m[3]
@@ -747,7 +844,7 @@ class Renderer(
      */
     private fun render(
         slot: Slot, outW: Int, outH: Int, rot: Int, fill: Boolean, monitor: Boolean, lut: Boolean, mirror: Boolean, film: Boolean,
-        bindDest: () -> Unit,
+        squeeze: Double = 1.0, bindDest: () -> Unit,
     ): List<Geom> {
         val s = settings
         val faces = if (s.blurOn) engine.timeline.at(slot.ts).sortedByDescending { it.w * it.h }.take(Shaders.MAX_FACES) else emptyList()
@@ -760,7 +857,7 @@ class Renderer(
             // Nothing to add after the grade: draw straight into the destination
             // (saves a full-resolution pass and its memory traffic every frame).
             bindDest()
-            composite(slot, outW, outH, rot, fill, lut, mirror, faces, depth)
+            composite(slot, outW, outH, rot, fill, lut, mirror, faces, depth, squeeze)
             return faces
         }
         val stage = stages.getOrPut((outW.toLong() shl 32) or outH.toLong()) {
@@ -768,7 +865,7 @@ class Renderer(
             GlUtil.Target(outW, outH, mipmaps = true)
         }
         stage.bind()
-        composite(slot, outW, outH, rot, fill, lut, mirror, faces, depth)
+        composite(slot, outW, outH, rot, fill, lut, mirror, faces, depth, squeeze)
         val glow = film && (s.bloom > 0f || s.halation > 0f)
         if (glow) {
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, stage.tex)
@@ -827,7 +924,7 @@ class Renderer(
         return depthFx.ensure(key, slot.color.tex, peopleTex, peopleMatrix(pm), imgW, imgH, slot.blur.tex, params, dof)
     }
 
-    private fun composite(slot: Slot, outW: Int, outH: Int, rot: Int, fill: Boolean, lut: Boolean, mirror: Boolean, faces: List<Geom>, depth: DepthFx.Result? = null) {
+    private fun composite(slot: Slot, outW: Int, outH: Int, rot: Int, fill: Boolean, lut: Boolean, mirror: Boolean, faces: List<Geom>, depth: DepthFx.Result? = null, squeeze: Double = 1.0) {
         val s = settings
         val p = progComp
         GLES30.glUseProgram(p)
@@ -836,7 +933,7 @@ class Renderer(
         GLES30.glActiveTexture(GLES30.GL_TEXTURE2)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_3D, lutTex); GLES30.glUniform1i(loc(p, "uLut"), 2)
         bindTex(3, maskTex); GLES30.glUniform1i(loc(p, "uMask"), 3)
-        val inv = invert(outputAffine(outW, outH, rot, fill, mirror))
+        val inv = invert(outputAffine(outW, outH, rot, fill, mirror, squeeze))
         GLES30.glUniformMatrix3fv(loc(p, "uOutToImg"), 1, false, mat3(FloatArray(6) { inv[it].toFloat() }), 0)
         GLES30.glUniform2f(loc(p, "uImgSize"), imgW.toFloat(), imgH.toFloat())
         GLES30.glUniform2f(loc(p, "uBlurSize"), slot.blur.width.toFloat(), slot.blur.height.toFloat())
@@ -912,12 +1009,11 @@ class Renderer(
 
     private fun publishTransform() {
         if (!geometryKnown || previewW == 0) return
-        val m = outputAffine(previewW, previewH, previewRotation, fill = false, mirror = false)
+        val q = squeeze()
+        val m = outputAffine(previewW, previewH, previewRotation, fill = false, mirror = false, squeeze = q)
         val inv = invert(m)
-        val quarter = (previewRotation / 90) % 2 == 1
-        val rwImg = if (quarter) imgH else imgW
-        val rhImg = if (quarter) imgW else imgH
-        val k = min(previewW.toDouble() / rwImg, previewH.toDouble() / rhImg)
+        val (rwImg, rhImg) = extent(unitAffine(previewRotation, false, q))
+        val k = min(previewW / rwImg, previewH / rhImg)
         val rw = rwImg * k
         val rh = rhImg * k
         // The overlay works in view pixels; the preview buffer may be scaled down from them.
@@ -935,21 +1031,32 @@ class Renderer(
 
     private fun finishRecording(error: String? = null) {
         val rec = recorder ?: return
+        if (!taking) return
         finishing = true
         if (error == null) emitReady(force = true) // nothing captured is lost
         finishing = false
-        recorder = null
+        taking = false
+        val spec = currentTake; currentTake = null
+        // Keep the encoder armed for the next take when pre-record is on (and nothing failed).
+        val keep = error == null && rec.failed == null && settings.prerollS > 0 && armAllowed && wantedOutputRotation == outputRotation
+        if (!keep) {
+            recorder = null
+            encoderSurface?.let { egl.destroySurface(it) }
+            encoderSurface = null
+        }
         outputRotation = wantedOutputRotation
-        encoderSurface?.let { egl.destroySurface(it) }
-        encoderSurface = null
         Thread {
-            val uri = runCatching { rec.stop() }.getOrNull()
+            val start = rec.takeStartUs
+            val meta = rec.metadata()
+            val uri = runCatching { if (keep) rec.endTake() else rec.stop() }.getOrNull()
+            if (uri != null && spec != null) listener?.onTakeSaved(spec, meta, start)
             listener?.onRecording(false, 0, uri, error ?: rec.failed ?: if (uri == null) "The recording could not be saved" else null)
         }.start()
+        if (!keep) handler.post { arm() }
     }
 
-    private fun savePhoto() {
-        val slot = shown ?: newest ?: return
+    private fun savePhoto(from: Slot? = null) {
+        val slot = from ?: shown ?: newest ?: return
         val (w, h) = outputSize()
         val target = GlUtil.Target(w, h)
         GLES30.glBindVertexArray(vao)
@@ -973,6 +1080,115 @@ class Renderer(
                 listener?.onPhoto(null, e.message)
             }
         }.start()
+    }
+
+    // ---- burst merge ------------------------------------------------------------------------------
+    /** Merge [frames] frames for one photo; [sigma]: noise level, [lift]: shadow lift for HDR / night. */
+    class BurstRequest(val frames: Int, val sigma: Float, val lift: Float)
+
+    private class Burst(
+        val req: BurstRequest, val ref: Slot, val refLuma: FloatArray, val lw: Int, val lh: Int,
+        var ping: GlUtil.Target, var pong: GlUtil.Target, val luma: GlUtil.Target,
+    ) {
+        var merged = 0
+        var seen = 0
+        var first = true
+    }
+
+    private fun startBurst(req: BurstRequest) {
+        val src = shown ?: newest ?: run { photoRequested = true; return }
+        val lw = LUMA_W; val lh = max(16, (LUMA_W.toLong() * imgH / imgW).toInt())
+        val made = ArrayList<GlUtil.Target>()
+        try {
+            // The reference: the frame on screen when the shutter was pressed (its faces are known).
+            val ref = Slot(GlUtil.Target(imgW, imgH).also { made += it }, GlUtil.Target(max(1, imgW / 4), max(1, imgH / 4), mipmaps = true).also { made += it })
+            ref.ts = src.ts; ref.depth = src.depth; ref.focus = src.focus; ref.focusHalf = src.focusHalf; ref.far = src.far
+            copyTex(src.color.tex, ref.color)
+            val ping = GlUtil.Target(imgW, imgH, format = GLES30.GL_RGBA16F).also { made += it }
+            val pong = GlUtil.Target(imgW, imgH, format = GLES30.GL_RGBA16F).also { made += it }
+            val luma = GlUtil.Target(lw, lh).also { made += it }
+            burst = Burst(req, ref, lumaOf(ref.color.tex, luma), lw, lh, ping, pong, luma)
+        } catch (e: Throwable) {
+            Log.w(TAG, "burst merge unavailable", e)
+            made.forEach { it.release() }
+            photoRequested = true
+        }
+    }
+
+    /** Plain copy (the mean shader with weight 1). */
+    private fun copyTex(tex: Int, dst: GlUtil.Target) {
+        dst.bind()
+        GLES30.glUseProgram(progMean)
+        bindTex(0, tex); GLES30.glUniform1i(loc(progMean, "uAcc"), 0)
+        GLES30.glUniform2f(loc(progMean, "uSize"), dst.width.toFloat(), dst.height.toFloat())
+        GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
+    }
+
+    /** Small luma image (texture rows, bottom-up) for alignment; a synchronous read, a few kB. */
+    private fun lumaOf(tex: Int, t: GlUtil.Target): FloatArray {
+        t.bind()
+        GLES30.glUseProgram(progLuma)
+        bindTex(0, tex); GLES30.glUniform1i(loc(progLuma, "uSrc"), 0)
+        GLES30.glUniform2f(loc(progLuma, "uDstSize"), t.width.toFloat(), t.height.toFloat())
+        GLES30.glUniform2f(loc(progLuma, "uStep"), 0.25f / t.width, 0.25f / t.height)
+        GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
+        val buf = ByteBuffer.allocateDirect(t.width * t.height * 4).order(ByteOrder.nativeOrder())
+        GLES30.glReadPixels(0, 0, t.width, t.height, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, buf)
+        return FloatArray(t.width * t.height) { (buf.get(it * 4).toInt() and 0xFF) / 255f }
+    }
+
+    private fun burstStep(b: Burst, slot: Slot) {
+        b.seen++
+        val (dx, dy) = com.veil.cam.core.BurstAlign.translation(b.refLuma, lumaOf(slot.color.tex, b.luma), b.lw, b.lh)
+        // A frame that moved too far (the phone swung) adds nothing but risk: skip it.
+        if (abs(dx) < b.lw * 0.12f && abs(dy) < b.lh * 0.12f) {
+            b.pong.bind()
+            val p = progMerge
+            GLES30.glUseProgram(p)
+            bindTex(0, b.ref.color.tex); GLES30.glUniform1i(loc(p, "uRef"), 0)
+            bindTex(1, slot.color.tex); GLES30.glUniform1i(loc(p, "uCur"), 1)
+            bindTex(2, b.ping.tex); GLES30.glUniform1i(loc(p, "uAcc"), 2)
+            GLES30.glUniform2f(loc(p, "uSize"), imgW.toFloat(), imgH.toFloat())
+            GLES30.glUniform2f(loc(p, "uShift"), dx / b.lw, dy / b.lh)
+            GLES30.glUniform1f(loc(p, "uSigma"), b.req.sigma)
+            GLES30.glUniform1i(loc(p, "uFirst"), if (b.first) 1 else 0)
+            GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
+            b.first = false
+            val t = b.ping; b.ping = b.pong; b.pong = t
+            b.merged++
+        }
+        if (b.merged >= b.req.frames - 1 || b.seen >= b.req.frames * 2) finishBurst(b)
+    }
+
+    private fun finishBurst(b: Burst) {
+        burst = null
+        val made = ArrayList<GlUtil.Target>()
+        try {
+            if (!b.first) {
+                val mean = GlUtil.Target(imgW, imgH, mipmaps = true, format = GLES30.GL_RGBA16F).also { made += it }
+                copyTex(b.ping.tex, mean)
+                GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, mean.tex)
+                GLES30.glGenerateMipmap(GLES30.GL_TEXTURE_2D)
+                b.ref.color.bind()
+                val p = progTone
+                GLES30.glUseProgram(p)
+                bindTex(0, mean.tex); GLES30.glUniform1i(loc(p, "uMean"), 0)
+                GLES30.glUniform2f(loc(p, "uSize"), imgW.toFloat(), imgH.toFloat())
+                GLES30.glUniform1f(loc(p, "uLift"), b.req.lift)
+                GLES30.glUniform1f(loc(p, "uLod"), ln(max(imgW, imgH) / 48f) / ln(2f))
+                GLES30.glUniform1f(loc(p, "uSharpen"), (0.15f + b.merged * 0.03f).coerceAtMost(0.4f))
+                GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
+            }
+            listener?.onBurstMerged(b.merged + 1)
+            savePhoto(b.ref)
+        } catch (e: Throwable) {
+            Log.w(TAG, "burst merge failed", e)
+            savePhoto(b.ref)
+        } finally {
+            made.forEach { it.release() }
+            b.ping.release(); b.pong.release(); b.luma.release()
+            b.ref.color.release(); b.ref.blur.release()
+        }
     }
 
     // ---- textures ---------------------------------------------------------------------------------
@@ -1067,10 +1283,42 @@ class Renderer(
     /** Focus point for cinematic depth (image px), or null to follow the subject. */
     fun setFocusPoint(x: Float?, y: Float?) { focusPoint = if (x == null || y == null) null else floatArrayOf(x, y) }
 
+    /** The tapped subject moved: keep the focus point on it (and show where it is). */
+    private fun followTap(m: com.veil.cam.face.DepthMap) {
+        val t = m.track ?: return
+        if (focusPoint == null || !manualFocus.isNaN()) return
+        val inv = m.spec.toCanvas.inverse()
+        val cx = t[0] * m.spec.width; val cy = t[1] * m.spec.height
+        val ix = (inv.a * cx + inv.b * cy + inv.c).toFloat(); val iy = (inv.d * cx + inv.e * cy + inv.f).toFloat()
+        if (ix !in 0f..imgW.toFloat() || iy !in 0f..imgH.toFloat()) return
+        focusPoint = floatArrayOf(ix, iy)
+        listener?.onFocusTrack(ix, iy)
+    }
+
+    /** Hold the depth of field at [depth] (0..1, the depth map's scale), or null to follow the subject. */
+    fun setManualDepthFocus(depth: Float?) { manualFocus = depth ?: Float.NaN }
+
+    /** Relative depth (0..1, 1 = nearest) at image point ([ix], [iy]), or null without a depth map. */
+    fun depthAt(ix: Float, iy: Float): Float? {
+        val dm = depthNet.latest ?: return null
+        val m = dm.spec.toCanvas
+        val u = ((m.a * ix + m.b * iy + m.c) / dm.spec.width).toFloat(); val v = ((m.d * ix + m.e * iy + m.f) / dm.spec.height).toFloat()
+        if (u !in 0f..1f || v !in 0f..1f) return null
+        val x = (u * dm.width).toInt().coerceIn(1, dm.width - 2); val y = (v * dm.height).toInt().coerceIn(1, dm.height - 2)
+        var sum = 0
+        for (yy in -1..1) for (xx in -1..1) sum += dm.data[(y + yy) * dm.width + x + xx].toInt() and 0xFF
+        return sum / 9f / 255f
+    }
+
     /** The focus plane follows the depth map's subject with a focus pull, not a jump. */
     private fun easeFocus(slot: Slot) {
         val dm = depthMap
-        if (dm != null) {
+        val manual = manualFocus
+        if (!manual.isNaN()) {
+            // An A-B focus pull drives the plane itself (already eased on its own curve).
+            focusNow = manual; halfNow = 0.015f
+            if (dm != null) farNow = dm.far
+        } else if (dm != null) {
             if (focusNow.isNaN()) { focusNow = dm.focus; halfNow = dm.half; farNow = dm.far }
             val k = 1f - kotlin.math.exp(-(frameNs / 1e9f) / FOCUS_EASE_S)
             focusNow += (dm.focus - focusNow) * k
@@ -1114,5 +1362,7 @@ class Renderer(
         // no frame is ever emitted before its detection and the preview never drops one.
         private const val MAX_PREVIEW_BACKLOG = 6
         private const val MAX_STRIDE = 4 // frames between two detections, at most
+        private const val GESTURE_EVERY_MS = 200L
+        private const val LUMA_W = 320
     }
 }

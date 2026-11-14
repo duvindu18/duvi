@@ -50,7 +50,7 @@ object GlUtil {
     }
 
     /** RGBA8 texture (optionally mipmapped) with a framebuffer bound to level 0. */
-    class Target(val width: Int, val height: Int, mipmaps: Boolean = false) {
+    class Target(val width: Int, val height: Int, mipmaps: Boolean = false, format: Int = GLES30.GL_RGBA8) {
         val tex: Int
         val fbo: Int
         val levels: Int = if (mipmaps) 1 + (31 - Integer.numberOfLeadingZeros(maxOf(width, height))) else 1
@@ -60,7 +60,7 @@ object GlUtil {
             GLES30.glGenTextures(1, t, 0)
             tex = t[0]
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, tex)
-            GLES30.glTexStorage2D(GLES30.GL_TEXTURE_2D, levels, GLES30.GL_RGBA8, width, height)
+            GLES30.glTexStorage2D(GLES30.GL_TEXTURE_2D, levels, format, width, height)
             GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MIN_FILTER, if (mipmaps) GLES30.GL_LINEAR_MIPMAP_LINEAR else GLES30.GL_LINEAR)
             GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_LINEAR)
             GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE)

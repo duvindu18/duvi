@@ -15,6 +15,8 @@ import android.view.View
 import android.view.ViewConfiguration
 import com.veil.cam.Settings
 import com.veil.cam.core.Coverage
+import com.veil.cam.core.FramingAdvisor
+import com.veil.cam.core.FramingHint
 import com.veil.cam.core.Geom
 import kotlin.math.abs
 import kotlin.math.cos
@@ -65,6 +67,28 @@ class OverlayView(ctx: Context) : View(ctx) {
     var onSwipeTray: ((up: Boolean) -> Unit)? = null
     var onExposure: ((delta: Float) -> Unit)? = null // in units of the full sun travel
 
+    /** Recording: framing hints are for before the take, so they hide. */
+    var recording = false
+    /** Scene recognition badge ("NIGHT · 8×"), or null. */
+    var sceneBadge: String? = null
+        set(v) { if (v != field) { field = v; invalidate() } }
+    /** A-B focus pull marks (image px), or null. */
+    var markA: FloatArray? = null
+        set(v) { field = v; invalidate() }
+    var markB: FloatArray? = null
+        set(v) { field = v; invalidate() }
+    /** Palm held: 0..1 progress ring; [countdown] > 0 shows the big countdown number. */
+    var palmHold = 0f
+        set(v) { if (v != field) { field = v; invalidate() } }
+    var countdown = 0
+        set(v) { if (v != field) { field = v; invalidate() } }
+    private var tracked: FloatArray? = null
+    private var trackedAt = 0L
+    private var hint: FramingHint? = null
+    private var hintCandidate: String? = null
+    private var hintSince = 0L
+    private var hintLost = 0L
+
     private var viewToImg = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f)
     private var imgToView = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f)
     private var faces: List<Geom> = emptyList()
@@ -76,6 +100,8 @@ class OverlayView(ctx: Context) : View(ctx) {
     private var dragExposure = false
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private val label = Theme.textPaint(ctx, 13f, Theme.semibold)
+    private val small = Theme.textPaint(ctx, 11f, Theme.bold)
+    private val big = Theme.textPaint(ctx, 96f, Theme.semibold).apply { setShadowLayer(12f, 0f, 2f, Color.argb(140, 0, 0, 0)) }
     private fun dp(v: Float) = Theme.dp(context, v)
     private fun now() = SystemClock.uptimeMillis()
 
@@ -88,7 +114,43 @@ class OverlayView(ctx: Context) : View(ctx) {
         invalidate()
     }
 
-    fun setFaces(f: List<Geom>) { faces = f; invalidate() }
+    fun setFaces(f: List<Geom>) { faces = f; updateFraming(); invalidate() }
+
+    /** Cinematic focus is following a tapped subject at image point ([x], [y]). */
+    fun setTracked(x: Float, y: Float) { tracked = floatArrayOf(x, y); trackedAt = now(); invalidate() }
+    fun clearTracked() { tracked = null; invalidate() }
+
+    /** Largest face as (cx, cy, w, h), normalised to the recorded frame (x right, y down). */
+    fun facesInFrame(): List<FloatArray> {
+        val r = content
+        if (r.width() <= 0) return emptyList()
+        val q = ((frameRotation / 90) % 2 + 2) % 2 == 1
+        val fw = if (q) r.height() else r.width(); val fh = if (q) r.width() else r.height()
+        val rad = Math.toRadians(-frameRotation.toDouble()); val cs = cos(rad).toFloat(); val sn = sin(rad).toFloat()
+        return faces.map { g ->
+            val vx = mapX(g.cx, g.cy) - r.centerX(); val vy = mapY(g.cx, g.cy) - r.centerY()
+            val lx = vx * cs - vy * sn; val ly = vx * sn + vy * cs
+            // Face size in view px (the image -> view map is a similarity).
+            val k = kotlin.math.hypot(imgToView[0], imgToView[3])
+            val w = g.w * k; val h = g.h * k
+            floatArrayOf(lx / fw + 0.5f, ly / fh + 0.5f, (if (q) h else w) / fw, (if (q) w else h) / fh)
+        }
+    }
+
+    /** Framing hints change only once they have held for a moment (faces jitter). */
+    private fun updateFraming() {
+        if (!settings.framingGuide || recording) { hint = null; return }
+        val h = FramingAdvisor.advise(facesInFrame(), roll).lastOrNull()
+        val t = now()
+        if (h == null) {
+            if (hint != null && t - hintLost > 700) hint = null
+            hintCandidate = null
+            return
+        }
+        hintLost = t
+        if (h.message != hintCandidate) { hintCandidate = h.message; hintSince = t }
+        if (t - hintSince > 600 || hint?.message == h.message) hint = h
+    }
     fun setHistogram(l: IntArray, r: IntArray, g: IntArray, b: IntArray) { hist = arrayOf(l, r, g, b); invalidate() }
 
     fun showFocus(x: Float, y: Float) { focus = x to y; focusAt = now(); invalidate() }
@@ -190,9 +252,15 @@ class OverlayView(ctx: Context) : View(ctx) {
     override fun onDraw(c: Canvas) {
         val r = content
         if (r.width() <= 0) return
-        turned(c, r, frameRotation) { f -> drawGuides(c, f); if (settings.grid) drawGrid(c, f) }
+        turned(c, r, frameRotation) { f -> drawGuides(c, f); if (settings.grid) drawGrid(c, f); hint?.let { drawHint(c, f, it) } }
         if (settings.showBoxes) drawFaces(c)
-        turned(c, r, uiRotation) { f -> if (settings.level && abs(roll) < 12f) drawLevel(c, f); if (startingHint) drawStarting(c, f) }
+        turned(c, r, uiRotation) { f ->
+            if (settings.level && abs(roll) < 12f) drawLevel(c, f)
+            if (startingHint) drawStarting(c, f)
+            sceneBadge?.let { drawBadge(c, f, it) }
+            if (palmHold > 0f || countdown > 0) drawPalm(c, f)
+        }
+        drawMarks(c)
         val area = RectF(r).apply { if (hud.width() > 0 && !intersect(hud)) set(r) }
         turned(c, area, uiRotation) { f ->
             if (settings.histogram) drawHistogram(c, f)
@@ -369,6 +437,78 @@ class OverlayView(ctx: Context) : View(ctx) {
             val f = (db + 60f) / 60f
             p.color = when { db > -3f -> Theme.RED; db > -12f -> Theme.YELLOW; else -> Theme.GREEN }
             c.drawRoundRect(x, y0 + hh * (1 - f), x + w, y0 + hh, w / 2, w / 2, p)
+        }
+    }
+
+    /** Framing hint: a dashed path from the eyes to the thirds point, a ring there, the advice below. */
+    private fun drawHint(c: Canvas, r: RectF, h: FramingHint) {
+        val fx = r.left + h.fromX * r.width(); val fy = r.top + h.fromY * r.height()
+        val tx = r.left + h.toX * r.width(); val ty = r.top + h.toY * r.height()
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = dp(1.4f)
+        p.color = Color.argb(220, 255, 214, 10)
+        if (kotlin.math.hypot(tx - fx, ty - fy) > dp(8f)) {
+            p.pathEffect = android.graphics.DashPathEffect(floatArrayOf(dp(5f), dp(5f)), 0f)
+            c.drawLine(fx, fy, tx, ty, p)
+            p.pathEffect = null
+            c.drawCircle(tx, ty, dp(9f), p)
+            c.drawCircle(fx, fy, dp(3f), p)
+        }
+        val text = h.message
+        val tw = label.measureText(text) + dp(24f); val th = dp(28f)
+        val box = RectF(r.centerX() - tw / 2, r.bottom - th - dp(16f), r.centerX() + tw / 2, r.bottom - dp(16f))
+        Glass.draw(c, box, th / 2, Theme.GLASS_STRONG, resources.displayMetrics.density)
+        c.drawText(text, box.centerX(), box.centerY() - (label.descent() + label.ascent()) / 2, label)
+    }
+
+    /** Scene recognition badge, top centre. */
+    private fun drawBadge(c: Canvas, r: RectF, text: String) {
+        val tw = small.measureText(text) + dp(18f); val th = dp(22f)
+        val box = RectF(r.centerX() - tw / 2, r.top + dp(10f), r.centerX() + tw / 2, r.top + dp(10f) + th)
+        Glass.draw(c, box, th / 2, Theme.GLASS_STRONG, resources.displayMetrics.density)
+        small.color = Theme.YELLOW
+        c.drawText(text, box.centerX(), box.centerY() - (small.descent() + small.ascent()) / 2, small)
+    }
+
+    /** Palm gesture: a ring filling while the palm is held, then the countdown. */
+    private fun drawPalm(c: Canvas, r: RectF) {
+        val cx = r.centerX(); val cy = r.centerY()
+        if (countdown > 0) {
+            big.color = Color.WHITE
+            c.drawText("$countdown", cx, cy - (big.descent() + big.ascent()) / 2, big)
+            return
+        }
+        val rad = dp(30f)
+        p.style = Paint.Style.STROKE; p.strokeCap = Paint.Cap.ROUND
+        p.strokeWidth = dp(3f)
+        p.color = Color.argb(90, 255, 255, 255)
+        c.drawCircle(cx, cy, rad, p)
+        p.color = Theme.YELLOW
+        c.drawArc(RectF(cx - rad, cy - rad, cx + rad, cy + rad), -90f, 360f * palmHold, false, p)
+        Glyphs.draw(c, Glyph.PLAY, cx, cy, dp(22f), p.apply { style = Paint.Style.FILL; color = Color.WHITE })
+    }
+
+    /** A / B focus marks and the subject the cinematic focus follows. */
+    private fun drawMarks(c: Canvas) {
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = dp(1.5f)
+        for ((m, name) in listOf(markA to "A", markB to "B")) {
+            val pt = m ?: continue
+            val x = mapX(pt[0], pt[1]); val y = mapY(pt[0], pt[1])
+            p.color = Theme.YELLOW
+            c.drawCircle(x, y, dp(13f), p)
+            small.color = Theme.YELLOW
+            c.drawText(name, x, y - (small.descent() + small.ascent()) / 2, small)
+        }
+        val t = tracked ?: return
+        if (now() - trackedAt > 1500) { tracked = null; return }
+        val x = mapX(t[0], t[1]); val y = mapY(t[0], t[1]); val h = dp(22f)
+        p.color = Theme.YELLOW
+        val k = dp(7f)
+        // Corner brackets: "tracking".
+        for ((sx, sy) in listOf(-1f to -1f, 1f to -1f, -1f to 1f, 1f to 1f)) {
+            c.drawLine(x + sx * h, y + sy * h, x + sx * (h - k), y + sy * h, p)
+            c.drawLine(x + sx * h, y + sy * h, x + sx * h, y + sy * (h - k), p)
         }
     }
 

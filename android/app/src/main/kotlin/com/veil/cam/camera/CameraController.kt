@@ -224,6 +224,18 @@ class CameraController(context: Context) {
         }
     }
 
+    @Volatile private var focusOverride = Float.NaN
+    private val overridePending = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Drive the lens directly (A-B focus pulls), in diopters, or null to hand focus back
+     * to the settings. Calls faster than the camera can take them collapse into one.
+     */
+    fun setFocusOverride(diopters: Float?) {
+        focusOverride = diopters ?: Float.NaN
+        if (overridePending.compareAndSet(false, true)) handler.post { overridePending.set(false); submit() }
+    }
+
     fun resetFocus() {
         handler.post { focusRegion = null; submit() }
     }
@@ -285,7 +297,11 @@ class CameraController(context: Context) {
 
             // Focus
             val region = focusRegion
-            if (!s.autoFocus && c.minFocusDiopters > 0f) {
+            val forced = focusOverride
+            if (!forced.isNaN() && c.minFocusDiopters > 0f) {
+                b.set(CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_OFF)
+                b.set(CaptureRequest.LENS_FOCUS_DISTANCE, forced.coerceIn(0f, c.minFocusDiopters))
+            } else if (!s.autoFocus && c.minFocusDiopters > 0f) {
                 b.set(CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_OFF)
                 b.set(CaptureRequest.LENS_FOCUS_DISTANCE, s.focusDiopters.coerceIn(0f, c.minFocusDiopters))
             } else if (region != null && c.maxAfRegions > 0) {

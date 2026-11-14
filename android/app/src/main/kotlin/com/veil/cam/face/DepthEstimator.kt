@@ -21,6 +21,8 @@ import kotlin.math.roundToInt
 class DepthMap(
     val spec: PassSpec, val width: Int, val height: Int, val data: ByteArray,
     val focus: Float, val half: Float, val far: Float, val timestampNs: Long, val serial: Int,
+    /** Where the tapped subject is now (canvas uv), when following a tap; else null. */
+    val track: FloatArray? = null,
 )
 
 /**
@@ -125,11 +127,35 @@ class DepthEstimator(private val context: Context) {
                 val ds = d.copyOf().also { it.sort() }
                 val far = ds[(plane * 0.05f).toInt()]
                 var focus: Float; var half: Float
+                var track: FloatArray? = null
                 if (tap != null) {
                     val tx = (tap[0] * w).toInt().coerceIn(1, w - 2); val ty = (tap[1] * h).toInt().coerceIn(1, h - 2)
                     var sum = 0f
                     for (yy in -1..1) for (xx in -1..1) sum += d[(ty + yy) * w + tx + xx]
-                    focus = sum / 9f; half = 0.02f
+                    val here = sum / 9f
+                    // Follow the tapped subject: the centroid, near the last point, of what is
+                    // part of the same person (person mask) or at the same depth (an object).
+                    fun personAt(x: Int, y: Int): Boolean {
+                        val pm = person ?: return false
+                        val mx = x * pm.width / w; val my = y * pm.height / h
+                        return (pm.data[2 * (my * pm.width + mx)].toInt() and 0xFF) > 128
+                    }
+                    val onPerson = personAt(tx, ty)
+                    val rad = (maxOf(w, h) * 0.12f).toInt()
+                    var cx = 0f; var cy = 0f; var n = 0; val vals = ArrayList<Float>()
+                    for (y in maxOf(0, ty - rad) until minOf(h, ty + rad + 1)) for (x in maxOf(0, tx - rad) until minOf(w, tx + rad + 1)) {
+                        val v = d[y * w + x]
+                        val same = if (onPerson) personAt(x, y) else kotlin.math.abs(v - here) < 0.05f
+                        if (same) { cx += x; cy += y; n++; vals.add(v) }
+                    }
+                    if (n > 12) {
+                        vals.sort()
+                        focus = vals[vals.size / 2]
+                        // Move the point only part of the way: steady on a still subject.
+                        val nx = tx + (cx / n - tx) * 0.5f; val ny = ty + (cy / n - ty) * 0.5f
+                        track = floatArrayOf((nx + 0.5f) / w, (ny + 0.5f) / h)
+                    } else focus = here
+                    half = if (onPerson) minOf(0.05f, (vals.getOrNull(vals.size * 3 / 4) ?: focus) - (vals.getOrNull(vals.size / 4) ?: focus)).coerceAtLeast(0.02f) else 0.02f
                 } else {
                     val sel = ArrayList<Float>()
                     if (person != null) {
@@ -148,7 +174,7 @@ class DepthEstimator(private val context: Context) {
                     focus = (q1 + q3) / 2f
                     half = minOf((q3 - q1) / 2f, 0.3f * maxOf(focus - far, 0.08f))
                 }
-                latest = DepthMap(spec, w, h, ByteArray(plane) { (d[it] * 255f + 0.5f).toInt().toByte() }, focus, half, far, timestampNs, ++serial)
+                latest = DepthMap(spec, w, h, ByteArray(plane) { (d[it] * 255f + 0.5f).toInt().toByte() }, focus, half, far, timestampNs, ++serial, track)
             } catch (e: Throwable) {
                 Log.w(TAG, "depth failed", e)
             } finally {

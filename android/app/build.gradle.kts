@@ -18,8 +18,8 @@ android {
         applicationId = "com.veil.cam"
         minSdk = 30
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.7.0"
+        versionCode = 9
+        versionName = "1.8.0"
         ndk { abiFilters += listOf("arm64-v8a") } // 64-bit phones (all current devices)
     }
 
@@ -45,7 +45,7 @@ android {
 
     sourceSets["main"].assets.srcDirs("src/main/assets", modelsDir)
 
-    androidResources { noCompress += listOf("onnx", "tflite") }
+    androidResources { noCompress += listOf("onnx", "tflite", "task") }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

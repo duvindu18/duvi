@@ -608,4 +608,98 @@ void main() {
     frag = vec4(c, 1.0);
 }
 """
+
+    // ---- burst merge (photos) -----------------------------------------------------------------
+
+    /** Small luma image for burst alignment: a 4x4 box of bilinear taps per output pixel. */
+    const val BURST_LUMA = """#version 300 es
+precision highp float;
+uniform sampler2D uSrc;
+uniform vec2 uDstSize;
+uniform vec2 uStep; // source uv between taps
+out vec4 frag;
+void main() {
+    vec2 uv = gl_FragCoord.xy / uDstSize;
+    mediump float l = 0.0;
+    for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++) {
+        vec2 o = (vec2(float(x), float(y)) - 1.5) * uStep;
+        l += dot(texture(uSrc, uv + o).rgb, vec3(0.299, 0.587, 0.114));
+    }
+    l *= 1.0 / 16.0;
+    frag = vec4(l, l, l, 1.0);
+}
+"""
+
+    /**
+     * One frame into the running merge: the new frame, shifted onto the reference, is
+     * added where it matches the reference (local means within the noise), and left out
+     * where something moved, so moving subjects never ghost. Sums stay in half floats.
+     */
+    const val BURST_MERGE = """#version 300 es
+precision highp float;
+uniform sampler2D uRef;
+uniform sampler2D uCur;
+uniform sampler2D uAcc;
+uniform vec2 uSize;
+uniform vec2 uShift;  // uv
+uniform float uSigma; // noise level (0..1 colour units)
+uniform int uFirst;
+out vec4 frag;
+mediump vec3 local(sampler2D t, vec2 uv) {
+    vec2 px = 1.0 / uSize;
+    return (texture(t, uv).rgb * 2.0 + texture(t, uv + vec2(px.x, 0.0)).rgb + texture(t, uv - vec2(px.x, 0.0)).rgb
+        + texture(t, uv + vec2(0.0, px.y)).rgb + texture(t, uv - vec2(0.0, px.y)).rgb) / 6.0;
+}
+void main() {
+    vec2 uv = gl_FragCoord.xy / uSize;
+    vec4 acc = uFirst == 1 ? vec4(texture(uRef, uv).rgb, 1.0) : texture(uAcc, uv);
+    vec2 q = uv + uShift;
+    if (q.x < 0.0 || q.y < 0.0 || q.x > 1.0 || q.y > 1.0) { frag = acc; return; }
+    mediump vec3 d = local(uCur, q) - local(uRef, uv);
+    float e = dot(d, d) / (uSigma * uSigma);
+    float w = exp(-0.5 * e);
+    w = w < 0.05 ? 0.0 : w;
+    frag = acc + vec4(texture(uCur, q).rgb * w, w);
+}
+"""
+
+    /** Merge sum -> mean (mipmapped, for the local tone curve). */
+    const val BURST_MEAN = """#version 300 es
+precision highp float;
+uniform sampler2D uAcc;
+uniform vec2 uSize;
+out vec4 frag;
+void main() {
+    vec4 a = texture(uAcc, gl_FragCoord.xy / uSize);
+    frag = vec4(a.rgb / max(a.a, 1e-4), 1.0);
+}
+"""
+
+    /**
+     * Tone for the merged photo: shadows lifted by [uLift] where the neighbourhood is
+     * dark (the merge removed the noise that would show), highlights rolled off softly,
+     * and a light sharpen to restore what sub-pixel alignment softened.
+     */
+    const val BURST_TONE = """#version 300 es
+precision highp float;
+uniform sampler2D uMean;
+uniform vec2 uSize;
+uniform float uLift;
+uniform float uLod;
+uniform float uSharpen;
+out vec4 frag;
+void main() {
+    vec2 uv = gl_FragCoord.xy / uSize;
+    vec3 c = texture(uMean, uv).rgb;
+    vec3 soft = textureLod(uMean, uv, 1.0).rgb;
+    c += (c - soft) * uSharpen;
+    const vec3 W = vec3(0.2126, 0.7152, 0.0722);
+    float lp = 0.5 * (dot(textureLod(uMean, uv, uLod).rgb, W) + dot(textureLod(uMean, uv, uLod + 2.0).rgb, W));
+    float gain = mix(uLift, 1.0, smoothstep(0.0, 0.55, lp));
+    c = max(c * gain, 0.0);
+    vec3 over = max(c - 0.8, 0.0);
+    c = min(c, 0.8) + 0.2 * (1.0 - exp(-over / 0.2));
+    frag = vec4(c, 1.0);
+}
+"""
 }

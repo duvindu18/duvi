@@ -54,9 +54,18 @@ import com.veil.cam.core.PowerBudget
 import com.veil.cam.core.PowerMode
 import com.veil.cam.face.FaceEngine
 import com.veil.cam.face.DepthEstimator
+import com.veil.cam.face.GestureWatcher
+import com.veil.cam.core.AccessoryKeys
+import com.veil.cam.core.Ease
+import com.veil.cam.core.FocusMark
+import com.veil.cam.core.FocusPull
+import com.veil.cam.core.KeyAction
+import com.veil.cam.core.Scene
+import com.veil.cam.core.SceneAnalyzer
 import com.veil.cam.face.PersonSegmenter
 import com.veil.cam.gl.Renderer
 import com.veil.cam.media.MediaStorage
+import com.veil.cam.media.isVideo
 import com.veil.cam.power.ThermalMonitor
 import com.veil.cam.record.AudioCapture
 import com.veil.cam.ui.ControlSource
@@ -103,6 +112,22 @@ class MainActivity : Activity(), Renderer.Listener {
     private lateinit var renderer: Renderer
     private lateinit var segmenter: PersonSegmenter
     private lateinit var depthNet: DepthEstimator
+    private lateinit var gesture: GestureWatcher
+    private val sceneAnalyzer = SceneAnalyzer()
+    private var scene = Scene.AUTO
+    private var lastScene = 0L
+    private var faceArea = 0f
+    // A-B focus pulls.
+    private var markA: FocusMark? = null
+    private var markB: FocusMark? = null
+    private var pull: FocusPull? = null
+    private var pullStart = 0L
+    private var nextPullReverse = false
+    private var lastTapImg: FloatArray? = null
+    // Accessory button learning: the action waiting for a button press.
+    private var learning: KeyAction? = null
+    private var countdownLeft = 0
+    private var hdrPending = false
     private lateinit var camera: CameraController
     private var audio: AudioCapture? = null
     private var cameras: List<CameraCaps> = emptyList()
@@ -169,6 +194,8 @@ class MainActivity : Activity(), Renderer.Listener {
         segmenter = PersonSegmenter(applicationContext).also { it.onError = { msg -> main.post { flash(msg) } } }
         depthNet = DepthEstimator(applicationContext).also { it.onError = { msg -> main.post { flash(msg) } } }
         renderer = Renderer(applicationContext, engine, segmenter, depthNet).also { it.listener = this }
+        gesture = GestureWatcher(applicationContext).also { g -> g.onPalm = { main.post { onPalm() } } }
+        renderer.gesture = gesture
         renderer.update(settings)
         thermal = ThermalMonitor(this) { level, status -> onThermal(level, status) }
         camera = CameraController(applicationContext)
@@ -198,16 +225,21 @@ class MainActivity : Activity(), Renderer.Listener {
         registerSensors()
         thermal?.start()
         pushBudget()
+        renderer.setArmAllowed(true)
         loadThumb(pop = false)
         main.removeCallbacks(idleCheck)
         main.postDelayed(idleCheck, 2_000)
+        main.removeCallbacks(palmTick); main.post(palmTick)
+        startLocation()
     }
 
     override fun onPause() {
         resumed = false
         main.removeCallbacks(idleCheck)
+        main.removeCallbacks(palmTick); cancelCountdown(); stopPull(); stopLocation()
         thermal?.stop()
         setDim(false)
+        renderer.setArmAllowed(false)
         if (recording) toggleRecording()
         camera.close()
         audio?.stop()
@@ -223,11 +255,16 @@ class MainActivity : Activity(), Renderer.Listener {
         engine.release()
         segmenter.release()
         depthNet.release()
+        gesture.release()
         sound.release()
         super.onDestroy()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        if (requestCode == 2) {
+            if (grantResults.any { it == PackageManager.PERMISSION_GRANTED }) startLocation() else flash("Without location, clips are not GPS tagged")
+            return
+        }
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             flash("Veil Cam needs the camera permission")
             return
@@ -361,6 +398,7 @@ class MainActivity : Activity(), Renderer.Listener {
         if (s.fps != old.fps) votePreviewRate()
         if (s.orientation != old.orientation) applyRotations()
         if (!s.dimWhileRecording) setDim(false)
+        if (s.embedGps != old.embedGps) startLocation()
         if (restart) {
             snapshotTransition(flip = s.cameraId != old.cameraId)
             // Start the new camera only once the old one has stopped using its surface.
@@ -451,7 +489,10 @@ class MainActivity : Activity(), Renderer.Listener {
         overlay = OverlayView(this).apply { settings = this@MainActivity.settings }
         overlay.onTap = { _, _, ix, iy -> tapFocus(ix, iy, lock = false) }
         overlay.onLongPress = { _, _, ix, iy -> tapFocus(ix, iy, lock = true) }
-        overlay.onDoubleTap = { camera.resetFocus(); unlockAe(); renderer.setFocusPoint(null, null); if (settings.depthMode) flash("Depth follows the subject") }
+        overlay.onDoubleTap = {
+            camera.resetFocus(); unlockAe(); renderer.setFocusPoint(null, null); overlay.clearTracked(); lastTapImg = null
+            if (settings.depthMode) flash("Depth follows the subject")
+        }
         overlay.onZoom = { f -> setZoom(settings.zoom * f); zoom.peek() }
         overlay.onPinch = { zoom.peek() }
         overlay.onSwipeMode = { dir -> if (!recording && !trayOpen) modes.step(dir) }
@@ -656,6 +697,7 @@ class MainActivity : Activity(), Renderer.Listener {
     /** Status, timer, shutter, thumbnail / pause and flip / still for the current record state. */
     private fun refreshRecordUi() {
         shutter.recording = recording
+        overlay.recording = recording
         fun swap(show: View, hide: View) {
             if (show.visibility != View.VISIBLE) {
                 show.visibility = View.VISIBLE; show.alpha = 0f; show.scaleX = 0.7f; show.scaleY = 0.7f
@@ -771,6 +813,8 @@ class MainActivity : Activity(), Renderer.Listener {
         out += TrayItem("tools", Glyph.PEAK, "Assist", s.zebra || s.peaking || s.falseColor || s.grid,
             listOf("Zebras", "Peaking", "False color", "Grid", "Level", "Histogram"),
             listOf(s.zebra, s.peaking, s.falseColor, s.grid, s.level, s.histogram), multi = true)
+        if (!s.photoMode) out += TrayItem("pull", Glyph.FOCUS, "A-B Focus", markA != null && markB != null,
+            listOf(if (markA != null) "A ✓" else "Set A", if (markB != null) "B ✓" else "Set B", "A → B", "B → A", "Clear"), listOf(markA != null, markB != null, false, false, false))
         out += TrayItem("lock", Glyph.LOCK, "Locks", s.aeLock || s.awbLock, listOf("AE lock", "WB lock"), listOf(s.aeLock, s.awbLock), multi = true)
         out += TrayItem("mic", Glyph.MIC, "Audio", s.audio, listOf("Off", "Natural", "Standard", "Voice"),
             listOf(!s.audio, s.audio && s.noiseReduction == 0, s.audio && s.noiseReduction == 1, s.audio && s.noiseReduction == 2))
@@ -806,6 +850,10 @@ class MainActivity : Activity(), Renderer.Listener {
             "lock" -> apply(if (i == 0) s.copy(aeLock = !s.aeLock) else s.copy(awbLock = !s.awbLock, autoWb = true))
             "mic" -> apply(if (i == 0) s.copy(audio = false) else s.copy(audio = true, noiseReduction = i - 1))
             "power" -> apply(s.copy(powerMode = i))
+            "pull" -> when (i) {
+                0 -> setMark(false); 1 -> setMark(true); 2 -> runPull(false); 3 -> runPull(true)
+                else -> { stopPull(); markA = null; markB = null; overlay.markA = null; overlay.markB = null }
+            }
         }
         if (item.key == "faces" && !settings.blurOn) flash("Face blur OFF · faces will be recorded")
         tray.setItems(trayItems())
@@ -1072,6 +1120,8 @@ class MainActivity : Activity(), Renderer.Listener {
             else -> u to v
         }
         camera.focusAt(sx, sy)
+        lastTapImg = floatArrayOf(ix, iy)
+        if (pull != null) stopPull()
         // Cinematic / Portrait: the depth of field moves to what was tapped (a focus pull).
         if (settings.depthMode) renderer.setFocusPoint(ix, iy)
         evAcc = 0f
@@ -1119,6 +1169,115 @@ class MainActivity : Activity(), Renderer.Listener {
         snapshot.animate().alpha(0f).setDuration(220).withEndAction { snapshot.visibility = View.GONE; snapshot.rotationY = 0f }.start()
     }
 
+    // ---- takes: cinema naming, metadata, GPS --------------------------------------------------------------
+    private val namingPrefs by lazy { getSharedPreferences("veil_naming", Context.MODE_PRIVATE) }
+    private var forceNewReel = false
+
+    private fun namingState() = com.veil.cam.core.NamingState(settings.cameraLetter.first(), namingPrefs.getInt("reel", 1),
+        namingPrefs.getInt("clip", 0), namingPrefs.getString("date", "") ?: "")
+
+    /** Next clip name, e.g. A001_C001_20261114 (GL thread calls this when the take starts). */
+    private fun newTake(): com.veil.cam.record.TakeSpec {
+        val s = settings
+        val today = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
+        val base = if (s.cinemaNaming) {
+            val (name, st) = com.veil.cam.core.ClipNaming.next(namingState(), today, s.newReelDaily, forceNewReel)
+            forceNewReel = false
+            namingPrefs.edit().putInt("reel", st.reel).putInt("clip", st.clip).putString("date", st.lastDate).apply()
+            name.base
+        } else null
+        val out = MediaStorage.newVideo(this, s.privateGallery, baseName = base, mov = s.movExtension)
+        return com.veil.cam.record.TakeSpec(out, base ?: (out.file?.nameWithoutExtension ?: "clip"), if (s.embedGps) lastLocation() else null)
+    }
+
+    private fun previewTakeName(): String {
+        val today = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
+        val base = com.veil.cam.core.ClipNaming.next(namingState(), today, settings.newReelDaily, forceNewReel).first.base
+        return base + if (settings.movExtension) ".MOV" else ".MP4"
+    }
+
+    private val locationListener = android.location.LocationListener { }
+
+    /** While GPS tagging is on, keep a fresh fix (coarse updates: a few a minute). */
+    @android.annotation.SuppressLint("MissingPermission")
+    private fun startLocation() {
+        stopLocation()
+        if (!settings.embedGps || !resumed) return
+        val lm = getSystemService(android.location.LocationManager::class.java) ?: return
+        val fine = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val coarse = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val provider = when {
+            fine && lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) -> android.location.LocationManager.GPS_PROVIDER
+            (fine || coarse) && lm.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER) -> android.location.LocationManager.NETWORK_PROVIDER
+            else -> return
+        }
+        runCatching { lm.requestLocationUpdates(provider, 20_000L, 25f, locationListener, Looper.getMainLooper()) }
+    }
+
+    private fun stopLocation() {
+        runCatching { getSystemService(android.location.LocationManager::class.java)?.removeUpdates(locationListener) }
+    }
+
+    @android.annotation.SuppressLint("MissingPermission")
+    private fun lastLocation(): DoubleArray? {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) return null
+        val lm = getSystemService(android.location.LocationManager::class.java) ?: return null
+        val loc = listOf(android.location.LocationManager.GPS_PROVIDER, android.location.LocationManager.NETWORK_PROVIDER, android.location.LocationManager.PASSIVE_PROVIDER)
+            .mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }.maxByOrNull { it.time } ?: return null
+        return doubleArrayOf(loc.latitude, loc.longitude, loc.altitude)
+    }
+
+    /** Camera settings right now, for the take's metadata track (once a second). */
+    private fun cameraMeta(): org.json.JSONObject {
+        val s = settings; val c = caps; val ro = readout
+        val iso = if (s.autoExposure) ro?.iso ?: 0 else s.iso
+        val exp = if (s.autoExposure) ro?.exposureNs ?: 0L else s.shutterNs
+        return org.json.JSONObject().apply {
+            put("iso", iso); put("exposure_ns", exp)
+            put("shutter_angle", if (exp > 0) Math.round(exp.toDouble() * s.fps / 1e9 * 3600) / 10.0 else 0.0)
+            put("white_balance", if (s.autoWb) "auto" else "${s.kelvin}K"); put("tint", s.tint)
+            put("focus_m", (if (s.autoFocus) ro?.focusDiopters else s.focusDiopters)?.let { if (it > 0.001f) Math.round(100.0 / it) / 100.0 else "inf" } ?: "unknown")
+            put("zoom", s.zoom.toDouble()); put("ev", s.ev * (c?.evStep ?: 0.333f).toDouble())
+            if (s.depthMode) put("aperture_sim", apertureLabel(s.cineDepth))
+        }
+    }
+
+    private val metaTick = object : Runnable {
+        override fun run() {
+            if (!recording) return
+            renderer.addTakeMetadata(cameraMeta().toString())
+            main.postDelayed(this, 1000)
+        }
+    }
+
+    override fun onTakeSaved(spec: com.veil.cam.record.TakeSpec, meta: List<String>, startUs: Long) {
+        val s = settings; val c = caps
+        val j = org.json.JSONObject().apply {
+            put("clip", spec.baseName)
+            put("reel", spec.baseName.substringBefore("_"))
+            put("camera", "Veil Cam ${BuildConfigLite.VERSION} · ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
+            put("lens", org.json.JSONObject().apply {
+                put("id", c?.id); put("label", c?.label); put("focal_length_mm", (c?.focalMm ?: 0f).toDouble())
+                put("zoom", s.zoom.toDouble()); put("anamorphic_squeeze", s.desqueeze.toDouble())
+            })
+            put("format", org.json.JSONObject().apply {
+                put("resolution", "${s.width}x${s.height}"); put("fps", s.fps); put("codec", if (s.hevc) "HEVC" else "H.264")
+                put("bitrate_bps", s.bitrate()); put("orientation", s.orientation)
+            })
+            put("look", org.json.JSONObject().apply {
+                put("lut", s.lut); put("lut_baked", s.bakeLut); put("film", s.filmPreset); put("profile", if (s.flatProfile) "flat" else "standard")
+            })
+            put("privacy", org.json.JSONObject().apply { put("face_blur", s.blurOn); put("style", s.style.name); put("faces", s.maxFaces) })
+            put("start", cameraMeta())
+            spec.location?.let { l -> put("gps", org.json.JSONObject().apply { put("lat", l[0]); put("lon", l[1]); put("alt", l[2]) }) }
+            put("recorded", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", java.util.Locale.US).format(java.util.Date()))
+            put("preroll_s", s.prerollS)
+            put("per_second", org.json.JSONArray(meta.map { org.json.JSONObject(it) }))
+        }
+        runCatching { MediaStorage.writeSidecar(this, spec.output, spec.baseName, j.toString(2)) }
+    }
+
     // ---- record / photo -------------------------------------------------------------------------------
     private fun toggleRecording() {
         if (recording) {
@@ -1128,7 +1287,7 @@ class MainActivity : Activity(), Renderer.Listener {
             if (caps == null) return
             if (settings.blurOn && !detectorReady) { flash("Face detection is still starting"); return }
             closeTray(); controller.dismiss()
-            renderer.startRecording()
+            renderer.startRecording { newTake() }
             if (settings.sounds) sound.play(MediaActionSound.START_VIDEO_RECORDING)
         }
     }
@@ -1148,7 +1307,26 @@ class MainActivity : Activity(), Renderer.Listener {
         blink.animate().cancel()
         blink.alpha = 0.85f
         blink.animate().alpha(0f).setDuration(180).start()
-        renderer.takePhoto()
+        if (!settings.burstMerge) { renderer.takePhoto(); return }
+        val adv = SceneAnalyzer.advice(if (settings.sceneAuto) scene else Scene.AUTO)
+        val iso = readout?.iso ?: settings.iso
+        val sigma = 0.03f + 0.05f * (iso / 3200f).coerceIn(0f, 1f)
+        val hdr = adv.hdrEv < 0 && settings.autoExposure && !settings.aeLock
+        val lift = when {
+            hdr -> 2.0f
+            adv.scene == Scene.NIGHT -> 1.35f
+            adv.scene == Scene.LOW_LIGHT -> 1.2f
+            else -> 1f
+        }
+        val req = Renderer.BurstRequest(adv.mergeFrames, sigma, lift)
+        if (adv.mergeFrames >= 6) flash("Hold still · merging ${adv.mergeFrames} frames")
+        if (hdr) {
+            // HDR: under-expose a stop so the highlights keep detail; the merge lifts the shadows.
+            val steps = (1f / (caps?.evStep ?: 0.333f)).roundToInt()
+            hdrPending = true
+            camera.update(settings.copy(ev = settings.ev - steps))
+            main.postDelayed({ renderer.takePhoto(req) }, 350)
+        } else renderer.takePhoto(req)
     }
 
     /** Newest capture for the thumbnail (the private gallery). */
@@ -1157,7 +1335,7 @@ class MainActivity : Activity(), Renderer.Listener {
             val f = MediaStorage.list(this).firstOrNull()
             val b = f?.let { file ->
                 runCatching {
-                    if (file.extension == "mp4") MediaMetadataRetriever().use { r ->
+                    if (file.isVideo) MediaMetadataRetriever().use { r ->
                         r.setDataSource(file.absolutePath)
                         r.getScaledFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 192, 192)
                     } else BitmapFactory.decodeFile(file.absolutePath, BitmapFactory.Options().apply { inSampleSize = 16 })
@@ -1170,7 +1348,7 @@ class MainActivity : Activity(), Renderer.Listener {
     private fun openLatest() {
         val f = MediaStorage.list(this).firstOrNull()
         if (f != null) {
-            startActivity(Intent(this, if (f.extension == "mp4") com.veil.cam.ui.PlayerActivity::class.java else com.veil.cam.ui.PhotoActivity::class.java)
+            startActivity(Intent(this, if (f.isVideo) com.veil.cam.ui.PlayerActivity::class.java else com.veil.cam.ui.PhotoActivity::class.java)
                 .putExtra("path", f.absolutePath).putExtra("fromCamera", true))
             @Suppress("DEPRECATION") overridePendingTransition(R.anim.veil_zoom_in, R.anim.veil_hold)
             return
@@ -1306,13 +1484,136 @@ class MainActivity : Activity(), Renderer.Listener {
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         lastTouch = SystemClock.uptimeMillis()
         if (dimmed) setDim(false)
-        val shutterKey = keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_CAMERA
-        if (sleeping && shutterKey) { wake(); return true }
-        if (shutterKey) {
-            if (event.repeatCount == 0 && !sheet.isOpen) onShutter()
+        learning?.let { a ->
+            if (keyCode == KeyEvent.KEYCODE_BACK) return super.onKeyDown(keyCode, event)
+            learning = null
+            val m = AccessoryKeys.parse(settings.accessoryKeys).toMutableMap().apply { put(keyCode, a) }
+            apply(settings.copy(accessoryKeys = AccessoryKeys.format(m)))
+            flash("${KeyEvent.keyCodeToString(keyCode).removePrefix("KEYCODE_")} → ${a.label}")
+            sheet.refresh()
             return true
         }
-        return super.onKeyDown(keyCode, event)
+        val action = AccessoryKeys.actionFor(keyCode, AccessoryKeys.parse(settings.accessoryKeys), settings.volumeShutter)
+            ?: return super.onKeyDown(keyCode, event)
+        if (sleeping) { wake(); return true }
+        if (sheet.isOpen && (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)) return true
+        if (event.repeatCount > 0 && !AccessoryKeys.repeats(action)) return true
+        runKeyAction(action)
+        return true
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (AccessoryKeys.actionFor(keyCode, AccessoryKeys.parse(settings.accessoryKeys), settings.volumeShutter) != null) return true
+        return super.onKeyUp(keyCode, event)
+    }
+
+    /** A gimbal / remote button. */
+    private fun runKeyAction(a: KeyAction) {
+        when (a) {
+            KeyAction.RECORD -> if (settings.photoMode) photo() else toggleRecording()
+            KeyAction.PHOTO -> if (settings.photoMode) photo() else flash("Switch to Photo to take pictures")
+            KeyAction.ZOOM_IN -> { setZoom(settings.zoom * 1.06f); zoom.peek() }
+            KeyAction.ZOOM_OUT -> { setZoom(settings.zoom / 1.06f); zoom.peek() }
+            KeyAction.SWITCH_LENS -> switchLens()
+            KeyAction.PULL -> runPull(nextPullReverse)
+            KeyAction.PAUSE -> togglePause()
+            KeyAction.MODE_NEXT, KeyAction.MODE_PREV -> if (!recording) {
+                val i = (MODES.indexOf(settings.mode) + if (a == KeyAction.MODE_NEXT) 1 else -1).coerceIn(0, MODES.size - 1)
+                modes.select(i); setMode(MODES[i])
+            }
+            KeyAction.NONE -> {}
+        }
+    }
+
+    // ---- palm gesture -------------------------------------------------------------------------------
+    private val palmTick = object : Runnable {
+        override fun run() {
+            overlay.palmHold = if (settings.palmGesture && countdownLeft == 0) gesture.holding else 0f
+            if (resumed) main.postDelayed(this, 80)
+        }
+    }
+
+    private val countdownStep = object : Runnable {
+        override fun run() {
+            countdownLeft--
+            overlay.countdown = countdownLeft
+            if (countdownLeft > 0) { root.tick(); main.postDelayed(this, 1000) } else {
+                root.thud()
+                if (settings.photoMode) photo() else if (!recording) toggleRecording()
+            }
+        }
+    }
+
+    private fun cancelCountdown() { main.removeCallbacks(countdownStep); countdownLeft = 0; overlay.countdown = 0 }
+
+    /** Open palm held towards the camera: start (after a countdown) or stop. */
+    private fun onPalm() {
+        if (!settings.palmGesture || !resumed || sheet.isOpen) return
+        when {
+            countdownLeft > 0 -> { cancelCountdown(); flash("Countdown cancelled") }
+            recording -> { toggleRecording(); flash("Palm: recording stopped") }
+            settings.palmCountdownS <= 0 -> { root.thud(); if (settings.photoMode) photo() else toggleRecording() }
+            else -> {
+                countdownLeft = settings.palmCountdownS + 1
+                main.removeCallbacks(countdownStep); countdownStep.run()
+            }
+        }
+    }
+
+    // ---- A-B focus pulls ----------------------------------------------------------------------------
+    private fun currentMark(): FocusMark? {
+        val (w, h) = imageSize
+        if (w == 0) return null
+        val pt = lastTapImg ?: floatArrayOf(w / 2f, h / 2f)
+        val d = if (settings.autoFocus) readout?.focusDiopters ?: settings.focusDiopters else settings.focusDiopters
+        return FocusMark(d, renderer.depthAt(pt[0], pt[1]) ?: Float.NaN, pt[0], pt[1])
+    }
+
+    private fun setMark(b: Boolean) {
+        val m = currentMark() ?: return
+        if (b) { markB = m; overlay.markB = floatArrayOf(m.imgX, m.imgY) } else { markA = m; overlay.markA = floatArrayOf(m.imgX, m.imgY) }
+        root.tick()
+        flash("Focus ${if (b) "B" else "A"} set · ${focusLabel(m.diopters)}")
+    }
+
+    private val pullFrame = object : Runnable {
+        override fun run() {
+            val p = pull ?: return
+            val t = SystemClock.uptimeMillis() - pullStart
+            val m = p.at(t)
+            camera.setFocusOverride(m.diopters)
+            if (settings.depthMode && !m.depth.isNaN()) renderer.setManualDepthFocus(m.depth)
+            if (p.done(t)) {
+                pull = null
+                // Hold the end mark: manual focus there, depth fixed on it.
+                apply(settings.copy(autoFocus = false, focusDiopters = m.diopters))
+                camera.setFocusOverride(null)
+                if (settings.depthMode) { renderer.setManualDepthFocus(null); renderer.setFocusPoint(m.imgX, m.imgY) }
+                lastTapImg = floatArrayOf(m.imgX, m.imgY)
+                controller.refresh()
+            } else main.postDelayed(this, 16)
+        }
+    }
+
+    private fun runPull(reverse: Boolean) {
+        val a = markA; val b = markB
+        if (a == null || b == null) { flash("Set focus A and B first: tap a subject, then A or B in the tray"); return }
+        if (caps?.minFocusDiopters?.let { it <= 0f } == true && !settings.depthMode) { flash("This lens has fixed focus"); return }
+        stopPull()
+        val fill = { m: FocusMark -> if (m.depth.isNaN()) m.copy(depth = renderer.depthAt(m.imgX, m.imgY) ?: Float.NaN) else m }
+        pull = FocusPull(fill(a), fill(b), settings.pullDurationMs.toLong(), Ease.entries[settings.pullEase.coerceIn(0, Ease.entries.size - 1)], reverse)
+        nextPullReverse = !reverse
+        pullStart = SystemClock.uptimeMillis()
+        main.post(pullFrame)
+        flash(if (reverse) "Pull B → A" else "Pull A → B")
+    }
+
+    private fun stopPull() {
+        if (pull == null) return
+        pull = null
+        main.removeCallbacks(pullFrame)
+        camera.setFocusOverride(null)
+        renderer.setManualDepthFocus(null)
     }
 
     @Deprecated("Deprecated in Java")
@@ -1356,6 +1657,11 @@ class MainActivity : Activity(), Renderer.Listener {
             nav("Styles", if (s.lut == "None") "Standard" else s.lut, Glyph.STYLE) { sheet.push("Styles") { pageLook(it) } }
             nav("Film Look", s.filmPreset, Glyph.FILM) { sheet.push("Film Look") { pageFilm(it) } }
             nav("Audio", if (!s.audio) "Off" else listOf("Natural", "Standard", "Voice")[s.noiseReduction.coerceIn(0, 2)], Glyph.MIC) { sheet.push("Audio") { pageAudio(it) } }
+        }
+        f.section("Pro") {
+            nav("Cinema Tools", listOfNotNull(if (s.prerollS > 0) "Pre-record ${s.prerollS} s" else null, if (s.desqueeze > 1f) "${desqueezeLabel(s.desqueeze)} de-squeeze" else null).joinToString(" · ").ifEmpty { "Naming, pulls" }, Glyph.SHUTTER) { sheet.push("Cinema Tools") { pageCinema(it) } }
+            nav("Smart Capture", if (s.burstMerge) "Multi-frame" else "Single frame", Glyph.WAND) { sheet.push("Smart Capture") { pageSmart(it) } }
+            nav("Gimbal & Remotes", if (s.palmGesture) "Palm on" else null, Glyph.DIAL) { sheet.push("Gimbal & Remotes") { pageAccessories(it) } }
         }
         f.section("Tools") {
             nav("Monitoring", null, Glyph.PEAK) { sheet.push("Monitoring") { pageMonitoring(it) } }
@@ -1416,7 +1722,7 @@ class MainActivity : Activity(), Renderer.Listener {
         }
         f.section("Encoding") {
             segmented(listOf("HEVC", "H.264"), if (s.hevc) 0 else 1, "Codec") { if (!recording) apply(settings.copy(hevc = it == 0)) }
-            segmented(listOf("Low", "Standard", "High"), s.bitrateLevel, "Quality") { if (!recording) { apply(settings.copy(bitrateLevel = it)); sheet.refresh() } }
+            segmented(listOf("Low", "Standard", "High", "Max"), s.bitrateLevel.coerceIn(0, 3), "Quality") { if (!recording) { apply(settings.copy(bitrateLevel = it)); sheet.refresh() } }
         }
         f.section("Stabilization", "Enhanced adds digital stabilization (a slight crop).") {
             if (c?.ois == true) switch("Optical (OIS)", s.ois) { apply(settings.copy(ois = it)) }
@@ -1425,6 +1731,81 @@ class MainActivity : Activity(), Renderer.Listener {
         f.section("Monitor", "Off: the screen shows exactly what is recorded, a few frames behind. On: the newest frame, with the blur following faces by prediction.") {
             switch("Low-Latency Preview", s.lowLatencyPreview) { apply(settings.copy(lowLatencyPreview = it)) }
         }
+    }
+
+    private val DESQUEEZE = listOf(1f, 1.33f, 1.55f, 2f)
+    private fun desqueezeLabel(v: Float) = if (v <= 1f) "Off" else "${"%.2f".format(v).trimEnd('0').trimEnd('.')}×"
+
+    private fun pageCinema(f: Form) {
+        val s = settings
+        val pre = listOf(0, 3, 5, 10)
+        f.section("Pre-record", "Keeps the last seconds in memory before you press record, so a moment that already happened is in the clip. The encoder runs while you frame: about 10 % more battery.") {
+            segmented(listOf("Off", "3 s", "5 s", "10 s"), pre.indexOf(s.prerollS).coerceAtLeast(0)) { if (!recording) apply(settings.copy(prerollS = pre[it])) }
+        }
+        val next = previewTakeName()
+        f.section("File naming", if (s.cinemaNaming) "Next clip: $next. Reel and clip numbers count up; a new reel starts each day." else "Clips are named by date and time.") {
+            switch("Reel / Clip Names", s.cinemaNaming) { apply(settings.copy(cinemaNaming = it)); sheet.refresh() }
+            if (s.cinemaNaming) {
+                val letters = listOf("A", "B", "C", "D")
+                segmented(letters.map { "$it cam" }, letters.indexOf(s.cameraLetter).coerceAtLeast(0), "Camera") { apply(settings.copy(cameraLetter = letters[it])); sheet.refresh() }
+                switch("New Reel Each Day", s.newReelDaily) { apply(settings.copy(newReelDaily = it)) }
+                action("Start New Reel") { forceNewReel = true; flash("Next clip starts a new reel"); sheet.refresh() }
+            }
+            segmented(listOf(".MOV", ".MP4"), if (s.movExtension) 0 else 1, "File type") { apply(settings.copy(movExtension = it == 0)); sheet.refresh() }
+        }
+        f.section("Metadata", "Each clip carries lens, focal length, ISO, shutter angle, white balance and frame rate in a metadata track and a .json sidecar next to it.") {
+            switch("Embed GPS Location", s.embedGps) {
+                apply(settings.copy(embedGps = it))
+                if (it && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+                    requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), 2)
+            }
+        }
+        f.section("Anamorphic de-squeeze", "Stretches the monitor for anamorphic adapter lenses. The recording keeps the squeezed picture for de-squeezing in the edit.") {
+            segmented(DESQUEEZE.map { desqueezeLabel(it) }, DESQUEEZE.indexOfFirst { abs(it - s.desqueeze) < 0.01f }.coerceAtLeast(0)) { apply(settings.copy(desqueeze = DESQUEEZE[it])) }
+        }
+        f.section("A-B focus pulls", "Tap a subject and choose Set A in the tray (A-B Focus), then the next subject and Set B. A → B runs the pull; in Cinematic the depth of field follows it.") {
+            slider("Duration", 3, 100, (s.pullDurationMs / 100).coerceIn(3, 100), { "%.1f s".format(it / 10f) }) { apply(settings.copy(pullDurationMs = it * 100)) }
+            segmented(Ease.entries.map { it.label.replace("Ease ", "").replaceFirstChar { c -> c.uppercase() } }, s.pullEase.coerceIn(0, Ease.entries.size - 1), "Curve") { apply(settings.copy(pullEase = it)) }
+        }
+        f.note("Frame rate, codec and quality are under Record Video; shutter angle under Exposure; LUT monitoring under Styles.")
+    }
+
+    private fun pageSmart(f: Form) {
+        val s = settings
+        f.section(null, "Photos merge several frames, aligned to the first: less noise in low light, and with HDR the highlights stay while shadows lift. Moving things are taken from one frame only, so they never ghost.") {
+            switch("Multi-Frame Merge", s.burstMerge) { apply(settings.copy(burstMerge = it)) }
+        }
+        f.section("Scene recognition", "Recognises night, low light, backlight, portraits, close-ups and landscapes, and picks the merge and HDR for the photo.") {
+            switch("Scene Recognition", s.sceneAuto) { apply(settings.copy(sceneAuto = it)) }
+            if (s.sceneAuto) info("Now", scene.label)
+        }
+        f.section("Composition", "Thirds and headroom hints for the main face, before you press the shutter. The level and grid are under Monitoring.") {
+            switch("Framing Suggestions", s.framingGuide) { apply(settings.copy(framingGuide = it)) }
+            switch("Grid", s.grid) { apply(settings.copy(grid = it)) }
+            switch("Level", s.level) { apply(settings.copy(level = it)) }
+        }
+    }
+
+    private fun pageAccessories(f: Form) {
+        val s = settings
+        f.section("Palm gesture", "Hold an open palm towards the camera for half a second: a countdown, then recording starts. Show the palm again to stop. Recognised on the phone.") {
+            switch("Palm to Record", s.palmGesture) { apply(settings.copy(palmGesture = it)); sheet.refresh() }
+            if (s.palmGesture) segmented(listOf("No countdown", "3 s", "5 s", "10 s"), listOf(0, 3, 5, 10).indexOf(s.palmCountdownS).coerceAtLeast(1), "Countdown") {
+                apply(settings.copy(palmCountdownS = listOf(0, 3, 5, 10)[it]))
+            }
+        }
+        f.section("Gimbal buttons", "Pair the gimbal with the phone's Bluetooth (on the Osmo Mobile 7: Bluetooth / camera-control mode). Its record or shutter button and zoom then work here; any other button can be learnt below.") {
+            switch("Volume & Shutter Buttons Record", s.volumeShutter) { apply(settings.copy(volumeShutter = it)) }
+        }
+        val learnt = AccessoryKeys.parse(s.accessoryKeys)
+        f.section("Learn a button", "Choose an action, then press the button on the gimbal or remote.") {
+            for (a in KeyAction.entries.filter { it != KeyAction.NONE }) {
+                val keys = learnt.filterValues { it == a }.keys.joinToString { KeyEvent.keyCodeToString(it).removePrefix("KEYCODE_") }
+                nav(a.label, keys.ifEmpty { null }, Glyph.DIAL) { learning = a; flash("Press the button for “${a.label}”") }
+            }
+            if (learnt.isNotEmpty()) action("Forget Learnt Buttons") { apply(settings.copy(accessoryKeys = "")); sheet.refresh() }
+        }
+        f.note("Motor control, joystick and ActiveTrack of DJI gimbals use DJI's own protocol, available only in DJI Mimo. The Osmo Mobile 7P's tracking module follows subjects by itself, with any camera app, Veil Cam included.")
     }
 
     private fun pageDepth(f: Form) {
@@ -1603,9 +1984,35 @@ class MainActivity : Activity(), Renderer.Listener {
         main.post { imageSize = imgW to imgH; overlay.content = content; overlay.setTransform(viewToImg) }
     }
 
-    override fun onFaces(faces: List<Geom>) { main.post { overlay.setFaces(faces) } }
+    override fun onFaces(faces: List<Geom>) {
+        main.post {
+            overlay.setFaces(faces)
+            faceArea = overlay.facesInFrame().maxOfOrNull { it[2] * it[3] } ?: 0f
+        }
+    }
 
-    override fun onHistogram(luma: IntArray, r: IntArray, g: IntArray, b: IntArray) { main.post { overlay.setHistogram(luma, r, g, b); shutterPriority(luma) } }
+    override fun onHistogram(luma: IntArray, r: IntArray, g: IntArray, b: IntArray) {
+        main.post {
+            overlay.setHistogram(luma, r, g, b)
+            if (settings.shutterPriority) shutterPriority(luma)
+            updateScene(luma)
+        }
+    }
+
+    /** Scene recognition: a few times a second from exposure, histogram, faces and focus. */
+    private fun updateScene(luma: IntArray) {
+        val now = SystemClock.uptimeMillis()
+        if (!settings.sceneAuto || now - lastScene < 300) { if (!settings.sceneAuto) overlay.sceneBadge = null; return }
+        lastScene = now
+        val ro = readout ?: return
+        scene = sceneAnalyzer.update(ro.iso, ro.exposureNs, luma, faceArea, ro.focusDiopters)
+        val adv = SceneAnalyzer.advice(scene)
+        overlay.sceneBadge = when {
+            scene == Scene.AUTO || recording -> null
+            settings.photoMode && settings.burstMerge -> "${scene.label.uppercase()} · ${adv.mergeFrames}×${if (adv.hdrEv < 0) " HDR" else ""}"
+            else -> scene.label.uppercase()
+        }
+    }
 
     override fun onStats(cameraFps: Float, detectFps: Float, detectMs: Float, delayFrames: Int) { lastDetectFps = detectFps }
 
@@ -1619,6 +2026,7 @@ class MainActivity : Activity(), Renderer.Listener {
                 if (!recording) {
                     recording = true; recPaused = false
                     recOutputRot = outputRot(); overlay.frameRotation = recOutputRot
+                    main.removeCallbacks(metaTick); main.postDelayed(metaTick, 300)
                     lastTouch = SystemClock.uptimeMillis()
                     pushBudget()
                     refreshRecordUi()
@@ -1640,7 +2048,16 @@ class MainActivity : Activity(), Renderer.Listener {
         }
     }
 
-    override fun onPhoto(uri: Uri?, error: String?) { main.post { if (uri != null) loadThumb(pop = true) else flash("Photo failed: $error") } }
+    override fun onPhoto(uri: Uri?, error: String?) {
+        main.post {
+            if (hdrPending) { hdrPending = false; camera.update(settings) }
+            if (uri != null) loadThumb(pop = true) else flash("Photo failed: $error")
+        }
+    }
+
+    override fun onBurstMerged(frames: Int) { main.post { if (hdrPending) { hdrPending = false; camera.update(settings) } } }
+
+    override fun onFocusTrack(x: Float, y: Float) { main.post { overlay.setTracked(x, y); lastTapImg = floatArrayOf(x, y) } }
 
     override fun onDetectorReady(ready: Boolean) { main.post { detectorReady = ready; overlay.startingHint = settings.blurOn && !ready } }
 
@@ -1651,4 +2068,4 @@ class MainActivity : Activity(), Renderer.Listener {
     }
 }
 
-object BuildConfigLite { const val VERSION = "1.7.0" }
+object BuildConfigLite { const val VERSION = "1.8.0" }

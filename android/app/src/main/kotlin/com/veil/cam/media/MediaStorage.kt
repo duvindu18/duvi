@@ -30,6 +30,9 @@ class MediaOutput(val uri: Uri, val file: File?, private val pfd: ParcelFileDesc
     }
 }
 
+/** Clips are MP4 (ISO media) files, named .MOV in cinema naming. */
+val File.isVideo: Boolean get() = extension.lowercase() in setOf("mp4", "mov")
+
 object MediaStorage {
     private fun stamp() = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
 
@@ -44,8 +47,8 @@ object MediaStorage {
         return d
     }
 
-    fun newVideo(ctx: Context, private: Boolean, suffix: String = ""): MediaOutput {
-        val name = "VeilCam_${stamp()}$suffix.mp4"
+    fun newVideo(ctx: Context, private: Boolean, suffix: String = "", baseName: String? = null, mov: Boolean = false): MediaOutput {
+        val name = (baseName ?: "VeilCam_${stamp()}$suffix") + if (mov) ".MOV" else ".mp4"
         if (private) {
             val f = uniqueFile(File(videoDir(ctx), name))
             val pfd = ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_READ_WRITE or ParcelFileDescriptor.MODE_TRUNCATE)
@@ -53,7 +56,7 @@ object MediaStorage {
         }
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-            put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
+            put(MediaStore.MediaColumns.MIME_TYPE, if (mov) "video/quicktime" else "video/mp4")
             put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/VeilCam")
             put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
@@ -84,10 +87,10 @@ object MediaStorage {
 
     /** Copy a private clip or photo into the phone gallery (Movies/VeilCam or Pictures/VeilCam). */
     fun exportToGallery(ctx: Context, f: File): Uri {
-        val video = f.extension.lowercase() == "mp4"
+        val video = f.isVideo
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, f.name)
-            put(MediaStore.MediaColumns.MIME_TYPE, if (video) "video/mp4" else "image/jpeg")
+            put(MediaStore.MediaColumns.MIME_TYPE, if (video) (if (f.extension.lowercase() == "mov") "video/quicktime" else "video/mp4") else "image/jpeg")
             put(MediaStore.MediaColumns.RELATIVE_PATH, (if (video) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES) + "/VeilCam")
             put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
@@ -101,9 +104,27 @@ object MediaStorage {
 
     /** Clips and photos in the private gallery, newest first. */
     fun list(ctx: Context): List<File> =
-        (videoDir(ctx).listFiles().orEmpty().filter { it.extension == "mp4" && it.length() > 0 } +
+        (videoDir(ctx).listFiles().orEmpty().filter { it.isVideo && it.length() > 0 } +
             photoDir(ctx).listFiles().orEmpty().filter { it.extension == "jpg" && it.length() > 0 })
             .sortedByDescending { it.lastModified() }
+
+    /**
+     * Sidecar metadata (JSON) next to a private clip, or in Documents/VeilCam for a clip
+     * in the phone gallery (Movies only takes media files).
+     */
+    fun writeSidecar(ctx: Context, video: MediaOutput, baseName: String, json: String) {
+        val f = video.file
+        if (f != null) { File(f.parentFile, f.nameWithoutExtension + ".json").writeText(json); return }
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "$baseName.json")
+            put(MediaStore.MediaColumns.MIME_TYPE, "application/json")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOCUMENTS + "/VeilCam")
+        }
+        runCatching {
+            val uri = ctx.contentResolver.insert(MediaStore.Files.getContentUri("external"), values) ?: return
+            ctx.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+        }
+    }
 
     fun uniqueFile(f: File): File {
         if (!f.exists()) return f

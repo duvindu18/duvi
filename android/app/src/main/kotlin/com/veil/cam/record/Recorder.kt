@@ -7,18 +7,29 @@ import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.net.Uri
+import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
 import android.view.Surface
+import com.veil.cam.core.EncodedSample
+import com.veil.cam.core.PacketRing
+import com.veil.cam.media.MediaOutput
 import java.nio.ByteBuffer
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
+/** What a take is called and where it goes. */
+class TakeSpec(val output: MediaOutput, val baseName: String, val location: DoubleArray?)
+
 /**
- * MP4 recorder: a Surface-input video encoder fed by the GL renderer (frames are
- * already anonymized) plus AAC audio from [AudioCapture]. Saved to
- * Movies/VeilCam through MediaStore.
+ * Video (Surface input, fed by the GL renderer with frames that are already anonymized)
+ * and AAC audio encoders, muxed into takes.
+ *
+ * With a pre-record time the encoders run continuously ("armed") into a RAM ring of
+ * encoded samples; a take then starts from a keyframe that many seconds back, so
+ * unscripted action before the button press is in the clip. Each take also carries a
+ * timed metadata track (camera settings once a second) next to video and audio.
  */
 class Recorder(
     private val context: Context,
@@ -28,21 +39,16 @@ class Recorder(
     bitrate: Int,
     hevc: Boolean,
     private val audio: AudioCapture?,
-    private val privateStorage: Boolean = true,
+    prerollUs: Long = 0,
 ) : AudioCapture.Sink {
     val inputSurface: Surface
     val mime: String
     private val video: MediaCodec
-    private val muxerLock = Object()
-    private var muxer: MediaMuxer? = null
-    private val output: com.veil.cam.media.MediaOutput
-    private var videoTrack = -1
-    private var audioTrack = -1
-    private var muxerStarted = false
-    private val pending = ArrayList<Sample>()
-    @Volatile private var baseUs = -1L
-    private var lastVideoUs = -1L
-    private var lastAudioUs = -1L
+    private val lock = Object()
+    private val ring = PacketRing(prerollUs)
+    private val preroll = prerollUs > 0
+    private var videoFormat: MediaFormat? = null
+    private var audioFormat: MediaFormat? = null
     private val videoThread = HandlerThread("VideoEnc").apply { start() }
     private var aac: MediaCodec? = null
     private val pcm = LinkedBlockingQueue<Pcm>(64)
@@ -51,10 +57,24 @@ class Recorder(
     @Volatile private var videoDone = false
     @Volatile var failed: String? = null
         private set
+
+    // ---- the current take
+    private var muxer: MediaMuxer? = null
+    private var take: TakeSpec? = null
+    private var videoTrack = -1
+    private var audioTrack = -1
+    private var metaTrack = -1
+    private var muxerStarted = false
+    private var baseUs = -1L
+    private var lastUs = LongArray(3) { -1L }
+    private val metaSamples = ArrayList<String>()
+    /** Presentation time (encoder clock, µs) of the first frame of the current take. */
+    @Volatile var takeStartUs = -1L
+        private set
     @Volatile var bytesWritten = 0L
         private set
+    val taking: Boolean get() = synchronized(lock) { take != null }
 
-    private class Sample(val track: Int, val data: ByteArray, val info: MediaCodec.BufferInfo)
     private class Pcm(val data: ShortArray, val frames: Int, val ptsNs: Long, val eos: Boolean = false)
 
     init {
@@ -63,20 +83,20 @@ class Recorder(
             setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
             setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
             setInteger(MediaFormat.KEY_FRAME_RATE, fps)
-            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
+            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1) // a take can start at any second of the ring
+            setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR)
         }
         video = MediaCodec.createEncoderByType(mime)
         video.setCallback(object : MediaCodec.Callback() {
             override fun onInputBufferAvailable(c: MediaCodec, i: Int) {}
             override fun onOutputFormatChanged(c: MediaCodec, f: MediaFormat) {
-                synchronized(muxerLock) { videoTrack = muxer!!.addTrack(f); maybeStart() }
+                synchronized(lock) { videoFormat = f; maybeStartMuxer() }
             }
             override fun onOutputBufferAvailable(c: MediaCodec, i: Int, info: MediaCodec.BufferInfo) {
                 try {
                     val buf = c.getOutputBuffer(i)
                     if (buf != null && info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
-                        if (baseUs < 0) baseUs = info.presentationTimeUs
-                        writeSample(true, buf, info)
+                        onSample(0, buf, info)
                     }
                     c.releaseOutputBuffer(i, false)
                     if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) videoDone = true
@@ -89,9 +109,6 @@ class Recorder(
         }, Handler(videoThread.looper))
         video.configure(fmt, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
         inputSurface = video.createInputSurface()
-
-        output = com.veil.cam.media.MediaStorage.newVideo(context, privateStorage)
-        muxer = MediaMuxer(output.fd, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
 
         if (audio != null) {
             val af = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, audio.sampleRate, audio.channels).apply {
@@ -114,6 +131,7 @@ class Recorder(
         error("This phone cannot encode ${width}x$height at $fps fps")
     }
 
+    /** Start the encoders (armed: samples go to the pre-record ring until [beginTake]). */
     fun start() {
         video.start()
         aac?.let { codec ->
@@ -123,6 +141,95 @@ class Recorder(
             audio?.sink = this
         }
     }
+
+    /** Begin a take: the pre-record ring (if any) first, then live samples. */
+    fun beginTake(spec: TakeSpec) {
+        synchronized(lock) {
+            if (take != null) return
+            take = spec
+            muxer = MediaMuxer(spec.output.fd, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4).also { m ->
+                spec.location?.let { runCatching { m.setLocation(it[0].toFloat(), it[1].toFloat()) } }
+            }
+            videoTrack = -1; audioTrack = -1; metaTrack = -1; muxerStarted = false
+            baseUs = -1L; lastUs.fill(-1L); takeStartUs = -1L; metaSamples.clear(); bytesWritten = 0
+            if (!preroll) runCatching { video.setParameters(Bundle().apply { putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0) }) }
+            maybeStartMuxer()
+        }
+    }
+
+    private fun maybeStartMuxer() {
+        val m = muxer ?: return
+        if (muxerStarted || take == null) return
+        val vf = videoFormat ?: return
+        if (aac != null && audioFormat == null) return
+        videoTrack = m.addTrack(vf)
+        audioFormat?.let { audioTrack = m.addTrack(it) }
+        // Timed metadata: camera settings once a second (ISO, shutter angle, WB, focus...).
+        metaTrack = runCatching { m.addTrack(MediaFormat().apply { setString(MediaFormat.KEY_MIME, META_MIME) }) }.getOrDefault(-1)
+        m.start()
+        muxerStarted = true
+        // The pre-recorded seconds (or, without pre-record, what arrived while the formats
+        // were settling), from a keyframe.
+        for (x in ring.take()) write(x.track, ByteBuffer.wrap(x.data), x.ptsUs, x.flags)
+        if (!preroll) ring.clear()
+    }
+
+    private fun onSample(track: Int, buf: ByteBuffer, info: MediaCodec.BufferInfo) {
+        val key = track == 1 || info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0
+        val needCopy = preroll || !muxerStartedUnsafe()
+        if (needCopy) {
+            val bytes = ByteArray(info.size)
+            buf.position(info.offset); buf.limit(info.offset + info.size); buf.get(bytes)
+            val s = EncodedSample(track, info.presentationTimeUs, key, bytes, info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM.inv())
+            // Ring and muxer under one lock: a starting take writes the ring, so a sample
+            // added outside it could be written twice.
+            synchronized(lock) {
+                if (preroll) ring.add(s)
+                if (muxerStarted) write(track, ByteBuffer.wrap(bytes), info.presentationTimeUs, s.flags)
+                else if (!preroll && take != null) ring.add(s) // waiting for the formats: hold briefly
+            }
+        } else synchronized(lock) {
+            buf.position(info.offset); buf.limit(info.offset + info.size)
+            write(track, buf.slice(), info.presentationTimeUs, info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM.inv())
+        }
+    }
+
+    private fun muxerStartedUnsafe() = muxerStarted
+
+    /** Write one sample to the take; every track starts at the take's first video frame. */
+    private fun write(track: Int, buf: ByteBuffer, ptsUs: Long, flags: Int) {
+        val m = muxer ?: return
+        if (!muxerStarted) return
+        val t = when (track) { 0 -> videoTrack; 1 -> audioTrack; else -> metaTrack }
+        if (t < 0) return
+        if (baseUs < 0) {
+            if (track != 0 || flags and MediaCodec.BUFFER_FLAG_KEY_FRAME == 0) return // start on a video keyframe
+            baseUs = ptsUs; takeStartUs = ptsUs
+        }
+        val rel = ptsUs - baseUs
+        if (rel < 0) return
+        val us = if (rel <= lastUs[track]) lastUs[track] + 1 else rel
+        lastUs[track] = us
+        val info = MediaCodec.BufferInfo().apply { set(0, buf.remaining(), us, flags) }
+        try {
+            m.writeSampleData(t, buf, info)
+            bytesWritten += info.size
+        } catch (e: Exception) {
+            fail("mux: ${e.message}")
+        }
+    }
+
+    /** Camera settings at [ptsUs] (encoder clock) for the metadata track and the sidecar. */
+    fun addMetadata(json: String, ptsUs: Long) {
+        synchronized(lock) {
+            if (take == null) return
+            metaSamples += json
+            if (muxerStarted && metaTrack >= 0) write(2, ByteBuffer.wrap(json.toByteArray()), ptsUs, 0)
+        }
+    }
+
+    /** Metadata lines written in the current take. */
+    fun metadata(): List<String> = synchronized(lock) { metaSamples.toList() }
 
     @Volatile private var paused = false
     @Volatile private var pauseOffsetNs = 0L
@@ -161,67 +268,14 @@ class Recorder(
             while (true) {
                 val o = codec.dequeueOutputBuffer(info, if (eosQueued) 10_000 else 0)
                 if (o == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                    synchronized(muxerLock) { audioTrack = muxer!!.addTrack(codec.outputFormat); maybeStart() }
+                    synchronized(lock) { audioFormat = codec.outputFormat; maybeStartMuxer() }
                 } else if (o >= 0) {
                     val buf = codec.getOutputBuffer(o)
-                    if (buf != null && info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) writeSample(false, buf, info)
+                    if (buf != null && info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) onSample(1, buf, info)
                     codec.releaseOutputBuffer(o, false)
                     if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) { done = true; break }
                 } else break
             }
-        }
-    }
-
-    private fun maybeStart() {
-        val m = muxer ?: return
-        if (muxerStarted || videoTrack < 0 || (aac != null && audioTrack < 0)) return
-        m.start()
-        muxerStarted = true
-        flushPending()
-    }
-
-    private fun flushPending() {
-        if (!muxerStarted || baseUs < 0 || pending.isEmpty()) return
-        for (s in pending.sortedBy { it.info.presentationTimeUs }) write(s.track, ByteBuffer.wrap(s.data), s.info)
-        pending.clear()
-    }
-
-    private fun writeSample(isVideo: Boolean, buf: ByteBuffer, info: MediaCodec.BufferInfo) {
-        synchronized(muxerLock) {
-            val track = if (isVideo) videoTrack else audioTrack
-            if (track < 0) return
-            val copy = MediaCodec.BufferInfo().apply { set(0, info.size, info.presentationTimeUs, info.flags) }
-            if (!muxerStarted || baseUs < 0) {
-                if (pending.size < 2000) {
-                    val bytes = ByteArray(info.size)
-                    buf.position(info.offset); buf.limit(info.offset + info.size); buf.get(bytes)
-                    pending.add(Sample(track, bytes, copy))
-                }
-                return
-            }
-            flushPending()
-            buf.position(info.offset); buf.limit(info.offset + info.size)
-            write(track, buf.slice(), copy)
-        }
-    }
-
-    /** Both tracks start at the first video frame; earlier audio is dropped. */
-    private fun write(track: Int, buf: ByteBuffer, info: MediaCodec.BufferInfo) {
-        val base = baseUs
-        if (base < 0) return
-        val rel = info.presentationTimeUs - base
-        if (rel < 0) return
-        val isVideo = track == videoTrack
-        val last = if (isVideo) lastVideoUs else lastAudioUs
-        val t = if (rel <= last) last + 1 else rel
-        if (isVideo) lastVideoUs = t else lastAudioUs = t
-        info.presentationTimeUs = t
-        info.offset = 0
-        try {
-            muxer!!.writeSampleData(track, buf, info)
-            bytesWritten += info.size
-        } catch (e: Exception) {
-            fail("mux: ${e.message}")
         }
     }
 
@@ -230,33 +284,43 @@ class Recorder(
         if (failed == null) failed = msg
     }
 
-    /** Finish the file (blocking up to a few seconds). Returns the saved video or null. */
+    /** Close the current take (the encoders keep running when armed). Returns the clip. */
+    fun endTake(): Uri? {
+        val spec: TakeSpec
+        var ok = false
+        synchronized(lock) {
+            spec = take ?: return null
+            try {
+                if (muxerStarted) { muxer?.stop(); ok = lastUs[0] >= 0 }
+            } catch (e: Exception) { fail("finalize: ${e.message}") }
+            runCatching { muxer?.release() }
+            muxer = null; take = null; muxerStarted = false
+            if (!preroll) ring.clear()
+        }
+        spec.output.finish(ok)
+        return if (ok) spec.output.uri else null
+    }
+
+    /** Finish any take and release the encoders (blocking up to a few seconds). */
     fun stop(): Uri? {
         audio?.sink = null
-        if (aac != null) {
-            pcm.offer(Pcm(ShortArray(0), 0, (System.nanoTime()), eos = true))
-        }
+        if (aac != null) pcm.offer(Pcm(ShortArray(0), 0, System.nanoTime(), eos = true))
         runCatching { video.signalEndOfInputStream() }
         val deadline = System.currentTimeMillis() + 5000
         while (!videoDone && System.currentTimeMillis() < deadline) Thread.sleep(10)
         audioThread?.join(3000)
         audioRunning = false
+        val uri = endTake()
         runCatching { video.stop() }; video.release()
         aac?.let { runCatching { it.stop() }; it.release() }
         videoThread.quitSafely()
-        var ok = false
-        synchronized(muxerLock) {
-            try {
-                if (muxerStarted) { muxer?.stop(); ok = lastVideoUs >= 0 }
-            } catch (e: Exception) { fail("finalize: ${e.message}") }
-            runCatching { muxer?.release() }
-            muxer = null
-        }
-        output.finish(ok)
-        return if (ok) output.uri else null
+        ring.clear()
+        return uri
     }
 
     companion object {
+        const val META_MIME = "application/x-veilcam-camera+json"
+
         fun durationText(ns: Long, fps: Int): String {
             val totalFrames = ns * fps / 1_000_000_000L
             val f = totalFrames % fps

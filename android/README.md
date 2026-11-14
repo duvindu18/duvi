@@ -76,6 +76,61 @@ detection, tracking and anonymization as the Veil desktop app.
   installs default to 24 fps and 180°.
 * No network permission: everything runs on the phone.
 
+## New in 1.8: cinema tools, gestures, gimbals, multi-frame photos
+
+* **Pre-record.** Settings › Cinema Tools: Off / 3 / 5 / 10 s. The encoder keeps the last
+  seconds in RAM (encoded, not raw frames; capped at 160 MB). A take starts from a
+  keyframe that far back, so the moment before you pressed record is in the clip. It
+  stops in the background. It costs about 10 % more battery while you frame.
+* **Cinema file names.** `A001_C001_20261114.MOV`. The camera letter is A–D. Clips count
+  up, and a new reel starts each day or on demand. You can choose .MOV or .MP4.
+* **Metadata.** Each clip has a timed metadata track (`application/x-veilcam-camera+json`,
+  once a second) and a `.json` sidecar. They hold the lens, focal length, ISO, shutter
+  speed and angle, white balance, focus distance, frame rate, codec, bitrate and
+  pre-record time. With Embed GPS on, the location goes in the MP4 header and the
+  sidecar.
+* **A-B focus pulls.**
+  * Set the marks: tap a subject, then choose *Set A* under *A-B Focus* in the tray.
+    Do the same for B.
+  * Run the pull: *A → B* or *B → A*, with a duration from 0.3 to 10 s and a curve
+    (linear, ease in, ease out, ease in-out, S-curve).
+  * The pull drives the lens in diopters. In Cinematic the depth of field follows it.
+    It ends in manual focus on the end mark.
+* **Tap to track.** In Cinematic / Portrait, a tapped person or object is followed:
+  the person mask for people, the same depth for objects. Corner brackets show what
+  is in focus.
+* **Anamorphic de-squeeze.** 1.33×, 1.55× or 2.0×, on the monitor only, along the
+  recording's horizontal axis. The file keeps the squeezed picture.
+* **Palm gesture.** Hold an open palm towards the camera for about half a second. A
+  ring fills, a countdown runs (off / 3 / 5 / 10 s), then recording starts. A palm
+  while recording stops it. It uses the MediaPipe gesture recogniser on the phone.
+* **Gimbals and remotes.**
+  * Bluetooth HID buttons work: volume, camera, media, Enter, zoom and D-pad keys. An
+    Osmo Mobile 7 in Bluetooth camera-control mode records and zooms with its own
+    buttons.
+  * You can learn any button for any action: record, shutter, zoom, flip, focus pull,
+    pause or mode.
+  * Motor, joystick and ActiveTrack control use DJI's own protocol, which only DJI
+    Mimo has. The OM 7P tracking module tracks by itself with any app.
+* **Multi-frame photos.**
+  * Burst: 2–8 frames, each aligned to the reference frame (pyramid SAD with
+    sub-pixel refinement).
+  * Merge: robust, in half floats on the GPU. Anything that moved is taken from one
+    frame only, so it never ghosts.
+  * HDR: the burst is shot a stop under and the shadows are lifted afterwards. Then a
+    soft highlight roll-off and a light sharpen.
+  * Face blur is applied to the merged photo exactly as to a single frame.
+  * `tools/burst_check.py` checks it on Mesa: +8 dB PSNR for 8 frames, no ghosting,
+    and a shadow lift of 1.8×.
+* **Scene recognition.** Night, low light, backlit, portrait, close-up, landscape and
+  bright, from the exposure, histogram, faces and focus distance. A scene has to
+  hold for a moment before it changes. It chooses the frame count and HDR for photos
+  and shows a badge.
+* **Framing suggestions.** Thirds placement and headroom for the main face, with a
+  dashed guide to the thirds point. Level hints too. They hide while recording.
+* **Video.** Quality now has Max (×3.2 bitrate). Shutter angle, frame rates,
+  HEVC / H.264 and LUT monitoring are unchanged (Exposure, Record Video and Styles).
+
 ## New in 1.7: depth-based blur, layout pass, real recording time
 
 * **Cinematic depth from real depth.**
@@ -223,6 +278,7 @@ in the next detection is also grown by how far it could have moved in the gap.
 # Android SDK (platform 35, build-tools 35), JDK 17+, Gradle 8.9+
 cd android
 mkdir -p models && cp /path/to/det_500m.onnx /path/to/det_10g.onnx models/   # InsightFace buffalo_s / buffalo_l
+# plus selfie_multiclass_256x256.tflite, depth_anything_v2_small.onnx, gesture_recognizer.task (MediaPipe)
 echo "sdk.dir=$ANDROID_HOME" > local.properties
 gradle :core:test :app:assembleRelease \
   -PveilKeystore=/path/release.jks -PveilKeystorePassword=...      # unsigned keys -> debug signing
@@ -240,6 +296,8 @@ gradle :core:test :app:assembleRelease \
   finds the face, that the output is upright, and that every style hides the
   face while leaving the background untouched. It also checks the LUT path, the
   film pass, the direct (no-film) path and the GPU blur chain.
+* `tools/burst_check.py photo.jpg out/` runs the burst-merge shaders: noise reduction,
+  ghost rejection and the HDR tone curve.
 * `tools/sched_sim.py` simulates the renderer's frame scheduling for every power
   tier, frame rate and detection speed. It checks that no frame is emitted before
   its detection and that the preview never drops a frame.

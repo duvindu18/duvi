@@ -98,6 +98,23 @@ data class Settings(
     val bokehShape: Int = 0, // 0 circle, 1 six blades, 2 anamorphic, 3 swirl
     val bokehHighlights: Float = 0.5f, // how strongly lights open into discs
     val torch: Boolean = false,
+    // Pro / cinema
+    val prerollS: Int = 0, // pre-record buffer: 0 off, 3, 5 or 10 s
+    val cinemaNaming: Boolean = true, // A001_C001_YYYYMMDD
+    val movExtension: Boolean = true, // .MOV (else .mp4); the file is ISO media either way
+    val cameraLetter: String = "A",
+    val newReelDaily: Boolean = true,
+    val embedGps: Boolean = false,
+    val desqueeze: Float = 1f, // anamorphic monitoring: 1, 1.33, 1.55, 2
+    val palmGesture: Boolean = true, // open palm starts / stops recording
+    val framingGuide: Boolean = true,
+    val sceneAuto: Boolean = true, // scene recognition picks merge / HDR for photos
+    val burstMerge: Boolean = true, // multi-frame photos
+    val pullDurationMs: Int = 3000,
+    val pullEase: Int = 3, // Ease.EASE_IN_OUT
+    val accessoryKeys: String = "", // learnt buttons, AccessoryKeys.format
+    val volumeShutter: Boolean = true, // volume keys (and gimbal shutter buttons) record
+    val palmCountdownS: Int = 3, // countdown after the palm before recording starts
 ) {
     val photoMode: Boolean get() = mode == "PHOTO" || mode == "PORTRAIT"
     val depthMode: Boolean get() = mode == "CINEMATIC" || mode == "PORTRAIT"
@@ -106,7 +123,7 @@ data class Settings(
     fun bitrate(): Int {
         val px = width.toLong() * height * fps
         val base = px * (if (hevc) 0.07 else 0.11) // bits per pixel
-        val f = when (bitrateLevel) { 0 -> 0.55; 2 -> 1.8; else -> 1.0 }
+        val f = when (bitrateLevel) { 0 -> 0.55; 2 -> 1.8; 3 -> 3.2; else -> 1.0 }
         return (base * f).toLong().coerceIn(4_000_000L, 200_000_000L).toInt()
     }
 
@@ -133,6 +150,10 @@ data class Settings(
         put("powerMode", powerMode); put("dimWhileRecording", dimWhileRecording); put("autoStandby", autoStandby)
         put("mode", mode); put("cineDepth", cineDepth.toDouble()); put("ui", 2); put("depthScale", 2)
         put("bokehShape", bokehShape); put("bokehHighlights", bokehHighlights.toDouble())
+        put("prerollS", prerollS); put("cinemaNaming", cinemaNaming); put("movExtension", movExtension); put("cameraLetter", cameraLetter)
+        put("newReelDaily", newReelDaily); put("embedGps", embedGps); put("desqueeze", desqueeze.toDouble()); put("palmGesture", palmGesture)
+        put("framingGuide", framingGuide); put("sceneAuto", sceneAuto); put("burstMerge", burstMerge); put("pullDurationMs", pullDurationMs); put("pullEase", pullEase)
+        put("accessoryKeys", accessoryKeys); put("volumeShutter", volumeShutter); put("palmCountdownS", palmCountdownS)
     }
 
     companion object {
@@ -184,6 +205,15 @@ data class Settings(
                 cineDepth = if (j.optInt("depthScale", 1) < 2) d.cineDepth else j.optDouble("cineDepth", d.cineDepth.toDouble()).toFloat().coerceIn(0f, 1f),
                 bokehShape = j.optInt("bokehShape", d.bokehShape).coerceIn(0, 3),
                 bokehHighlights = j.optDouble("bokehHighlights", d.bokehHighlights.toDouble()).toFloat().coerceIn(0f, 1f),
+                prerollS = j.optInt("prerollS", d.prerollS).coerceIn(0, 10), cinemaNaming = j.optBoolean("cinemaNaming", d.cinemaNaming),
+                movExtension = j.optBoolean("movExtension", d.movExtension), cameraLetter = j.optString("cameraLetter", d.cameraLetter).take(1).uppercase().ifEmpty { "A" },
+                newReelDaily = j.optBoolean("newReelDaily", d.newReelDaily), embedGps = j.optBoolean("embedGps", d.embedGps),
+                desqueeze = j.optDouble("desqueeze", 1.0).toFloat().coerceIn(1f, 2f), palmGesture = j.optBoolean("palmGesture", d.palmGesture),
+                framingGuide = j.optBoolean("framingGuide", d.framingGuide), sceneAuto = j.optBoolean("sceneAuto", d.sceneAuto),
+                burstMerge = j.optBoolean("burstMerge", d.burstMerge), pullDurationMs = j.optInt("pullDurationMs", d.pullDurationMs).coerceIn(300, 20000),
+                pullEase = j.optInt("pullEase", d.pullEase).coerceIn(0, 4),
+                accessoryKeys = j.optString("accessoryKeys", d.accessoryKeys), volumeShutter = j.optBoolean("volumeShutter", d.volumeShutter),
+                palmCountdownS = j.optInt("palmCountdownS", d.palmCountdownS).coerceIn(0, 10),
             )
         }
 
