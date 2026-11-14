@@ -116,10 +116,34 @@ let compare: { name: string; scene: Scene2D; grid: SnapGrid; added: number; remo
 let rotLock = store.get('rotlock') === '1';
 viewer.controls.rotate2D = !rotLock;
 
-const units = () => doc?.meta.units ?? doc?.units ?? 'units';
+// Two separate things:
+//  • drawing unit: what one unit in the file means (from the file; set by the user only if missing or wrong)
+//  • display unit: what measurements are shown in (converted), remembered across files
+const TO_M: Record<string, number> = { mm: 0.001, cm: 0.01, dm: 0.1, m: 1, km: 1000, in: 0.0254, ft: 0.3048, yd: 0.9144, mi: 1609.344, mil: 2.54e-5, 'µin': 2.54e-8 };
+const UNIT_CHOICES = ['mm', 'cm', 'm', 'in', 'ft'];
+let displayPref = store.get('displayUnit');
+const drawingUnit = () => doc?.meta.units ?? doc?.units ?? 'units';
+const units = (): string => {
+  const du = drawingUnit();
+  if (!TO_M[du]) return 'units'; // unknown drawing unit: show raw numbers
+  if (displayPref && TO_M[displayPref]) return displayPref;
+  return UNIT_CHOICES.includes(du) ? du : 'm';
+};
+/** factor from drawing units to display units */
+const conv = () => { const du = drawingUnit(), u = units(); return TO_M[du] && TO_M[u] ? TO_M[du] / TO_M[u] : 1; };
 
 // ---------------- formatting ----------------
-function fmtLen(v: number, u = units()): string {
+/** 23.62 → "23 5/8" (to the nearest 1/16 inch) */
+function inchesWithFraction(inches: number): string {
+  let whole = Math.floor(inches), n = Math.round((inches - whole) * 16), d = 16;
+  if (n === 16) { whole++; n = 0; }
+  while (n && n % 2 === 0) { n /= 2; d /= 2; }
+  return n ? `${whole} ${n}/${d}` : `${whole}`;
+}
+/** a length in drawing units, converted and formatted in the display unit */
+function fmtLen(v: number): string { return fmtLenIn(v * conv(), units()); }
+function fmtArea(a: number): string { const k = conv(); return fmtAreaIn(a * k * k, units()); }
+function fmtLenIn(v: number, u: string): string {
   const a = Math.abs(v);
   if (u === 'ft' || u === 'in') { // feet-inches to 1/16"
     const inches = u === 'ft' ? a * 12 : a;
@@ -129,12 +153,13 @@ function fmtLen(v: number, u = units()): string {
     let num = s16 % 16, den = 16;
     while (num && num % 2 === 0) { num /= 2; den /= 2; }
     const frac = num ? ` ${num}/${den}` : '';
-    return ft ? `${ft}'-${whole}${frac}"` : `${whole}${frac}"`;
+    if (u === 'in') return `${v < 0 ? '-' : ''}${inchesWithFraction(a)}"`;
+    return ft ? `${ft}'-${whole}${frac}"` : `${whole}${frac}"`; // feet-inches
   }
   const d = u === 'mm' ? (a < 10 ? 1 : 0) : u === 'cm' ? 1 : u === 'm' ? (a < 10 ? 3 : 2) : a >= 1000 ? 1 : a >= 1 ? 3 : 4;
   return `${v.toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: u === 'm' ? Math.min(d, 2) : 0 })}${u === 'units' ? '' : ` ${u}`}`;
 }
-function fmtArea(a: number, u = units()): string {
+function fmtAreaIn(a: number, u: string): string {
   const f = (x: number, d = 2) => x.toLocaleString(undefined, { maximumFractionDigits: d });
   switch (u) {
     case 'mm': return `${f(a / 1e6, 3)} m²`;
@@ -313,7 +338,7 @@ function mount() {
   }
   applyTheme();
   $('#title').textContent = d.name;
-  $('#subtitle').textContent = `${d.ext.toUpperCase()} · ${fmtBytes(d.size)} · ${units() === 'units' ? 'no units' : units()}`;
+  $('#subtitle').textContent = subtitleText();
   $('#legend').hidden = true;
   buildDock();
   setTool('none');
@@ -677,21 +702,26 @@ function measureSheet(m: lib.Measure) {
     };
   });
 }
-const UNIT_CHOICES = ['mm', 'cm', 'm', 'in', 'ft'];
-function unitPicker() {
-  const cur = units();
-  return `<p class="muted" style="margin:16px 0 6px">Drawing units${doc!.units !== 'units' && !doc!.meta.units ? ' (from file)' : ''}</p>
-    <div class="seg">${UNIT_CHOICES.map((u) => `<button data-u="${u}" class="${cur === u ? 'on' : ''}">${u}</button>`).join('')}</div>`;
+function subtitleText() {
+  const du = drawingUnit();
+  return `${doc!.ext.toUpperCase()} · ${fmtBytes(doc!.size)} · ${TO_M[du] ? `drawn in ${du}` : 'no units'}`;
+}
+/** "Show measurements in" (converts). `full` also shows the drawing-unit setting. */
+function unitPicker(full = false) {
+  const known = !!TO_M[drawingUnit()];
+  const cur = units(), du = drawingUnit();
+  const fromFile = doc!.units !== 'units' && !doc!.meta.units;
+  return `<p class="muted" style="margin:16px 0 6px">Show measurements in</p>
+    <div class="seg" ${known ? '' : 'style="opacity:.45;pointer-events:none"'}>${UNIT_CHOICES.map((u) => `<button data-show="${u}" class="${known && cur === u ? 'on' : ''}">${u}</button>`).join('')}</div>
+    ${known ? '' : '<p class="muted" style="margin-top:6px">This file doesn\'t say what unit it was drawn in. Set it below first.</p>'}
+    ${full || !known ? `<p class="muted" style="margin:18px 0 6px">Drawing unit${fromFile ? ' (from the file)' : ''}: what one unit in the file is</p>
+    <div class="seg">${UNIT_CHOICES.map((u) => `<button data-du="${u}" class="${du === u ? 'on' : ''}">${u}</button>`).join('')}</div>
+    <p class="muted" style="margin-top:6px">Only change this if the file has no unit or the wrong one. It doesn't convert anything.</p>` : ''}`;
 }
 function wireUnitPicker(b: HTMLElement, after?: () => void) {
-  b.querySelectorAll<HTMLElement>('[data-u]').forEach((x) => (x.onclick = () => {
-    doc!.meta.units = x.dataset.u!;
-    lib.saveMeta(doc!.id, doc!.meta);
-    $('#subtitle').textContent = `${doc!.ext.toUpperCase()} · ${fmtBytes(doc!.size)} · ${units()}`;
-    redrawAnnotations();
-    haptic.tick();
-    after?.();
-  }));
+  const done = () => { $('#subtitle').textContent = subtitleText(); redrawAnnotations(); viewer.requestRender(); haptic.tick(); after?.(); };
+  b.querySelectorAll<HTMLElement>('[data-show]').forEach((x) => (x.onclick = () => { displayPref = x.dataset.show!; store.set('displayUnit', displayPref); done(); }));
+  b.querySelectorAll<HTMLElement>('[data-du]').forEach((x) => (x.onclick = () => { doc!.meta.units = x.dataset.du!; lib.saveMeta(doc!.id, doc!.meta); done(); }));
 }
 
 // ---------------- notes ----------------
@@ -804,7 +834,7 @@ function showMore() {
   });
 }
 function showUnits() {
-  openSheet('Units', `<p class="muted">Choose the unit the drawing was made in. OBJ, STL and some DAE files don't store units.</p>${unitPicker()}`, (b) => wireUnitPicker(b, showUnits));
+  openSheet('Units', unitPicker(true), (b) => wireUnitPicker(b, showUnits));
 }
 function toggleRotLock() {
   rotLock = !rotLock;
@@ -895,7 +925,7 @@ function showInfo() {
     <div class="row"><span class="grow">Name</span><span class="sub">${esc(d.name)}</span></div>
     <div class="row"><span class="grow">Size</span><span class="sub">${fmtBytes(d.size)}</span></div>
     <div class="row"><span class="grow">Load time</span><span class="sub">${(d.ms / 1000).toFixed(2)} s</span></div>
-    <div class="row"><span class="grow">Units</span><span class="sub">${esc(units())}</span></div>
+    <div class="row"><span class="grow">Drawing unit</span><span class="sub">${esc(TO_M[drawingUnit()] ? drawingUnit() : 'not set')}</span></div>
     ${d.stats.map((s) => `<div class="row"><span class="grow" style="white-space:normal">${esc(s)}</span></div>`).join('')}
   </div>${d.ext === 'dwg' ? `<div class="btns"><button class="btn" id="shareDxf">${icon('share', 18)}Share as DXF</button></div>` : ''}
   <p class="muted">Files are processed on this device only.</p>`, (b) => {
@@ -1024,12 +1054,12 @@ $('#btnCompass').onclick = () => { haptic.tick(); viewer.controls.animate2D({ ro
 viewer.onFrame = () => {
   const sb = $('#scalebar');
   if (!doc || viewer.mode !== '2d') { sb.hidden = true; $('#btnCompass').hidden = true; return; }
-  const ppu = viewer.pixelsPerUnit();
-  const world = 96 / ppu, p = Math.pow(10, Math.floor(Math.log10(world))), f = world / p;
+  const ppu = viewer.pixelsPerUnit(), k = conv(), u = units();
+  const world = (96 / ppu) * k, p = Math.pow(10, Math.floor(Math.log10(world))), f = world / p; // in display units
   const nice = (f >= 5 ? 5 : f >= 2 ? 2 : 1) * p;
   sb.hidden = false;
-  ($('.bar', sb) as HTMLElement).style.width = `${nice * ppu}px`;
-  $('span', sb).textContent = fmtLen(nice);
+  ($('.bar', sb) as HTMLElement).style.width = `${(nice / k) * ppu}px`;
+  $('span', sb).textContent = fmtLenIn(nice, u);
   const rot = viewer.controls.v2.rot;
   const showC = Math.abs(Math.atan2(Math.sin(rot), Math.cos(rot))) > 0.01;
   $('#btnCompass').hidden = !showC;
