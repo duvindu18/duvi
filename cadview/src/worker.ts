@@ -9,12 +9,14 @@ import { parseDxf, type Drawing } from './cad/dxf';
 import { diffDrawings } from './cad/diff';
 import { buildGrid, type SnapGrid } from './cad/snapgrid';
 import { tileDrawing } from './cad/tiles';
+import { dwgToDxf } from './cad/dwg';
 
 export const EDGE_TRI_LIMIT = 600_000;
 
 export type Req =
-  | { type: 'dxf'; id: number; buf: ArrayBuffer }
-  | { type: 'compare'; id: number; base: ArrayBuffer; other: ArrayBuffer; origin: [number, number, number] }
+  | { type: 'dxf'; id: number; buf: ArrayBuffer; utf8?: boolean }
+  | { type: 'dwg'; id: number; buf: ArrayBuffer }
+  | { type: 'compare'; id: number; base: ArrayBuffer; other: ArrayBuffer; origin: [number, number, number]; baseUtf8?: boolean }
   | { type: 'mesh'; id: number; ext: string; buf: ArrayBuffer }
   | { type: 'skp'; id: number; buf: ArrayBuffer };
 
@@ -69,21 +71,31 @@ self.onmessage = async (e: MessageEvent<Req>) => {
       post({ type: 'skp', id: m.id, glb: out }, [out.buffer]);
       return;
     }
-    if (m.type === 'dxf') {
+    if (m.type === 'dxf' || m.type === 'dwg') {
+      let bytes = new Uint8Array(m.buf), utf8 = m.type === 'dxf' && !!m.utf8, dwgInfo: { version: string; notes: string[] } | null = null;
+      const c0 = performance.now();
+      if (m.type === 'dwg') {
+        const r = await dwgToDxf(m.buf, (stage, f) => progress(m.id, stage, f));
+        bytes = r.dxf; utf8 = true; dwgInfo = { version: r.version, notes: r.notes };
+      }
       const w0 = performance.now();
-      const d = parseDxf(new Uint8Array(m.buf), { onProgress: (f) => progress(m.id, 'Reading drawing', f) });
+      const d = parseDxf(bytes, { utf8, onProgress: (f) => progress(m.id, 'Reading drawing', m.type === 'dwg' ? 0.7 + f * 0.25 : f) });
       const w1 = performance.now();
       progress(m.id, 'Optimising for touch', 1);
       d.tiles = tileDrawing(d);
-      const w2 = performance.now();
       d.pieces = new Uint32Array(0); // compare re-reads the file, so these aren't needed for display
+      const w2 = performance.now();
       progress(m.id, 'Preparing snapping', 1);
       const grid = dxfGrid(d);
-      const res = { type: 'dxf', id: m.id, drawing: d, grid, ms: [w1 - w0, w2 - w1, performance.now() - w2] };
+      // the converted DXF goes back too, so the app can cache it (fast reopen) and share it
+      const res: any = { type: 'dxf', id: m.id, drawing: d, grid, ms: [w1 - w0, w2 - w1, performance.now() - w2], dwg: dwgInfo ? { ...dwgInfo, ms: w0 - c0, dxf: bytes } : null };
       post(res, transferables(res));
     } else if (m.type === 'compare') {
-      const a = parseDxf(new Uint8Array(m.base), { origin: m.origin, onProgress: (f) => progress(m.id, 'Reading current revision', f) });
-      const b = parseDxf(new Uint8Array(m.other), { origin: m.origin, onProgress: (f) => progress(m.id, 'Reading other revision', f) });
+      const isDwg = (b: ArrayBuffer) => /^AC\d{4}$/.test(new TextDecoder().decode(new Uint8Array(b, 0, Math.min(6, b.byteLength))));
+      let other = new Uint8Array(m.other), otherUtf8 = false;
+      if (isDwg(m.other)) { other = (await dwgToDxf(m.other, (st, f) => progress(m.id, `Other revision: ${st}`, f))).dxf; otherUtf8 = true; }
+      const a = parseDxf(new Uint8Array(m.base), { origin: m.origin, utf8: m.baseUtf8, onProgress: (f) => progress(m.id, 'Reading current revision', f) });
+      const b = parseDxf(other, { origin: m.origin, utf8: otherUtf8, onProgress: (f) => progress(m.id, 'Reading other revision', f) });
       progress(m.id, 'Comparing', 1);
       const r = diffDrawings(a, b);
       r.drawing.tiles = tileDrawing(r.drawing);

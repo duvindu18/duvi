@@ -141,3 +141,25 @@ describe('display tiles', () => {
     expect(visibleCount(len, 10)).toBe(0);
   });
 });
+
+import { readFileSync } from 'node:fs';
+import { dwgToDxf } from '../src/cad/dwg';
+describe('DWG import (converted to DXF on the device)', () => {
+  for (const v of ['2000', '2004', '2018']) {
+    it(`opens an AutoCAD ${v} DWG`, async () => {
+      const b = readFileSync(`samples/floorplan-${v}.dwg`);
+      const r = await dwgToDxf(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+      const d = parseDxf(r.dxf, { utf8: true });
+      expect(d.layers.map((l) => l.name).sort()).toEqual(['A-ANNO', 'A-DOOR', 'A-FURN', 'A-WALL']);
+      expect(d.text.values).toContain('LIVING 201');
+      expect(d.text.values.some((t) => t.includes('Ø 600'))).toBe(true);
+      expect(d.layers[d.text.layer[0]].name).toBe('A-ANNO');
+      // the two door blocks are expanded: each has a 0.9 m leaf line
+      expect(Object.keys(d.skipped)).toEqual([]);
+      expect(d.bounds[3] - d.bounds[0]).toBeCloseTo(10, 3);
+    });
+  }
+  it('rejects files that are not DWG', async () => {
+    await expect(dwgToDxf(new TextEncoder().encode('0\nSECTION\n').buffer)).rejects.toThrow(/not a DWG/);
+  });
+});

@@ -167,8 +167,7 @@ document.querySelectorAll<HTMLElement>('[data-sample]').forEach((b) => (b.onclic
 
 async function openBytes(name: string, data: ArrayBuffer, fromLibrary = false) {
   const ext = (name.split('.').pop() ?? '').toLowerCase();
-  if (ext === 'dwg') return explainDwg();
-  if (ext !== 'dxf' && ext !== 'skp' && !MODEL_EXT.includes(ext)) return toast(`.${ext} files aren't supported yet`);
+  if (ext !== 'dxf' && ext !== 'dwg' && ext !== 'skp' && !MODEL_EXT.includes(ext)) return toast(`.${ext} files aren't supported yet`);
   const id = lib.fileId(name, data), size = data.byteLength;
   // copy for the on-device library before the buffer is handed (zero-copy) to the worker
   const blob = fromLibrary ? null : new Blob([data]);
@@ -176,11 +175,20 @@ async function openBytes(name: string, data: ArrayBuffer, fromLibrary = false) {
   loading.show(name, () => { cancelled = true; jobs.restart(); });
   const t0 = performance.now();
   let timing = '';
+  let dwgNote = '';
   try {
     const meta = await lib.getMeta(id);
     let next: Doc;
-    if (ext === 'dxf') {
-      const r = await jobs.run({ type: 'dxf', buf: data }, [data], loading.progress);
+    if (ext === 'dxf' || ext === 'dwg') {
+      // DWG: converted to DXF on the device. The DXF is cached, so reopening skips the conversion.
+      const cached = ext === 'dwg' ? await lib.getDerived(id, 'dxf') : null;
+      const r = cached
+        ? await jobs.run({ type: 'dxf', buf: cached, utf8: true }, [cached], loading.progress)
+        : await jobs.run({ type: ext, buf: data }, [data], loading.progress);
+      if (r.dwg) {
+        dwgNote = `Converted from DWG (${dwgVersionName(r.dwg.version)}) to DXF in ${(r.dwg.ms / 1000).toFixed(1)} s on this device`;
+        lib.saveDerived(id, 'dxf', new Blob([r.dwg.dxf]));
+      } else if (cached) dwgNote = 'DWG: opened from the DXF converted earlier on this device';
       const tParsed = performance.now();
       const d: Drawing = r.drawing;
       loading.progress('Building view', 1);
@@ -219,6 +227,7 @@ async function openBytes(name: string, data: ArrayBuffer, fromLibrary = false) {
     doc = next;
     doc.ms = performance.now() - t0;
     if (timing) doc.stats.push(timing);
+    if (dwgNote) doc.stats.unshift(dwgNote);
     // the viewer must be laid out before fitting, or the camera is framed for a 0×0 canvas
     if (!$('#viewer').classList.contains('active')) { history.pushState({ viewer: true }, ''); show('viewer'); }
     measurePadding();
@@ -259,10 +268,6 @@ function mount() {
   restoreAnnotations();
 }
 
-function explainDwg() {
-  openSheet('DWG files', `<p>DWG is AutoCAD's closed format. To read it with no internet connection the app needs a DWG decoder. The free one (LibreDWG) would make this whole app GPL, and the commercial one (ODA) is a paid licence.</p>
-    <p class="muted">For now, save the drawing as <b>DXF</b> in AutoCAD, BricsCAD or DraftSight (or with the free ODA File Converter) and open the .dxf here.</p>`);
-}
 
 
 /** A .skp the open reader can't fully decode: show SketchUp's embedded preview and how to export. */
@@ -782,7 +787,17 @@ function showInfo() {
     <div class="row"><span class="grow">Opened in</span><span class="sub">${(d.ms / 1000).toFixed(2)} s, on this device</span></div>
     <div class="row"><span class="grow">Units</span><span class="sub">${esc(units())}</span></div>
     ${d.stats.map((s) => `<div class="row"><span class="grow" style="white-space:normal">${esc(s)}</span></div>`).join('')}
-  </div><p class="muted">Everything is processed on this phone. Nothing is uploaded.</p>`);
+  </div>${d.ext === 'dwg' ? `<div class="btns"><button class="btn" id="shareDxf">${icon('share', 18)}Share as DXF</button></div>` : ''}
+  <p class="muted">Everything is processed on this phone. Nothing is uploaded.</p>`, (b) => {
+    $('#shareDxf', b)?.addEventListener('click', async () => {
+      const dxf = await lib.getDerived(d.id, 'dxf');
+      if (!dxf) return toast('The converted DXF is not stored on this device');
+      shareFile(new Blob([dxf], { type: 'application/dxf' }), d.name.replace(/\.dwg$/i, '.dxf'));
+    });
+  });
+}
+function dwgVersionName(v: string) {
+  return ({ AC1009: 'R11/R12', AC1012: 'R13', AC1014: 'R14', AC1015: 'AutoCAD 2000', AC1018: 'AutoCAD 2004', AC1021: 'AutoCAD 2007', AC1024: 'AutoCAD 2010', AC1027: 'AutoCAD 2013', AC1032: 'AutoCAD 2018+' } as Record<string, string>)[v] ?? v;
 }
 
 // ---------------- revision compare ----------------
@@ -794,11 +809,11 @@ function showInfo() {
 };
 async function runCompare(name: string, other: ArrayBuffer) {
   if (!doc?.drawing) return;
-  const base = await lib.getData(doc.id);
+  const base = doc.ext === 'dwg' ? await lib.getDerived(doc.id, 'dxf') : await lib.getData(doc.id);
   if (!base) return toast('The current drawing is not stored on this device, so it can’t be compared');
   loading.show(`${doc.name} → ${name}`, () => jobs.restart());
   try {
-    const r = await jobs.run({ type: 'compare', base, other, origin: doc.drawing.origin }, [base, other], loading.progress);
+    const r = await jobs.run({ type: 'compare', base, other, origin: doc.drawing.origin, baseUtf8: doc.ext === 'dwg' }, [base, other], loading.progress);
     const scene = build2D(r.drawing, fgColor(), viewer.maxTexture);
     compare = { name, scene, grid: r.grid, added: r.added, removed: r.removed, same: r.same };
     setTool('none');

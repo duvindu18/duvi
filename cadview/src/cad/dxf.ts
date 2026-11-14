@@ -724,7 +724,7 @@ class EntityReader {
 }
 
 // ---------------- main entry ----------------
-export interface ParseOptions { origin?: [number, number, number]; onProgress?: (fraction: number) => void }
+export interface ParseOptions { origin?: [number, number, number]; onProgress?: (fraction: number) => void; /** bytes are UTF-8 regardless of $DWGCODEPAGE (e.g. DXF produced by our DWG converter) */ utf8?: boolean }
 
 export function parseDxf(bytes: Uint8Array, opts: ParseOptions = {}): Drawing {
   arcTol = 0;
@@ -818,7 +818,7 @@ export function parseDxf(bytes: Uint8Array, opts: ParseOptions = {}): Drawing {
       else if (headerVar === '$DWGCODEPAGE' && code === 3) {
         const cp = CODEPAGES[rd.str().toUpperCase()];
         // R2007+ (AC1021) files are always UTF-8; older ones use the drawing code page
-        if (cp && acadver && acadver < 'AC1021') { try { rd.dec = new TextDecoder(cp); } catch { /* keep utf-8 */ } }
+        if (cp && acadver && acadver < 'AC1021' && !opts.utf8) { try { rd.dec = new TextDecoder(cp); } catch { /* keep utf-8 */ } }
       } else if (headerVar === '$EXTMIN' && (code === 10 || code === 20 || code === 30)) (extMin ??= [0, 0, 0])[code / 10 - 1] = rd.num();
       else if (headerVar === '$EXTMAX' && (code === 10 || code === 20 || code === 30)) (extMax ??= [0, 0, 0])[code / 10 - 1] = rd.num();
       continue;

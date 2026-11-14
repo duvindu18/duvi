@@ -63,7 +63,7 @@ With level of detail, the 53 MB plan draws 691k segments and 0 glyphs at full vi
 | DXF (ASCII, R12–2018+) | ✅ LINE, (LW)POLYLINE with bulges/arcs, 3D polylines, polyface and polygon meshes, CIRCLE, ARC, ELLIPSE, SPLINE (rational, de Boor), SOLID/TRACE/3DFACE, LEADER, TEXT/MTEXT/ATTRIB with alignment, INSERT (nested, rotated, scaled, arrays), DIMENSION. Handles OCS/extrusion (mirrored entities), layer on/off/frozen, ACI and true colour, ByLayer/ByBlock, code pages and `\U+` escapes. Paper-space layouts are skipped. Anything not drawn yet (e.g. HATCH) is **listed in File info**, never silently dropped. |
 | GLB/glTF (incl. Draco, meshopt, KTX2), OBJ, STL, PLY, DAE, 3MF | ✅ 3D. Decoders are bundled locally. |
 | **SKP** (SketchUp) | ✅ Opened **directly on the phone** with [openskp](https://github.com/iamahsanmehmood/openskp) (MIT), an open-source reader reverse-engineered from SketchUp 2013–2020 and 2021+ files. It runs in the background worker and is converted in memory to glTF, so components/groups become toggleable parts, materials are kept, and units are real metres. If a file uses something the reader can't decode, the app shows the preview image SketchUp embeds in the file and explains how to export .dae/.glb. |
-| **DWG** | ⚠️ Needs a decoder (see "Decisions needed"). The app asks the user to save as DXF for now. |
+| **DWG** (AutoCAD R12 → 2018+, AC1009–AC1032) | ✅ **Converted to DXF on the phone when importing**, using [acad-ts](https://github.com/node-projects/acad-ts) (MIT; TypeScript port of ACadSharp), then shown by the same DXF engine (layers, blocks, text, snapping, find, compare). The converted DXF is cached, so reopening skips conversion, and **File info → Share as DXF** exports it. DWGs can also be compared with DXF or DWG revisions. |
 | Binary DXF | ❌ Not yet. The app says so. |
 
 ## Run, test, build
@@ -116,12 +116,12 @@ src/main.ts           app: library, tools, sheets, compare, notes, share
 
 ## Decisions needed
 
-1. **DWG decoder.** LibreDWG compiled to WebAssembly is free and works offline, but it is **GPL**, so the whole app would have to be open source. The ODA Drawings SDK is commercial (paid membership), with native Android and iOS builds.
+1. **DWG:** done with acad-ts (MIT), so the app doesn't need to be GPL. It was verified on DWG files written in AutoCAD 2000, 2004 and 2018 formats and cross-checked with LibreDWG (test-only). Please try real drawings from your AutoCAD: unusual objects (proxy entities, some custom objects) may not convert.
 2. **SKP coverage:** openskp is a third-party reverse-engineered reader and can't be perfect for every file. Test with your real SketchUp files and report any that fail.
 
 ## Roadmap
 
-- [ ] DWG (once decided), binary DXF, HATCH fills, linetypes and line weights
+- [ ] Binary DXF, HATCH fills, linetypes and line weights
 - [ ] 3D level of detail for 10M+ triangle models
 - [ ] Calibrate scale from a known dimension; angle and polyline-length measuring
 - [ ] PDF report of notes and measurements; photos attached to notes

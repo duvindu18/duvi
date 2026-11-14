@@ -59,8 +59,16 @@ export async function getData(id: string): Promise<ArrayBuffer | null> {
   try { const b = await req<Blob | undefined>('blobs', 'readonly', (s) => s.get(id)); return b ? await b.arrayBuffer() : null; }
   catch { return null; }
 }
+/** A file derived from an original, e.g. the DXF converted from a DWG (cached so reopening skips conversion). */
+export async function saveDerived(id: string, kind: string, data: Blob) {
+  try { await req('blobs', 'readwrite', (s) => s.put(data, `${id}#${kind}`)); } catch { /* cache only */ }
+}
+export async function getDerived(id: string, kind: string): Promise<ArrayBuffer | null> {
+  return getData(`${id}#${kind}`);
+}
 export async function deleteFile(id: string) {
   try {
+    await req('blobs', 'readwrite', (s) => s.delete(`${id}#dxf`));
     await req('blobs', 'readwrite', (s) => s.delete(id));
     await req('index', 'readwrite', (s) => s.delete(id));
     await req('meta', 'readwrite', (s) => s.delete(id));
