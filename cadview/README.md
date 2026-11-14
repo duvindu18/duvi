@@ -1,6 +1,6 @@
 # CADView
 
-Offline viewer for CAD drawings and 3D models on Android and iOS. Built with TypeScript and three.js, packaged with Capacitor. Files are processed on the device; the Android app has no INTERNET permission.
+Offline viewer for CAD drawings and 3D models on Android and iOS. Built with TypeScript and three.js, packaged with Capacitor. Files are processed on the device and never uploaded. Internet is used only for the ad banner on the home screen.
 
 ## Supported files
 
@@ -24,6 +24,18 @@ Offline viewer for CAD drawings and 3D models on Android and iOS. Built with Typ
 - "Open with" from other apps on Android and iOS.
 
 Removing a file from the list only deletes the app's own copy. The original file is never modified.
+
+## Ads
+
+An AdMob banner is shown on the home screen only: not in the viewer, no full-screen ads, and it hides while a panel or dialog is open. Consent is requested with Google's UMP form where required, and with Apple's tracking prompt on iOS. Without a connection the banner doesn't appear.
+
+The project uses Google's **test IDs**. Before publishing, replace them with your own from the AdMob console:
+
+- `src/ads.ts`: `bannerAndroid`, `bannerIos`, and set `testing: false`
+- `android/app/src/main/AndroidManifest.xml`: `com.google.android.gms.ads.APPLICATION_ID`
+- `ios/App/App/Info.plist`: `GADApplicationIdentifier` (and add your SKAdNetwork IDs from Google's list)
+
+Google Play and the App Store require a privacy policy and a data-safety / privacy declaration for apps with ads.
 
 ## Large files
 

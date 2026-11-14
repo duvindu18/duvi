@@ -6,6 +6,7 @@ import { textUniforms } from './render/text';
 import type { Drawing } from './cad/dxf';
 import type { SnapGrid } from './cad/snapgrid';
 import * as lib from './library';
+import { homeBanner } from './ads';
 import { hydrateIcons, icon, type IconName } from './ui/icons';
 import { $, esc, toast, openSheet, closeSheet, sheetOpen, wireSheetDrag, popover, hidePopover, loading, haptic, fmtBytes, fmtAgo, consumeSkipPop } from './ui/widgets';
 
@@ -1053,6 +1054,13 @@ if (Capacitor.isNativePlatform()) {
 
 // Offline cache for the installable web build (the native app bundles everything already).
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !Capacitor.isNativePlatform()) navigator.serviceWorker.register('sw.js');
+
+// ---------------- ads: home screen only, and only when nothing covers it ----------------
+const adWatch = () => homeBanner(
+  $('#home').classList.contains('active') && !sheetOpen() && $('#coach').hidden && !$('#loading').classList.contains('show') && !$('#popover').classList.contains('show'),
+);
+new MutationObserver(adWatch).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class', 'hidden'] });
+adWatch();
 
 history.replaceState({ home: true }, '');
 applyTheme();

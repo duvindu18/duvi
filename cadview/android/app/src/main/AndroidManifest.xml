@@ -54,6 +54,11 @@
 
         </activity>
 
+        <!-- AdMob app ID: this is Google's TEST ID. Replace with your own before publishing. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -65,6 +70,6 @@
         </provider>
     </application>
 
-    <!-- No INTERNET permission on purpose: the app is fully offline and cannot send files anywhere.
-         The web UI is served from inside the APK by Capacitor's local asset loader. -->
+    <!-- Internet is used only by the AdMob banner on the home screen (the ads SDK adds the permission).
+         Drawings are processed on the device and never uploaded. -->
 </manifest>

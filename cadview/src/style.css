@@ -63,7 +63,7 @@ svg { display: block; flex: none; }
 .head-btns { display: flex; gap: 2px; }
 .brand { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 19px; letter-spacing: -0.03em; }
 .logo { width: 26px; height: 26px; background: var(--fg); -webkit-mask: url(/icon-mark.svg) center/contain no-repeat; mask: url(/icon-mark.svg) center/contain no-repeat; }
-.home-body { max-width: 980px; margin: 0 auto; padding: 0 var(--gutr) calc(40px + var(--sb)) var(--gut); }
+.home-body { max-width: 980px; margin: 0 auto; padding: 0 var(--gutr) calc(40px + var(--sb) + var(--ad-h, 0px)) var(--gut); }
 .hero { padding: 28px 4px 8px; }
 .hero h1 { font-size: clamp(34px, 10.5vw, 60px); line-height: 1.02; letter-spacing: -0.045em; font-weight: 500; margin: 0 0 18px; }
 .dim { color: var(--muted); }
