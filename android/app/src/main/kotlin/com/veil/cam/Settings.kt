@@ -94,7 +94,7 @@ data class Settings(
     val autoStandby: Boolean = true, // camera off after 3 min idle in standby
     // Capture mode: CINEMATIC (video + depth), VIDEO, PHOTO, PORTRAIT (photo + depth)
     val mode: String = "VIDEO",
-    val cineDepth: Float = 0.72f, // remembered depth for the depth modes (f/2.8)
+    val cineDepth: Float = 0.5f, // remembered depth for the depth modes: 1.4 / f-number (f/2.8)
     val bokehShape: Int = 0, // 0 circle, 1 six blades, 2 anamorphic, 3 swirl
     val bokehHighlights: Float = 0.5f, // how strongly lights open into discs
     val torch: Boolean = false,
@@ -131,7 +131,7 @@ data class Settings(
         put("noiseReduction", noiseReduction); put("windFilter", windFilter); put("shutterPriority", shutterPriority)
         put("privateGallery", privateGallery)
         put("powerMode", powerMode); put("dimWhileRecording", dimWhileRecording); put("autoStandby", autoStandby)
-        put("mode", mode); put("cineDepth", cineDepth.toDouble()); put("ui", 2)
+        put("mode", mode); put("cineDepth", cineDepth.toDouble()); put("ui", 2); put("depthScale", 2)
         put("bokehShape", bokehShape); put("bokehHighlights", bokehHighlights.toDouble())
     }
 
@@ -168,7 +168,7 @@ data class Settings(
                 coverage = j.optDouble("coverage", 0.2).toFloat(), holdFrames = j.optInt("holdFrames", d.holdFrames),
                 softEdges = j.optBoolean("softEdges", d.softEdges), accurateModel = j.optBoolean("accurateModel", d.accurateModel),
                 allAngles = j.optBoolean("allAngles", d.allAngles), maskPath = j.optString("maskPath", d.maskPath),
-                depth = j.optDouble("depth", 0.0).toFloat(), filmPreset = j.optString("filmPreset", d.filmPreset),
+                depth = j.optDouble("depth", 0.0).toFloat().let { if (j.optInt("depthScale", 1) < 2 && it > 0f) d.cineDepth else it }, filmPreset = j.optString("filmPreset", d.filmPreset),
                 grain = j.optDouble("grain", 0.0).toFloat(), grainSize = j.optDouble("grainSize", 0.35).toFloat(),
                 halation = j.optDouble("halation", 0.0).toFloat(), bloom = j.optDouble("bloom", 0.0).toFloat(),
                 aberration = j.optDouble("aberration", 0.0).toFloat(), leaks = j.optDouble("leaks", 0.0).toFloat(),
@@ -180,7 +180,8 @@ data class Settings(
                 dimWhileRecording = j.optBoolean("dimWhileRecording", d.dimWhileRecording),
                 autoStandby = j.optBoolean("autoStandby", d.autoStandby),
                 mode = j.optString("mode", d.mode).takeIf { it in listOf("CINEMATIC", "VIDEO", "PHOTO", "PORTRAIT") } ?: d.mode,
-                cineDepth = j.optDouble("cineDepth", d.cineDepth.toDouble()).toFloat().coerceIn(0.1f, 1f),
+                // Before 1.6 depth was an arbitrary 0.12..1 scale; it is now 1.4 / f-number.
+                cineDepth = if (j.optInt("depthScale", 1) < 2) d.cineDepth else j.optDouble("cineDepth", d.cineDepth.toDouble()).toFloat().coerceIn(0f, 1f),
                 bokehShape = j.optInt("bokehShape", d.bokehShape).coerceIn(0, 3),
                 bokehHighlights = j.optDouble("bokehHighlights", d.bokehHighlights.toDouble()).toFloat().coerceIn(0f, 1f),
             )

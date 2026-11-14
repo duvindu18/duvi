@@ -99,6 +99,8 @@ uniform sampler2D uMask;
 uniform sampler2D uPeople;    // person mask (cinematic depth), canvas of the detector base pass
 uniform mat3 uImgToPeople;    // image px -> person-mask uv (rows top-down)
 uniform float uDepth;         // background blur on (> 0): fallback blur level
+uniform float uDepthMix;      // 0..1: 0 = small blur from the full-resolution frame, 1 = lens blur
+uniform float uFineRadius;    // blur radius in image px (for the small-blur path)
 uniform int uRefined;         // 1 = edge-refined alpha (uCoef) and bokeh (uBokeh) are valid
 uniform sampler2D uCoef;      // guided-filter coefficients: alpha = dot(a, I - 0.5) + b
 uniform sampler2D uBokeh;     // background-only lens blur: rgb, a = background coverage
@@ -132,6 +134,18 @@ vec3 blurAt(vec2 p, float lod) {
     return c * 0.25;
 }
 
+// Small disc blur on the full-resolution frame: lets the background blur grow from
+// exactly zero (the 1/4-res lens blur takes over once the radius is a few pixels).
+vec3 fineBlur(vec2 p, float r) {
+    if (r < 0.05) return img(p);
+    vec3 s = img(p);
+    for (int i = 0; i < 12; i++) {
+        float a = float(i) * 2.39996323;
+        s += img(p + r * sqrt((float(i) + 0.5) / 12.0) * vec2(cos(a), sin(a)));
+    }
+    return s / 13.0;
+}
+
 vec3 lut(vec3 c) {
     if (uLutOn == 0) return c;
     vec3 s = clamp(c, 0.0, 1.0) * ((uLutSize - 1.0) / uLutSize) + 0.5 / uLutSize;
@@ -157,12 +171,15 @@ void main() {
                             + texture(uBokeh, tuv + vec2(bo.x, -bo.y)) + texture(uBokeh, tuv + vec2(-bo.x, -bo.y)));
             // Where the lens blur found no background (deep inside a person) use the plain blur.
             vec3 bg = mix(blurAt(p, uDepth), bk.rgb, clamp(bk.a * 3.0, 0.0, 1.0));
-            base = mix(bg * uGains, base, person);
+            if (uDepthMix < 1.0) bg = mix(fineBlur(p, uFineRadius), bg, uDepthMix);
+            base = mix(base, bg * uGains, 1.0 - person);
         } else {
             vec2 mu = (uImgToPeople * vec3(p, 1.0)).xy;
             float person = (mu.x < 0.0 || mu.y < 0.0 || mu.x > 1.0 || mu.y > 1.0) ? 0.0 : texture(uPeople, mu).r;
             person = smoothstep(0.35, 0.75, person);
-            base = mix(blurAt(p, uDepth) * uGains, base, person);
+            vec3 bg = blurAt(p, uDepth);
+            if (uDepthMix < 1.0) bg = mix(fineBlur(p, uFineRadius), bg, uDepthMix);
+            base = mix(base, bg * uGains, 1.0 - person);
         }
     }
 

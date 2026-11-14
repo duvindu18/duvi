@@ -79,6 +79,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
     private class Slot(val color: GlUtil.Target, val blur: GlUtil.Target) {
         var ts = 0L
         var blurReady = false // the 1/4-res blur is only built when a composite needs it
+        var depth = 0f // background blur strength for this frame (eased, see easeDepth)
     }
 
     private class Readback(
@@ -93,6 +94,8 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
     private var progFilm = 0
     private val stages = HashMap<Long, GlUtil.Target>() // output size -> anonymized intermediate (mipmapped)
     private var peopleTex = 0
+    private var depthNow = 0f
+    private var depthTs = 0L
     private val depthFx = DepthFx({ p, n -> loc(p, n) }, { u, t -> bindTex(u, t) })
     private var peopleMask: com.veil.cam.face.PersonMask? = null
     private val startNs = System.nanoTime()
@@ -403,6 +406,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         slot.ts = ts
         copyFrame(slot)
         slot.blurReady = false
+        slot.depth = easeDepth(ts)
         pending.addLast(slot)
         newest = slot
 
@@ -724,7 +728,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         val s = settings
         val faces = if (s.blurOn) engine.timeline.at(slot.ts).sortedByDescending { it.w * it.h }.take(Shaders.MAX_FACES) else emptyList()
         // The blur pyramid is only needed by blurred faces, the privacy start and depth.
-        val needBlur = (s.depth > 0f && peopleMask != null) || (s.blurOn && !hasResult) || (faces.isNotEmpty() && s.style == BlurStyle.GAUSSIAN)
+        val needBlur = (slot.depth > 0f && peopleMask != null) || (s.blurOn && !hasResult) || (faces.isNotEmpty() && s.style == BlurStyle.GAUSSIAN)
         if (needBlur) ensureBlur(slot)
         val depth = ensureDepth(slot)
         val monitoring = monitor && (s.zebra || s.falseColor || s.peaking)
@@ -787,11 +791,11 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
     private fun ensureDepth(slot: Slot): DepthFx.Result? {
         val s = settings
         val pm = peopleMask ?: return null
-        if (s.depth <= 0f || !depthFx.available) return null
+        if (slot.depth <= 0f || !depthFx.available) return null
         val taps = when { budget.tier <= 2 -> 96; budget.tier == 3 -> 64; else -> 48 }
         val quarter = (outputRotation / 90) % 2 == 1
-        val params = DepthFx.Params(0.008f + 0.045f * s.depth, taps, s.bokehShape, s.bokehHighlights, quarter)
-        val key = "${System.identityHashCode(slot)}:${slot.ts}:${pm.serial}:${s.depth}:$taps:${s.bokehShape}:${s.bokehHighlights}:$quarter"
+        val params = DepthFx.Params(MAX_BLUR * slot.depth, taps, s.bokehShape, s.bokehHighlights, quarter)
+        val key = "${System.identityHashCode(slot)}:${slot.ts}:${pm.serial}:${slot.depth}:$taps:${s.bokehShape}:${s.bokehHighlights}:$quarter"
         return depthFx.ensure(key, slot.color.tex, peopleTex, peopleMatrix(pm), imgW, imgH, slot.blur.tex, params)
     }
 
@@ -848,10 +852,17 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         GLES30.glUniform1f(loc(p, "uLutSize"), lutSize.toFloat())
         // Cinematic depth: background defocus outside the person mask.
         val pm = peopleMask
-        val depthOn = s.depth > 0f && pm != null
+        val d = slot.depth
+        val depthOn = d > 0f && pm != null
         GLES30.glActiveTexture(GLES30.GL_TEXTURE4)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, peopleTex); GLES30.glUniform1i(loc(p, "uPeople"), 4)
-        GLES30.glUniform1f(loc(p, "uDepth"), if (depthOn) (0.6f + s.depth * (maxLod - 0.6f).coerceAtLeast(1f)).coerceAtMost(maxLod) else 0f)
+        // Blur radius in 1/4-res px; the fallback blur uses the matching pyramid level.
+        val radiusQ = MAX_BLUR * d * minOf(slot.blur.width, slot.blur.height)
+        GLES30.glUniform1f(loc(p, "uDepth"), if (depthOn) (ln(max(1f, radiusQ)) / ln(2f) + 0.3f).coerceIn(0.05f, maxLod) else 0f)
+        // Small blurs come from the full-resolution frame (a disc of the same radius), so the
+        // blur rises from exactly zero; the 1/4-res lens blur takes over from 1.5 to 3.5 px.
+        GLES30.glUniform1f(loc(p, "uDepthMix"), ((radiusQ - 1.5f) / 2f).coerceIn(0f, 1f))
+        GLES30.glUniform1f(loc(p, "uFineRadius"), radiusQ * imgW / slot.blur.width.coerceAtLeast(1))
         if (pm != null) GLES30.glUniformMatrix3fv(loc(p, "uImgToPeople"), 1, false, peopleMatrix(pm), 0)
         // Refined edges + lens blur when available (the plain mask otherwise).
         val refined = depthOn && depth != null
@@ -1021,7 +1032,24 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         listener?.onStats(camFps, engine.rate, engine.lastMs, pending.size)
     }
 
+    /**
+     * Background blur eases towards its target (mode switch, new aperture, the person mask
+     * arriving) like a focus pull, frame by frame on the camera clock, instead of jumping.
+     */
+    private fun easeDepth(ts: Long): Float {
+        val target = if (settings.depth > 0f && peopleMask != null) settings.depth else 0f
+        val dt = if (depthTs == 0L) 0f else ((ts - depthTs) / 1e9f).coerceIn(0f, 0.1f)
+        depthTs = ts
+        val k = 1f - kotlin.math.exp(-dt / DEPTH_EASE_S)
+        depthNow += (target - depthNow) * k
+        if (abs(target - depthNow) < 0.002f) depthNow = target
+        return depthNow
+    }
+
     companion object {
+        /** Blur radius at the widest aperture (fraction of the frame's short side). */
+        const val MAX_BLUR = 0.07f
+        private const val DEPTH_EASE_S = 0.22f // time constant: settles in ~0.7 s
         private const val TAG = "VeilGL"
         // Simulated over 24-60 fps, every power tier and 8-35 ms detections: with these,
         // no frame is ever emitted before its detection and the preview never drops one.

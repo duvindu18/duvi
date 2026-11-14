@@ -120,7 +120,7 @@ def main():
         run("BOKEH_PREP", [bprep], {"uSize": (float(QW), float(QH)), "uBloom": bloom}, [("uColor", color), ("uCoef", coefA), ("uLocal", ublur)])
         bprep.build_mipmaps()
         bok = tex((QW, QH), 4, dtype="f2")
-        radius = (0.008 + 0.045 * 0.86) * min(QW, QH)
+        radius = 0.07 * 0.5 * min(QW, QH)  # f/2.8 (MAX_BLUR * 1.4 / N)
         run("BOKEH", [bok], {"uSize": (float(QW), float(QH)), "uRadius": radius, "uTaps": 96, "uShape": shape,
                              "uAxisX": (1.0, 0.0), "uAxisY": (0.0, 1.0)}, [("uPrep", bprep)])
         for refined in (1, 0):
@@ -129,11 +129,35 @@ def main():
             o = ctx.texture((W, H), 4)
             uni = {"uOutToImg": (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0), "uImgSize": (float(W), float(H)), "uBlurSize": (float(QW), float(QH)),
                    "uOutH": float(H), "uFaceCount": 0, "uStyle": 0, "uEllipse": 1, "uMaskTex": 0, "uFullBlur": 0, "uGains": (1.0, 1.0, 1.0),
-                   "uLutOn": 0, "uLutAmount": 1.0, "uLutSize": 2.0, "uImgToPeople": img_to_people, "uDepth": 3.3, "uRefined": refined}
+                   "uLutOn": 0, "uLutAmount": 1.0, "uLutSize": 2.0, "uImgToPeople": img_to_people, "uDepth": 3.3, "uRefined": refined, "uDepthMix": 1.0, "uFineRadius": 0.0}
             run("COMPOSITE", [o], uni, [("uColor", color), ("uBlur", ublur), ("uLut", lut), ("uMask", m1), ("uPeople", mask), ("uCoef", coefA), ("uBokeh", bok)])
             img = np.flipud(np.frombuffer(o.read(), np.uint8).reshape(H, W, 4)[..., :3])
             results[("new" if refined else "old") + "_" + shapes[shape]] = img
             cv2.imwrite(str(out / f"{'new' if refined else 'old'}_{shapes[shape]}.jpg"), cv2.cvtColor(img, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 92])
+    # Smooth onset: from Off through f/22 ... f/1.4 the background must move away from the
+    # sharp picture gradually, starting at (almost) zero, with no jump.
+    def at(depth):
+        rq = 0.07 * depth * min(QW, QH)
+        run("BOKEH_PREP", [bprep], {"uSize": (float(QW), float(QH)), "uBloom": 0.5}, [("uColor", color), ("uCoef", coefA), ("uLocal", ublur)])
+        bprep.build_mipmaps()
+        bok = tex((QW, QH), 4, dtype="f2")
+        run("BOKEH", [bok], {"uSize": (float(QW), float(QH)), "uRadius": rq, "uTaps": 96, "uShape": 0, "uAxisX": (1.0, 0.0), "uAxisY": (0.0, 1.0)}, [("uPrep", bprep)])
+        o = ctx.texture((W, H), 4)
+        uni = {"uOutToImg": (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0), "uImgSize": (float(W), float(H)), "uBlurSize": (float(QW), float(QH)),
+               "uOutH": float(H), "uFaceCount": 0, "uGains": (1.0, 1.0, 1.0), "uLutSize": 2.0, "uImgToPeople": img_to_people,
+               "uDepth": max(0.05, math.log2(max(1.0, rq)) + 0.3) if depth > 0 else 0.0, "uRefined": 1,
+               "uDepthMix": min(1.0, max(0.0, (rq - 1.5) / 2.0)), "uFineRadius": rq * 4.0}
+        run("COMPOSITE", [o], uni, [("uColor", color), ("uBlur", ublur), ("uLut", lut), ("uMask", m1), ("uPeople", mask), ("uCoef", coefA), ("uBokeh", bok)])
+        return np.flipud(np.frombuffer(o.read(), np.uint8).reshape(H, W, 4)[..., :3]).astype(np.float32)
+    sharp = rgb.astype(np.float32)
+    bgm = cv2.resize(person, (W, H)) < 0.2
+    stops = [0] + [22, 20, 18, 16, 14, 13, 11, 10, 9, 8, 7.1, 6.3, 5.6, 5, 4.5, 4, 3.5, 3.2, 2.8, 2.5, 2.2, 2, 1.8, 1.6, 1.4]
+    prev, steps = 0.0, []
+    for n in stops:
+        diff = float(np.abs(at(0 if n == 0 else 1.4 / n) - sharp)[bgm].mean())
+        steps.append(diff - prev); prev = diff
+        print(f"  {'Off' if n == 0 else 'f/' + str(n):>7}: background change {diff:5.2f}")
+    print(f"largest step between neighbouring stops {max(steps[1:]):.2f}, first step (Off -> f/22) {steps[1]:.2f}")
     # Refined alpha, for inspection.
     A = np.flipud(np.frombuffer(coefA.read(), np.float16).reshape(GH, GW, 4).astype(np.float32))
     A = cv2.resize(A, (W, H), interpolation=cv2.INTER_LINEAR)

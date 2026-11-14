@@ -156,7 +156,7 @@ class MainActivity : Activity(), Renderer.Listener {
         settings = Settings.load(this).copy(torch = false)
         // Depth now belongs to the Cinematic / Portrait modes: keep an older depth setting there.
         if (settings.depth > 0f && !settings.depthMode) settings = settings.copy(mode = if (settings.photoMode) "PORTRAIT" else "CINEMATIC", cineDepth = settings.depth)
-        if (settings.depthMode && settings.depth <= 0f) settings = settings.copy(depth = settings.cineDepth)
+        if (settings.depthMode && settings.depth <= 0f && settings.cineDepth > 0f) settings = settings.copy(depth = settings.cineDepth)
         engine = FaceEngine(applicationContext)
         engine.onError = { msg -> main.post { flash(msg) } }
         engine.configure(settings)
@@ -834,10 +834,13 @@ class MainActivity : Activity(), Renderer.Listener {
         return out
     }
 
-    /** Depth: simulated aperture (background blur strength 0..1). */
-    private val APERTURES = listOf(0.12f to "ƒ16", 0.24f to "ƒ11", 0.36f to "ƒ8", 0.48f to "ƒ5.6", 0.6f to "ƒ4", 0.72f to "ƒ2.8", 0.86f to "ƒ2", 1f to "ƒ1.4")
+    // Simulated aperture in 1/3 stops, from Off (sharp) to f/1.4. Blur grows as 1/N like a
+    // real lens, so it rises gradually from nothing instead of jumping on.
+    private val F_STOPS = listOf(22f, 20f, 18f, 16f, 14f, 13f, 11f, 10f, 9f, 8f, 7.1f, 6.3f, 5.6f, 5f, 4.5f, 4f, 3.5f, 3.2f, 2.8f, 2.5f, 2.2f, 2f, 1.8f, 1.6f, 1.4f)
+    private val APERTURES = listOf(0f to "Off") + F_STOPS.map { n -> (1.4f / n) to "ƒ" + (if (n % 1f == 0f) "${n.toInt()}" else "$n") }
     private val BOKEH_SHAPES = listOf("Circle", "Blades", "Anamorphic", "Swirl")
-    private fun apertureLabel(d: Float) = if (d <= 0f) "ƒ" else APERTURES.minByOrNull { abs(it.first - d) }!!.second
+    private fun apertureIndex(d: Float) = APERTURES.indices.minByOrNull { abs(APERTURES[it].first - d) } ?: 0
+    private fun apertureLabel(d: Float) = if (d <= 0.001f) "ƒ Off" else APERTURES[apertureIndex(d)].second
 
     private val controls = object : ControlSource {
         override fun labels(key: String): List<String> {
@@ -872,7 +875,7 @@ class MainActivity : Activity(), Renderer.Listener {
                 "TINT" -> s.tint + 50
                 "FOCUS" -> { val d = if (s.autoFocus) ro?.focusDiopters ?: s.focusDiopters else s.focusDiopters; focusStops(c).indexOfFirst { it >= d - 1e-4f }.coerceAtLeast(0) }
                 "ZOOM" -> zoomList().indexOfFirst { it >= s.zoom - 0.01f }.let { if (it < 0) zoomList().size - 1 else it }
-                "DEPTH" -> APERTURES.indexOfFirst { it.first >= s.cineDepth - 0.001f }.coerceAtLeast(0)
+                "DEPTH" -> apertureIndex(s.cineDepth)
                 "FACES" -> strengths.indexOfFirst { it >= s.intensity }.coerceAtLeast(0)
                 "BOKEH" -> s.bokehShape
                 "LIGHTS" -> (s.bokehHighlights * 10).roundToInt()
@@ -1361,7 +1364,7 @@ class MainActivity : Activity(), Renderer.Listener {
     private fun pageDepth(f: Form) {
         val s = settings
         f.section(null, "Cinematic and Portrait keep people sharp and give the background a lens blur. Tap ƒ on the camera screen to change it while you frame.") {
-            slider("Aperture", 0, APERTURES.size - 1, APERTURES.indexOfFirst { it.first >= s.cineDepth - 0.001f }.coerceAtLeast(0), { APERTURES[it].second }) {
+            slider("Aperture", 0, APERTURES.size - 1, apertureIndex(s.cineDepth), { APERTURES[it].second }) {
                 apply(settings.copy(cineDepth = APERTURES[it].first, depth = if (settings.depthMode) APERTURES[it].first else 0f))
             }
         }
@@ -1581,4 +1584,4 @@ class MainActivity : Activity(), Renderer.Listener {
     }
 }
 
-object BuildConfigLite { const val VERSION = "1.5.0" }
+object BuildConfigLite { const val VERSION = "1.6.0" }

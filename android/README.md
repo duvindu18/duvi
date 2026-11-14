@@ -76,6 +76,17 @@ detection, tracking and anonymization as the Veil desktop app.
   installs default to 24 fps and 180°.
 * No network permission: everything runs on the phone.
 
+## New in 1.6: background blur that eases in and out
+
+* **Aperture in 1/3 stops.** The scale runs from Off through ƒ22 to ƒ1.4. Blur grows
+  as 1/ƒ-number like a real lens, so it rises gradually from nothing. Small blurs are
+  made from the full-resolution frame and hand over to the lens blur as the radius
+  grows, so there is no step from sharp to soft.
+* **Smooth changes.** Switching Cinematic ↔ Video, picking another aperture, or the
+  person mask first arriving eases over about 0.7 s on the camera clock, like a focus
+  pull, and is recorded that way.
+* `tools/depth_check.py` measures the change from Off through every stop to ƒ1.4.
+
 ## New in 1.5: cinematic depth rebuilt
 
 * **Segmentation.** MediaPipe image segmenter on the GPU with the multiclass selfie
