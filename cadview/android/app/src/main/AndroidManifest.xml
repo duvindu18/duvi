@@ -49,6 +49,9 @@
                 <data android:mimeType="model/obj" />
                 <data android:mimeType="model/vnd.collada+xml" />
                 <data android:mimeType="model/3mf" />
+                <data android:mimeType="application/vnd.sketchup.skp" />
+                <data android:mimeType="application/vnd.koan" />
+                <data android:mimeType="application/x-tgif" />
                 <data android:mimeType="application/octet-stream" />
             </intent-filter>
 

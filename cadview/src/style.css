@@ -71,6 +71,7 @@ svg { display: block; flex: none; }
 .pill { display: inline-flex; align-items: center; gap: 16px; height: 56px; padding: 0 6px 0 24px; border-radius: 28px;
   background: var(--accent); color: var(--on-accent); font-weight: 600; font-size: 15px; transition: transform .12s; }
 .pill:active { transform: scale(.97); }
+.link-btn { display: block; margin-top: 14px; color: var(--muted); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; padding: 6px 0; }
 .pill .ico { width: 44px; height: 44px; border-radius: 50%; background: var(--on-accent); color: var(--accent); display: grid; place-items: center; }
 .pill-sm { display: inline-flex; align-items: center; height: 34px; padding: 0 14px; border-radius: 17px; border: 1px solid var(--line);
   font-size: 13px; font-weight: 600; white-space: nowrap; }

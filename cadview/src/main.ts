@@ -62,10 +62,8 @@ systemDark.addEventListener('change', () => { applyTheme(); updateThemeButtons()
 function syncSystemBars() {
   const bg = getComputedStyle(root).getPropertyValue('--bg').trim();
   document.querySelectorAll('meta[name=theme-color]').forEach((m) => m.setAttribute('content', bg));
-  if (Capacitor.isNativePlatform()) import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
-    StatusBar.setStyle({ style: isLight() ? Style.Light : Style.Dark }).catch(() => {});
-    if (Capacitor.getPlatform() === 'android') StatusBar.setBackgroundColor({ color: bg }).catch(() => {});
-  });
+  // full screen: Android hides its bars natively (MainActivity); on iOS hide the status bar
+  if (Capacitor.getPlatform() === 'ios') import('@capacitor/status-bar').then(({ StatusBar }) => StatusBar.hide().catch(() => {}));
 }
 function toggleTheme() {
   themePref = isLight() ? 'dark' : 'light';
@@ -187,7 +185,9 @@ const EXT_ALL = ['.dwg', '.dxf', '.skp', '.glb', '.gltf', '.obj', '.stl', '.dae'
 const EXT_2D = ['.dwg', '.dxf'];
 const MIME_2D = ['application/dxf', 'application/x-dxf', 'image/vnd.dxf', 'image/x-dxf', 'application/acad', 'application/x-acad',
   'application/autocad_dwg', 'application/dwg', 'application/x-dwg', 'image/vnd.dwg', 'image/x-dwg'];
-const MIME_3D = ['application/vnd.sketchup.skp', 'application/x-sketchup', 'model/gltf-binary', 'model/gltf+json', 'model/stl', 'application/sla',
+// Android labels files by extension using the standard mime.types table, which has some odd entries:
+// .skp → application/vnd.koan (an old music format with the same extension), .obj → application/x-tgif
+const MIME_3D = ['application/vnd.sketchup.skp', 'application/x-sketchup', 'application/vnd.koan', 'application/x-koan', 'application/x-tgif', 'application/x-ply', 'model/ply', 'model/x-ply', 'model/gltf-binary', 'model/gltf+json', 'model/stl', 'application/sla',
   'application/vnd.ms-pki.stl', 'model/obj', 'model/vnd.collada+xml', 'model/x.stl-binary', 'model/3mf', 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml'];
 // CAD files are often labelled "application/octet-stream" by the app they came from (WhatsApp, Drive, email)
 const MIME_UNKNOWN = ['application/octet-stream'];
@@ -199,7 +199,8 @@ function pickerAccept(exts: string[], mimes: string[]) {
 
 // ---------------- opening files ----------------
 $('#btnOpen').onclick = () => $('#fileInput').click();
-($('#fileInput') as HTMLInputElement).onchange = async (e) => {
+$('#btnOpenAll').onclick = () => $('#fileInputAll').click();
+($('#fileInputAll') as HTMLInputElement).onchange = ($('#fileInput') as HTMLInputElement).onchange = async (e) => {
   const input = e.target as HTMLInputElement, f = input.files?.[0];
   input.value = '';
   if (f) openBytes(f.name, await f.arrayBuffer());
