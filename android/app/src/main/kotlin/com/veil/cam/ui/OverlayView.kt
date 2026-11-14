@@ -140,7 +140,8 @@ class OverlayView(ctx: Context) : View(ctx) {
     /** Framing hints change only once they have held for a moment (faces jitter). */
     private fun updateFraming() {
         if (!settings.framingGuide || recording) { hint = null; return }
-        val h = FramingAdvisor.advise(facesInFrame(), roll).lastOrNull()
+        // Levelling is shown by the level indicator; the hints are about placement.
+        val h = FramingAdvisor.advise(facesInFrame(), 0f).lastOrNull()
         val t = now()
         if (h == null) {
             if (hint != null && t - hintLost > 700) hint = null
@@ -193,6 +194,12 @@ class OverlayView(ctx: Context) : View(ctx) {
     private var multi = false
     private val slop = ViewConfiguration.get(ctx).scaledTouchSlop * 1.4f
 
+    /** Within the focus square or the sun beside it (a generous finger-sized zone). */
+    private fun onFocusHandle(x: Float, y: Float): Boolean {
+        val f = focus ?: return false
+        return kotlin.math.hypot(x - f.first, y - f.second) < dp(37f) * 2.2f
+    }
+
     /** The user's "up" on the screen for how the phone is held. */
     private fun upVector(): Pair<Float, Float> = when ((uiRotation % 360 + 360) % 360) {
         90 -> 1f to 0f
@@ -211,7 +218,9 @@ class OverlayView(ctx: Context) : View(ctx) {
             MotionEvent.ACTION_MOVE -> if (!multi) {
                 val dx = e.x - downX; val dy = e.y - downY
                 if (axis == 0 && (abs(dx) > slop || abs(dy) > slop)) {
-                    axis = if (focusVisible && exposureEnabled) 3 else if (abs(dx) > abs(dy)) 1 else 2
+                    // Exposure only when the drag starts on the focus square or its sun; anywhere
+                    // else a vertical swipe is always the settings tray, sideways the mode.
+                    axis = if (focusVisible && exposureEnabled && onFocusHandle(downX, downY)) 3 else if (abs(dx) > abs(dy)) 1 else 2
                     if (axis == 3) { dragExposure = true; parent?.requestDisallowInterceptTouchEvent(true) }
                 }
                 if (axis == 3) {
@@ -263,6 +272,7 @@ class OverlayView(ctx: Context) : View(ctx) {
         drawMarks(c)
         val area = RectF(r).apply { if (hud.width() > 0 && !intersect(hud)) set(r) }
         turned(c, area, uiRotation) { f ->
+            hint?.let { drawHintLabel(c, f, it.message) }
             if (settings.histogram) drawHistogram(c, f)
             if (settings.audio) drawMeters(c, f)
         }
@@ -454,9 +464,13 @@ class OverlayView(ctx: Context) : View(ctx) {
             c.drawCircle(tx, ty, dp(9f), p)
             c.drawCircle(fx, fy, dp(3f), p)
         }
-        val text = h.message
+    }
+
+    /** The advice, upright at the top of the free picture area (under the scene badge), never behind the controls. */
+    private fun drawHintLabel(c: Canvas, r: RectF, text: String) {
         val tw = label.measureText(text) + dp(24f); val th = dp(28f)
-        val box = RectF(r.centerX() - tw / 2, r.bottom - th - dp(16f), r.centerX() + tw / 2, r.bottom - dp(16f))
+        val top = r.top + if (sceneBadge != null) dp(40f) else dp(8f)
+        val box = RectF(r.centerX() - tw / 2, top, r.centerX() + tw / 2, top + th)
         Glass.draw(c, box, th / 2, Theme.GLASS_STRONG, resources.displayMetrics.density)
         c.drawText(text, box.centerX(), box.centerY() - (label.descent() + label.ascent()) / 2, label)
     }

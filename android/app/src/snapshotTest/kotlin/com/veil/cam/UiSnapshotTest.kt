@@ -105,8 +105,6 @@ class UiSnapshotTest {
         val faces = GlassButton(a, Glyph.FACE, "Faces", 40f).apply { active = true; glyphColor = Theme.YELLOW }
         left.addView(torch, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(12f) }); left.addView(faces)
         topBar.addView(left, FrameLayout.LayoutParams(-2, -2, Gravity.START or Gravity.CENTER_VERTICAL))
-        val chevron = GlassButton(a, Glyph.CHEVRON_UP, "Settings", 40f)
-        topBar.addView(chevron, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
         val timer = TimerPill(a).apply { visibility = View.GONE; text = "00:01:23" }
         topBar.addView(timer, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
         val right = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL }
@@ -128,6 +126,8 @@ class UiSnapshotTest {
         zoomRow.addView(zoom, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         val control = GlassButton(a, Glyph.DIAL, "Controls", 40f)
         zoomRow.addView(control, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).apply { leftMargin = dp(14f); bottomMargin = dp(3f) })
+        val chevron = GlassButton(a, Glyph.CHEVRON_UP, "Settings", 40f)
+        zoomRow.addView(chevron, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply { rightMargin = dp(14f); bottomMargin = dp(3f) })
         bottom.addView(zoomRow, LinearLayout.LayoutParams(-1, -2))
         val slot = FrameLayout(a)
         val modes = ModeCarousel(a, listOf("CINEMATIC", "VIDEO", "PHOTO", "PORTRAIT"))

@@ -521,8 +521,6 @@ class MainActivity : Activity(), Renderer.Listener {
         left.addView(torchBtn, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(12f) })
         left.addView(facesBtn)
         topBar.addView(left, FrameLayout.LayoutParams(-2, -2, Gravity.START or Gravity.CENTER_VERTICAL))
-        chevron = GlassButton(this, Glyph.CHEVRON_UP, "Camera settings", BAR_H).apply { setOnClickListener { if (trayOpen) closeTray() else openTray() } }
-        topBar.addView(chevron, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
         timer = TimerPill(this).apply { visibility = View.GONE }
         topBar.addView(timer, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
         val right = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
@@ -549,6 +547,9 @@ class MainActivity : Activity(), Renderer.Listener {
             setOnClickListener { if (controller.isOpen) controller.dismiss() else { closeTray(); controller.open(null) } }
         }
         zoomRow.addView(controlBtn, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).apply { leftMargin = dp(14f); bottomMargin = dp(3f) })
+        // Settings tray: bottom right, above the flip button (mirrors the controls dial on the left).
+        chevron = GlassButton(this, Glyph.CHEVRON_UP, "Camera settings", 40f).apply { setOnClickListener { if (trayOpen) closeTray() else openTray() } }
+        zoomRow.addView(chevron, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply { rightMargin = dp(14f); bottomMargin = dp(3f) })
         bottom.addView(zoomRow, LinearLayout.LayoutParams(-1, -2))
         val modeSlot = FrameLayout(this)
         modes = ModeCarousel(this, MODES).apply { onSelect = { i -> setMode(MODES[i]) } }
@@ -2068,4 +2069,4 @@ class MainActivity : Activity(), Renderer.Listener {
     }
 }
 
-object BuildConfigLite { const val VERSION = "1.8.0" }
+object BuildConfigLite { const val VERSION = "1.8.1" }

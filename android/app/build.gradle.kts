@@ -18,8 +18,8 @@ android {
         applicationId = "com.veil.cam"
         minSdk = 30
         targetSdk = 35
-        versionCode = 9
-        versionName = "1.8.0"
+        versionCode = 10
+        versionName = "1.8.1"
         ndk { abiFilters += listOf("arm64-v8a") } // 64-bit phones (all current devices)
     }
 
