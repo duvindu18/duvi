@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, interactive-widget=resizes-content" />
-  <meta name="theme-color" content="#0b0d12" media="(prefers-color-scheme: dark)" />
-  <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#f2f2f2" media="(prefers-color-scheme: light)" />
   <meta name="color-scheme" content="dark light" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -18,31 +18,44 @@
   <section id="home" class="screen active" aria-label="Library">
     <header class="home-head">
       <div class="brand"><span class="logo" aria-hidden="true"></span><span>CADView</span></div>
-      <button class="icon-btn" id="btnHelp" aria-label="How to use"><i data-icon="help"></i></button>
+      <div class="head-btns">
+        <button class="icon-btn" id="btnTheme" aria-label="Switch light or dark mode"><i data-icon="moon"></i></button>
+        <button class="icon-btn" id="btnHelp" aria-label="How to use"><i data-icon="help"></i></button>
+      </div>
     </header>
     <div class="home-body">
       <div class="hero">
-        <h1>Open a drawing</h1>
-        <p>View DWG, DXF and SketchUp files and 3D models. Measure, add notes and compare revisions. Works offline.</p>
-        <button class="btn primary xl" id="btnOpen"><i data-icon="open"></i>Open a file</button>
-        <div class="formats">DWG · DXF · SKP (SketchUp) · GLB/glTF · OBJ · STL · DAE · PLY · 3MF</div>
+        <h1>Open <span class="dim">DWG, DXF and</span> SketchUp <span class="dim">files on your</span> phone.</h1>
+        <p class="lead">Measure, add notes and compare revisions. Works offline.</p>
+        <button class="pill" id="btnOpen"><span>Open a file</span><span class="ico"><i data-icon="arrow" data-size="20"></i></span></button>
       </div>
-      <div class="samples">
-        <span class="label-sm">Samples</span>
-        <div class="chips">
-          <button class="chip" data-sample="floorplan-rev-A.dxf"><i data-icon="shapes" data-size="16"></i>Floor plan</button>
-          <button class="chip" data-sample="floorplan-2018.dwg"><i data-icon="shapes" data-size="16"></i>AutoCAD DWG</button>
-          <button class="chip" data-sample="house.skp"><i data-icon="cube" data-size="16"></i>SketchUp house</button>
-          <button class="chip" data-sample="house.obj"><i data-icon="cube" data-size="16"></i>3D house (OBJ)</button>
-          <button class="chip" data-sample="compare"><i data-icon="compare" data-size="16"></i>Compare revisions</button>
-        </div>
+      <div class="specs">
+        <div><b>Offline</b><span>Files are processed on the phone and never uploaded.</span></div>
+        <div><b>DWG and DXF</b><span>AutoCAD R12 to 2018+, converted on the device.</span></div>
+        <div><b>SketchUp</b><span>Components, materials and tags, even in large models.</span></div>
+        <div><b>Measure</b><span>Lengths and areas that snap to corners and ends.</span></div>
       </div>
-      <div class="lib-head"><h2 id="recentTitle">On this device</h2><span id="storage" class="label-sm"></span></div>
+
+      <div class="sec-head"><h2>Samples</h2></div>
+      <div class="sample-cards">
+        <button class="scard" data-sample="floorplan-rev-A.dxf"><div class="simg" style="background-image:url(samples/thumbs/plan.png)"></div><div class="srow"><div><b>Floor plan</b><small>DXF</small></div><span class="pill-sm">Open</span></div></button>
+        <button class="scard" data-sample="house.skp"><div class="simg" style="background-image:url(samples/thumbs/skp.png)"></div><div class="srow"><div><b>House</b><small>SketchUp</small></div><span class="pill-sm">Open</span></div></button>
+        <button class="scard" data-sample="compare"><div class="simg" style="background-image:url(samples/thumbs/compare.png)"></div><div class="srow"><div><b>Revision compare</b><small>DXF rev A → B</small></div><span class="pill-sm">Open</span></div></button>
+        <button class="scard" data-sample="floorplan-2018.dwg"><div class="simg" style="background-image:url(samples/thumbs/dwg.png)"></div><div class="srow"><div><b>Floor plan</b><small>AutoCAD DWG</small></div><span class="pill-sm">Open</span></div></button>
+        <button class="scard" data-sample="house.obj"><div class="simg" style="background-image:url(samples/thumbs/obj.png)"></div><div class="srow"><div><b>House shell</b><small>OBJ</small></div><span class="pill-sm">Open</span></div></button>
+      </div>
+
+      <div class="sec-head"><h2 id="recentTitle">Recent</h2><span id="storage" class="label-sm"></span></div>
       <ul id="recent" class="cards"></ul>
       <div id="empty" class="empty">No files yet. Files you open are listed here and can be reopened offline.</div>
+
+      <footer class="home-foot">
+        <div class="brand"><span class="logo" aria-hidden="true"></span><span>CADView</span></div>
+        <div class="fmts">DWG · DXF · SKP · GLB · GLTF · OBJ · STL · DAE · PLY · 3MF</div>
+      </footer>
     </div>
     <input id="fileInput" type="file" hidden />
-    <input id="compareInput" type="file" accept=".dxf,.dwg" hidden />
+    <input id="compareInput" type="file" hidden />
   </section>
 
   <!-- ============ Viewer ============ -->

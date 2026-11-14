@@ -21,19 +21,28 @@ const store = {
 // ---------------- theme ----------------
 const cssColor = (name: string) => new THREE.Color(getComputedStyle(root).getPropertyValue(name).trim() || '#000').getHex();
 const fgColor = () => { const bg = new THREE.Color(cssColor('--canvas')); return bg.getHSL({ h: 0, s: 0, l: 0 }).l > 0.5 ? 0x111111 : 0xf2f3f5; };
-let site = store.get('site') === '1';
-root.classList.toggle('site', site);
+// theme: 'light' | 'dark' | null (follow the phone). The old "site mode" setting becomes light mode.
+if (store.get('site') === '1' && !store.get('theme')) store.set('theme', 'light');
+let themePref = store.get('theme') as 'light' | 'dark' | null;
+const systemDark = matchMedia('(prefers-color-scheme: dark)');
+const isLight = () => (themePref ? themePref === 'light' : !systemDark.matches);
+function applyThemeClass() {
+  root.classList.toggle('light', themePref === 'light');
+  root.classList.toggle('dark', themePref === 'dark');
+}
+applyThemeClass();
 
 const viewer = new Viewer($('#canvasHost'), $('#labels'), $('#loupe') as HTMLCanvasElement);
 function applyTheme() {
   viewer.setBackground(cssColor('--canvas'));
+  syncSystemBars();
   const light = isLightCanvas();
   textUniforms.uFg.value.setHex(fgColor());
   textUniforms.uDarken.value = light ? 1 : 0;
   for (const s of [doc?.s2, compare?.scene]) {
     if (!s) continue;
     for (const m of s.fgMaterials) m.color.setHex(fgColor());
-    for (const m of s.materials) if (m.userData.orig !== undefined && m.userData.orig >= 0) m.color.setHex(adaptColor(m.userData.orig, light));
+    for (const m of s.materials) if (m.userData.orig !== undefined && m.userData.orig >= 0) m.color.setHex(adaptColor(m.userData.orig, light), THREE.SRGBColorSpace);
   }
   viewer.requestRender();
 }
@@ -41,13 +50,34 @@ const isLightCanvas = () => new THREE.Color(cssColor('--canvas')).getHSL({ h: 0,
 /** CAD palettes assume a dark screen: on a light background, darken pale colours (yellow, cyan…) so they stay readable. */
 function adaptColor(c: number, light: boolean) {
   if (!light) return c;
-  const col = new THREE.Color(c), hsl = { h: 0, s: 0, l: 0 };
-  col.getHSL(hsl);
-  const lum = 0.299 * col.r + 0.587 * col.g + 0.114 * col.b;
-  if (lum > 0.45) col.setHSL(hsl.h, Math.min(1, hsl.s * 1.05), Math.min(hsl.l, 0.32));
-  return col.getHex();
+  // plain sRGB maths: pale colours (yellow, cyan, light green…) are scaled down until readable on white
+  let r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  if (lum > 0.42) { const k = Math.min(1, 0.42 / lum) * 0.92; r = Math.round(r * k); g = Math.round(g * k); b = Math.round(b * k); }
+  return (r << 16) | (g << 8) | b;
 }
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+systemDark.addEventListener('change', () => { applyTheme(); updateThemeButtons(); });
+/** status bar and browser chrome follow the app's theme */
+function syncSystemBars() {
+  const bg = getComputedStyle(root).getPropertyValue('--bg').trim();
+  document.querySelectorAll('meta[name=theme-color]').forEach((m) => m.setAttribute('content', bg));
+  if (Capacitor.isNativePlatform()) import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
+    StatusBar.setStyle({ style: isLight() ? Style.Light : Style.Dark }).catch(() => {});
+    if (Capacitor.getPlatform() === 'android') StatusBar.setBackgroundColor({ color: bg }).catch(() => {});
+  });
+}
+function toggleTheme() {
+  themePref = isLight() ? 'dark' : 'light';
+  store.set('theme', themePref);
+  applyThemeClass();
+  applyTheme();
+  updateThemeButtons();
+  requestAnimationFrame(measurePadding);
+}
+function updateThemeButtons() {
+  const b = document.getElementById('btnTheme');
+  if (b) { b.innerHTML = icon(isLight() ? 'moon' : 'sun'); b.setAttribute('aria-label', isLight() ? 'Dark mode' : 'Light mode'); }
+}
 
 // ---------------- background worker ----------------
 class Jobs {
@@ -148,6 +178,23 @@ function measurePadding() {
     : { top: tb.bottom - r.top + 8, right: 12, bottom: r.bottom - dk.top + 12, left: 12 };
 }
 addEventListener('resize', () => requestAnimationFrame(measurePadding));
+
+// ---------------- file pickers: only supported formats ----------------
+// iOS and browsers filter by extension. On Android the extensions map to "image/…" types, which opens the
+// photo picker, so Android gets real MIME types plus a marker that our native chooser (CadFileChooser) handles.
+const EXT_ALL = ['.dwg', '.dxf', '.skp', '.glb', '.gltf', '.obj', '.stl', '.dae', '.ply', '.3mf'];
+const EXT_2D = ['.dwg', '.dxf'];
+const MIME_2D = ['application/dxf', 'application/x-dxf', 'image/vnd.dxf', 'image/x-dxf', 'application/acad', 'application/x-acad',
+  'application/autocad_dwg', 'application/dwg', 'application/x-dwg', 'image/vnd.dwg', 'image/x-dwg'];
+const MIME_3D = ['application/vnd.sketchup.skp', 'application/x-sketchup', 'model/gltf-binary', 'model/gltf+json', 'model/stl', 'application/sla',
+  'application/vnd.ms-pki.stl', 'model/obj', 'model/vnd.collada+xml', 'model/x.stl-binary', 'model/3mf', 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml'];
+// CAD files are often labelled "application/octet-stream" by the app they came from (WhatsApp, Drive, email)
+const MIME_UNKNOWN = ['application/octet-stream'];
+function pickerAccept(exts: string[], mimes: string[]) {
+  return Capacitor.getPlatform() === 'android' ? ['application/x-cadview', ...mimes, ...MIME_UNKNOWN].join(',') : exts.join(',');
+}
+($('#fileInput') as HTMLInputElement).accept = pickerAccept(EXT_ALL, [...MIME_2D, ...MIME_3D]);
+($('#compareInput') as HTMLInputElement).accept = pickerAccept(EXT_2D, MIME_2D);
 
 // ---------------- opening files ----------------
 $('#btnOpen').onclick = () => $('#fileInput').click();
@@ -356,6 +403,8 @@ function showCoach() {
   $('#coachOk').onclick = () => { $('#coach').hidden = true; store.set('coach', '1'); };
 }
 $('#btnHelp').onclick = showCoach;
+$('#btnTheme').onclick = () => { haptic.tick(); toggleTheme(); };
+updateThemeButtons();
 
 // ---------------- dock & tools ----------------
 interface DockItem { id: string; icon: IconName; label: string; run: () => void }
@@ -742,7 +791,7 @@ function showMore() {
       { id: 'views', icon: 'cube' as IconName, label: 'Views', run: showViews },
     ]),
     { id: 'units', icon: 'ruler', label: `Units: ${units()}`, run: showUnits },
-    { id: 'site', icon: 'sun', label: 'Site mode', on: site, run: toggleSite },
+    { id: 'theme', icon: (isLight() ? 'moon' : 'sun') as IconName, label: isLight() ? 'Dark mode' : 'Light mode', run: () => { toggleTheme(); showMore(); } },
     { id: 'notes', icon: 'notes', label: 'Notes', run: listNotes },
     { id: 'share', icon: 'image', label: 'Share image', run: () => { closeSheet(); snapshot(); } },
     { id: 'help', icon: 'hand', label: 'Gestures', run: () => { closeSheet(); showCoach(); } },
@@ -762,14 +811,6 @@ function toggleRotLock() {
   if (rotLock) viewer.controls.animate2D({ rot: 0 });
   toast(rotLock ? 'Rotation locked: twist no longer rotates' : 'Twist with two fingers to rotate');
   showMore();
-}
-function toggleSite() {
-  site = !site;
-  root.classList.toggle('site', site);
-  store.set('site', site ? '1' : '0');
-  applyTheme();
-  requestAnimationFrame(measurePadding);
-  if (sheetOpen()) showMore();
 }
 
 function showFind() {
@@ -929,7 +970,7 @@ function snapshot() {
   const k = src.width / (viewer.renderer.domElement.clientWidth || 1);
   out.width = src.width; out.height = src.height + Math.round(56 * k);
   const ctx = out.getContext('2d')!;
-  ctx.fillStyle = site ? '#fff' : '#0b0d12';
+  ctx.fillStyle = isLight() ? '#fff' : '#000';
   ctx.fillRect(0, 0, out.width, out.height);
   ctx.drawImage(src, 0, 0);
   ctx.font = `600 ${13 * k}px system-ui, sans-serif`;
@@ -950,7 +991,7 @@ function snapshot() {
     }
   }
   ctx.textAlign = 'left';
-  ctx.fillStyle = site ? '#000' : '#eef0f4';
+  ctx.fillStyle = isLight() ? '#0f172a' : '#eef0f4';
   ctx.font = `600 ${14 * k}px system-ui, sans-serif`;
   ctx.fillText(`${doc?.name ?? ''}  ·  ${new Date().toLocaleString()}`, 16 * k, src.height + 28 * k);
   out.toBlob((b) => b && shareFile(b, `${(doc?.name ?? 'view').replace(/\.\w+$/, '')}-markup.png`), 'image/png');

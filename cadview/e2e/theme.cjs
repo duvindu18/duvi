@@ -1,0 +1,33 @@
+// Light/dark mode switch and file-picker filters.
+const { chromium, devices } = require('playwright');
+const [url = 'http://localhost:4173/', shots = '.'] = process.argv.slice(2);
+const res = []; const check = (n, ok, i = '') => { res.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${n}${i ? ' - ' + i : ''}`); };
+(async () => {
+  const b = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
+  const p = await (await b.newContext({ ...devices['Pixel 7'], colorScheme: 'dark' })).newPage();
+  await p.addInitScript(() => localStorage.setItem('cadview.coach', '1'));
+  await p.goto(url);
+  const bg = () => p.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
+  check('follows the phone (dark) by default', (await bg()) === '#000000');
+  await p.click('#btnTheme'); await p.waitForTimeout(200);
+  check('home button switches to light mode', (await bg()) === '#f2f2f2');
+  await p.click('[data-sample="floorplan-rev-A.dxf"]'); await p.waitForSelector('#viewer.active'); await p.waitForTimeout(700);
+  await p.screenshot({ path: `${shots}/theme-light.png` });
+  await p.click('#dock [data-tool=more]'); await p.waitForTimeout(350);
+  const label = await p.textContent('.tile[data-i]:has-text("mode")');
+  check('More shows "Dark mode" while in light mode', /Dark mode/.test(label), label.trim());
+  await p.screenshot({ path: `${shots}/theme-light-more.png` });
+  await p.click('.tile:has-text("Dark mode")'); await p.waitForTimeout(300);
+  check('switching back to dark', (await bg()) === '#000000' && /Light mode/.test(await p.textContent('#sheetBody')));
+  await p.click('#sheetClose'); await p.waitForTimeout(300);
+  await p.screenshot({ path: `${shots}/theme-dark.png` });
+  await p.reload(); await p.waitForTimeout(400);
+  check('choice is remembered', (await bg()) === '#000000' && (await p.evaluate(() => localStorage.getItem('cadview.theme'))) === 'dark');
+  const acc = await p.evaluate(() => [document.querySelector('#fileInput').accept, document.querySelector('#compareInput').accept]);
+  check('Open picker only lists supported formats', acc[0] === '.dwg,.dxf,.skp,.glb,.gltf,.obj,.stl,.dae,.ply,.3mf', acc[0]);
+  check('Compare picker only lists DXF and DWG', acc[1] === '.dwg,.dxf', acc[1]);
+  const glassShadow = await p.evaluate(() => { document.documentElement.classList.add('light'); return getComputedStyle(document.querySelector('#topbar')).boxShadow; });
+  check('light mode bars have no drop shadow (hairline border only)', glassShadow === 'none', glassShadow);
+  console.log(`${res.filter(Boolean).length}/${res.length} passed`);
+  await b.close();
+})();

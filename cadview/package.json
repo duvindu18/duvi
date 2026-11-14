@@ -18,6 +18,7 @@
     "@capacitor/haptics": "^6.0.2",
     "@capacitor/ios": "^6.2.0",
     "@capacitor/share": "^6.0.3",
+    "@capacitor/status-bar": "^6.0.2",
     "@node-projects/acad-ts": "^3.8.0",
     "dxf-parser": "^1.1.2",
     "lucide": "^0.460.0",

@@ -1,7 +1,7 @@
 import {
   createElement, Ruler, SquareDashed, MapPin, Layers, Ellipsis, Search, GitCompare, Scissors, Cuboid, Sun, Share2, Maximize,
   Compass, ChevronLeft, FolderOpen, Trash2, X, Undo2, Check, Lock, LockOpen, Info, FileText, RotateCcw, Copy, Hand,
-  CircleHelp, LocateFixed, Image, Shapes, Navigation, Plus, ScanLine, Sparkles,
+  CircleHelp, LocateFixed, Image, Shapes, Navigation, Plus, ScanLine, Sparkles, Moon, ArrowRight,
 } from 'lucide';
 
 // Icons are bundled SVG (no icon font, no network): crisp at any density, identical on Android and iOS.
@@ -10,7 +10,7 @@ const ICONS = {
   section: Scissors, cube: Cuboid, sun: Sun, share: Share2, fit: Maximize, compass: Compass, back: ChevronLeft,
   open: FolderOpen, trash: Trash2, close: X, undo: Undo2, check: Check, lock: Lock, unlock: LockOpen, info: Info,
   notes: FileText, reset: RotateCcw, copy: Copy, hand: Hand, help: CircleHelp, locate: LocateFixed, image: Image,
-  shapes: Shapes, north: Navigation, plus: Plus, scan: ScanLine, sparkles: Sparkles,
+  shapes: Shapes, north: Navigation, plus: Plus, scan: ScanLine, sparkles: Sparkles, moon: Moon, arrow: ArrowRight,
 };
 export type IconName = keyof typeof ICONS;
 

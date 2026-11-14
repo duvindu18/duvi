@@ -63,7 +63,7 @@ const vert = /* glsl */ `
       vCol = vec3(floor(iB.y / 65536.0), mod(floor(iB.y / 256.0), 256.0), mod(iB.y, 256.0)) / 255.0;
       // same rule as line colours: pale CAD colours get darker on a light canvas
       float lum = dot(vCol, vec3(0.299, 0.587, 0.114));
-      if (uDarken > 0.5 && lum > 0.5) vCol *= 0.36 / max(max(vCol.r, vCol.g), vCol.b) * 1.4;
+      if (uDarken > 0.5 && lum > 0.42) vCol *= 0.42 / lum * 0.92;
     }
     gl_Position = projectionMatrix * modelViewMatrix * vec4(wp, 1.0);
   }`;

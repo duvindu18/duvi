@@ -22,7 +22,7 @@ const dens = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
     const g = Math.round(F * 0.62);
     await shot(`<div style="width:${F}px;height:${F}px;display:grid;place-items:center">${img(glyph, g)}</div>`, F, F, `${res}/mipmap-${d}/ic_launcher_foreground.png`);
   }
-  const splash = async (w, h, file) => shot(`<div style="width:${w}px;height:${h}px;background:#0b0d12;display:grid;place-items:center">${img(svg, Math.round(Math.min(w, h) * 0.28))}</div>`, w, h, file);
+  const splash = async (w, h, file) => shot(`<div style="width:${w}px;height:${h}px;background:#000000;display:grid;place-items:center">${img(svg, Math.round(Math.min(w, h) * 0.28))}</div>`, w, h, file);
   for (const f of fs.readdirSync(res).filter((x) => x.startsWith('drawable'))) {
     const file = `${res}/${f}/splash.png`;
     if (!fs.existsSync(file)) continue;
