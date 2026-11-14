@@ -61,6 +61,7 @@ export function wireSheetDrag() {
   const sheet = $('#sheet'), grab = $('#sheetGrab');
   let y0 = 0, dy = 0, dragging = false, t0 = 0;
   grab.addEventListener('pointerdown', (e) => {
+    if ((e.target as HTMLElement).closest('button')) return; // let the ✕ button get its click
     if (getComputedStyle(sheet).getPropertyValue('--side').trim() === '1') return;
     dragging = true; y0 = e.clientY; dy = 0; t0 = performance.now();
     grab.setPointerCapture(e.pointerId);

@@ -168,8 +168,7 @@ document.querySelectorAll<HTMLElement>('[data-sample]').forEach((b) => (b.onclic
 async function openBytes(name: string, data: ArrayBuffer, fromLibrary = false) {
   const ext = (name.split('.').pop() ?? '').toLowerCase();
   if (ext === 'dwg') return explainDwg();
-  if (ext === 'skp') return explainSkp();
-  if (ext !== 'dxf' && !MODEL_EXT.includes(ext)) return toast(`.${ext} files aren't supported yet`);
+  if (ext !== 'dxf' && ext !== 'skp' && !MODEL_EXT.includes(ext)) return toast(`.${ext} files aren't supported yet`);
   const id = lib.fileId(name, data), size = data.byteLength;
   // copy for the on-device library before the buffer is handed (zero-copy) to the worker
   const blob = fromLibrary ? null : new Blob([data]);
@@ -197,7 +196,12 @@ async function openBytes(name: string, data: ArrayBuffer, fromLibrary = false) {
       if (skipped.length) next.stats.push(`Not drawn yet: ${skipped.map(([k, v]) => `${v.toLocaleString()} ${k}`).join(', ')}`);
     } else {
       let s3: Scene3D;
-      if (WORKER_MESH.includes(ext)) {
+      if (ext === 'skp') {
+        const r = await jobs.run({ type: 'skp', buf: data }, [data], loading.progress);
+        if (r.type === 'skpfail') { loading.hide(); return skpFallback(name, r); }
+        s3 = await loadMainThread('glb', r.glb.buffer, viewer.renderer, loading.progress);
+        s3.root.addEventListener('edges' as any, () => viewer.requestRender());
+      } else if (WORKER_MESH.includes(ext)) {
         const r = await jobs.run({ type: 'mesh', ext, buf: data }, [data], loading.progress);
         s3 = buildMeshes(r.meshes, r.grid, r.tris);
       } else {
@@ -205,7 +209,7 @@ async function openBytes(name: string, data: ArrayBuffer, fromLibrary = false) {
         s3.root.addEventListener('edges' as any, () => viewer.requestRender());
       }
       next = {
-        id, name, ext, size, mode: '3d', units: ext === 'glb' || ext === 'gltf' ? 'm' : 'units', origin: [0, 0, 0], meta, s3, grid: s3.grid, ms: 0,
+        id, name, ext, size, mode: '3d', units: ext === 'glb' || ext === 'gltf' || ext === 'skp' ? 'm' : 'units', origin: [0, 0, 0], meta, s3, grid: s3.grid, ms: 0,
         stats: [`${Math.round(s3.tris).toLocaleString()} triangles`, `${s3.parts.length} parts`],
       };
     }
@@ -259,9 +263,16 @@ function explainDwg() {
   openSheet('DWG files', `<p>DWG is AutoCAD's closed format. To read it with no internet connection the app needs a DWG decoder. The free one (LibreDWG) would make this whole app GPL, and the commercial one (ODA) is a paid licence.</p>
     <p class="muted">For now, save the drawing as <b>DXF</b> in AutoCAD, BricsCAD or DraftSight (or with the free ODA File Converter) and open the .dxf here.</p>`);
 }
-function explainSkp() {
-  openSheet('SketchUp files', `<p>SketchUp's official file reader only runs on desktop computers, so .skp files can't be opened on a phone yet.</p>
-    <p class="muted">In SketchUp, use <b>File → Export → 3D Model</b> and choose <b>.dae</b> (keeps groups and materials), <b>.glb</b>, <b>.obj</b> or <b>.stl</b>. Then open the exported file here.</p>`);
+
+
+/** A .skp the open reader can't fully decode: show SketchUp's embedded preview and how to export. */
+function skpFallback(name: string, r: { error: string; thumb: Uint8Array | null; mime?: string }) {
+  const img = r.thumb ? URL.createObjectURL(new Blob([r.thumb], { type: r.mime })) : '';
+  openSheet(name, `
+    ${img ? `<img src="${img}" alt="Preview of ${esc(name)}" style="width:100%;border-radius:14px;background:#fff;margin-bottom:10px">` : ''}
+    <p>${img ? 'This is the preview saved inside the file. ' : ''}The 3D model uses a part of the SketchUp format the built-in reader can't decode yet.</p>
+    <p class="muted">To get the full 3D model, open it in SketchUp and use <b>File → Export → 3D Model</b> (.dae or .glb), then open that file here.</p>
+    <p class="muted" style="font-size:12px">Details: ${esc(r.error)}</p>`, undefined, { onClose: () => img && URL.revokeObjectURL(img) });
 }
 
 // ---------------- library ----------------

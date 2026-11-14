@@ -62,7 +62,7 @@ With level of detail, the 53 MB plan draws 691k segments and 0 glyphs at full vi
 |---|---|
 | DXF (ASCII, R12–2018+) | ✅ LINE, (LW)POLYLINE with bulges/arcs, 3D polylines, polyface and polygon meshes, CIRCLE, ARC, ELLIPSE, SPLINE (rational, de Boor), SOLID/TRACE/3DFACE, LEADER, TEXT/MTEXT/ATTRIB with alignment, INSERT (nested, rotated, scaled, arrays), DIMENSION. Handles OCS/extrusion (mirrored entities), layer on/off/frozen, ACI and true colour, ByLayer/ByBlock, code pages and `\U+` escapes. Paper-space layouts are skipped. Anything not drawn yet (e.g. HATCH) is **listed in File info**, never silently dropped. |
 | GLB/glTF (incl. Draco, meshopt, KTX2), OBJ, STL, PLY, DAE, 3MF | ✅ 3D. Decoders are bundled locally. |
-| **SKP** (SketchUp) | ⚠️ Trimble's SDK is desktop-only. The app explains how to export from SketchUp (.dae keeps groups and materials). |
+| **SKP** (SketchUp) | ✅ Opened **directly on the phone** with [openskp](https://github.com/iamahsanmehmood/openskp) (MIT), an open-source reader reverse-engineered from SketchUp 2013–2020 and 2021+ files. It runs in the background worker and is converted in memory to glTF, so components/groups become toggleable parts, materials are kept, and units are real metres. If a file uses something the reader can't decode, the app shows the preview image SketchUp embeds in the file and explains how to export .dae/.glb. |
 | **DWG** | ⚠️ Needs a decoder (see "Decisions needed"). The app asks the user to save as DXF for now. |
 | Binary DXF | ❌ Not yet. The app says so. |
 
@@ -83,6 +83,15 @@ node e2e/bigfiles.cjs http://localhost:4173/ /tmp/big-city.dxf /tmp/big-terrain.
 ### Phone apps
 
 The native projects are already generated in `android/` and `ios/`.
+
+Build a test APK from the command line (JDK 17+ and the Android SDK, platform 34):
+
+```bash
+npm run build && npx cap sync android
+cd android && ./gradlew assembleDebug      # → app/build/outputs/apk/debug/app-debug.apk
+```
+
+Or use Android Studio / Xcode:
 
 ```bash
 npm run cap:android   # builds the web bundle, syncs it, opens Android Studio → Run / Build APK
@@ -108,7 +117,7 @@ src/main.ts           app: library, tools, sheets, compare, notes, share
 ## Decisions needed
 
 1. **DWG decoder.** LibreDWG compiled to WebAssembly is free and works offline, but it is **GPL**, so the whole app would have to be open source. The ODA Drawings SDK is commercial (paid membership), with native Android and iOS builds.
-2. **SKP:** keep the export-from-SketchUp workflow, or add an optional cloud converter. With a converter the app is no longer offline for SKP.
+2. **SKP coverage:** openskp is a third-party reverse-engineered reader and can't be perfect for every file. Test with your real SketchUp files and report any that fail.
 
 ## Roadmap
 

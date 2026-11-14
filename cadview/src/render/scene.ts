@@ -134,7 +134,7 @@ export async function loadMainThread(ext: string, buf: ArrayBuffer, renderer: TH
   for (const top of topLevel) {
     const merged = mergePart(top);
     if (!merged.children.length) continue;
-    merged.name = top.name || `Part ${parts.length + 1}`;
+    merged.name = prettyName(top.name) || `Part ${parts.length + 1}`;
     root.add(merged);
     parts.push(merged);
     merged.traverse((o: any) => { if (o.isMesh) tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; });
@@ -231,4 +231,14 @@ function addEdgesProgressively(root: THREE.Object3D) {
     if (meshes.length) setTimeout(step, 16);
   };
   setTimeout(step, 30);
+}
+
+/** "Door_900_2" → "Door 900 (3)", "ROOT_MODEL" → "Model" (glTF exporters mangle names). */
+function prettyName(n: string): string {
+  if (!n) return '';
+  let s = n.replace(/^ROOT_MODEL/, 'Model');
+  const m = s.match(/^(.*?)_(\d+)$/);
+  let suffix = '';
+  if (m && m[1] && +m[2] < 100) { s = m[1]; suffix = ` (${+m[2] + 1})`; } // exporter de-dup suffix, not part of the name
+  return s.replace(/_/g, ' ').trim() + suffix;
 }

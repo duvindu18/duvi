@@ -15,7 +15,8 @@ export const EDGE_TRI_LIMIT = 600_000;
 export type Req =
   | { type: 'dxf'; id: number; buf: ArrayBuffer }
   | { type: 'compare'; id: number; base: ArrayBuffer; other: ArrayBuffer; origin: [number, number, number] }
-  | { type: 'mesh'; id: number; ext: string; buf: ArrayBuffer };
+  | { type: 'mesh'; id: number; ext: string; buf: ArrayBuffer }
+  | { type: 'skp'; id: number; buf: ArrayBuffer };
 
 export interface MeshOut {
   name: string; part: number;
@@ -41,9 +42,33 @@ function collect2(o: any) { const s = new Set<ArrayBuffer>(); collect(o, s); ret
 
 function dxfGrid(d: Drawing): SnapGrid { return buildGrid(d.snap, d.snapLayer, false); }
 
-self.onmessage = (e: MessageEvent<Req>) => {
+self.onmessage = async (e: MessageEvent<Req>) => {
   const m = e.data;
   try {
+    if (m.type === 'skp') {
+      // SketchUp: open-source reverse-engineered reader (openskp, MIT), loaded only when needed.
+      // Reads both the 2021+ (VFF/zip) and 2013–2020 (MFC CArchive) containers, entirely on the device.
+      progress(m.id, 'Reading SketchUp model', 0.05);
+      const skp = await import('openskp');
+      let glb: Uint8Array;
+      try {
+        const scene = skp.buildInstancedScene(m.buf, {
+          onProgress: (p: any) => progress(m.id, 'Reading SketchUp model', Math.min(0.9, 0.1 + 0.8 * (p.fraction ?? (p.total ? p.current / p.total : 0.5)))),
+        } as any);
+        progress(m.id, 'Building 3D model', 0.92);
+        glb = skp.toInstancedGLB(scene);
+      } catch (err: any) {
+        // fall back to the preview image SketchUp stores inside the file, so the user still sees the model
+        let thumb: { data: Uint8Array; mimeType: string } | null = null;
+        try { thumb = skp.extractThumbnail(m.buf); } catch { /* no preview either */ }
+        const data = thumb ? thumb.data.slice() : null;
+        post({ type: 'skpfail', id: m.id, error: String(err?.message ?? err).slice(0, 200), thumb: data, mime: thumb?.mimeType }, data ? [data.buffer] : []);
+        return;
+      }
+      const out = glb.byteOffset === 0 && glb.byteLength === glb.buffer.byteLength ? glb : glb.slice();
+      post({ type: 'skp', id: m.id, glb: out }, [out.buffer]);
+      return;
+    }
     if (m.type === 'dxf') {
       const w0 = performance.now();
       const d = parseDxf(new Uint8Array(m.buf), { onProgress: (f) => progress(m.id, 'Reading drawing', f) });
