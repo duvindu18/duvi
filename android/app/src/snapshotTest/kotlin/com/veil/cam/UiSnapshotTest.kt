@@ -73,41 +73,50 @@ class UiSnapshotTest {
         val pause: GlassButton, val flip: GlassButton, val snap: SnapButton, val rot: List<View>, val format: FormatPill, val toast: HudToast,
     )
 
-    /** The camera screen's layout, as built by MainActivity.buildUi. */
+    /** The camera screen's layout, as built by MainActivity.buildUi / layoutFrame. */
     private fun screen(): Screen {
+        val W = 1344; val H = 2992
+        val barTop = dp(50f) // just below the Pixel 9 Pro XL camera hole
+        val vh = W * 16 / 9
+        val top = barTop + dp(46f)
+        val band = maxOf(dp(96f), H - dp(16f) - (top + vh))
         val root = FrameLayout(a).apply { setBackgroundColor(Color.BLACK) }
-        val bg = background()
-        val content = RectF(0f, (2992 - 1344 * 16 / 9) / 2f, 1344f, (2992 + 1344 * 16 / 9) / 2f)
-        if (bg != null) {
-            val img = ImageView(a).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setImageBitmap(bg) }
-            root.addView(img, FrameLayout.LayoutParams(1344, content.height().toInt(), Gravity.CENTER))
-        }
+        val vf = FrameLayout(a)
+        root.addView(vf, FrameLayout.LayoutParams(-1, vh, Gravity.TOP).apply { topMargin = top })
+        background()?.let { bg -> vf.addView(ImageView(a).apply { scaleType = ImageView.ScaleType.CENTER_CROP; setImageBitmap(bg) }, FrameLayout.LayoutParams(-1, -1)) }
         val overlay = OverlayView(a).apply {
-            settings = Settings(histogram = true, level = true, grid = false)
-            this.content = content
+            settings = Settings(histogram = true, level = true, grid = true)
+            content = RectF(0f, 0f, W.toFloat(), vh.toFloat())
             setHistogram(IntArray(64) { (40 + 30 * kotlin.math.sin(it / 6.0) + it).toInt() }, IntArray(64) { 30 + it }, IntArray(64) { 50 }, IntArray(64) { 60 - it / 2 })
             levels = floatArrayOf(-14f, -18f)
+            hud = RectF(0f, dp(6f).toFloat(), W.toFloat(), vh - dp(170f).toFloat())
         }
-        root.addView(overlay, FrameLayout.LayoutParams(-1, -1))
-        val ui = FrameLayout(a).apply { setPadding(dp(14f), dp(40f), dp(14f), dp(16f)); clipChildren = false; clipToPadding = false }
-        val top = FrameLayout(a)
+        vf.addView(overlay, FrameLayout.LayoutParams(-1, -1))
+        val bandTop = H - dp(16f) - band
+        val scrimTop = maxOf(top, bandTop - dp(190f))
+        root.addView(android.view.View(a).apply {
+            background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(0x00000000, 0x40000000, 0x8C000000.toInt(), 0xCC000000.toInt()))
+        }, FrameLayout.LayoutParams(-1, top + vh - scrimTop, Gravity.TOP).apply { topMargin = scrimTop })
+        val ui = FrameLayout(a).apply { setPadding(dp(14f), 0, dp(14f), dp(16f)); clipChildren = false; clipToPadding = false }
+        val topBar = FrameLayout(a)
         val left = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL }
-        val torch = GlassButton(a, Glyph.BOLT, "Torch", 36f)
-        val faces = GlassButton(a, Glyph.FACE, "Faces", 36f).apply { active = true; glyphColor = Theme.YELLOW }
-        left.addView(torch, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(10f) }); left.addView(faces)
-        top.addView(left, FrameLayout.LayoutParams(-2, -2, Gravity.START or Gravity.CENTER_VERTICAL))
-        val chevron = GlassButton(a, Glyph.CHEVRON_UP, "Settings", 32f)
-        top.addView(chevron, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
+        val torch = GlassButton(a, Glyph.BOLT, "Torch", 40f)
+        val faces = GlassButton(a, Glyph.FACE, "Faces", 40f).apply { active = true; glyphColor = Theme.YELLOW }
+        left.addView(torch, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(12f) }); left.addView(faces)
+        topBar.addView(left, FrameLayout.LayoutParams(-2, -2, Gravity.START or Gravity.CENTER_VERTICAL))
+        val chevron = GlassButton(a, Glyph.CHEVRON_UP, "Settings", 40f)
+        topBar.addView(chevron, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
         val timer = TimerPill(a).apply { visibility = View.GONE; text = "00:01:23" }
-        top.addView(timer, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
+        topBar.addView(timer, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
         val right = LinearLayout(a).apply { gravity = Gravity.CENTER_VERTICAL }
-        val depth = GlassButton(a, null, "Depth", 32f, "ƒ2.8").apply { visibility = View.GONE }
-        val format = FormatPill(a).apply { this.left = "4K"; this.right = "24" }
-        right.addView(depth, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(8f) }); right.addView(format)
-        top.addView(right, FrameLayout.LayoutParams(-2, -2, Gravity.END or Gravity.CENTER_VERTICAL))
-        ui.addView(top, FrameLayout.LayoutParams(-1, dp(44f), Gravity.TOP).apply { topMargin = dp(4f) })
+        val heat = GlassButton(a, Glyph.THERMO, "Heat", 40f).apply { glyphColor = Theme.RED }
+        val format = FormatPill(a, 40f).apply { this.left = "HD"; this.right = "24" }
+        right.addView(heat, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(12f) }); right.addView(format)
+        topBar.addView(right, FrameLayout.LayoutParams(-2, -2, Gravity.END or Gravity.CENTER_VERTICAL))
+        ui.addView(topBar, FrameLayout.LayoutParams(-1, dp(44f), Gravity.TOP).apply { topMargin = barTop })
         val toast = HudToast(a)
-        ui.addView(toast, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(58f) })
+        ui.addView(toast, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = top + dp(12f) })
         val bottom = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; clipChildren = false }
         val controller = ControllerView(a, source).apply {
             specs = listOf(ControlSpec("EV", "Exposure", Glyph.SUN), ControlSpec("ISO", "ISO", Glyph.ISO), ControlSpec("SHUTTER", "Shutter", Glyph.SHUTTER),
@@ -118,31 +127,29 @@ class UiSnapshotTest {
         val zoom = ZoomControl(a).apply { minZoom = 0.5f; maxZoom = 30f; stops = listOf(0.5f, 1f, 2f, 5f); zoom = 1f }
         zoomRow.addView(zoom, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         val control = GlassButton(a, Glyph.DIAL, "Controls", 40f)
-        zoomRow.addView(control, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).apply { leftMargin = dp(18f); bottomMargin = dp(3f) })
+        zoomRow.addView(control, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).apply { leftMargin = dp(14f); bottomMargin = dp(3f) })
         bottom.addView(zoomRow, LinearLayout.LayoutParams(-1, -2))
         val slot = FrameLayout(a)
         val modes = ModeCarousel(a, listOf("CINEMATIC", "VIDEO", "PHOTO", "PORTRAIT"))
         slot.addView(modes, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER))
         val tray = TrayView(a).apply { visibility = View.GONE }
         slot.addView(tray, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER))
-        bottom.addView(slot, LinearLayout.LayoutParams(-1, dp(76f)))
+        bottom.addView(slot, LinearLayout.LayoutParams(-1, dp(72f)).apply { bottomMargin = dp(2f) })
         val row = FrameLayout(a)
         val thumb = ThumbView(a)
         val pause = GlassButton(a, Glyph.PAUSE, "Pause", 48f).apply { visibility = View.GONE }
         val shutter = ShutterButton(a)
         val flip = GlassButton(a, Glyph.FLIP, "Flip", 48f)
         val snap = SnapButton(a).apply { visibility = View.GONE }
-        row.addView(thumb, FrameLayout.LayoutParams(-2, -2, Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(28f) })
-        row.addView(pause, FrameLayout.LayoutParams(-2, -2, Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(27f) })
+        for ((v, g) in listOf(thumb to Gravity.START, pause to Gravity.START, flip to Gravity.END, snap to Gravity.END)) {
+            row.addView(v, FrameLayout.LayoutParams(dp(50f), dp(50f), g or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(30f); rightMargin = dp(30f) })
+        }
         row.addView(shutter, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
-        row.addView(flip, FrameLayout.LayoutParams(-2, -2, Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(27f) })
-        row.addView(snap, FrameLayout.LayoutParams(-2, -2, Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(27f) })
-        bottom.addView(row, LinearLayout.LayoutParams(-1, dp(100f)))
+        bottom.addView(row, LinearLayout.LayoutParams(-1, band))
         ui.addView(bottom, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         root.addView(ui, FrameLayout.LayoutParams(-1, -1))
-        modes.select(1, animate = false)
-        bg?.let { thumb.set(Bitmap.createScaledBitmap(it, 160, 160, true), false) }
-        overlay.hud = RectF(0f, dp(96f).toFloat(), 1344f, 2992f - dp(330f))
+        modes.select(3, animate = false)
+        background()?.let { thumb.set(Bitmap.createScaledBitmap(it, 160, 160, true), false) }
         return Screen(root, overlay, modes, tray, controller, zoom, shutter, timer, chevron, thumb, pause, flip, snap,
             listOf(torch, faces, control, thumb, pause, flip, snap), format, toast)
     }

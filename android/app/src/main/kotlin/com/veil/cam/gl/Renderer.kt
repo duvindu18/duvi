@@ -62,7 +62,10 @@ import kotlin.math.sin
  * never recorded unblurred. The preview shows the same frames by default; "low
  * latency preview" shows the newest frame with faces predicted from their motion.
  */
-class Renderer(private val context: Context, private val engine: FaceEngine, private val segmenter: com.veil.cam.face.PersonSegmenter) {
+class Renderer(
+    private val context: Context, private val engine: FaceEngine, private val segmenter: com.veil.cam.face.PersonSegmenter,
+    private val depthNet: com.veil.cam.face.DepthEstimator,
+) {
     interface Listener {
         fun onCameraSurface(surface: Surface, size: Size)
         fun onDisplayTransform(imgW: Int, imgH: Int, content: RectF, viewToImg: FloatArray)
@@ -80,10 +83,12 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         var ts = 0L
         var blurReady = false // the 1/4-res blur is only built when a composite needs it
         var depth = 0f // background blur strength for this frame (eased, see easeDepth)
+        var focus = 0.5f; var focusHalf = 0f; var far = 0f // focus plane for this frame (eased)
     }
 
     private class Readback(
         val ts: Long, val specs: List<PassSpec>, val pbos: IntArray, val fence: Long, val faces: Boolean, val people: Boolean,
+        val depth: Boolean = false,
     )
 
     var listener: Listener? = null
@@ -96,6 +101,12 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
     private var peopleTex = 0
     private var depthNow = 0f
     private var depthTs = 0L
+    // Depth map (monocular depth) and the eased focus plane.
+    private var depthTex = 0
+    private var depthMap: com.veil.cam.face.DepthMap? = null
+    private var focusNow = Float.NaN; private var halfNow = 0f; private var farNow = 0f
+    private var lastDepthCapture = Long.MIN_VALUE / 4
+    @Volatile private var focusPoint: FloatArray? = null // image px, or null for automatic
     private val depthFx = DepthFx({ p, n -> loc(p, n) }, { u, t -> bindTex(u, t) })
     private var peopleMask: com.veil.cam.face.PersonMask? = null
     private val startNs = System.nanoTime()
@@ -407,6 +418,8 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         copyFrame(slot)
         slot.blurReady = false
         slot.depth = easeDepth(ts)
+        depthNet.latest?.let { m -> if (m !== depthMap) { uploadDepth(m); depthMap = m } }
+        easeFocus(slot)
         pending.addLast(slot)
         newest = slot
 
@@ -514,11 +527,13 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         if (!s.lowLatencyPreview) faceEvery = min(faceEvery, MAX_STRIDE * frameNs)
         val wantFaces = s.blurOn && !engine.isBusy && engine.ready && DetectPacer.due(ts - lastFaceCapture, faceEvery, frameNs)
         val wantPeople = s.depth > 0f && !segmenter.isBusy && DetectPacer.due(ts - lastPeopleCapture, budget.segmentNs, frameNs)
+        val wantDepth = s.depth > 0f && depthNet.usable && !depthNet.isBusy && DetectPacer.due(ts - lastDepthCapture, budget.depthNs, frameNs)
         val now = SystemClock.uptimeMillis()
         val wantHist = (s.histogram || s.shutterPriority) && now - lastHistCapture >= 150
-        if (!(wantFaces || wantPeople || wantHist)) return
+        if (!(wantFaces || wantPeople || wantDepth || wantHist)) return
         if (wantFaces) lastFaceCapture = ts
         if (wantPeople) lastPeopleCapture = ts
+        if (wantDepth) lastDepthCapture = ts
         lastHistCapture = now
         val baseSide = if (settings.accurateModel) 640 else 480
         val base = PassPlanner.base(imgW, imgH, baseAngle(), baseSide)
@@ -545,7 +560,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         }
         val fence = GLES30.glFenceSync(GLES30.GL_SYNC_GPU_COMMANDS_COMPLETE, 0)
         GLES30.glFlush()
-        readback = Readback(slot.ts, specs, ids, fence, wantFaces, wantPeople)
+        readback = Readback(slot.ts, specs, ids, fence, wantFaces, wantPeople, wantDepth)
     }
 
     /** One pixel-pack buffer per pass index and size, so passes of one batch never share. */
@@ -584,6 +599,15 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         }
         if (passes.isNotEmpty()) maybeHistogram(passes[0])
         if (rb.people && settings.depth > 0f && passes.isNotEmpty()) segmenter.submit(passes[0].pixels.copyOf(), passes[0].spec, rb.ts)
+        if (rb.depth && settings.depth > 0f && passes.isNotEmpty()) {
+            val spec = passes[0].spec
+            // A tapped focus point, in canvas uv.
+            val tap = focusPoint?.let { fp ->
+                val m = spec.toCanvas
+                floatArrayOf(((m.a * fp[0] + m.b * fp[1] + m.c) / spec.width).toFloat(), ((m.d * fp[0] + m.e * fp[1] + m.f) / spec.height).toFloat())
+            }?.takeIf { it[0] in 0f..1f && it[1] in 0f..1f }
+            depthNet.submit(passes[0].pixels.copyOf(), spec, rb.ts, segmenter.latest, tap)
+        }
         val ok = rb.faces && settings.blurOn && engine.submit(DetectBatch(rb.ts, imgW, imgH, passes) { owned.forEach { recycleArray(it) } })
         if (!ok) owned.forEach { recycleArray(it) }
     }
@@ -795,8 +819,12 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         val taps = when { budget.tier <= 2 -> 96; budget.tier == 3 -> 64; else -> 48 }
         val quarter = (outputRotation / 90) % 2 == 1
         val params = DepthFx.Params(MAX_BLUR * slot.depth, taps, s.bokehShape, s.bokehHighlights, quarter)
-        val key = "${System.identityHashCode(slot)}:${slot.ts}:${pm.serial}:${slot.depth}:$taps:${s.bokehShape}:${s.bokehHighlights}:$quarter"
-        return depthFx.ensure(key, slot.color.tex, peopleTex, peopleMatrix(pm), imgW, imgH, slot.blur.tex, params)
+        val dm = depthMap
+        // Depth of field shrinks as the aperture opens (strength = 1.4 / f-number).
+        val dof = DepthFx.Dof(if (dm != null) depthTex else 0, dm?.let { depthMatrix(it) }, slot.focus, slot.focusHalf, slot.far,
+            0.04f + 0.22f * (1f - slot.depth.coerceIn(0f, 1f)), 0.55f)
+        val key = "${System.identityHashCode(slot)}:${slot.ts}:${pm.serial}:${dm?.serial}:${slot.depth}:${slot.focus}:$taps:${s.bokehShape}:${s.bokehHighlights}:$quarter"
+        return depthFx.ensure(key, slot.color.tex, peopleTex, peopleMatrix(pm), imgW, imgH, slot.blur.tex, params, dof)
     }
 
     private fun composite(slot: Slot, outW: Int, outH: Int, rot: Int, fill: Boolean, lut: Boolean, mirror: Boolean, faces: List<Geom>, depth: DepthFx.Result? = null) {
@@ -1036,6 +1064,36 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
      * Background blur eases towards its target (mode switch, new aperture, the person mask
      * arriving) like a focus pull, frame by frame on the camera clock, instead of jumping.
      */
+    /** Focus point for cinematic depth (image px), or null to follow the subject. */
+    fun setFocusPoint(x: Float?, y: Float?) { focusPoint = if (x == null || y == null) null else floatArrayOf(x, y) }
+
+    /** The focus plane follows the depth map's subject with a focus pull, not a jump. */
+    private fun easeFocus(slot: Slot) {
+        val dm = depthMap
+        if (dm != null) {
+            if (focusNow.isNaN()) { focusNow = dm.focus; halfNow = dm.half; farNow = dm.far }
+            val k = 1f - kotlin.math.exp(-(frameNs / 1e9f) / FOCUS_EASE_S)
+            focusNow += (dm.focus - focusNow) * k
+            halfNow += (dm.half - halfNow) * k
+            farNow += (dm.far - farNow) * k
+        }
+        slot.focus = if (focusNow.isNaN()) 0.5f else focusNow
+        slot.focusHalf = halfNow; slot.far = farNow
+    }
+
+    private fun depthMatrix(dm: com.veil.cam.face.DepthMap): FloatArray {
+        val m = dm.spec.toCanvas
+        val sx = 1.0 / dm.spec.width; val sy = 1.0 / dm.spec.height
+        return mat3(floatArrayOf((m.a * sx).toFloat(), (m.b * sx).toFloat(), (m.c * sx).toFloat(), (m.d * sy).toFloat(), (m.e * sy).toFloat(), (m.f * sy).toFloat()))
+    }
+
+    private fun uploadDepth(m: com.veil.cam.face.DepthMap) {
+        if (depthTex == 0) depthTex = maskTexture(1, 1, byteArrayOf(0, 0))
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, depthTex)
+        GLES30.glPixelStorei(GLES30.GL_UNPACK_ALIGNMENT, 1)
+        GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D, 0, GLES30.GL_R8, m.width, m.height, 0, GLES30.GL_RED, GLES30.GL_UNSIGNED_BYTE, ByteBuffer.wrap(m.data))
+    }
+
     private fun easeDepth(ts: Long): Float {
         val target = if (settings.depth > 0f && peopleMask != null) settings.depth else 0f
         val dt = if (depthTs == 0L) 0f else ((ts - depthTs) / 1e9f).coerceIn(0f, 0.1f)
@@ -1050,6 +1108,7 @@ class Renderer(private val context: Context, private val engine: FaceEngine, pri
         /** Blur radius at the widest aperture (fraction of the frame's short side). */
         const val MAX_BLUR = 0.07f
         private const val DEPTH_EASE_S = 0.22f // time constant: settles in ~0.7 s
+        private const val FOCUS_EASE_S = 0.3f // focus pulls between subjects take ~1 s
         private const val TAG = "VeilGL"
         // Simulated over 24-60 fps, every power tier and 8-35 ms detections: with these,
         // no frame is ever emitted before its detection and the preview never drops one.

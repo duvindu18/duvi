@@ -29,6 +29,7 @@ data class PowerBudget(
     val segmentNs: Long, // cinematic depth person mask
     val previewScale: Float, // preview render size relative to the native-resolution size
     val preferEfficiency: Boolean, // ask the CPU scheduler for efficiency over peak speed
+    val depthNs: Long = 160 * 1_000_000L, // monocular depth map for cinematic depth
 ) {
     companion object {
         private const val MS = 1_000_000L
@@ -38,11 +39,11 @@ data class PowerBudget(
             // Max quality keeps full speed while recording unless the phone is hot.
             val t = if (mode == PowerMode.MAX && recording && thermal == 0) 0 else base.coerceIn(1, 4)
             return when (t) {
-                0 -> PowerBudget(0, 0, 0, 0, 2, 0, 1f, false)
-                1 -> PowerBudget(1, 100 * MS, 66 * MS, 0, 2, 50 * MS, 1f, true) // depth mask at 20 fps
-                2 -> PowerBudget(2, 150 * MS, 100 * MS, 33 * MS, 3, 100 * MS, 0.85f, true)
-                3 -> PowerBudget(3, 200 * MS, 125 * MS, 50 * MS, 3, 150 * MS, 0.7f, true)
-                else -> PowerBudget(4, 250 * MS, 150 * MS, 66 * MS, 4, 200 * MS, 0.6f, true)
+                0 -> PowerBudget(0, 0, 0, 0, 2, 0, 1f, false, 100 * MS)
+                1 -> PowerBudget(1, 100 * MS, 66 * MS, 0, 2, 50 * MS, 1f, true, 160 * MS) // person mask at 20 fps
+                2 -> PowerBudget(2, 150 * MS, 100 * MS, 33 * MS, 3, 100 * MS, 0.85f, true, 250 * MS)
+                3 -> PowerBudget(3, 200 * MS, 125 * MS, 50 * MS, 3, 150 * MS, 0.7f, true, 400 * MS)
+                else -> PowerBudget(4, 250 * MS, 150 * MS, 66 * MS, 4, 200 * MS, 0.6f, true, 600 * MS)
             }
         }
     }

@@ -192,7 +192,7 @@ class OverlayView(ctx: Context) : View(ctx) {
         if (r.width() <= 0) return
         turned(c, r, frameRotation) { f -> drawGuides(c, f); if (settings.grid) drawGrid(c, f) }
         if (settings.showBoxes) drawFaces(c)
-        turned(c, r, uiRotation) { f -> if (settings.level) drawLevel(c, f); if (startingHint) drawStarting(c, f) }
+        turned(c, r, uiRotation) { f -> if (settings.level && abs(roll) < 12f) drawLevel(c, f); if (startingHint) drawStarting(c, f) }
         val area = RectF(r).apply { if (hud.width() > 0 && !intersect(hud)) set(r) }
         turned(c, area, uiRotation) { f ->
             if (settings.histogram) drawHistogram(c, f)
@@ -261,12 +261,14 @@ class OverlayView(ctx: Context) : View(ctx) {
 
     /** Level: two short lines that turn yellow and join when the phone is level. */
     private fun drawLevel(c: Canvas, r: RectF) {
-        val len = dp(46f)
+        val len = dp(34f)
         val ok = abs(roll) < 1f
         p.style = Paint.Style.STROKE
         p.strokeCap = Paint.Cap.ROUND
-        p.strokeWidth = dp(1.6f)
-        p.color = if (ok) Theme.YELLOW else Color.argb(220, 255, 255, 255)
+        p.strokeWidth = dp(1.2f)
+        // Fades in as the phone gets close to level.
+        val a = (1f - (abs(roll) - 6f) / 6f).coerceIn(0f, 1f)
+        p.color = if (ok) Theme.YELLOW else Color.argb((200 * a).toInt(), 255, 255, 255)
         val cx = r.centerX(); val cy = r.centerY()
         c.drawLine(cx - len * 2, cy, cx - len, cy, p)
         c.drawLine(cx + len, cy, cx + len * 2, cy, p)
@@ -328,8 +330,8 @@ class OverlayView(ctx: Context) : View(ctx) {
 
     private fun drawHistogram(c: Canvas, r: RectF) {
         val h = hist ?: return
-        val w = dp(118f); val hh = dp(50f)
-        val x0 = r.left + dp(10f)
+        val w = dp(110f); val hh = dp(60f)
+        val x0 = r.left + dp(14f)
         val y0 = r.top + dp(10f)
         val box = RectF(x0, y0, x0 + w, y0 + hh)
         Glass.draw(c, box, dp(9f), Theme.GLASS, resources.displayMetrics.density)
@@ -353,13 +355,15 @@ class OverlayView(ctx: Context) : View(ctx) {
     }
 
     private fun drawMeters(c: Canvas, r: RectF) {
-        val w = dp(5f); val hh = dp(64f)
-        val x0 = r.right - dp(26f)
-        val y0 = r.top + dp(10f)
+        val w = dp(4f); val hh = dp(44f)
+        val x0 = r.right - dp(14f) - dp(8f) - 2 * w - dp(3f)
+        val y0 = r.top + dp(18f) // backing spans the histogram's row exactly (10..70 dp)
+        val back = RectF(x0 - dp(8f), y0 - dp(8f), x0 + 2 * w + dp(3f) + dp(8f), y0 + hh + dp(8f))
+        Glass.draw(c, back, dp(9f), Theme.GLASS, resources.displayMetrics.density)
         p.style = Paint.Style.FILL
         for (ch in 0..1) {
-            val x = x0 + ch * (w + dp(4f))
-            p.color = Color.argb(120, 0, 0, 0)
+            val x = x0 + ch * (w + dp(3f))
+            p.color = Color.argb(90, 255, 255, 255)
             c.drawRoundRect(x, y0, x + w, y0 + hh, w / 2, w / 2, p)
             val db = levels[ch].coerceIn(-60f, 0f)
             val f = (db + 60f) / 60f

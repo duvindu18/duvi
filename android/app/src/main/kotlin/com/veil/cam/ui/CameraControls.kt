@@ -66,7 +66,7 @@ class GlassButton(ctx: Context, glyph: Glyph?, desc: String, private val sizeDp:
     override fun onMeasure(w: Int, h: Int) {
         val s = dp(sizeDp).roundToInt()
         val t = text
-        if (t == null) setMeasuredDimension(s, s) else {
+        if (t == null) setMeasuredDimension(resolveSize(s, w), resolveSize(s, h)) else {
             val gw = if (glyph != null) dp(18f) else 0f
             setMeasuredDimension(max(s.toFloat(), tp.measureText(t) + gw + dp(26f)).roundToInt(), s)
         }
@@ -100,7 +100,7 @@ class GlassButton(ctx: Context, glyph: Glyph?, desc: String, private val sizeDp:
 }
 
 /** Format pill "4K · 24": tap the left half for resolution, the right half for frame rate. */
-class FormatPill(ctx: Context) : View(ctx) {
+class FormatPill(ctx: Context, private val heightDp: Float = 32f) : View(ctx) {
     var left = "4K"
         set(v) { field = v; requestLayout(); invalidate() }
     var right = "24"
@@ -115,7 +115,7 @@ class FormatPill(ctx: Context) : View(ctx) {
 
     override fun onMeasure(w: Int, h: Int) {
         val tw = tp.measureText(left) + tp.measureText(right) + dp(16f) + dp(28f)
-        setMeasuredDimension(tw.roundToInt(), dp(32f).roundToInt())
+        setMeasuredDimension(tw.roundToInt(), dp(heightDp).roundToInt())
     }
 
     override fun onDraw(c: Canvas) {
@@ -238,7 +238,7 @@ class SnapButton(ctx: Context) : View(ctx) {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     init { isClickable = true; contentDescription = "Take photo" }
     override fun setPressed(pressed: Boolean) { if (pressed != isPressed) pressFeedback(pressed, 0.86f); super.setPressed(pressed) }
-    override fun onMeasure(w: Int, h: Int) { val s = dp(48f).roundToInt(); setMeasuredDimension(s, s) }
+    override fun onMeasure(w: Int, h: Int) { val s = dp(48f).roundToInt(); setMeasuredDimension(resolveSize(s, w), resolveSize(s, h)) }
     override fun onDraw(c: Canvas) {
         val R = width / 2f
         p.style = Paint.Style.STROKE; p.strokeWidth = dp(2.5f); p.color = Color.WHITE
@@ -290,10 +290,16 @@ class ModeCarousel(ctx: Context, val modes: List<String>) : View(ctx) {
     override fun onDraw(c: Canvas) {
         val cx = width / 2f
         val base = height / 2f - (tp.descent() + tp.ascent()) / 2
+        val fade = dp(56f)
         for (i in modes.indices) {
             val x = cx + centreOf(i) - offset
-            val d = abs(centreOf(i) - offset)
-            tp.color = if (i == selected) Theme.YELLOW else Color.argb((235 - min(120f, d / 3f)).toInt(), 255, 255, 255)
+            val half = tp.measureText(modes[i]) / 2
+            // Labels running off the screen fade out instead of being cut.
+            val edge = (minOf(x - half, width - (x + half)) / fade + 1f).coerceIn(0f, 1f)
+            if (edge <= 0f) continue
+            val a = if (i == selected) 1f else 0.82f
+            tp.color = if (i == selected) Theme.YELLOW else Color.WHITE
+            tp.alpha = (255 * a * edge).toInt()
             c.drawText(modes[i], x, base, tp)
         }
     }
@@ -339,7 +345,7 @@ class ThumbView(ctx: Context) : View(ctx) {
     init { isClickable = true; contentDescription = "Last capture" }
 
     override fun setPressed(pressed: Boolean) { if (pressed != isPressed) pressFeedback(pressed, 0.9f); super.setPressed(pressed) }
-    override fun onMeasure(w: Int, h: Int) { val s = dp(46f).roundToInt(); setMeasuredDimension(s, s) }
+    override fun onMeasure(w: Int, h: Int) { val s = dp(46f).roundToInt(); setMeasuredDimension(resolveSize(s, w), resolveSize(s, h)) }
 
     fun set(b: Bitmap?, pop: Boolean) {
         bmp = b
@@ -615,6 +621,10 @@ class TrayView(ctx: Context) : FrameLayout(ctx) {
     val buttons = ArrayList<View>()
 
     init {
+        background = GlassDrawable(Theme.dp(ctx, 26f), Theme.GLASS_STRONG, ctx.resources.displayMetrics.density)
+        setPadding(0, Theme.dpi(ctx, 6f), 0, Theme.dpi(ctx, 4f))
+        mainScroll.isHorizontalFadingEdgeEnabled = true; mainScroll.setFadingEdgeLength(Theme.dpi(ctx, 24f))
+        subScroll.isHorizontalFadingEdgeEnabled = true; subScroll.setFadingEdgeLength(Theme.dpi(ctx, 24f))
         mainScroll.addView(mainRow)
         subScroll.addView(subRow)
         addView(mainScroll, LayoutParams(-1, -2, Gravity.CENTER))
@@ -629,13 +639,12 @@ class TrayView(ctx: Context) : FrameLayout(ctx) {
         mainRow.setPadding(d(12f), 0, d(12f), 0)
         for (it in list) {
             val col = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
-            val b = GlassButton(context, it.glyph, it.caption, 44f).apply { active = it.active; setOnClickListener { _ -> pick(it) } }
-            col.addView(b)
+            val b = GlassButton(context, it.glyph, it.caption, 40f).apply { active = it.active; fillColor = 0x33FFFFFF; setOnClickListener { _ -> pick(it) } }
+            col.addView(b, LinearLayout.LayoutParams(d(40f), d(40f)))
             col.addView(TextView(context).apply {
-                text = it.caption; textSize = 10.5f; typeface = Theme.semibold; setTextColor(if (it.active) Theme.YELLOW else 0xE6FFFFFF.toInt())
-                setShadowLayer(Theme.dp(context, 3f), 0f, 0f, 0x99000000.toInt())
+                text = it.caption; textSize = 10f; typeface = Theme.medium; setTextColor(0xD9FFFFFF.toInt())
                 gravity = Gravity.CENTER; maxLines = 1
-            }, LinearLayout.LayoutParams(d(64f), -2).apply { topMargin = d(4f) })
+            }, LinearLayout.LayoutParams(d(62f), -2).apply { topMargin = d(3f) })
             buttons.add(b)
             mainRow.addView(col, LinearLayout.LayoutParams(-2, -2))
         }

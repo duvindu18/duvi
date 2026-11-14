@@ -53,6 +53,7 @@ import com.veil.cam.core.Lut3D
 import com.veil.cam.core.PowerBudget
 import com.veil.cam.core.PowerMode
 import com.veil.cam.face.FaceEngine
+import com.veil.cam.face.DepthEstimator
 import com.veil.cam.face.PersonSegmenter
 import com.veil.cam.gl.Renderer
 import com.veil.cam.media.MediaStorage
@@ -101,6 +102,7 @@ class MainActivity : Activity(), Renderer.Listener {
     private lateinit var engine: FaceEngine
     private lateinit var renderer: Renderer
     private lateinit var segmenter: PersonSegmenter
+    private lateinit var depthNet: DepthEstimator
     private lateinit var camera: CameraController
     private var audio: AudioCapture? = null
     private var cameras: List<CameraCaps> = emptyList()
@@ -117,6 +119,10 @@ class MainActivity : Activity(), Renderer.Listener {
     // ---- views
     private lateinit var root: FrameLayout
     private lateinit var surfaceView: SurfaceView
+    private lateinit var viewfinder: FrameLayout
+    private lateinit var scrim: View
+    private lateinit var shutterRow: FrameLayout
+    private var barTop = 0 // top of the top bar (below the camera hole)
     private lateinit var overlay: OverlayView
     private lateinit var snapshot: ImageView
     private lateinit var blink: View
@@ -161,7 +167,8 @@ class MainActivity : Activity(), Renderer.Listener {
         engine.onError = { msg -> main.post { flash(msg) } }
         engine.configure(settings)
         segmenter = PersonSegmenter(applicationContext).also { it.onError = { msg -> main.post { flash(msg) } } }
-        renderer = Renderer(applicationContext, engine, segmenter).also { it.listener = this }
+        depthNet = DepthEstimator(applicationContext).also { it.onError = { msg -> main.post { flash(msg) } } }
+        renderer = Renderer(applicationContext, engine, segmenter, depthNet).also { it.listener = this }
         renderer.update(settings)
         thermal = ThermalMonitor(this) { level, status -> onThermal(level, status) }
         camera = CameraController(applicationContext)
@@ -215,6 +222,7 @@ class MainActivity : Activity(), Renderer.Listener {
         camera.release()
         engine.release()
         segmenter.release()
+        depthNet.release()
         sound.release()
         super.onDestroy()
     }
@@ -431,51 +439,62 @@ class MainActivity : Activity(), Renderer.Listener {
             }
             override fun surfaceDestroyed(h: SurfaceHolder) { renderer.setPreview(null, 0, 0) }
         })
-        root.addView(surfaceView, FrameLayout.LayoutParams(-1, -1))
+        // The picture: an exact 9:16 frame laid out under the top bar (see layoutFrame).
+        viewfinder = FrameLayout(this)
+        root.addView(viewfinder, FrameLayout.LayoutParams(-1, -1, Gravity.TOP))
+        viewfinder.addView(surfaceView, FrameLayout.LayoutParams(-1, -1))
         surfaceView.addOnLayoutChangeListener { _, l, t, r, b, ol, ot, orr, ob -> if (r - l != orr - ol || b - t != ob - ot) applyPreviewSize() }
         snapshot = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_XY; visibility = View.GONE }
-        root.addView(snapshot, FrameLayout.LayoutParams(-1, -1))
+        viewfinder.addView(snapshot, FrameLayout.LayoutParams(-1, -1))
         blink = View(this).apply { setBackgroundColor(Color.BLACK); alpha = 0f }
-        root.addView(blink, FrameLayout.LayoutParams(-1, -1))
+        viewfinder.addView(blink, FrameLayout.LayoutParams(-1, -1))
         overlay = OverlayView(this).apply { settings = this@MainActivity.settings }
         overlay.onTap = { _, _, ix, iy -> tapFocus(ix, iy, lock = false) }
         overlay.onLongPress = { _, _, ix, iy -> tapFocus(ix, iy, lock = true) }
-        overlay.onDoubleTap = { camera.resetFocus(); unlockAe() }
+        overlay.onDoubleTap = { camera.resetFocus(); unlockAe(); renderer.setFocusPoint(null, null); if (settings.depthMode) flash("Depth follows the subject") }
         overlay.onZoom = { f -> setZoom(settings.zoom * f); zoom.peek() }
         overlay.onPinch = { zoom.peek() }
         overlay.onSwipeMode = { dir -> if (!recording && !trayOpen) modes.step(dir) }
         overlay.onSwipeTray = { up -> if (up) openTray() else closeTray() }
         overlay.onExposure = { d -> dragExposure(d) }
-        root.addView(overlay, FrameLayout.LayoutParams(-1, -1))
+        viewfinder.addView(overlay, FrameLayout.LayoutParams(-1, -1))
+        // Soft dark gradient behind the controls that sit on the picture (zoom, modes, tray),
+        // so they read on any scene without a hard bar.
+        scrim = View(this).apply {
+            background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(0x00000000, 0x40000000, 0x8C000000.toInt(), 0xCC000000.toInt()))
+            isClickable = false
+        }
+        root.addView(scrim, FrameLayout.LayoutParams(-1, dp(220f), Gravity.TOP))
 
         ui = FrameLayout(this).apply { clipToPadding = false; clipChildren = false }
 
         // ---- top bar: torch, face blur | chevron / timer | heat, depth, format
         topBar = FrameLayout(this)
         val left = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        torchBtn = GlassButton(this, Glyph.BOLT, "Torch", 36f).apply { setOnClickListener { toggleTorch() } }
-        facesBtn = GlassButton(this, Glyph.FACE, "Face blur", 36f).apply {
+        torchBtn = GlassButton(this, Glyph.BOLT, "Torch", BAR_H).apply { setOnClickListener { toggleTorch() } }
+        facesBtn = GlassButton(this, Glyph.FACE, "Face blur", BAR_H).apply {
             setOnClickListener { toggleBlur() }
             setOnLongClickListener { thud(); controller.open("FACES"); true }
         }
-        left.addView(torchBtn, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(10f) })
+        left.addView(torchBtn, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(12f) })
         left.addView(facesBtn)
         topBar.addView(left, FrameLayout.LayoutParams(-2, -2, Gravity.START or Gravity.CENTER_VERTICAL))
-        chevron = GlassButton(this, Glyph.CHEVRON_UP, "Camera settings", 32f).apply { setOnClickListener { if (trayOpen) closeTray() else openTray() } }
+        chevron = GlassButton(this, Glyph.CHEVRON_UP, "Camera settings", BAR_H).apply { setOnClickListener { if (trayOpen) closeTray() else openTray() } }
         topBar.addView(chevron, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
         timer = TimerPill(this).apply { visibility = View.GONE }
         topBar.addView(timer, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
         val right = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        heatBtn = GlassButton(this, Glyph.THERMO, "Phone temperature", 32f).apply { glyphColor = Theme.ORANGE; visibility = View.GONE; setOnClickListener { flash(heatText()) } }
-        depthBtn = GlassButton(this, null, "Depth", 32f, "ƒ2.8").apply { setOnClickListener { tick(); controller.open("DEPTH") } }
-        format = FormatPill(this).apply { onLeft = { cycleResolution() }; onRight = { cycleFps() } }
-        right.addView(heatBtn, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(8f) })
-        right.addView(depthBtn, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(8f) })
+        heatBtn = GlassButton(this, Glyph.THERMO, "Phone temperature", BAR_H).apply { glyphColor = Theme.ORANGE; visibility = View.GONE; setOnClickListener { flash(heatText()) } }
+        depthBtn = GlassButton(this, null, "Depth", BAR_H, "ƒ2.8").apply { setOnClickListener { tick(); controller.open("DEPTH") } }
+        format = FormatPill(this, BAR_H).apply { onLeft = { cycleResolution() }; onRight = { cycleFps() } }
+        right.addView(heatBtn, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(12f) })
+        right.addView(depthBtn, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(12f) })
         right.addView(format)
         topBar.addView(right, FrameLayout.LayoutParams(-2, -2, Gravity.END or Gravity.CENTER_VERTICAL))
-        ui.addView(topBar, FrameLayout.LayoutParams(-1, dp(44f), Gravity.TOP).apply { topMargin = dp(4f) })
+        ui.addView(topBar, FrameLayout.LayoutParams(-1, dp(BAR_H + 4f), Gravity.TOP))
         toast = HudToast(this)
-        ui.addView(toast, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(58f) })
+        ui.addView(toast, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL))
 
         // ---- bottom: controller, zoom, modes / tray, shutter row
         bottom = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; clipChildren = false }
@@ -488,7 +507,7 @@ class MainActivity : Activity(), Renderer.Listener {
         controlBtn = GlassButton(this, Glyph.DIAL, "Camera controls", 40f).apply {
             setOnClickListener { if (controller.isOpen) controller.dismiss() else { closeTray(); controller.open(null) } }
         }
-        zoomRow.addView(controlBtn, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).apply { leftMargin = dp(18f); bottomMargin = dp(3f) })
+        zoomRow.addView(controlBtn, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).apply { leftMargin = dp(14f); bottomMargin = dp(3f) })
         bottom.addView(zoomRow, LinearLayout.LayoutParams(-1, -2))
         val modeSlot = FrameLayout(this)
         modes = ModeCarousel(this, MODES).apply { onSelect = { i -> setMode(MODES[i]) } }
@@ -499,19 +518,19 @@ class MainActivity : Activity(), Renderer.Listener {
             onOption = { item, i -> onTrayOption(item, i) }
         }
         modeSlot.addView(tray, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER))
-        bottom.addView(modeSlot, LinearLayout.LayoutParams(-1, dp(76f)))
-        val shutterRow = FrameLayout(this)
+        bottom.addView(modeSlot, LinearLayout.LayoutParams(-1, dp(72f)).apply { bottomMargin = dp(2f) })
+        shutterRow = FrameLayout(this)
         thumb = ThumbView(this).apply { setOnClickListener { openLatest() } }
         pauseBtn = GlassButton(this, Glyph.PAUSE, "Pause recording", 48f).apply { visibility = View.GONE; setOnClickListener { togglePause() } }
         shutter = ShutterButton(this).apply { setOnClickListener { onShutter() } }
         flipBtn = GlassButton(this, Glyph.FLIP, "Switch camera", 48f).apply { setOnClickListener { switchLens() } }
         snapBtn = SnapButton(this).apply { visibility = View.GONE; setOnClickListener { photo() } }
-        shutterRow.addView(thumb, FrameLayout.LayoutParams(-2, -2, Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(28f) })
-        shutterRow.addView(pauseBtn, FrameLayout.LayoutParams(-2, -2, Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(27f) })
+        // Side controls: same 50 dp size, same 30 dp inset from each edge, centred on the shutter.
+        for ((v, g) in listOf(thumb to Gravity.START, pauseBtn to Gravity.START, flipBtn to Gravity.END, snapBtn to Gravity.END)) {
+            shutterRow.addView(v, FrameLayout.LayoutParams(dp(50f), dp(50f), g or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(30f); rightMargin = dp(30f) })
+        }
         shutterRow.addView(shutter, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
-        shutterRow.addView(flipBtn, FrameLayout.LayoutParams(-2, -2, Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(27f) })
-        shutterRow.addView(snapBtn, FrameLayout.LayoutParams(-2, -2, Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(27f) })
-        bottom.addView(shutterRow, LinearLayout.LayoutParams(-1, dp(100f)))
+        bottom.addView(shutterRow, LinearLayout.LayoutParams(-1, dp(96f)))
         ui.addView(bottom, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         root.addView(ui, FrameLayout.LayoutParams(-1, -1))
 
@@ -520,10 +539,15 @@ class MainActivity : Activity(), Renderer.Listener {
 
         root.setOnApplyWindowInsetsListener { _, insets ->
             val r = safeInsets(insets)
-            if (r != safe) { safe = r; ui.setPadding(r.left, r.top, r.right, r.bottom); layoutHud() }
+            val hole = if (android.os.Build.VERSION.SDK_INT >= 29) insets.displayCutout?.boundingRectTop?.takeIf { !it.isEmpty }?.bottom ?: 0 else 0
+            val corner = if (android.os.Build.VERSION.SDK_INT >= 31) maxOf(insets.getRoundedCorner(android.view.RoundedCorner.POSITION_TOP_LEFT)?.radius ?: 0,
+                insets.getRoundedCorner(android.view.RoundedCorner.POSITION_TOP_RIGHT)?.radius ?: 0) else dp(32f)
+            // The bar sits just below the camera hole (or clear of the rounded corners).
+            val bt = maxOf(hole + dp(6f), (corner * 0.3f).roundToInt(), dp(10f))
+            if (r != safe || bt != barTop) { safe = r; barTop = bt; ui.setPadding(r.left, 0, r.right, r.bottom); layoutFrame() }
             insets
         }
-        root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> layoutHud() }
+        root.addOnLayoutChangeListener { _, l, t, rr, b, ol, ot, orr, ob -> if (rr - l != orr - ol || b - t != ob - ot) root.post { layoutFrame() } }
         setContentView(root)
         modes.select(MODES.indexOf(settings.mode).coerceAtLeast(0), animate = false)
         shutter.video = !settings.photoMode
@@ -548,12 +572,36 @@ class MainActivity : Activity(), Renderer.Listener {
         )
     }
 
-    /** Free picture area for the histogram and meters (between the top bar and the zoom lenses). */
+    /**
+     * The screen in three bands: the top bar below the camera hole, an exact 9:16 picture
+     * right under it, and the shutter row in the space left below (centred there). Zoom and
+     * modes overlap the bottom of the picture on a soft gradient, as in phone cameras.
+     */
+    private fun layoutFrame() {
+        val w = root.width; val h = root.height
+        if (w == 0 || h == 0) return
+        val vh = (w * 16f / 9f).roundToInt().coerceAtMost(h)
+        val top = (barTop + dp(BAR_H + 6f)).coerceAtMost(h - vh)
+        (viewfinder.layoutParams as FrameLayout.LayoutParams).let { if (it.height != vh || it.topMargin != top) { it.height = vh; it.topMargin = top; viewfinder.layoutParams = it } }
+        (topBar.layoutParams as FrameLayout.LayoutParams).let { if (it.topMargin != barTop) { it.topMargin = barTop; topBar.layoutParams = it } }
+        (toast.layoutParams as FrameLayout.LayoutParams).let { it.topMargin = top + dp(12f); toast.layoutParams = it }
+        // Shutter band: whatever is below the picture (at least 96 dp, overlapping if it must).
+        val band = (h - safe.bottom - (top + vh)).coerceAtLeast(dp(96f))
+        (shutterRow.layoutParams as LinearLayout.LayoutParams).let { if (it.height != band) { it.height = band; shutterRow.layoutParams = it } }
+        root.post {
+            val bandTop = h - safe.bottom - band
+            val scrimTop = (bandTop - dp(190f)).coerceAtLeast(top)
+            (scrim.layoutParams as FrameLayout.LayoutParams).let { it.topMargin = scrimTop; it.height = (top + vh) - scrimTop; scrim.layoutParams = it }
+            layoutHud()
+        }
+    }
+
+    /** Free picture area for the histogram and meters (inside the picture, above the zoom lenses). */
     private fun layoutHud() {
         root.post {
-            val top = ui.paddingTop + topBar.bottom + dp(4f)
-            val bottomY = bottom.top + zoomRow.top + zoomRow.height - dp(52f)
-            overlay.hud = RectF(0f, top.toFloat(), root.width.toFloat(), bottomY.toFloat())
+            val vTop = viewfinder.top
+            val bottomY = bottom.top + zoomRow.top + zoomRow.height - dp(56f) - vTop
+            overlay.hud = RectF(0f, dp(6f).toFloat(), viewfinder.width.toFloat(), bottomY.toFloat())
         }
     }
 
@@ -627,6 +675,7 @@ class MainActivity : Activity(), Renderer.Listener {
 
     // ---- modes -----------------------------------------------------------------------------------------
     private fun setMode(m: String) {
+        renderer.setFocusPoint(null, null)
         if (recording) { modes.select(MODES.indexOf(settings.mode)); return }
         if (m == settings.mode) return
         snapshotTransition(flip = false)
@@ -1023,6 +1072,8 @@ class MainActivity : Activity(), Renderer.Listener {
             else -> u to v
         }
         camera.focusAt(sx, sy)
+        // Cinematic / Portrait: the depth of field moves to what was tapped (a focus pull).
+        if (settings.depthMode) renderer.setFocusPoint(ix, iy)
         evAcc = 0f
         if (lock) {
             apply(settings.copy(aeLock = true))
@@ -1132,6 +1183,9 @@ class MainActivity : Activity(), Renderer.Listener {
 
     // ---- power -------------------------------------------------------------------------------------------
     private var thermal: ThermalMonitor? = null
+    private val recordTime by lazy { com.veil.cam.power.RecordTime(applicationContext) }
+    private var idleTicks = 0
+    private var warnedLowTime = 0L
     private var heat = 0
     private var warnedHot = false
     private var previewScale = 1f
@@ -1202,6 +1256,18 @@ class MainActivity : Activity(), Renderer.Listener {
             if (!resumed) return
             val idle = SystemClock.uptimeMillis() - lastTouch
             if (recording && settings.dimWhileRecording && idle > 10_000) setDim(true)
+            // Learn the real battery draw of this format and warn before it runs out.
+            if (recording && ++idleTicks % 3 == 0) {
+                val s = settings
+                recordTime.sample(s.width, s.fps, s.depthMode)
+                val e = recordTime.estimate(s.width, s.fps, s.depthMode, s.bitrate())
+                val left = e.minutes
+                if ((left <= 10 && warnedLowTime == 0L) || (left <= 3 && warnedLowTime > 3)) {
+                    warnedLowTime = left.coerceAtLeast(1)
+                    flash("About $left min left (${e.limitedBy})")
+                }
+            }
+            if (!recording) warnedLowTime = 0
             if (!recording && settings.autoStandby && !sleeping && idle > 180_000 && !sheet.isOpen) goToSleep()
             main.postDelayed(this, 2_000)
         }
@@ -1265,10 +1331,7 @@ class MainActivity : Activity(), Renderer.Listener {
         return bm?.let { it.getIntExtra(BatteryManager.EXTRA_LEVEL, 0) * 100 / it.getIntExtra(BatteryManager.EXTRA_SCALE, 100).coerceAtLeast(1) } ?: 0
     }
 
-    private fun minutesLeft(): Long {
-        val stat = runCatching { StatFs(Environment.getExternalStorageDirectory().path) }.getOrNull()
-        return stat?.let { it.availableBytes * 8 / settings.bitrate().coerceAtLeast(1) / 60 } ?: 0
-    }
+    private fun fmtMinutes(m: Long) = if (m >= 600) "${m / 60} h" else if (m >= 60) "${m / 60} h ${m % 60} min" else "$m min"
 
     private fun openSettings() {
         sheet.open("Settings") { f -> pageRoot(f) }
@@ -1278,9 +1341,12 @@ class MainActivity : Activity(), Renderer.Listener {
 
     private fun pageRoot(f: Form) {
         val s = settings
-        f.section(null) {
+        f.section(null, "Battery time uses this phone's measured power draw while recording in this format (an estimate until the first take in it).") {
             info("Battery", "${batteryLevel()} %")
-            info("Recording time left", "${minutesLeft()} min")
+            val e = recordTime.estimate(s.width, s.fps, s.depthMode, s.bitrate())
+            info("Recording time left", if (e.charging) "${fmtMinutes(e.byStorage)} · charging" else "${fmtMinutes(e.minutes)} · ${e.limitedBy}")
+            e.byBattery?.let { info("Battery allows", "${fmtMinutes(it)}${if (e.learned) "" else " (estimate)"}") }
+            info("Storage allows", fmtMinutes(e.byStorage))
             info("Temperature", listOf("Normal", "Warm", "Hot")[heat])
         }
         f.section("Capture") {
@@ -1579,9 +1645,10 @@ class MainActivity : Activity(), Renderer.Listener {
     override fun onDetectorReady(ready: Boolean) { main.post { detectorReady = ready; overlay.startingHint = settings.blurOn && !ready } }
 
     companion object {
+        private const val BAR_H = 40f // every top-bar control: one height
         private const val REQ_LUT = 11
         private const val REQ_MASK = 12
     }
 }
 
-object BuildConfigLite { const val VERSION = "1.6.0" }
+object BuildConfigLite { const val VERSION = "1.7.0" }

@@ -20,6 +20,9 @@ import android.util.Log
 class DepthFx(private val loc: (Int, String) -> Int, private val bindTex: (Int, Int) -> Unit) {
     class Params(val radius: Float, val taps: Int, val shape: Int, val bloom: Float, val quarterTurn: Boolean)
 
+    /** Depth-of-field inputs: depth texture (0 = none) and the focus plane. */
+    class Dof(val depthTex: Int, val imgToDepth: FloatArray?, val focus: Float, val half: Float, val far: Float, val dof: Float, val range: Float)
+
     private class Tex(val w: Int, val h: Int, val format: Int, val linear: Boolean, val mips: Boolean = false) {
         val id: Int
         val levels = if (mips) 1 + (31 - Integer.numberOfLeadingZeros(maxOf(w, h))) else 1
@@ -75,6 +78,7 @@ class DepthFx(private val loc: (Int, String) -> Int, private val bindTex: (Int, 
     private lateinit var prep: Fbo; private lateinit var boxH: Fbo; private lateinit var boxV: Fbo
     private lateinit var coefRaw: Fbo; private lateinit var coefH: Fbo; private lateinit var bprep: Fbo
     private lateinit var bprepTex: Tex
+    private lateinit var bcocTex: Tex
     private val entries = ArrayList<Entry>()
     private var clock = 0L
 
@@ -114,7 +118,8 @@ class DepthFx(private val loc: (Int, String) -> Int, private val bindTex: (Int, 
             coefRaw = Fbo(listOf(Tex(gW, gH, fmt, false))).also { f -> owned += { f.release(); f.tex.forEach { it.release() } } }
             coefH = Fbo(listOf(Tex(gW, gH, fmt, false))).also { f -> owned += { f.release(); f.tex.forEach { it.release() } } }
             bprepTex = Tex(qW, qH, GLES30.GL_RGBA16F, true, mips = true)
-            bprep = Fbo(listOf(bprepTex)).also { f -> owned += { f.release(); bprepTex.release() } }
+            bcocTex = Tex(qW, qH, GLES30.GL_R16F, true, mips = true)
+            bprep = Fbo(listOf(bprepTex, bcocTex)).also { f -> owned += { f.release(); bprepTex.release(); bcocTex.release() } }
             repeat(4) {
                 val c = Tex(gW, gH, GLES30.GL_RGBA16F, true); val b = Tex(qW, qH, GLES30.GL_RGBA16F, true)
                 entries += Entry(c, Fbo(listOf(c)), b, Fbo(listOf(b)))
@@ -139,7 +144,7 @@ class DepthFx(private val loc: (Int, String) -> Int, private val bindTex: (Int, 
      * computed once, then served from the cache. [color]: the frame; [people]: coarse mask
      * texture with [imgToPeople]; [local]: 1/4-res blurred frame with mipmaps.
      */
-    fun ensure(key: String, color: Int, people: Int, imgToPeople: FloatArray, imgW: Int, imgH: Int, local: Int, p: Params): Result? {
+    fun ensure(key: String, color: Int, people: Int, imgToPeople: FloatArray, imgW: Int, imgH: Int, local: Int, p: Params, dof: Dof): Result? {
         if (!available || entries.isEmpty()) return null
         clock++
         entries.firstOrNull { it.key == key }?.let { it.used = clock; return Result(it.coef.id, it.bokeh.id) }
@@ -152,6 +157,15 @@ class DepthFx(private val loc: (Int, String) -> Int, private val bindTex: (Int, 
         GLES30.glUniformMatrix3fv(loc(progPrep, "uImgToPeople"), 1, false, imgToPeople, 0)
         GLES30.glUniform2f(loc(progPrep, "uImgSize"), imgW.toFloat(), imgH.toFloat())
         GLES30.glUniform2f(loc(progPrep, "uSize"), gW.toFloat(), gH.toFloat())
+        val haveDepth = dof.depthTex != 0 && dof.imgToDepth != null
+        bindTex(2, if (haveDepth) dof.depthTex else people); GLES30.glUniform1i(loc(progPrep, "uDepthMap"), 2)
+        GLES30.glUniformMatrix3fv(loc(progPrep, "uImgToDepth"), 1, false, dof.imgToDepth ?: imgToPeople, 0)
+        GLES30.glUniform1i(loc(progPrep, "uHaveDepth"), if (haveDepth) 1 else 0)
+        GLES30.glUniform1f(loc(progPrep, "uFocus"), dof.focus)
+        GLES30.glUniform1f(loc(progPrep, "uFocusHalf"), dof.half)
+        GLES30.glUniform1f(loc(progPrep, "uFar"), dof.far)
+        GLES30.glUniform1f(loc(progPrep, "uDof"), dof.dof)
+        GLES30.glUniform1f(loc(progPrep, "uRange"), dof.range)
         draw()
         box4(prep, boxH, 1, 0)
         box4(boxH, boxV, 0, 1)
@@ -171,11 +185,11 @@ class DepthFx(private val loc: (Int, String) -> Int, private val bindTex: (Int, 
         GLES30.glUniform2f(loc(progBPrep, "uSize"), qW.toFloat(), qH.toFloat())
         GLES30.glUniform1f(loc(progBPrep, "uBloom"), p.bloom)
         draw()
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, bprepTex.id)
-        GLES30.glGenerateMipmap(GLES30.GL_TEXTURE_2D)
+        for (t in listOf(bprepTex, bcocTex)) { GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, t.id); GLES30.glGenerateMipmap(GLES30.GL_TEXTURE_2D) }
         e.bokehFbo.bind()
         GLES30.glUseProgram(progBokeh)
         bindTex(0, bprepTex.id); GLES30.glUniform1i(loc(progBokeh, "uPrep"), 0)
+        bindTex(1, bcocTex.id); GLES30.glUniform1i(loc(progBokeh, "uCoc"), 1)
         GLES30.glUniform2f(loc(progBokeh, "uSize"), qW.toFloat(), qH.toFloat())
         GLES30.glUniform1f(loc(progBokeh, "uRadius"), p.radius * minOf(qW, qH))
         GLES30.glUniform1i(loc(progBokeh, "uTaps"), p.taps)

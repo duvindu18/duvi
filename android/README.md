@@ -76,6 +76,32 @@ detection, tracking and anonymization as the Veil desktop app.
   installs default to 24 fps and 180°.
 * No network permission: everything runs on the phone.
 
+## New in 1.7: depth-based blur, layout pass, real recording time
+
+* **Cinematic depth from real depth.**
+  * Model: Depth Anything V2 Small (int8 ONNX, Apache 2.0), a few times a second.
+  * What stays sharp: everything at the subject's distance (the chair a person sits on,
+    a table beside them). Things in front and behind blur with their distance from it.
+  * Focus subject: what you tap (a focus pull to it), otherwise the people in frame,
+    otherwise the centre. Double-tap returns to automatic. The focus plane eases between
+    subjects.
+  * Blur: per-pixel radius with scatter-as-gather, so sharp things never bleed into it.
+    Edges are still traced on every frame by the guided filter.
+  * Models: `models/depth_anything_v2_small.onnx` comes from the npm package
+    `@richardmcquiston01/ai-tools` (`models/`); `tools/depth_check.py --depth` runs it
+    on a photo.
+* **Layout.**
+  * The screen is three bands: the top bar just below the camera hole (one control
+    height), an exact 9:16 picture under it, and the shutter row centred in the space
+    below. Zoom and modes overlap the picture on a soft gradient.
+  * Mode names fade at the screen edge. The tray is one glass panel.
+  * Thumbnail and flip are the same size and inset.
+  * The histogram and meters share one row in the picture's top corners. The level
+    shows only near level.
+* **Recording time.** The lower of battery and storage. Battery uses the phone's
+  measured draw while recording, learned per format. A warning appears at about 10 and
+  3 minutes left.
+
 ## New in 1.6: background blur that eases in and out
 
 * **Aperture in 1/3 stops.** The scale runs from Off through ƒ22 to ƒ1.4. Blur grows

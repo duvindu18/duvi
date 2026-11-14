@@ -3,6 +3,7 @@ MediaPipe person model, and compare the old path (coarse mask + Gaussian) with t
 one (guided-filter edges + background-only lens blur).
 
 Usage: python3 tools/depth_check.py <selfie_multiclass_256x256.tflite> <out_dir> [photo]
+       [--night] [--depth depth_anything_v2_small.onnx]
 (without a photo it uses scikit-image's public-domain astronaut portrait)
 """
 import math, re, sys
@@ -32,8 +33,22 @@ def segment(model, rgb):
     return 1 - pr[..., 0], pr[..., 1]  # person, hair (256x256)
 
 
+def estimate_depth(model, rgb):
+    """Depth Anything V2 (relative inverse depth), normalised like the app: 1 = nearest."""
+    import onnxruntime as ort
+    s = ort.InferenceSession(model, providers=["CPUExecutionProvider"])
+    h, w = rgb.shape[:2]; k = 336 / max(h, w)
+    W, H = max(14, round(w * k / 14) * 14), max(14, round(h * k / 14) * 14)
+    x = cv2.resize(rgb, (W, H), interpolation=cv2.INTER_AREA).astype(np.float32) / 255
+    x = ((x - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]).transpose(2, 0, 1)[None].astype(np.float32)
+    y = s.run(None, {"pixel_values": x})[0][0]
+    lo, hi = np.percentile(y, 2), np.percentile(y, 98)
+    return np.clip((y - lo) / max(hi - lo, 1e-6), 0, 1)
+
+
 def main():
     model, out = sys.argv[1], Path(sys.argv[2]); out.mkdir(parents=True, exist_ok=True)
+    depth_model = sys.argv[sys.argv.index("--depth") + 1] if "--depth" in sys.argv else None
     if len(sys.argv) > 3 and not sys.argv[3].startswith('--'):
         rgb = cv2.cvtColor(cv2.imread(sys.argv[3]), cv2.COLOR_BGR2RGB)
     else:
@@ -51,7 +66,7 @@ def main():
         rgb = (rgb * (0.25 + 0.75 * pm[..., None])).astype(np.uint8)
     for _ in range(140 if '--night' in sys.argv else 70):
         x, y = rng.integers(0, W), rng.integers(0, H)
-        if pm[y, x] < 0.3:
+        if pm[y, x] < 0.3 and "--nolights" not in sys.argv:
             cv2.circle(rgb, (int(x), int(y)), int(rng.integers(2, 5)), tuple(int(v) for v in rng.integers(200, 256, 3)), -1, cv2.LINE_AA)
 
     ctx = moderngl.create_standalone_context(require=330, backend="egl")
@@ -92,8 +107,22 @@ def main():
     gs = 640 / max(W, H)
     GW, GH = round(W * gs), round(H * gs)
     prep = [tex((GW, GH), 4, dtype="f4", lin=False) for _ in range(4)]
-    run("DEPTH_PREP", prep, {"uImgToPeople": img_to_people, "uImgSize": (float(W), float(H)), "uSize": (float(GW), float(GH))},
-        [("uColor", color), ("uPeople", mask)])
+    have_depth = 0; focus = 0.5; half = 0.0; far = 0.0
+    dmap = ctx.texture((1, 1), 1, bytes(1))
+    if depth_model:
+        D = cv2.resize(estimate_depth(depth_model, rgb), (cw, ch))
+        sel = D[pc > 0.5] if (pc > 0.5).any() else D[D.shape[0] // 3:2 * D.shape[0] // 3, D.shape[1] // 3:2 * D.shape[1] // 3].ravel()
+        lo, hi = np.percentile(sel, 25), np.percentile(sel, 75)
+        far = float(np.percentile(D, 5))
+        focus = float((lo + hi) / 2)
+        half = float(min((hi - lo) / 2, 0.3 * max(focus - far, 0.08)))
+        dmap = tex((cw, ch), 1, (D * 255).astype(np.uint8).tobytes())
+        have_depth = 1
+        cv2.imwrite(str(out / "depth.png"), cv2.applyColorMap((D * 255).astype(np.uint8), cv2.COLORMAP_INFERNO))
+        print(f"focus at depth {focus:.2f} +/- {half:.2f}, far background {far:.2f}")
+    dof_uniforms = {"uImgToDepth": img_to_people, "uHaveDepth": have_depth, "uFocus": focus, "uFocusHalf": half, "uFar": far, "uDof": 0.1, "uRange": 0.55}
+    run("DEPTH_PREP", prep, dict({"uImgToPeople": img_to_people, "uImgSize": (float(W), float(H)), "uSize": (float(GW), float(GH))}, **dof_uniforms),
+        [("uColor", color), ("uPeople", mask), ("uDepthMap", dmap)])
     R = 7
     hb = [tex((GW, GH), 4, dtype="f4", lin=False) for _ in range(4)]
     vb = [tex((GW, GH), 4, dtype="f4", lin=False) for _ in range(4)]
@@ -109,6 +138,7 @@ def main():
     # ---- lens blur
     QW, QH = W // 4, H // 4
     bprep = tex((QW, QH), 4, dtype="f2", mips=True)
+    bcoc = tex((QW, QH), 4, dtype="f2", mips=True)
     blur_small = cv2.GaussianBlur(cv2.resize(rgb, (QW, QH), interpolation=cv2.INTER_AREA), (0, 0), 2.5)
     ublur = tex((QW, QH), 3, np.flipud(blur_small).tobytes(), mips=True); ublur.build_mipmaps()
     lut = ctx.texture3d((2, 2, 2), 3, np.array([[r, g, b] for b in (0, 1) for g in (0, 1) for r in (0, 1)], np.float32).tobytes(), dtype="f4")
@@ -117,12 +147,12 @@ def main():
     shapes = ["circle", "blades", "anamorphic", "swirl"]
     results = {}
     for bloom, shape in [(0.6, 0), (0.6, 1), (0.6, 2), (0.6, 3)]:
-        run("BOKEH_PREP", [bprep], {"uSize": (float(QW), float(QH)), "uBloom": bloom}, [("uColor", color), ("uCoef", coefA), ("uLocal", ublur)])
-        bprep.build_mipmaps()
+        run("BOKEH_PREP", [bprep, bcoc], {"uSize": (float(QW), float(QH)), "uBloom": bloom}, [("uColor", color), ("uCoef", coefA), ("uLocal", ublur)])
+        bprep.build_mipmaps(); bcoc.build_mipmaps()
         bok = tex((QW, QH), 4, dtype="f2")
         radius = 0.07 * 0.5 * min(QW, QH)  # f/2.8 (MAX_BLUR * 1.4 / N)
         run("BOKEH", [bok], {"uSize": (float(QW), float(QH)), "uRadius": radius, "uTaps": 96, "uShape": shape,
-                             "uAxisX": (1.0, 0.0), "uAxisY": (0.0, 1.0)}, [("uPrep", bprep)])
+                             "uAxisX": (1.0, 0.0), "uAxisY": (0.0, 1.0)}, [("uPrep", bprep), ("uCoc", bcoc)])
         for refined in (1, 0):
             if refined == 0 and shape != 0:
                 continue
@@ -138,10 +168,10 @@ def main():
     # sharp picture gradually, starting at (almost) zero, with no jump.
     def at(depth):
         rq = 0.07 * depth * min(QW, QH)
-        run("BOKEH_PREP", [bprep], {"uSize": (float(QW), float(QH)), "uBloom": 0.5}, [("uColor", color), ("uCoef", coefA), ("uLocal", ublur)])
-        bprep.build_mipmaps()
+        run("BOKEH_PREP", [bprep, bcoc], {"uSize": (float(QW), float(QH)), "uBloom": 0.5}, [("uColor", color), ("uCoef", coefA), ("uLocal", ublur)])
+        bprep.build_mipmaps(); bcoc.build_mipmaps()
         bok = tex((QW, QH), 4, dtype="f2")
-        run("BOKEH", [bok], {"uSize": (float(QW), float(QH)), "uRadius": rq, "uTaps": 96, "uShape": 0, "uAxisX": (1.0, 0.0), "uAxisY": (0.0, 1.0)}, [("uPrep", bprep)])
+        run("BOKEH", [bok], {"uSize": (float(QW), float(QH)), "uRadius": rq, "uTaps": 96, "uShape": 0, "uAxisX": (1.0, 0.0), "uAxisY": (0.0, 1.0)}, [("uPrep", bprep), ("uCoc", bcoc)])
         o = ctx.texture((W, H), 4)
         uni = {"uOutToImg": (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0), "uImgSize": (float(W), float(H)), "uBlurSize": (float(QW), float(QH)),
                "uOutH": float(H), "uFaceCount": 0, "uGains": (1.0, 1.0, 1.0), "uLutSize": 2.0, "uImgToPeople": img_to_people,

@@ -260,6 +260,14 @@ precision highp sampler2D;
 uniform sampler2D uColor;     // the frame (image space, rows bottom-up)
 uniform sampler2D uPeople;    // coarse mask: r person, g hair (canvas space, rows top-down)
 uniform mat3 uImgToPeople;    // image px -> mask uv
+uniform sampler2D uDepthMap;  // relative depth, 1 = nearest (canvas space, rows top-down)
+uniform mat3 uImgToDepth;
+uniform int uHaveDepth;
+uniform float uFocus;         // depth of the focus plane (centre of the subject)
+uniform float uFocusHalf;     // half the subject's own depth extent (a person is not flat)
+uniform float uFar;           // depth of the far background (5th percentile)
+uniform float uDof;           // depth of field, as a fraction of the subject-to-background gap
+uniform float uRange;         // fraction of that gap over which the blur reaches its maximum
 uniform vec2 uImgSize;
 uniform vec2 uSize;           // guide resolution
 layout(location = 0) out vec4 o0;
@@ -276,7 +284,23 @@ void main() {
     vec2 m = (mu.x < 0.0 || mu.y < 0.0 || mu.x > 1.0 || mu.y > 1.0) ? vec2(0.0) : texture(uPeople, mu).rg;
     // Sharpen the coarse mask first: where the frame has no edge the filter keeps its
     // input, so a soft input would leave a soft fringe; edges are then re-found from I.
-    float pp = mix(smoothstep(0.3, 0.7, m.r), m.r, 0.35 * m.g);
+    float person = mix(smoothstep(0.3, 0.7, m.r), m.r, 0.35 * m.g);
+    float pp = person; // sharpness: 1 in focus, 0 fully blurred
+    if (uHaveDepth == 1) {
+        // Real depth: sharp around the focus plane, blur growing with the distance from
+        // it, in front as well as behind. A person standing on the focus plane stays
+        // sharp even where the depth map is unsure.
+        vec2 du = (uImgToDepth * vec3(p, 1.0)).xy;
+        float D = texture(uDepthMap, clamp(du, 0.0, 1.0)).r;
+        // Distance from the subject relative to the subject-to-background gap: the far
+        // background always reaches full blur, whatever else is in the shot (a lens blurs
+        // with the difference of inverse distances, which is what this depth measures).
+        float gap = max(uFocus - uFar, 0.08);
+        float dd = max(0.0, abs(D - uFocus) - uFocusHalf) / gap;
+        float coc = smoothstep(uDof, uDof + uRange, dd);
+        coc *= 1.0 - person * (1.0 - smoothstep(0.15, 0.45, dd));
+        pp = 1.0 - coc;
+    }
     o0 = vec4(I, pp);
     o1 = vec4(I * pp, m.g);
     o2 = vec4(I.r * I.r, I.r * I.g, I.r * I.b, I.g * I.g);
@@ -367,7 +391,8 @@ uniform sampler2D uCoef;
 uniform sampler2D uLocal;     // 1/4-res blurred frame with mipmaps (local brightness)
 uniform vec2 uSize;
 uniform float uBloom;
-out vec4 frag;
+layout(location = 0) out vec4 oCol;   // colour * highlight weight, highlight weight
+layout(location = 1) out vec4 oCoc;   // circle of confusion 0..1 (r)
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 void main() {
     vec2 uv = gl_FragCoord.xy / uSize;
@@ -381,15 +406,16 @@ void main() {
     if (luma(c2) > luma(hi)) hi = c2;
     if (luma(c3) > luma(hi)) hi = c3;
     vec4 A = texture(uCoef, uv);
-    float person = clamp(dot(A.rgb, c - 0.5) + A.a, 0.0, 1.0);
-    float bg = 1.0 - smoothstep(0.15, 0.5, person);
+    float sharp = clamp(dot(A.rgb, c - 0.5) + A.a, 0.0, 1.0);
     // Lights: clearly brighter than their surroundings. An 8-bit light is clipped, so it
     // gets the weight its real brightness would have had: it opens into a full disc.
     float local = luma(textureLod(uLocal, uv, 3.0).rgb);
     float t = clamp((luma(hi) - max(local * 1.3 + 0.08, 0.55)) / 0.25, 0.0, 1.0);
-    float h = 1.0 + uBloom * 160.0 * t * t;
+    float coc = 1.0 - sharp;
+    float h = 1.0 + uBloom * 160.0 * t * t * coc;
     vec3 col = mix(c, hi, min(1.0, t * 2.0));
-    frag = vec4(col * bg * h, bg * h);
+    oCol = vec4(col * h, h);
+    oCoc = vec4(coc, 0.0, 0.0, 1.0);
 }
 """
 
@@ -402,9 +428,10 @@ void main() {
     const val BOKEH = """#version 300 es
 precision highp float;
 precision highp sampler2D;
-uniform sampler2D uPrep;      // mipmapped
+uniform sampler2D uPrep;      // colour * weight, weight (mipmapped)
+uniform sampler2D uCoc;       // circle of confusion (mipmapped)
 uniform vec2 uSize;
-uniform float uRadius;
+uniform float uRadius;        // blur radius for coc = 1 (px of this target)
 uniform int uTaps;
 uniform int uShape;
 uniform vec2 uAxisX;          // recorded frame's x and y axes in this texture (unit, px)
@@ -416,13 +443,14 @@ void main() {
     float rr = clamp(length(c) / 0.75, 0.0, 1.2);
     vec2 dir = length(c) > 1e-4 ? normalize(c) : vec2(0.0, 1.0);
     vec2 tang = vec2(-dir.y, dir.x);
-    // Prefilter to the tap spacing, so every tap sees the light around it (no speckle).
-    float lod = max(0.0, log2(uRadius * 1.77 / sqrt(float(uTaps))) + 0.4);
-    // Per-pixel rotation of the pattern: structured ripples become fine, stable grain.
+    // This pixel's blur radius from its depth: sharp areas gather from a small disc only.
+    float R = uRadius * texture(uCoc, px / uSize).r;
+    float lod = max(0.0, log2(max(R, 1.0) * 1.77 / sqrt(float(uTaps))) + 0.4);
     float jitter = 6.2831853 * fract(52.9829189 * fract(dot(px, vec2(0.06711056, 0.00583715))));
-    vec4 acc = vec4(0.0);
-    float n = 0.0;
-    for (int i = 0; i < 96; i++) {
+    vec4 centre = textureLod(uPrep, px / uSize, 0.0);
+    vec4 acc = centre;
+    float n = 1.0;
+    if (R > 0.5) for (int i = 0; i < 96; i++) {
         if (i >= uTaps) break;
         float t = (float(i) + 0.5) / float(uTaps);
         float a = float(i) * 2.39996323 + jitter;
@@ -437,10 +465,15 @@ void main() {
         }
         // Optical vignetting: discs turn into cat's eyes towards the corners.
         if (uShape != 3 && length(o + dir * rr * 0.42) > 1.0) continue;
-        acc += textureLod(uPrep, (px + o * uRadius) / uSize, lod);
-        n += 1.0;
+        vec2 q = (px + o * R) / uSize;
+        // Scatter as gather: a sample counts only if its own blur reaches this pixel, so
+        // sharp things (the person, objects on the focus plane) never bleed into the blur.
+        float reach = textureLod(uCoc, q, lod).r * uRadius - length(o) * R;
+        float w = smoothstep(-1.0, 1.0, reach);
+        acc += textureLod(uPrep, q, lod) * w;
+        n += w;
     }
-    frag = vec4(acc.a > 1e-4 ? acc.rgb / acc.a : vec3(0.0), clamp(acc.a / max(n, 1.0), 0.0, 1.0));
+    frag = vec4(acc.a > 1e-4 ? acc.rgb / acc.a : centre.rgb, clamp(n / (1.0 + 0.5 * float(uTaps)), 0.0, 1.0));
 }
 """
 
