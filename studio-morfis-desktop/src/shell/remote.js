@@ -18,6 +18,9 @@ const { writeJsonAtomic } = require('./util');
 
 const DISCOVERY_PORT = 47821;
 const COOKIE = 'morfis_dev';
+/* the Android app shows the interface under this fixed address, so what it keeps for offline use survives the
+   computer's network address changing; it calls the computer directly, with the device key in a header */
+const APP_ORIGIN = 'http://studio.morfis';
 const MAX_JSON = 30 * 1024 * 1024;
 const MAX_UPLOAD = 1024 * 1024 * 1024;
 const sha = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
@@ -37,6 +40,8 @@ class Remote {
     this.tmp = path.join(o.dir, 'phone-transfer');
     this.data = { devices: [] };
     try { this.data = Object.assign(this.data, JSON.parse(fs.readFileSync(this.file, 'utf8'))); } catch (e) { /* first use */ }
+    /* tells the phone it is the same computer, whatever address it has today */
+    if (!this.data.serverId) { this.data.serverId = rand(8); this.save(); }
     this.pin = null; this.pinAt = 0; this.wrong = 0; this.lockUntil = 0;
     this.clients = new Map();   /* SSE connections: id -> { res, device, client } */
     this.downloads = new Map(); /* token -> { file, name, at } */
@@ -47,10 +52,11 @@ class Remote {
   /* ----- pairing ----- */
   newPin() { this.pin = String(crypto.randomInt(0, 1000000)).padStart(6, '0'); this.pinAt = Date.now(); this.wrong = 0; return this.pin; }
   livePin() { if (!this.pin || Date.now() - this.pinAt > 15 * 60 * 1000) this.newPin(); return this.pin; }
-  device(req) {
+  device(req, u) {
     const m = new RegExp('(?:^|;\\s*)' + COOKIE + '=([a-f0-9]{64})').exec(req.headers.cookie || '');
-    if (!m) return null;
-    const h = sha(m[1]);
+    let key = m ? m[1] : String(req.headers['x-morfis-key'] || (u && u.searchParams.get('key')) || '');
+    if (!/^[a-f0-9]{64}$/.test(key)) return null;
+    const h = sha(key);
     return this.data.devices.find((d) => d.hash === h) || null;
   }
   status() {
@@ -171,15 +177,25 @@ class Remote {
       '<input class="n" id="nm" maxlength="40" placeholder="Name of this phone" required><button>Connect</button><p class="e" id="e">' + (msg || '') + '</p></form>' +
       '<script>var nm=document.getElementById("nm");try{nm.value=localStorage.getItem("morfis:phoneName")||(/Android/.test(navigator.userAgent)?"Android phone":"Phone")}catch(x){nm.value="Phone"}' +
       'document.getElementById("f").onsubmit=function(ev){ev.preventDefault();var e=document.getElementById("e");e.textContent="";try{localStorage.setItem("morfis:phoneName",nm.value)}catch(x){}' +
-      'fetch("/pair",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({pin:document.getElementById("pin").value.trim(),name:nm.value.trim()})})' +
-      '.then(function(r){return r.json()}).then(function(j){if(j.ok)location.replace("/app");else e.textContent=j.error||"That did not work."},function(){e.textContent="The computer did not answer."})};</script></body></html>';
+      'var A=window.MorfisAndroid,B=A&&A.server?A.server():"";' +
+      'fetch(B+"/pair",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({pin:document.getElementById("pin").value.trim(),name:nm.value.trim()})})' +
+      '.then(function(r){return r.json()}).then(function(j){if(j.ok){if(A&&j.key)A.setKey(j.key,j.id||"");location.replace("/app")}else e.textContent=j.error||"That did not work."},function(){e.textContent="The computer did not answer."})};</script></body></html>';
   }
 
   async handle(req, res) {
     const u = new URL(req.url, 'http://x'), p = u.pathname;
     res.setHeader('x-content-type-options', 'nosniff');
+    if (req.headers.origin === APP_ORIGIN) {
+      res.setHeader('access-control-allow-origin', APP_ORIGIN);
+      res.setHeader('access-control-expose-headers', 'x-morfis-page');
+      res.setHeader('vary', 'origin');
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, { 'access-control-allow-methods': 'GET, POST', 'access-control-allow-headers': 'content-type, x-morfis-key, x-morfis-client', 'access-control-max-age': '600' });
+        return res.end();
+      }
+    }
     res.setHeader('referrer-policy', 'no-referrer');
-    if (p === '/ping') return this.json(res, { app: 'studio-morfis', name: this.o.name(), version: this.o.version });
+    if (p === '/ping') return this.json(res, { app: 'studio-morfis', id: this.data.serverId, name: this.o.name(), version: this.o.version });
     if (p === '/app-icon.png') return this.sendFile(req, res, this.o.iconPng());
     if (p === '/pair' && req.method === 'POST') {
       const b = JSON.parse(String(await this.body(req, 4096)) || '{}');
@@ -194,11 +210,12 @@ class Remote {
       const key = rand(32), d = { id: rand(6), name: String(b.name || 'Phone').slice(0, 40) || 'Phone', hash: sha(key), paired: new Date().toISOString(), seen: new Date().toISOString() };
       this.data.devices.push(d); this.save(); this.newPin();
       this.o.onChange({ t: 'remote' });
-      return this.json(res, { ok: true }, { 'set-cookie': COOKIE + '=' + key + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=315360000' });
+      /* a browser keeps the key as a cookie; the Android app keeps it itself */
+      return this.json(res, req.headers.origin === APP_ORIGIN ? { ok: true, key: key, id: this.data.serverId } : { ok: true }, { 'set-cookie': COOKIE + '=' + key + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=315360000' });
     }
-    const dev = this.device(req);
+    const dev = this.device(req, u);
     if (!dev) {
-      if (p === '/' || p === '/app' || p === '/index.html') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); return res.end(this.pairPage()); }
+      if (p === '/' || p === '/app' || p === '/index.html') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-morfis-page': 'pair' }); return res.end(this.pairPage()); }
       return this.fail(res, 401, 'This phone is not paired.');
     }
     if (Date.now() - Date.parse(dev.seen || 0) > 60000) { dev.seen = new Date().toISOString(); this.save(); }
@@ -276,7 +293,33 @@ class Remote {
         return { path: p, parent: parent === p ? '' : parent, dirs: list };
       },
       async pdfFile(html, filename) { return self.offer(filename || 'document.pdf', await self.o.renderPdf(html)); },
-      async printFile(html) { return self.offer('print.pdf', await self.o.renderPdf(html)); }
+      async printFile(html) { return self.offer('print.pdf', await self.o.renderPdf(html)); },
+      /* every folder and file name in a project folder, with sizes and dates (never the contents), so the phone can
+         show and reorganise the folders while it has no connection */
+      async syncTree(dir) {
+        const out = [], cap = { left: 30000 };
+        const walk = async (d, rel) => {
+          let list;
+          try { list = await fs.promises.readdir(d, { withFileTypes: true }); } catch (e) { return; }
+          for (const x of list) {
+            if (cap.left <= 0) return;
+            if (x.isSymbolicLink()) continue;
+            const r = rel ? rel + '/' + x.name : x.name, full = path.join(d, x.name);
+            if (x.isDirectory()) {
+              if (/^(\$recycle\.bin|system volume information|\.git|node_modules)$/i.test(x.name)) continue;
+              cap.left--; out.push([r, 1, 0, 0]);
+              await walk(full, r);
+            } else if (x.isFile()) {
+              let st = null; try { st = await fs.promises.stat(full); } catch (e) { continue; }
+              cap.left--; out.push([r, 0, st.size, Math.round(st.mtimeMs)]);
+            }
+          }
+        };
+        let st = null; try { st = await fs.promises.stat(dir); } catch (e) { st = null; }
+        if (!st || !st.isDirectory()) return { root: dir, exists: false, entries: [], capped: false, at: Date.now() };
+        await walk(dir, '');
+        return { root: dir, exists: true, entries: out, capped: cap.left <= 0, at: Date.now() };
+      }
     };
   }
 }

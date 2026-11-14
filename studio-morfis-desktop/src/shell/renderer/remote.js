@@ -46,14 +46,18 @@
   function phoneCard() {
     var brand = document.querySelector('#view .brand-card');
     if (!brand || document.getElementById('rbPhone')) return;
-    var app = !!(window.MorfisAndroid && window.MorfisAndroid.disconnect);
-    brand.insertAdjacentHTML('beforebegin', '<section class="card stack rb-phone" id="rbPhone"><div><h2>This phone</h2><p class="muted small" style="margin-top:4px">Connected to ' + M.esc(location.host) + '. Changes are saved on the computer and show on both at once. Automations run on the computer.</p></div>' +
-      '<div class="toolbar">' + (app ? '<button type="button" class="btn" data-rb="switch">Change computer</button>' : '') + '<button type="button" class="btn danger ghost" data-rb="unpair">Unpair this phone</button></div></section>');
+    var app = !!(window.MorfisAndroid && window.MorfisAndroid.disconnect), o = H.offline ? H.offline() : null;
+    var where = app && window.MorfisAndroid.server ? window.MorfisAndroid.server().replace(/^https?:\/\//, '') : location.host;
+    brand.insertAdjacentHTML('beforebegin', '<section class="card stack rb-phone" id="rbPhone"><div><h2>This phone</h2><p class="muted small" style="margin-top:4px">' + (o && !o.online ? 'Offline. Working from this phone’s copy of ' + M.esc(where) + '.' : 'Connected to ' + M.esc(where) + '. Changes are saved on the computer and show on both at once.') + ' Automations run on the computer.</p></div>' +
+      (o ? '<div class="rb-off-info"><span><b>' + o.folders + '</b> project folder' + (o.folders === 1 ? '' : 's') + ' kept for offline use (names only)</span><span><b>' + o.waiting + '</b> change' + (o.waiting === 1 ? '' : 's') + ' waiting to be sent</span></div>' +
+        '<p class="small muted">Away from the computer, the app opens from this phone. You can organise folders (rename, move, delete, new folders), add files from the phone, and change projects, tasks and invoices. Everything is sent when the computer answers again. Opening a file needs the computer, as only the names are kept here.</p>' : '') +
+      '<div class="toolbar">' + (o && o.waiting && o.online ? '<button type="button" class="btn primary" data-rb="sync">Send changes now</button>' : '') + (app ? '<button type="button" class="btn" data-rb="switch">Change computer</button>' : '') + '<button type="button" class="btn danger ghost" data-rb="unpair">Unpair this phone</button></div></section>');
   }
   document.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('[data-rb]');
     if (!b) return;
     if (b.dataset.rb === 'switch') window.MorfisAndroid.disconnect();
+    else if (b.dataset.rb === 'sync') H.syncNow();
     else if (b.dataset.rb === 'unpair' && window.confirm('Unpair this phone? You will need a new PIN from the computer to connect again.')) H.logout();
   });
 

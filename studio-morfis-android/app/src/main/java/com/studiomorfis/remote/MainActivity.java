@@ -25,6 +25,7 @@ import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -33,6 +34,17 @@ import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.MessageDigest;
+import java.util.HashMap;
+import java.util.Map;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -42,12 +54,19 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Studio Morfis on Android: a window onto the Studio Morfis app running on a computer on the same network.
+ * Studio Morfis on Android: the Studio Morfis app of a computer on the same network, on the phone.
  * The computer serves the whole interface (Settings > Desktop app > Phone access); this app finds the computer,
  * shows its pages, and does what only a phone can: choose files to upload, save downloads, and open links.
+ *
+ * The pages are shown under a fixed address of their own (http://studio.morfis), fetched from the computer when it
+ * answers and kept on the phone, so the app opens and works with no connection, and what the page keeps for
+ * offline use (its copy of the projects and folder names, and the changes waiting to be sent) survives the
+ * computer's network address changing. The page talks to the computer directly, with this phone's key.
  */
 public class MainActivity extends Activity {
     private static final String CONNECT = "file:///android_asset/connect.html";
+    private static final String ORIGIN = "http://studio.morfis";
+    private static final String HOST = "studio.morfis";
     private static final int PICK_FILES = 7;
     private static final int DISCOVERY_PORT = 47821;
 
@@ -75,6 +94,7 @@ public class MainActivity extends Activity {
         s.setSupportMultipleWindows(false);
         s.setUserAgentString(s.getUserAgentString() + " StudioMorfisAndroid/" + version());
         CookieManager.getInstance().setAcceptCookie(true);
+        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
 
         web.addJavascriptInterface(new Bridge(), "MorfisAndroid");
         web.setWebViewClient(new Client());
@@ -89,7 +109,7 @@ public class MainActivity extends Activity {
         else {
             String server = prefs.getString("server", "");
             if (server.isEmpty()) web.loadUrl(CONNECT);
-            else web.loadUrl(server + "/");
+            else web.loadUrl(ORIGIN + "/app");
         }
     }
 
@@ -98,11 +118,92 @@ public class MainActivity extends Activity {
     }
 
     private String server() { return prefs.getString("server", ""); }
+    private String key() { return prefs.getString("key", ""); }
 
-    /** Pages of the computer this phone is connected to, and the app's own connect page, may use the bridge. */
+    /** The app's own pages (the connect page, and the computer's pages under the app's address) may use the bridge. */
     private boolean trusted() {
-        String u = currentUrl, srv = server();
-        return u.startsWith(CONNECT) || (!srv.isEmpty() && (u.equals(srv) || u.startsWith(srv + "/")));
+        String u = currentUrl;
+        return u.startsWith(CONNECT) || u.equals(ORIGIN) || u.startsWith(ORIGIN + "/");
+    }
+
+    /* ----- the computer's pages under the app's own address: fetched when it answers, kept for offline ----- */
+    private File cacheFile(String path, String ext) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-1");
+            StringBuilder h = new StringBuilder();
+            for (byte b : md.digest(path.getBytes(StandardCharsets.UTF_8))) h.append(String.format("%02x", b));
+            File dir = new File(getFilesDir(), "pages");
+            if (!dir.exists()) dir.mkdirs();
+            return new File(dir, h + ext);
+        } catch (Exception e) { return null; }
+    }
+    private static byte[] readAll(InputStream in) throws java.io.IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buf = new byte[16384];
+        int n;
+        while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+        in.close();
+        return out.toByteArray();
+    }
+    private WebResourceResponse response(String type, int code, InputStream body) {
+        String mime = type == null ? "application/octet-stream" : type.split(";")[0].trim(), charset = null;
+        if (type != null && type.toLowerCase().contains("charset=")) charset = type.substring(type.toLowerCase().indexOf("charset=") + 8).trim();
+        Map<String, String> h = new HashMap<>();
+        h.put("Cache-Control", "no-store");
+        return new WebResourceResponse(mime, charset, code, code == 200 ? "OK" : code == 206 ? "Partial Content" : "Status", h, body);
+    }
+    private WebResourceResponse fromPhone(String path) {
+        File body = cacheFile(path, ".body"), meta = cacheFile(path, ".type");
+        if (body == null || !body.exists()) return null;
+        try {
+            String type = meta != null && meta.exists() ? new String(readAll(new FileInputStream(meta)), StandardCharsets.UTF_8) : "application/octet-stream";
+            return response(type, 200, new FileInputStream(body));
+        } catch (Exception e) { return null; }
+    }
+    private WebResourceResponse fromComputer(WebResourceRequest req) {
+        Uri u = req.getUrl();
+        String path = (u.getEncodedPath() == null ? "/" : u.getEncodedPath()) + (u.getEncodedQuery() == null ? "" : "?" + u.getEncodedQuery());
+        boolean stream = path.startsWith("/__file/") || path.startsWith("/dl/");
+        String srv = server();
+        if (srv.isEmpty()) return null;
+        try {
+            HttpURLConnection c = (HttpURLConnection) new URL(srv + path).openConnection();
+            c.setConnectTimeout(3000);
+            c.setReadTimeout(stream ? 60000 : 15000);
+            c.setInstanceFollowRedirects(false);
+            if (!key().isEmpty()) c.setRequestProperty("x-morfis-key", key());
+            String range = req.getRequestHeaders() == null ? null : req.getRequestHeaders().get("Range");
+            if (range != null) c.setRequestProperty("Range", range);
+            int code = c.getResponseCode();
+            if (code == 302 || code == 301) {
+                String loc = c.getHeaderField("Location");
+                c.disconnect();
+                Map<String, String> h = new HashMap<>();
+                h.put("Location", loc == null ? "/app" : loc);
+                return new WebResourceResponse("text/html", "utf-8", 302, "Found", h, new ByteArrayInputStream(new byte[0]));
+            }
+            String type = c.getContentType();
+            if (stream) {
+                WebResourceResponse r = response(type, code, code >= 400 ? c.getErrorStream() : c.getInputStream());
+                Map<String, String> h = new HashMap<>(r.getResponseHeaders());
+                for (String k : new String[] { "Content-Range", "Accept-Ranges", "Content-Length" }) { String v = c.getHeaderField(k); if (v != null) h.put(k, v); }
+                r.setResponseHeaders(h);
+                return r;
+            }
+            byte[] bytes = readAll(code >= 400 ? c.getErrorStream() : c.getInputStream());
+            boolean pairPage = "pair".equals(c.getHeaderField("x-morfis-page"));
+            if (code == 200 && !pairPage) {
+                File body = cacheFile(path, ".body"), meta = cacheFile(path, ".type");
+                if (body != null && meta != null) {
+                    try (FileOutputStream o = new FileOutputStream(body)) { o.write(bytes); }
+                    try (FileOutputStream o = new FileOutputStream(meta)) { o.write((type == null ? "application/octet-stream" : type).getBytes(StandardCharsets.UTF_8)); }
+                }
+            }
+            return response(type, code, new ByteArrayInputStream(bytes));
+        } catch (Exception e) {
+            /* the computer is away: the copy kept on the phone, if there is one */
+            return stream ? null : fromPhone(path);
+        }
     }
 
     private boolean ours(Uri uri) {
@@ -130,9 +231,16 @@ public class MainActivity extends Activity {
     /* ----- pages ----- */
     private class Client extends WebViewClient {
         @Override
+        public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
+            Uri u = req.getUrl();
+            if (!HOST.equals(u.getHost()) || !"GET".equalsIgnoreCase(req.getMethod())) return null;
+            return fromComputer(req);
+        }
+
+        @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
             Uri u = req.getUrl();
-            if (CONNECT.equals(u.toString().split("\\?")[0]) || ours(u)) return false;
+            if (CONNECT.equals(u.toString().split("\\?")[0]) || HOST.equals(u.getHost()) || ours(u)) return false;
             openOutside(u.toString());
             return true;
         }
@@ -149,7 +257,7 @@ public class MainActivity extends Activity {
         @Override
         public void onReceivedError(WebView view, WebResourceRequest req, WebResourceError err) {
             if (!req.isForMainFrame() || req.getUrl().toString().startsWith("file:")) return;
-            showConnect("Could not reach " + server() + ". Check that the computer is on, Studio Morfis is open with phone access allowed, and both are on the same network.");
+            showConnect("Could not reach " + server() + ", and the app has not been opened with it yet. Check that the computer is on, Studio Morfis is open with phone access allowed, and both are on the same network.");
         }
     }
 
@@ -196,8 +304,7 @@ public class MainActivity extends Activity {
         try {
             String name = URLUtil.guessFileName(url, disposition, mime);
             DownloadManager.Request r = new DownloadManager.Request(Uri.parse(url));
-            String cookie = CookieManager.getInstance().getCookie(url);
-            if (cookie != null) r.addRequestHeader("Cookie", cookie);
+            if (!key().isEmpty()) r.addRequestHeader("x-morfis-key", key());
             r.addRequestHeader("User-Agent", userAgent);
             if (mime != null && !mime.isEmpty()) r.setMimeType(mime);
             r.setTitle(name);
@@ -286,8 +393,56 @@ public class MainActivity extends Activity {
             Uri u = Uri.parse(a);
             if (u.getHost() == null) return;
             final String url = u.getScheme() + "://" + u.getHost() + ":" + (u.getPort() > 0 ? u.getPort() : 47820);
-            prefs.edit().putString("server", url).apply();
-            ui.post(() -> web.loadUrl(url + "/"));
+            new Thread(() -> {
+                String id = null;
+                try {
+                    HttpURLConnection c = (HttpURLConnection) new URL(url + "/ping").openConnection();
+                    c.setConnectTimeout(4000);
+                    c.setReadTimeout(4000);
+                    JSONObject j = new JSONObject(new String(readAll(c.getInputStream()), StandardCharsets.UTF_8));
+                    if ("studio-morfis".equals(j.optString("app"))) id = j.optString("id", "");
+                } catch (Exception ignore) { /* not reachable */ }
+                if (id == null) { ui.post(() -> showConnect("No Studio Morfis answered at " + url + ".")); return; }
+                SharedPreferences.Editor e = prefs.edit().putString("server", url);
+                /* another computer: this phone pairs with it, and keeps nothing of the last one's key */
+                if (!id.equals(prefs.getString("serverId", ""))) e.putString("serverId", id).putString("key", "");
+                e.apply();
+                ui.post(() -> web.loadUrl(ORIGIN + "/app"));
+            }).start();
+        }
+
+        /** The computer's address, its id, and this phone's key for it. */
+        @JavascriptInterface
+        public String server() { return trusted() ? MainActivity.this.server() : ""; }
+
+        @JavascriptInterface
+        public String key() { return trusted() ? MainActivity.this.key() : ""; }
+
+        @JavascriptInterface
+        public String serverId() { return trusted() ? prefs.getString("serverId", "") : ""; }
+
+        /** Given by the computer when the PIN was right. */
+        @JavascriptInterface
+        public void setKey(String k, String id) {
+            if (!trusted() || k == null || !k.matches("[a-f0-9]{64}")) return;
+            SharedPreferences.Editor e = prefs.edit().putString("key", k);
+            if (id != null && !id.isEmpty()) e.putString("serverId", id);
+            e.apply();
+        }
+
+        /** The computer no longer knows this phone: pair again. */
+        @JavascriptInterface
+        public void unpaired() {
+            if (!trusted()) return;
+            prefs.edit().putString("key", "").apply();
+            ui.post(() -> web.loadUrl(ORIGIN + "/app"));
+        }
+
+        /** Save a file from the computer to the phone's Downloads. */
+        @JavascriptInterface
+        public void download(String url) {
+            if (!trusted() || url == null) return;
+            ui.post(() -> MainActivity.this.download(url, web.getSettings().getUserAgentString(), null, null));
         }
 
         /** Back to the list of computers (the pairing with this one is kept). */
@@ -298,7 +453,7 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public String lastServer() { return trusted() ? server() : ""; }
+        public String lastServer() { return trusted() ? MainActivity.this.server() : ""; }
 
         @JavascriptInterface
         public void openExternal(String url) {

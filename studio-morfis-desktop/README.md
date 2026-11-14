@@ -159,6 +159,16 @@ The phone stays paired. Phone access lists the paired phones, shows which are co
 | Choosing a folder (for example the projects root) | You browse the computer's folders from the phone |
 | Automations | They run on the computer only, so nothing happens twice |
 
+**Offline:** the Android app keeps working with no connection.
+
+- **What the phone keeps:** a copy of the projects, documents and settings, and every project folder's names, sizes and dates. It never copies the files themselves.
+- **Changes while offline:** rename, move and delete files and folders, make new folders, add files from the phone (kept on the phone until they can be sent), and edit projects, tasks, payments and invoices.
+- **The notice:** a small notice at the top says the phone is offline and how many changes are waiting.
+- **Coming back:** when the computer answers again, the changes are sent in the order they were made, and the copy is refreshed.
+- **Changed on both:** a record changed on the phone and on the computer is merged item by item. Where the same item changed on both, the computer's version is kept and a short report says what.
+- **Needs the computer:** opening or previewing a file (only names are kept), exports, and the AI assistant.
+- **Several computers:** each one the phone pairs with has its own copy. The copy survives the computer's address changing.
+
 **Safety:** it is off until you turn it on.
 
 - **Pairing:** a phone needs the PIN once. Five wrong tries replace the PIN, and only a hash of each phone's key is kept on the computer.

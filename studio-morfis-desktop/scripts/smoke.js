@@ -281,6 +281,16 @@ app.whenReady().then(async () => {
   const cookie = String((paired.headers['set-cookie'] || [''])[0]).split(';')[0];
   phone.paired = JSON.parse(paired.body).ok && /^morfis_dev=[a-f0-9]{64}$/.test(cookie);
   phone.projects = Object.keys(JSON.parse((await req('POST', '/api/storeLoad', '{"args":[]}', { cookie: cookie })).body).v.projects).length;
+  /* the Android app's way in: its own page address, a key in a header */
+  const AO = { origin: 'http://studio.morfis' };
+  const pre = await req('OPTIONS', '/api/storeLoad', null, AO);
+  phone.cors = pre.status === 204 && pre.headers['access-control-allow-origin'] === AO.origin && /x-morfis-key/.test(pre.headers['access-control-allow-headers'] || '');
+  const st2 = JSON.parse(await js(w, "window.morfisDesktop.remoteStatus().then(function(r){return JSON.stringify(r)})"));
+  const ap = JSON.parse((await req('POST', '/pair', JSON.stringify({ pin: st2.pin, name: 'App phone' }), AO)).body);
+  phone.appKey = /^[a-f0-9]{64}$/.test(ap.key || '') && !!ap.id;
+  phone.appCall = Object.keys(JSON.parse((await req('POST', '/api/storeLoad', '{"args":[]}', Object.assign({ 'x-morfis-key': ap.key || '' }, AO))).body).v.projects).length === 4;
+  phone.appTree = JSON.parse((await req('POST', '/api/syncTree', JSON.stringify({ args: [os.tmpdir()] }), { 'x-morfis-key': ap.key || '' })).body).v.exists === true;
+  phone.pingId = JSON.parse((await req('GET', '/ping')).body).id === ap.id;
   phone.blocked = /Not available/.test((await req('POST', '/api/saveFile', '{"args":["a.txt",[1]]}', { cookie: cookie })).body);
   /* the phone page itself, in a phone-sized window */
   const { session } = require('electron');
@@ -312,6 +322,40 @@ app.whenReady().then(async () => {
   phone.devices = JSON.parse(await js(w, "window.morfisDesktop.remoteStatus().then(function(r){return JSON.stringify(r.devices)})")).map((d) => d.name + (d.online ? ' (online)' : '')).join(', ');
   await go('settings', '44-settings-phone');
   await js(w, "(function(){var c=document.querySelector('.dk-phone');if(c)c.scrollIntoView({block:'center'})})()"); await wait(500); await shot(w, '44-settings-phone');
+  /* offline: the phone keeps working on its copy, and its changes reach the computer when it is back */
+  const off = {};
+  for (let i = 0; i < 20 && !(await pj("window.morfisDesktop.offline().folders")); i++) await wait(500);
+  const roots = JSON.parse(await pj("JSON.stringify(window.morfisDesktop.offline().roots)"));
+  off.folders = roots.length;
+  const opid = await pj("(function(){var pg=window.__morfisPage,r=window.morfisDesktop.offline().roots.map(function(x){return x.toLowerCase()});var p=Object.values(pg.S.projects).find(function(p){return r.indexOf(pg.projDir(p).toLowerCase())!==-1});return p?p.id:''})()");
+  if (opid) {
+    const oroot = await pj("window.__morfisPage.projDir(window.__morfisPage.P(" + JSON.stringify(opid) + "))");
+    const sub = await pj("window.__morfisPage.FOLDER_TEMPLATES[0].name");
+    await pj("window.__morfisOffline(true)"); await wait(300);
+    off.offline = !(await pj("window.morfisDesktop.offline().online"));
+    off.made = !!(await pj("window.morfisDesktop.makeDir(" + JSON.stringify(oroot) + "," + JSON.stringify(sub) + ",'Offline folder').then(function(r){return r.path})"));
+    off.listed = await pj("window.morfisDesktop.listDir(" + JSON.stringify(oroot) + "," + JSON.stringify(sub) + ").then(function(r){return r.entries.some(function(e){return e.name==='Offline folder'&&e.dir})})");
+    off.renamed = await pj("window.morfisDesktop.renameItem(" + JSON.stringify(oroot) + "," + JSON.stringify(sub + '/Offline folder') + ",'Renamed offline').then(function(r){return r.rel})");
+    await pj("(function(){var pg=window.__morfisPage,p=pg.P(" + JSON.stringify(opid) + ");p.client=Object.assign({},p.client,{name:'Phone client'});pg.commit(p);Morfis.setWorkStatus(p.id,'on_hold')})()"); await wait(800);
+    /* a file added from the phone while offline: kept on the phone, then sent */
+    off.added = await pj("new Promise(function(res){var rq=indexedDB.open('morfis-offline');rq.onsuccess=function(){var tx=rq.result.transaction('blobs','readwrite');tx.objectStore('blobs').put({name:'phone-note.txt',type:'text/plain',blob:new Blob(['written on the phone'])},'testblob');tx.oncomplete=function(){res(window.morfisDesktop.copyInto(" + JSON.stringify(path.join(oroot, sub)) + ",['phone-file:testblob/phone-note.txt']).then(function(r){return r.copied}))}}})");
+    off.waiting = await pj("window.morfisDesktop.offline().waiting");
+    off.notOnPcYet = !fs.existsSync(path.join(oroot, sub, 'Renamed offline'));
+    /* meanwhile on the computer: another field of the same project */
+    await js(w, "(function(){var pg=window.__morfisPage,p=pg.P(" + JSON.stringify(opid) + ");p.location='Changed on the PC';pg.commit(p)})()"); await wait(800);
+    await shot(phw, '45-phone-offline');
+    await pj("window.__morfisOffline(false)");
+    for (let i = 0; i < 30 && (await pj("window.morfisDesktop.offline().waiting")); i++) await wait(500);
+    await wait(1500);
+    off.sent = (await pj("window.morfisDesktop.offline().waiting")) === 0;
+    off.onDisk = fs.existsSync(path.join(oroot, sub, 'Renamed offline'));
+    off.fileSent = fs.existsSync(path.join(oroot, sub, 'phone-note.txt')) && fs.readFileSync(path.join(oroot, sub, 'phone-note.txt'), 'utf8') === 'written on the phone';
+    const pc = JSON.parse(await js(w, "JSON.stringify(window.__morfisPage.P(" + JSON.stringify(opid) + "))"));
+    off.pcStatus = pc.workStatus; off.pcClient = pc.client && pc.client.name; off.pcLocation = pc.location;
+    off.phoneLocation = await pj("window.__morfisPage.P(" + JSON.stringify(opid) + ").location");
+    await shot(phw, '46-phone-back-online');
+  }
+  phone.offline = off;
   phw.destroy();
   await js(w, "window.morfisDesktop.remoteSet(false)");
   }
@@ -344,7 +388,11 @@ app.whenReady().then(async () => {
   expect(extra.picker && extra.accent === '#2E9E6A' && extra.accentVar.toUpperCase() === '#2E9E6A', 'custom accent colour picker');
   expect(own.editor && own.cards === 1 && own.added === 1 && own.text.indexOf(own.pname) !== -1, 'custom automation: status Completed adds the close-out reminder: ' + JSON.stringify(own));
   expect(phone.on && phone.ping === 'studio-morfis' && phone.unpaired === 401 && phone.pairPage && phone.wrongPin === false && phone.paired && phone.projects === 4 && phone.blocked, 'phone access: pairing and the API: ' + JSON.stringify(phone));
+  expect(phone.cors && phone.appKey && phone.appCall && phone.appTree && phone.pingId, 'phone access from the Android app (fixed page address, key header): ' + JSON.stringify(phone));
   expect(phone.remotePage && phone.drawer && phone.drawerClosed && phone.back && phone.backHome, 'phone page: drawer and Back: ' + JSON.stringify(phone));
+  const po = phone.offline || {};
+  expect(po.folders > 0 && po.offline && po.made && po.listed && po.renamed && po.waiting >= 3 && po.notOnPcYet, 'phone offline: folders and changes kept on the phone: ' + JSON.stringify(po));
+  expect(po.sent && po.onDisk && po.added === 1 && po.fileSent && po.pcStatus === 'on_hold' && po.pcClient === 'Phone client' && po.pcLocation === 'Changed on the PC' && po.phoneLocation === 'Changed on the PC', 'phone offline: changes reach the computer and merge: ' + JSON.stringify(po));
   expect(phone.toComputer === 'on_hold' && phone.toPhone === 'in_progress', 'phone and computer stay in step: ' + JSON.stringify(phone));
   console.log(fails.length ? 'SMOKE FAILED: ' + fails.join('; ') : 'SMOKE PASSED');
   app.exit(fails.length ? 1 : 0);

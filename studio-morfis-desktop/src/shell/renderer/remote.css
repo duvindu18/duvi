@@ -71,3 +71,7 @@ html.rb-offline .rb-off{display:flex;position:fixed;z-index:90;left:50%;top:calc
 
 /* this phone, on the Settings page */
 .rb-phone .toolbar{flex-wrap:wrap}
+.rb-off-info{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--ink-2)}
+.rb-off-info b{color:var(--ink);font-family:var(--f-mono)}
+.rb-rep{margin:4px 0 0;padding-left:18px;font-size:13px;color:var(--ink-2);display:flex;flex-direction:column;gap:4px}
+html.rb-sync .rb-off i{background:var(--accent-fill)}
