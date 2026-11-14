@@ -1,82 +1,110 @@
 # CADView: an offline CAD and 3D viewer for Android and iOS
 
 CADView opens CAD drawings and 3D models on a phone with **no internet, no account and no uploads**.
-It is a web app (TypeScript + three.js) that ships inside a native Android/iOS app through [Capacitor](https://capacitorjs.com).
-All parsing and rendering runs on the device.
+It is a TypeScript + three.js app packaged as native Android and iOS apps with [Capacitor](https://capacitorjs.com).
+The whole app ships inside the APK/IPA, and the Android build doesn't even request the INTERNET permission.
 
-## Features that set it apart
+## Gestures
 
-| Feature | Why it matters on site |
+| | 2D drawings | 3D models |
+|---|---|---|
+| One finger | pan, with fling momentum | orbit |
+| Pinch | zoom around the point between your fingers | zoom toward what's under your fingers |
+| Twist | rotate (can be locked; the compass resets it) | spin |
+| Two fingers drag | pan | pan |
+| Double-tap | zoom in ×2 there | fly in and re-centre the orbit there |
+| Two-finger tap | zoom out ×2 | zoom out ×2 |
+| Long-press | menu: measure from here, add a note, zoom, copy coordinates | same |
+| Long-press while measuring | **magnifier loupe** for precise placement; a haptic tick on each snap | same |
+| Swipe a panel down | close it | close it |
+
+Taps snap to real corners, line ends, midpoints, circle centres and quadrants. In 3D they snap to vertices on the surface you touched (never through walls).
+
+## Features
+
+- **Fully offline library.** Opened files are kept on the device with thumbnails, and the last view, notes and measurements are restored when you reopen one.
+- **Measure** distance (Δx/Δy, or height difference in 3D) and area plus perimeter. Units are set per file: mm, cm, m, in, or ft with feet-inches.
+- **Pinned notes** that can be shared as text, and **share a marked-up image** through the phone's share sheet.
+- **Revision compare** (DXF): added lines show green, removed red, unchanged grey, each toggleable. Matching is by geometry, so re-saves and reordering don't count as changes.
+- **Find text** (room numbers, tags), including block attributes.
+- **Section cuts** in 3D (across, height or depth), plus standard views and "stand model up" for Z-up exports.
+- **Site mode**: high contrast for sunlight, with larger targets.
+- Follows the system **dark/light** theme. On light backgrounds pale CAD colours are darkened automatically so yellow and cyan stay readable.
+- **Open with CADView** from file managers, email, WhatsApp or Drive (Android intent filters and iOS document types).
+
+## Built for big files
+
+| Technique | Effect |
 |---|---|
-| **Fully offline, no login** | Basements, rural sites and plane trips. Files you open are kept on the device and reopen with no signal. |
-| **Revision compare** (DXF) | Open rev A, then compare it with rev B. Added lines show green, removed lines red, unchanged grey, with an "only changes" filter. Matching is by geometry, so a re-save or reordering doesn't count as a change. |
-| **Find text in drawings** | Search "203" or "DB-2" and the view jumps to that room, door tag or note. |
-| **Snapping measurements** | Distance (with Δx/Δy or height) and area/perimeter. Points snap to real corners and line ends. Measurements are saved with the file. |
-| **Pinned notes** | Drop numbered notes on the drawing or model, list them, export them as text, and share a marked-up PNG through the phone's share sheet. |
-| **Section cuts** (3D) | Slice a building horizontally to see a floor plan, or along X/Z. |
-| **Site mode** | Black-on-white high contrast for direct sunlight, with larger buttons for gloved hands. |
-| **Private by design** | Files never leave the device. That matters for NDAs and security-sensitive buildings. |
-| **Battery-friendly** | The view only redraws when something changes, never as a constant 60 fps loop. |
+| **Streaming byte-level DXF reader** in a Web Worker | 53 MB / 806k entities parses in ~2 s on a laptop CPU. Memory is a small multiple of the output, not 30-40× the file like object-based parsers. The UI keeps animating while it loads, and loading can be cancelled. |
+| Geometry goes straight into **fixed-size typed-array chunks** | no doubling or final copy; handed to the GPU with zero-copy transfer |
+| **Adaptive arc tessellation** from the drawing extents | half the segments of a fixed 64-per-circle approach, still smooth when zoomed in |
+| **Spatial tiles + length-sorted level of detail** | off-screen tiles are culled when zoomed in; sub-pixel segments are skipped when zoomed out; one draw call per tile |
+| **GPU-instanced text** from one glyph atlas | 100k+ labels in one draw call per layer, hidden automatically below a readable size |
+| **Uniform-grid snap index** | snapping is a cell lookup instead of a scan of millions of points |
+| **BVH ray casting** (three-mesh-bvh), built in the worker for OBJ/STL/PLY | instant taps on multi-million-triangle models |
+| Mesh **merging per part and material**, edges added progressively | thousands of SketchUp components become a handful of draw calls |
+| **Render on demand** plus **adaptive resolution while moving** | no battery drain when idle; heavy scenes drop resolution mid-gesture and sharpen the moment fingers stop |
+| Survey coordinates **re-centred** before the GPU | no float32 jitter on drawings at x ≈ 500 000 |
 
 ## Formats
 
 | Format | Status |
 |---|---|
-| DXF (ASCII) | ✅ Lines, polylines (including arcs/bulges), circles, arcs, ellipses, splines, solids, 3D faces, blocks/INSERT (rotation, scale, arrays), dimensions, TEXT/MTEXT, layers and colours. Anything not drawn yet (e.g. HATCH) is **reported** when the file opens, never hidden silently. |
-| glTF / GLB, OBJ, STL, DAE, PLY, 3MF | ✅ 3D. Edges are outlined like in SketchUp, and parts/components can be toggled. |
-| **SKP** (SketchUp) | ⚠️ Trimble's SDK is desktop-only, so a .skp can't be read on a phone. The app explains how to export from SketchUp (.dae keeps components and materials). |
-| **DWG** (AutoCAD) | ⚠️ Needs a decoder. See "Decisions needed" below. Until then the app tells the user to save as DXF. |
-| Binary DXF | ❌ Not yet. The app says so and asks for ASCII DXF. |
+| DXF (ASCII, R12–2018+) | ✅ LINE, (LW)POLYLINE with bulges/arcs, 3D polylines, polyface and polygon meshes, CIRCLE, ARC, ELLIPSE, SPLINE (rational, de Boor), SOLID/TRACE/3DFACE, LEADER, TEXT/MTEXT/ATTRIB with alignment, INSERT (nested, rotated, scaled, arrays), DIMENSION. Handles OCS/extrusion (mirrored entities), layer on/off/frozen, ACI and true colour, ByLayer/ByBlock, code pages and `\U+` escapes. Paper-space layouts are skipped. Anything not drawn yet (e.g. HATCH) is **listed in File info**, never silently dropped. |
+| GLB/glTF (incl. Draco, meshopt, KTX2), OBJ, STL, PLY, DAE, 3MF | ✅ 3D. Decoders are bundled locally. |
+| **SKP** (SketchUp) | ⚠️ Trimble's SDK is desktop-only. The app explains how to export from SketchUp (.dae keeps groups and materials). |
+| **DWG** | ⚠️ Needs a decoder (see "Decisions needed"). The app asks the user to save as DXF for now. |
+| Binary DXF | ❌ Not yet. The app says so. |
 
-## Run it
+## Run, test, build
 
 ```bash
 cd cadview
 npm install
-npm run dev          # open the printed URL on your phone (same Wi-Fi)
-npm test             # unit tests (DXF geometry, blocks, bulges, revision diff)
-npx vite-node scripts/make-samples.ts   # writes demo files to samples/
+npm run dev                         # open the printed URL on your phone (same Wi-Fi)
+npm test                            # unit tests: DXF geometry, OCS, blocks, bulges, diff, snap index
+npm run build && npx vite preview --port 4173 &
+node e2e/gestures.cjs http://localhost:4173/ /tmp     # real multi-touch: pinch, twist, fling, long-press, loupe…
+node e2e/screens.cjs  http://localhost:4173/ /tmp     # layout check on 6 screen sizes / orientations
+npx vite-node scripts/make-big.ts /tmp 4              # 53 MB DXF + 196 MB STL stress files
+node e2e/bigfiles.cjs http://localhost:4173/ /tmp/big-city.dxf /tmp/big-terrain.stl
 ```
 
-## Build the phone apps
+### Phone apps
+
+The native projects are already generated in `android/` and `ios/`.
 
 ```bash
-npm run build
-npx cap add android && npx cap add ios   # first time only: creates the native projects
-npm run cap:android  # opens Android Studio → Run / Build APK
-npm run cap:ios      # opens Xcode (needs a Mac) → Run / Archive
+npm run cap:android   # builds the web bundle, syncs it, opens Android Studio → Run / Build APK
+npm run cap:ios       # same for Xcode (needs a Mac) → Run / Archive
 ```
-
-The whole web bundle is copied into the app, so it runs offline from the first launch.
 
 ## Code map
 
 ```
-src/cad/dxf.ts       DXF → primitives (pure TS, no three.js), with block expansion, arcs, bulges, splines, text
-src/cad/diff.ts      revision compare: order- and direction-independent geometric signatures
-src/parse.worker.ts  parses DXF off the UI thread, so big files don't freeze the screen
-src/build.ts         primitives → merged GPU line batches (one per layer and colour); 3D loaders
-src/viewer.ts        renderer, camera fit, snapping, section planes, labels pinned to the model
-src/library.ts       on-device storage (IndexedDB): files, notes and measurements per file
-src/main.ts          UI: tools, sheets, compare, find, notes, site mode, snapshot sharing
+src/cad/dxf.ts        streaming DXF reader → chunked line buffers, text, snap points
+src/cad/tiles.ts      spatial tiles + length classes for level of detail
+src/cad/diff.ts       revision compare (53-bit geometric hashes, multiset matching)
+src/cad/snapgrid.ts   uniform-grid nearest-point index
+src/worker.ts         parsing, compare, mesh parsing + BVH + edges, off the UI thread
+src/render/controls.ts touch gesture engine (pan/pinch/twist/fling/double-tap/long-press)
+src/render/viewer.ts  renderer, adaptive resolution, picking, loupe, sections, labels
+src/render/text.ts    instanced glyph-atlas text with size-based culling
+src/render/scene.ts   scene building for 2D tiles and 3D models (glTF/DAE/3MF on the main thread)
+src/ui/*              icons, bottom sheet, popover, loading, haptics
+src/main.ts           app: library, tools, sheets, compare, notes, share
 ```
-
-Large survey-grid coordinates (e.g. x ≈ 500 000) are re-centred before reaching the GPU, so the drawing doesn't jitter.
 
 ## Decisions needed
 
-1. **DWG decoder**
-   - *LibreDWG compiled to WebAssembly* (e.g. the `@mlightcad/libredwg-web` package). It is free and runs offline, but it is **GPL**, so the whole app would have to be open source under GPL.
-   - *ODA Drawings SDK*. Commercial (paid yearly membership), with native Android/iOS builds, and the most accurate option.
-2. **SKP**: keep the export-from-SketchUp workflow, or add an optional cloud converter. A cloud converter means the app is no longer fully offline for .skp files.
+1. **DWG decoder.** LibreDWG compiled to WebAssembly is free and works offline, but it is **GPL**, so the whole app would have to be open source. The ODA Drawings SDK is commercial (paid membership), with native Android and iOS builds.
+2. **SKP:** keep the export-from-SketchUp workflow, or add an optional cloud converter. With a converter the app is no longer offline for SKP.
 
 ## Roadmap
 
-- [ ] DWG (once the decision above is made)
-- [ ] HATCH fills, linetypes (dashed lines), line weights
-- [ ] Calibrate scale for drawings with unknown units ("this line is 3.6 m")
-- [ ] Export a marked-up PDF report (notes, measurements, photos)
-- [ ] Attach camera photos to notes
-- [ ] AR: place the 3D model at real scale on site (ARCore / ARKit)
-- [ ] "Open with…" from the file manager, email and WhatsApp (Android intent filters, iOS document types)
-- [ ] Measure along a polyline, angle measurement, layer presets
+- [ ] DWG (once decided), binary DXF, HATCH fills, linetypes and line weights
+- [ ] 3D level of detail for 10M+ triangle models
+- [ ] Calibrate scale from a known dimension; angle and polyline-length measuring
+- [ ] PDF report of notes and measurements; photos attached to notes
+- [ ] AR placement at real scale (ARCore/ARKit)

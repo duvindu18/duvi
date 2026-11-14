@@ -14,9 +14,11 @@ export const lwpoly = (pts: [number, number, number?][], closed: boolean, layer 
 export const insert = (name: string, x: number, y: number, rot = 0, sx = 1, sy = 1, layer = '0') =>
   ent('INSERT', layer, [[2, name], [10, x], [20, y], [30, 0], [41, sx], [42, sy], [50, rot]]);
 
-export function dxf(entities: G[][], opts: { blocks?: Record<string, G[][]>; layers?: [string, number][]; units?: number } = {}): string {
+export function dxf(entities: G[][], opts: { blocks?: Record<string, G[][]>; layers?: [string, number][]; units?: number; ext?: [number, number, number, number] } = {}): string {
   const g: G[] = [];
-  g.push([0, 'SECTION'], [2, 'HEADER'], [9, '$INSUNITS'], [70, opts.units ?? 6], [0, 'ENDSEC']);
+  g.push([0, 'SECTION'], [2, 'HEADER'], [9, '$INSUNITS'], [70, opts.units ?? 6]);
+  if (opts.ext) g.push([9, '$EXTMIN'], [10, opts.ext[0]], [20, opts.ext[1]], [30, 0], [9, '$EXTMAX'], [10, opts.ext[2]], [20, opts.ext[3]], [30, 0]);
+  g.push([0, 'ENDSEC']);
   g.push([0, 'SECTION'], [2, 'TABLES'], [0, 'TABLE'], [2, 'LAYER'], [70, (opts.layers ?? []).length]);
   for (const [name, aci] of opts.layers ?? []) g.push([0, 'LAYER'], [2, name], [70, 0], [62, aci], [6, 'CONTINUOUS']);
   g.push([0, 'ENDTAB'], [0, 'ENDSEC']);

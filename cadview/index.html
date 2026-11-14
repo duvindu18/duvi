@@ -2,59 +2,110 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <meta name="theme-color" content="#0f1115" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, interactive-widget=resizes-content" />
+  <meta name="theme-color" content="#0b0d12" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>CADView</title>
   <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
-  <header id="bar">
-    <button id="btnHome" class="icon" aria-label="Library">☰</button>
-    <div id="title">CADView</div>
-    <button id="btnOpen" class="primary">Open</button>
+  <!-- ============ Library ============ -->
+  <section id="home" class="screen active" aria-label="Library">
+    <header class="home-head">
+      <div class="brand"><span class="logo" aria-hidden="true"></span><span>CADView</span></div>
+      <button class="icon-btn" id="btnHelp" aria-label="How to use"><i data-icon="help"></i></button>
+    </header>
+    <div class="home-body">
+      <div class="hero">
+        <h1>Your drawings,<br />in your pocket.</h1>
+        <p>DXF plans and 3D models with measuring, notes and revision compare. Works with no signal, needs no account, and nothing is uploaded.</p>
+        <button class="btn primary xl" id="btnOpen"><i data-icon="open"></i>Open a file</button>
+        <div class="formats">DXF · GLB/glTF · OBJ · STL · DAE (from SketchUp) · PLY · 3MF</div>
+      </div>
+      <div class="samples">
+        <span class="label-sm">Try a sample</span>
+        <div class="chips">
+          <button class="chip" data-sample="floorplan-rev-A.dxf"><i data-icon="shapes" data-size="16"></i>Floor plan</button>
+          <button class="chip" data-sample="house.obj"><i data-icon="cube" data-size="16"></i>3D house</button>
+          <button class="chip" data-sample="compare"><i data-icon="compare" data-size="16"></i>Compare revisions</button>
+        </div>
+      </div>
+      <div class="lib-head"><h2 id="recentTitle">On this device</h2><span id="storage" class="label-sm"></span></div>
+      <ul id="recent" class="cards"></ul>
+      <div id="empty" class="empty">Files you open appear here and stay available offline.</div>
+    </div>
     <input id="fileInput" type="file" hidden />
     <input id="compareInput" type="file" accept=".dxf" hidden />
-  </header>
-
-  <main id="stage">
-    <div id="canvasHost"></div>
-    <div id="labels"></div>
-    <div id="hint" hidden></div>
-    <div id="legend" hidden></div>
-  </main>
-
-  <section id="home">
-    <div class="home-inner">
-      <h1>CADView</h1>
-      <p class="sub">Open CAD drawings and 3D models on your phone. Works fully offline, needs no account, and files never leave your device.</p>
-      <button id="homeOpen" class="primary big">Open a file</button>
-      <p class="formats">DXF · glTF/GLB · OBJ · STL · DAE (SketchUp export) · PLY · 3MF</p>
-      <h2 id="recentTitle" hidden>On this device</h2>
-      <ul id="recent"></ul>
-    </div>
   </section>
 
-  <nav id="tools" hidden>
-    <button data-tool="fit"><span>⤢</span>Fit</button>
-    <button data-tool="layers"><span>☷</span>Layers</button>
-    <button data-tool="measure"><span>📏</span>Measure</button>
-    <button data-tool="area"><span>▱</span>Area</button>
-    <button data-tool="note"><span>📍</span>Note</button>
-    <button data-tool="find" data-only="2d"><span>🔎</span>Find</button>
-    <button data-tool="compare" data-only="2d"><span>⇄</span>Compare</button>
-    <button data-tool="section" data-only="3d"><span>◧</span>Section</button>
-    <button data-tool="views" data-only="3d"><span>⬚</span>Views</button>
-    <button data-tool="site"><span>☀</span>Site</button>
-    <button data-tool="snap"><span>📷</span>Share</button>
-  </nav>
+  <!-- ============ Viewer ============ -->
+  <section id="viewer" class="screen" aria-label="Viewer">
+    <div id="stage">
+      <div id="canvasHost"></div>
+      <div id="labels"></div>
+      <canvas id="loupe" hidden></canvas>
+    </div>
 
-  <div id="sheet" hidden>
-    <div class="sheet-head"><strong id="sheetTitle"></strong><button id="sheetClose" class="icon" aria-label="Close">✕</button></div>
+    <header id="topbar" class="glass">
+      <button class="icon-btn" id="btnBack" aria-label="Back to library"><i data-icon="back"></i></button>
+      <div class="titles"><div id="title"></div><div id="subtitle"></div></div>
+      <button class="icon-btn" id="btnShare" aria-label="Share image"><i data-icon="share"></i></button>
+    </header>
+
+    <div id="hint" class="glass"></div>
+
+    <div id="fabs">
+      <button class="fab glass" id="btnCompass" aria-label="Reset rotation" hidden><span id="needle"><i data-icon="north" data-size="20"></i></span></button>
+      <button class="fab glass" id="btnFit" aria-label="Fit to screen"><i data-icon="fit" data-size="20"></i></button>
+    </div>
+
+    <div id="scalebar"><div class="bar"></div><span></span></div>
+    <div id="legend" class="glass" hidden></div>
+
+    <nav id="dock" class="glass" aria-label="Tools"></nav>
+  </section>
+
+  <!-- ============ Overlays ============ -->
+  <div id="scrim"></div>
+  <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div id="sheetGrab"><div class="handle"></div>
+      <div class="sheet-head"><strong id="sheetTitle"></strong><button class="icon-btn" id="sheetClose" aria-label="Close"><i data-icon="close"></i></button></div>
+    </div>
     <div id="sheetBody"></div>
   </div>
+  <div id="popover" class="glass" role="menu"></div>
 
-  <div id="toast" hidden></div>
+  <div id="loading" role="status" aria-live="polite">
+    <div class="load-card">
+      <div class="spinner"></div>
+      <div id="loadName"></div>
+      <div id="loadStage"></div>
+      <div class="track"><div id="loadBar"></div></div>
+      <button class="btn ghost" id="loadCancel">Cancel</button>
+    </div>
+  </div>
+
+  <div id="coach" hidden>
+    <div class="coach-card">
+      <h3>Gestures</h3>
+      <ul>
+        <li><b>Drag</b><span id="coachDrag">Move around</span></li>
+        <li><b>Pinch</b><span>Zoom in and out</span></li>
+        <li><b>Twist</b><span id="coachTwist">Rotate the drawing</span></li>
+        <li><b>Double-tap</b><span>Zoom in there</span></li>
+        <li><b>Two-finger tap</b><span>Zoom out</span></li>
+        <li><b>Long-press</b><span>Options, or precise placement with a magnifier while measuring</span></li>
+      </ul>
+      <button class="btn primary" id="coachOk">Got it</button>
+    </div>
+  </div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

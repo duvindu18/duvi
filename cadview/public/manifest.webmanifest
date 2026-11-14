@@ -1,9 +1,11 @@
 {
   "name": "CADView",
   "short_name": "CADView",
+  "description": "Offline CAD and 3D model viewer",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#0f1115",
-  "theme_color": "#0f1115",
-  "icons": []
+  "orientation": "any",
+  "background_color": "#0b0d12",
+  "theme_color": "#0b0d12",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
 }
