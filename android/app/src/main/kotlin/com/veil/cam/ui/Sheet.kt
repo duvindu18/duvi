@@ -205,7 +205,7 @@ class Group(private val ctx: Context, private val card: LinearLayout) {
     fun switch(text: String, value: Boolean, onChange: (Boolean) -> Unit) {
         val r = row()
         r.addView(label(text), LinearLayout.LayoutParams(0, -2, 1f))
-        val sw = IosSwitch(ctx).apply { on = value; this.onChange = onChange }
+        val sw = ToggleSwitch(ctx).apply { on = value; this.onChange = onChange }
         r.addView(sw)
         r.setOnClickListener { sw.toggle() }
         add(r)
@@ -247,7 +247,7 @@ class Group(private val ctx: Context, private val card: LinearLayout) {
     fun segmented(options: List<String>, selected: Int, title: String? = null, onChange: (Int) -> Unit) {
         val c = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(ctx.d(16f), ctx.d(10f), ctx.d(16f), ctx.d(10f)) }
         if (title != null) c.addView(TextView(ctx).apply { text = title; textSize = 16.5f; setTextColor(Theme.TEXT); setPadding(0, 0, 0, ctx.d(8f)) })
-        c.addView(IosSegmented(ctx, options, selected, onChange), LinearLayout.LayoutParams(-1, ctx.d(32f)))
+        c.addView(SegmentedControl(ctx, options, selected, onChange), LinearLayout.LayoutParams(-1, ctx.d(32f)))
         add(c)
     }
 
@@ -258,7 +258,7 @@ class Group(private val ctx: Context, private val card: LinearLayout) {
         val v = TextView(ctx).apply { this.text = fmt(value); textSize = 16.5f; setTextColor(Theme.SECONDARY); fontFeatureSettings = "tnum" }
         head.addView(v)
         c.addView(head)
-        c.addView(IosSlider(ctx, min, max, value) { x -> v.text = fmt(x); onChange(x) }, LinearLayout.LayoutParams(-1, ctx.d(40f)))
+        c.addView(ValueSlider(ctx, min, max, value) { x -> v.text = fmt(x); onChange(x) }, LinearLayout.LayoutParams(-1, ctx.d(40f)))
         add(c)
     }
 }
@@ -281,7 +281,7 @@ class GlyphTile(ctx: Context, private val glyph: Glyph, private val tile: Boolea
 }
 
 /** On/off switch: green track, white knob that slides with a spring. */
-class IosSwitch(ctx: Context) : View(ctx) {
+class ToggleSwitch(ctx: Context) : View(ctx) {
     var on = false
         set(v) { field = v; pos = if (v) 1f else 0f; invalidate() }
     var onChange: ((Boolean) -> Unit)? = null
@@ -330,7 +330,7 @@ class IosSwitch(ctx: Context) : View(ctx) {
 }
 
 /** Segmented control with a sliding selection. */
-class IosSegmented(ctx: Context, private val options: List<String>, selected: Int, private val onChange: (Int) -> Unit) : View(ctx) {
+class SegmentedControl(ctx: Context, private val options: List<String>, selected: Int, private val onChange: (Int) -> Unit) : View(ctx) {
     private var sel = selected.coerceIn(-1, options.size - 1)
     private var pos = sel.coerceAtLeast(0).toFloat()
     private var anim: ValueAnimator? = null
@@ -381,7 +381,7 @@ class IosSegmented(ctx: Context, private val options: List<String>, selected: In
 }
 
 /** Slider: thin track, white fill and knob. */
-class IosSlider(ctx: Context, private val min: Int, private val max: Int, value: Int, private val onChange: (Int) -> Unit) : View(ctx) {
+class ValueSlider(ctx: Context, private val min: Int, private val max: Int, value: Int, private val onChange: (Int) -> Unit) : View(ctx) {
     private var v = value.coerceIn(min, max)
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
 

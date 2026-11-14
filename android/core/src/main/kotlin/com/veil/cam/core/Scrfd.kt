@@ -15,7 +15,7 @@ import kotlin.math.min
  * directions (the GPU renders it), as interleaved bytes. Output: detections in
  * canvas pixels.
  */
-class Scrfd(private val session: OrtSession, private val env: OrtEnvironment) : AutoCloseable {
+class Scrfd(private val session: OrtSession, private val env: OrtEnvironment) : FaceModel {
     private val inputName = session.inputNames.first()
     private val outputNames = session.outputNames.toList()
     private val strides: IntArray
@@ -40,7 +40,7 @@ class Scrfd(private val session: OrtSession, private val env: OrtEnvironment) : 
      * Run on an RGBA (or RGB with [channels] = 3) canvas of [w]x[h] pixels whose rows
      * are stored top-down. Returns detections in canvas pixels with score >= [threshold].
      */
-    fun detect(pixels: ByteArray, w: Int, h: Int, channels: Int, threshold: Float, bottomUp: Boolean = false): List<Detection> {
+    override fun detect(pixels: ByteArray, w: Int, h: Int, channels: Int, threshold: Float, bottomUp: Boolean): List<Detection> {
         require(w % 32 == 0 && h % 32 == 0) { "canvas must be a multiple of 32" }
         val n = w * h
         if (blobSize != n) {

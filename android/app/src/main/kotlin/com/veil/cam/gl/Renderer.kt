@@ -611,7 +611,7 @@ class Renderer(
         if (wantPeople) lastPeopleCapture = ts
         if (wantDepth) lastDepthCapture = ts
         lastHistCapture = now
-        val baseSide = if (settings.accurateModel) 640 else 480
+        val baseSide = engine.baseSide(settings.accurateModel)
         val base = PassPlanner.base(imgW, imgH, baseAngle(), baseSide)
         val scale = PassPlanner.scaleOf(base)
         val rotated = if (wantFaces) engine.plan.take(4).map { PassPlanner.rotated(imgW, imgH, baseAngle(), it, scale) } else emptyList()

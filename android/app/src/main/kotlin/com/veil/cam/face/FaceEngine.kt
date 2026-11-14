@@ -19,6 +19,8 @@ import com.veil.cam.core.PassImage
 import com.veil.cam.core.PowerBudget
 import com.veil.cam.core.PowerMode
 import com.veil.cam.core.Scrfd
+import com.veil.cam.core.FaceModel
+import com.veil.cam.core.YuNet
 import com.veil.cam.power.WorkHint
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -34,7 +36,7 @@ class FaceEngine(private val context: Context) {
     private val thread = HandlerThread("Faces").apply { start(); priority = Thread.MAX_PRIORITY - 1 }
     private val handler = Handler(thread.looper)
     private val env = OrtEnvironment.getEnvironment()
-    private var scrfd: Scrfd? = null
+    private var scrfd: FaceModel? = null
     private var modelName = ""
     private var detector: MultiAngleDetector? = null
     private var anglesKey = ""
@@ -62,6 +64,18 @@ class FaceEngine(private val context: Context) {
     private var efficient = false
 
     val isBusy: Boolean get() = busy.get()
+    @Volatile private var accurate = false
+
+    /**
+     * Long side of the detector's base canvas. YuNet is lighter per pixel than SCRFD but
+     * needs more pixels for small faces, so it runs on a larger canvas (measured: at
+     * 960 px it finds more 24-48 px faces than SCRFD-500M at 640, for ~1.2x its time).
+     */
+    fun baseSide(accurate: Boolean = this.accurate): Int = when {
+        YUNET -> if (accurate) 1280 else 960
+        accurate -> 640
+        else -> 480
+    }
 
     init {
         handler.post { hint = WorkHint(context, android.os.Process.myTid(), hintTargetNs) }
@@ -84,7 +98,8 @@ class FaceEngine(private val context: Context) {
         handler.post {
             cfg = BlurConfig(enabled = s.blurOn, maxFaces = s.maxFaces, holdFrames = s.holdFrames)
             tracker.configure(cfg)
-            val want = if (s.accurateModel) "det_10g.onnx" else "det_500m.onnx"
+            val want = if (YUNET) YUNET_MODEL else if (s.accurateModel) "det_10g.onnx" else "det_500m.onnx"
+            accurate = s.accurateModel
             // Tensor G4: 1 prime + 3 mid + 4 little cores. Two threads land on the mid
             // cores and run the small model in a few ms; four also wake the prime core,
             // which is faster but far less efficient, so only Max quality uses them.
@@ -118,12 +133,13 @@ class FaceEngine(private val context: Context) {
                 addConfigEntry("session.intra_op.allow_spinning", "0")
                 addConfigEntry("session.inter_op.allow_spinning", "0")
             }
-            scrfd = Scrfd(env.createSession(bytes, opts), env)
+            val session = env.createSession(bytes, opts)
+            scrfd = if (name == YUNET_MODEL) YuNet(session, env) else Scrfd(session, env)
             modelName = name
             ready = true
         } catch (e: Exception) {
             Log.e(TAG, "model load failed", e)
-            if (name != "det_500m.onnx") load("det_500m.onnx") else onError?.invoke("Face model could not be loaded: ${e.message}")
+            if (name == "det_10g.onnx") load("det_500m.onnx") else onError?.invoke("Face model could not be loaded: ${e.message}")
         }
     }
 
@@ -176,5 +192,9 @@ class FaceEngine(private val context: Context) {
         thread.quitSafely()
     }
 
-    companion object { private const val TAG = "VeilFaces" }
+    companion object {
+        val YUNET = com.veil.cam.BuildConfig.FACE_MODEL == "yunet"
+        const val YUNET_MODEL = "face_yunet_2023mar_dyn.onnx"
+        private const val TAG = "VeilFaces"
+    }
 }

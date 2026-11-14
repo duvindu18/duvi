@@ -113,6 +113,7 @@ class MainActivity : Activity(), Renderer.Listener {
     private lateinit var segmenter: PersonSegmenter
     private lateinit var depthNet: DepthEstimator
     private lateinit var gesture: GestureWatcher
+    private lateinit var license: com.veil.cam.license.License
     private val sceneAnalyzer = SceneAnalyzer()
     private var scene = Scene.AUTO
     private var lastScene = 0L
@@ -196,6 +197,10 @@ class MainActivity : Activity(), Renderer.Listener {
         depthNet = DepthEstimator(applicationContext).also { it.onError = { msg -> main.post { flash(msg) } } }
         renderer = Renderer(applicationContext, engine, segmenter, depthNet).also { it.listener = this }
         gesture = GestureWatcher(applicationContext).also { g -> g.onPalm = { main.post { onPalm() } } }
+        license = com.veil.cam.license.StoreLicense(this).also { l ->
+            l.onChange = { if (sheet.isOpen && paywallOpen) sheet.refresh(); if (l.canCapture && paywallOpen) { paywallOpen = false; sheet.close(); flash("Veil Cam unlocked. Thank you!") } }
+            l.start()
+        }
         renderer.gesture = gesture
         renderer.update(settings)
         thermal = ThermalMonitor(this) { level, status -> onThermal(level, status) }
@@ -203,6 +208,7 @@ class MainActivity : Activity(), Renderer.Listener {
         camera.onReadout = { r -> main.post { readout = r; controller.refresh(); refreshTop() } }
         camera.onError = { msg -> main.post { flash(msg) } }
         buildUi()
+        registerBack()
         loadLut(settings.lut)
         sound.load(MediaActionSound.START_VIDEO_RECORDING)
         sound.load(MediaActionSound.STOP_VIDEO_RECORDING)
@@ -232,6 +238,7 @@ class MainActivity : Activity(), Renderer.Listener {
         main.postDelayed(idleCheck, 2_000)
         main.removeCallbacks(palmTick); main.post(palmTick)
         startLocation()
+        license.refresh()
     }
 
     override fun onPause() {
@@ -257,6 +264,7 @@ class MainActivity : Activity(), Renderer.Listener {
         segmenter.release()
         depthNet.release()
         gesture.release()
+        license.stop()
         sound.release()
         super.onDestroy()
     }
@@ -585,7 +593,7 @@ class MainActivity : Activity(), Renderer.Listener {
         ui.addView(bottom, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         root.addView(ui, FrameLayout.LayoutParams(-1, -1))
 
-        sheet = SheetView(this).apply { onClosed = { refreshUi() } }
+        sheet = SheetView(this).apply { onClosed = { paywallOpen = false; refreshUi() } }
         root.addView(sheet, FrameLayout.LayoutParams(-1, -1))
 
         root.setOnApplyWindowInsetsListener { _, insets ->
@@ -1305,6 +1313,7 @@ class MainActivity : Activity(), Renderer.Listener {
             if (settings.sounds) sound.play(MediaActionSound.STOP_VIDEO_RECORDING)
         } else {
             if (caps == null) return
+            if (!license.canCapture) { openPaywall(); return }
             if (settings.blurOn && !detectorReady) { flash("Face detection is still starting"); return }
             closeTray(); controller.dismiss()
             renderer.startRecording { newTake() }
@@ -1321,6 +1330,7 @@ class MainActivity : Activity(), Renderer.Listener {
     }
 
     private fun photo() {
+        if (!license.canCapture) { openPaywall(); return }
         if (settings.blurOn && !detectorReady) { flash("Face detection is still starting"); return }
         if (settings.sounds) sound.play(MediaActionSound.SHUTTER_CLICK)
         // Shutter blink.
@@ -1501,6 +1511,7 @@ class MainActivity : Activity(), Renderer.Listener {
         return super.dispatchTouchEvent(ev)
     }
 
+    @android.annotation.SuppressLint("GestureBackNavigation") // only lets Back through while learning a button
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         lastTouch = SystemClock.uptimeMillis()
         if (dimmed) setDim(false)
@@ -1572,6 +1583,7 @@ class MainActivity : Activity(), Renderer.Listener {
         when {
             countdownLeft > 0 -> { cancelCountdown(); flash("Countdown cancelled") }
             recording -> { toggleRecording(); flash("Palm: recording stopped") }
+            !license.canCapture -> openPaywall()
             settings.palmCountdownS <= 0 -> { root.thud(); if (settings.photoMode) photo() else toggleRecording() }
             else -> {
                 countdownLeft = settings.palmCountdownS + 1
@@ -1636,14 +1648,29 @@ class MainActivity : Activity(), Renderer.Listener {
         renderer.setManualDepthFocus(null)
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        when {
-            sheet.isOpen -> if (!sheet.pop()) sheet.close()
-            controller.isOpen -> controller.dismiss()
-            trayOpen -> closeTray()
-            else -> @Suppress("DEPRECATION") super.onBackPressed()
+    /** Back closes what is open (sheet page, controller, tray); otherwise leaves the camera. */
+    private fun handleBack(): Boolean = when {
+        sheet.isOpen -> { if (!sheet.pop()) sheet.close(); true }
+        controller.isOpen -> { controller.dismiss(); true }
+        trayOpen -> { closeTray(); true }
+        else -> false
+    }
+
+    // Android 13+: back gestures go to this callback (onBackPressed is not called for them
+    // once the app targets Android 16).
+    private val backCallback: Any? = if (android.os.Build.VERSION.SDK_INT >= 33)
+        android.window.OnBackInvokedCallback { if (!handleBack()) moveTaskToBack(true) } else null
+
+    private fun registerBack() {
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, backCallback as android.window.OnBackInvokedCallback)
         }
+    }
+
+    @Deprecated("Deprecated in Java")
+    @android.annotation.SuppressLint("GestureBackNavigation")
+    override fun onBackPressed() {
+        if (!handleBack()) @Suppress("DEPRECATION") super.onBackPressed()
     }
 
     // ---- settings sheet ---------------------------------------------------------------------------------------
@@ -1655,7 +1682,53 @@ class MainActivity : Activity(), Renderer.Listener {
     private fun fmtMinutes(m: Long) = if (m >= 600) "${m / 60} h" else if (m >= 60) "${m / 60} h ${m % 60} min" else "$m min"
 
     private fun openSettings() {
+        paywallOpen = false
         sheet.open("Settings") { f -> pageRoot(f) }
+    }
+
+    // ---- purchase ---------------------------------------------------------------------------------------
+    private var paywallOpen = false
+
+    private fun openPaywall() {
+        closeTray(); controller.dismiss()
+        paywallOpen = true
+        license.refresh()
+        sheet.open("Veil Cam") { f -> pagePaywall(f) }
+    }
+
+    private fun pagePaywall(f: Form) {
+        val l = license
+        f.section(null, "One payment, no subscription. The purchase belongs to your Google account and works on all your Android devices.") {
+            info("Private by design", "Faces blurred on the phone")
+            info("Cinema tools", "Depth, pulls, LUTs, pre-record")
+            info("Photos", "Multi-frame night and HDR")
+        }
+        f.section(null, l.reason) {
+            when (l.state) {
+                com.veil.cam.core.LicenseState.LICENSED -> info("Status", "Unlocked")
+                com.veil.cam.core.LicenseState.PENDING -> info("Status", "Payment pending")
+                else -> action(l.price?.let { "Unlock for $it" } ?: "Unlock Veil Cam") { l.buy(this@MainActivity) }
+            }
+            action("Restore Purchase") { l.refresh(); flash("Checking with Google Play…") }
+        }
+        f.note("You can try the viewfinder and every setting before buying. Taking photos and recording need the one-time purchase.")
+    }
+
+    private fun pageLicences(f: Form) {
+        val store = BuildConfig.STORE
+        f.section("Models") {
+            if (store) info("Face detection", "YuNet · MIT · Shiqi Yu / OpenCV Zoo")
+            else info("Face detection", "SCRFD · InsightFace · non-commercial")
+            info("Depth", "Depth Anything V2 Small · Apache 2.0")
+            info("People, hair, gestures", "MediaPipe models · Apache 2.0 · Google")
+        }
+        f.section("Libraries") {
+            info("ONNX Runtime", "MIT · Microsoft")
+            info("MediaPipe Tasks", "Apache 2.0 · Google")
+            info("AndroidX, Kotlin", "Apache 2.0")
+            if (store) info("Play Billing Library", "Android SDK licence · Google")
+        }
+        f.note("Full licence texts are in the app's source (THIRD_PARTY_NOTICES.md). Film looks, LUTs, icons and the interface are original to Veil Cam.")
     }
 
     private fun maxFacesLabel() = if (!settings.blurOn) "Off" else when (settings.maxFaces) { 1 -> "1 face"; 2 -> "2 faces"; else -> "Any" }
@@ -1692,8 +1765,12 @@ class MainActivity : Activity(), Renderer.Listener {
             nav("Power & Heat", PowerMode.names[s.powerMode], Glyph.POWER) { sheet.push("Power & Heat") { pagePower(it) } }
             nav("Storage", if (s.privateGallery) "Private" else "Phone gallery", Glyph.LIBRARY) { sheet.push("Storage") { pageStorage(it) } }
         }
-        f.section("About", "Veil Cam ${BuildConfigLite.VERSION}. Face detection runs on the phone; nothing is uploaded. Face models: InsightFace SCRFD (non-commercial research licence).") {
+        if (BuildConfig.STORE) f.section("Purchase") {
+            nav("Veil Cam", if (license.canCapture) "Unlocked" else license.price ?: "Unlock", Glyph.CHECK) { openPaywall() }
+        }
+        f.section("About", "Veil Cam ${BuildConfigLite.VERSION}. Everything runs on the phone; no photo, video or face data leaves it.") {
             info("Version", BuildConfigLite.VERSION)
+            nav("Licences", null, Glyph.LIBRARY) { sheet.push("Licences") { pageLicences(it) } }
             info("Face detection", if (settings.blurOn) "%.0f fps".format(lastDetectFps) else "Off")
         }
     }
@@ -1814,7 +1891,7 @@ class MainActivity : Activity(), Renderer.Listener {
                 apply(settings.copy(palmCountdownS = listOf(0, 3, 5, 10)[it]))
             }
         }
-        f.section("Gimbal buttons", "Pair the gimbal with the phone's Bluetooth (on the Osmo Mobile 7: Bluetooth / camera-control mode). Its record or shutter button and zoom then work here; any other button can be learnt below.") {
+        f.section("Gimbal buttons", "Pair the gimbal or remote with the phone's Bluetooth (on gimbals, its Bluetooth camera-control mode). Its record or shutter button and zoom then work here; any other button can be learnt below.") {
             switch("Volume & Shutter Buttons Record", s.volumeShutter) { apply(settings.copy(volumeShutter = it)) }
         }
         val learnt = AccessoryKeys.parse(s.accessoryKeys)
@@ -1825,7 +1902,7 @@ class MainActivity : Activity(), Renderer.Listener {
             }
             if (learnt.isNotEmpty()) action("Forget Learnt Buttons") { apply(settings.copy(accessoryKeys = "")); sheet.refresh() }
         }
-        f.note("Motor control, joystick and ActiveTrack of DJI gimbals use DJI's own protocol, available only in DJI Mimo. The Osmo Mobile 7P's tracking module follows subjects by itself, with any camera app, Veil Cam included.")
+        f.note("A gimbal's motors, joystick and app-based subject tracking use its maker's own protocol and stay in the maker's app. Gimbals with a built-in tracking module follow subjects by themselves, with any camera app.")
     }
 
     private fun pageDepth(f: Form) {
@@ -2091,4 +2168,4 @@ class MainActivity : Activity(), Renderer.Listener {
     }
 }
 
-object BuildConfigLite { const val VERSION = "1.8.2" }
+object BuildConfigLite { const val VERSION = "1.9.0" }
