@@ -18,6 +18,7 @@ This guide goes in order. Android can be done from any computer. iOS needs a Mac
 | `store/assets/play-icon-512.png` | Play Store icon, 512×512 |
 | `store/assets/play-feature-graphic-1024x500.png` | Play feature graphic |
 | `store/assets/app-store-icon-1024.png` | App Store icon (the build already contains it) |
+| `store/assets/icon-monogram.svg` | The app icon as vector artwork (source for every icon size; regenerate with `npm run store:assets && node scripts/make-icons.cjs`) |
 | `store/screenshots/google-play/phone/` | 7 phone screenshots, 1080×1920 |
 | `store/screenshots/google-play/tablet-7in/` | 7 screenshots, 1200×1920 |
 | `store/screenshots/google-play/tablet-10in/` | 7 screenshots, 2560×1600 (landscape) |

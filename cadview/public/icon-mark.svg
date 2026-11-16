@@ -1,1 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="96 112 320 288"><path d="M136 360V152h132l-132 208h240V240" fill="none" stroke="#000" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/><circle cx="376" cy="200" r="30" fill="#000"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="196 296 632 432">
+  <g transform="translate(32 0)"><defs><mask id="grips" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><rect width="1024" height="1024" fill="#fff"/>
+  <g fill="#000"><rect x="403" y="321" width="46" height="46" rx="4"/><rect x="403" y="657" width="46" height="46" rx="4"/><rect x="483" y="321" width="46" height="46" rx="4"/><rect x="723" y="321" width="46" height="46" rx="4"/></g></mask></defs>
+  <g mask="url(#grips)" fill="none" stroke="#000" stroke-linejoin="round">
+    <path d="M426 344 A176 176 0 1 0 426 680" stroke-width="54"/>
+    <path d="M506 344 L626 680 L746 344" stroke-width="54"/>
+    <g stroke-width="20"><rect x="393" y="311" width="66" height="66" rx="10"/><rect x="393" y="647" width="66" height="66" rx="10"/><rect x="473" y="311" width="66" height="66" rx="10"/><rect x="713" y="311" width="66" height="66" rx="10"/></g>
+  </g>
+  <circle cx="626" cy="680" r="38" fill="#000"/></g>
+</svg>
