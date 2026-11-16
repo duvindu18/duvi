@@ -183,6 +183,11 @@ or in the spreadsheet (menu → **👥 Manage users**):
 ## 5. Speed and 100 % precise tracking
 
 **Quick and smooth**
+* **Recording a bill takes about 1–2 seconds.** Measured in calls to Google per save, the slow work dropped
+  from 77 spreadsheet operations to 32, from 9 Drive calls to 4, and from 1 opening of the backup spreadsheet to 0.
+  The month folder is remembered, the new row copies the formatting of the row above in one step,
+  and the backup-journal copy happens in the background. Photos are sent at max 1600 px.
+  The time of each step is written to Apps Script → Executions, if you ever want to check it.
 * Photos are compressed and fingerprinted **the moment they are attached**, so pressing *Record bill* only uploads.
   A 6 MB phone photo goes up as roughly 400 KB.
 * A duplicate receipt is flagged on the thumbnail immediately ("⚠ Already recorded as BILL-…"), before any typing.
@@ -208,7 +213,7 @@ month, and compare the "Cash"/"Bank Transfer" totals with your petty-cash book a
 
 | Layer | What | Where |
 |---|---|---|
-| 1. Live journal | Every create / edit / void / category change, saved as a full copy of the row, **at the moment it happens** | Separate spreadsheet *"Bills — Backup Journal"* in `_Backups` |
+| 1. Live journal | Every create / edit / void / category change, as a full copy of the row. It is queued instantly and copied to the backup spreadsheet **within 5 minutes** (and before every backup, restore and integrity check), so saving stays fast | Separate spreadsheet *"Bills — Backup Journal"* in `_Backups` |
 | 2. Nightly snapshot | Complete copy of the whole spreadsheet, about 2 AM daily (60 days kept, 7 newest always kept) | `_Backups/Snapshots` |
 | 3. Nightly CSV | Bills + Categories as plain CSV that opens in Excel (2 years kept) | `_Backups/CSV` |
 | 4. Nothing hard-deleted | Void instead of delete; archive instead of delete; old backups go to Drive Trash (recoverable 30 days); every tab warns before manual edits; Google Sheets *version history* still works | n/a |

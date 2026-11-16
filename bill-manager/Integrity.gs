@@ -30,6 +30,7 @@ function runIntegrityCheck() {
 }
 
 function integrityCheck_() {
+  try { flushJournal_(); } catch (e) { }          // make sure queued journal entries are counted
   const started = Date.now();
   const s = settings_();
   const issues = [];   // [severity, ref, row, issue]

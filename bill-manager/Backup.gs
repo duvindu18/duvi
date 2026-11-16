@@ -49,17 +49,64 @@ function journal_(action, ref, data) {
   journalMany_([[action, ref, data]]);
 }
 
-/** entries = [[action, ref, dataObject], …] */
+/**
+ * entries = [[action, ref, dataObject], …]
+ * For speed, small batches are QUEUED (script properties) and copied to the backup spreadsheet by
+ * flushJournal_() — every 5 minutes, before every backup/restore and at the end of setup.
+ * Opening the separate backup spreadsheet costs ~1 s, so it is no longer done while staff wait.
+ * Large batches (e.g. a category rename touching many bills) are written straight away.
+ */
 function journalMany_(entries) {
   if (!entries || !entries.length) return;
+  if (entries.length <= 20) {
+    try {
+      const props = PropertiesService.getScriptProperties();
+      const user = userEmail_(), now = Date.now();
+      const batch = {};
+      entries.forEach(function (e, i) {
+        const v = JSON.stringify([now, e[0], e[1] || '', user, JSON.stringify(e[2] || {})]);
+        if (v.length > 8500) throw new Error('too large to queue');
+        batch['JQ_' + now + '_' + Utilities.getUuid().slice(0, 8) + '_' + i] = v;
+      });
+      props.setProperties(batch);
+      return;
+    } catch (e) { /* fall through: write directly */ }
+  }
+  writeJournalRows_(entries.map(function (e) { return [new Date(), e[0], e[1] || '', userEmail_(), JSON.stringify(e[2] || {})]; }));
+}
+
+/** Copies queued journal entries to the backup spreadsheet (oldest first). Safe to call any time. */
+function flushJournal_() {
+  const props = PropertiesService.getScriptProperties();
+  const all = props.getProperties();
+  const keys = Object.keys(all).filter(function (k) { return k.indexOf('JQ_') === 0; }).sort();
+  if (!keys.length) return 0;
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return 0;
   try {
-    const user = userEmail_(), now = new Date();
-    const rows = entries.map(function (e) { return [now, e[0], e[1] || '', user, JSON.stringify(e[2] || {})]; });
+    const fresh = props.getProperties();
+    const rows = [], done = [];
+    keys.forEach(function (k) {
+      if (!fresh[k]) return;
+      try { const a = JSON.parse(fresh[k]); rows.push([new Date(a[0]), a[1], a[2], a[3], a[4]]); } catch (e) { }
+      done.push(k);
+    });
+    if (rows.length) writeJournalRows_(rows, true);
+    done.forEach(function (k) { props.deleteProperty(k); });
+    return rows.length;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function writeJournalRows_(rows, rethrow) {
+  try {
     const sh = journalSheet_();
     sh.getRange(sh.getLastRow() + 1, 1, rows.length, JOURNAL_HEADERS.length).setValues(rows);
   } catch (err) {
     console.error('journal failed: ' + err);
-    audit_('BACKUP_JOURNAL_ERROR', entries[0][1], { error: String(err) });
+    audit_('BACKUP_JOURNAL_ERROR', rows[0] && rows[0][2], { error: String(err) });
+    if (rethrow) throw err;
   }
 }
 
@@ -67,6 +114,7 @@ function journalMany_(entries) {
 
 /** Time-driven trigger (installed by setup). */
 function runNightlyBackup() {
+  try { flushJournal_(); } catch (e) { }
   // Normally called by the daily trigger. Can't be abused from the web page: at most one per 20 h.
   let isAdmin = false;
   try { requireSheetAdmin_(); isAdmin = true; } catch (e) { }
@@ -172,6 +220,7 @@ function restoreFromLatestSnapshot() {
 /** Replays the live journal: the latest saved state of every bill → a new tab. */
 function rebuildFromJournal() {
   requireSheetAdmin_();
+  try { flushJournal_(); } catch (e) { }
   const ui = SpreadsheetApp.getUi();
   const jsh = journalSheet_();
   const n = jsh.getLastRow() - 1;

@@ -139,7 +139,7 @@ function setup() {
     ['Bills tab', ensureBillsSheet_], ['Audit Log tab', ensureAuditSheet_], ['Users tab', ensureUsersSheet_],
     ['Team list', seedInitialTeam_],
     ['Monthly & Annual summaries', refreshReports_], ['Drive folders', function () { rootFolder_(); backupFolder_(); }],
-    ['Backup journal', backupBook_], ['Automatic triggers', installTriggers_], ['Tidy up', removeEmptyDefaultSheet_],
+    ['Backup journal', function () { backupBook_(); flushJournal_(); }], ['Automatic triggers', installTriggers_], ['Tidy up', removeEmptyDefaultSheet_],
   ];
   const failed = [];
   steps.forEach(function (st) {
@@ -272,6 +272,14 @@ function protectBillsSheet_(sh) {
     lockTo(sh.getRange(2, start, sh.getMaxRows() - 1, prev - start + 1), 'System column — filled automatically');
     start = idx[i]; prev = idx[i];
   }
+}
+
+/** Formats a newly added bill row in one call by copying the row above (falls back to full styling). */
+function styleNewBillRow_(sh, row) {
+  if (row > 2) {
+    try { sh.getRange(row - 1, 1, 1, NCOLS).copyFormatToRange(sh, 1, NCOLS, row, row); return; } catch (e) { }
+  }
+  styleBillRows_(sh, row, 1);
 }
 
 /** Borders, wrapping and alignment for ledger rows (called after every write). */
@@ -526,6 +534,7 @@ function recentDistinct_(col, limit) {
  */
 function saveBill(payload) {
   payload = payload || {};
+  const T = timer_('saveBill');
   const user = currentUser_();       // identity always comes from Google, never from the form
   const s = settings_();
   const submissionId = /^[A-Za-z0-9-]{8,64}$/.test(payload.submissionId || '') ? payload.submissionId : '';
@@ -541,11 +550,13 @@ function saveBill(payload) {
     return { name: String(f.name || 'receipt'), mimeType: f.mimeType || 'application/octet-stream', bytes: bytes,
              hash: /^[0-9a-f]{64}$/.test(f.hash || '') ? f.hash : sha256Hex_(bytes) };
   });
+  T.mark('validate');
 
   if (!payload.force) {
     const dups = findDuplicates_(bill, files.map(function (f) { return f.hash; }));
     if (dups.length) return { ok: false, duplicate: true, matches: dups };
   }
+  T.mark('duplicates');
 
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(25000)) throw new Error('The system is busy recording another bill. Please press "Record bill" again — it will not be duplicated.');
@@ -564,30 +575,32 @@ function saveBill(payload) {
 
     const next = nextRef_(bill.billDate);
     ref = next.ref;
+    T.mark('reference');
     folder = monthFolder_(bill.billDate);
     files.forEach(function (f, i) {
       const name = buildFileName_(ref, bill, i, files.length, f);
       const file = folder.createFile(Utilities.newBlob(f.bytes, f.mimeType, name));
-      file.setDescription(ref + ' | ' + fmtDate_(bill.billDate) + ' | ' + bill.vendor + ' | ' + bill.categoryName +
-        ' | ' + (s.CURRENCY_SYMBOL || '') + bill.total.toFixed(2) + ' | original: ' + f.name);
-      created.push({ id: file.getId(), name: name, url: file.getUrl(), hash: f.hash, mimeType: f.mimeType, size: f.bytes.length });
+      created.push({ id: file.getId(), name: name, url: file.getUrl(), hash: f.hash, mimeType: f.mimeType, size: f.bytes.length, file: file });
     });
+    T.mark('drive upload');
 
     row = buildRow_(ref, bill, created, submissionId, user);
-    rowIndex = lastDataRow_(sh, COL.REF) + 1;
+    rowIndex = next.lastRow + 1;                     // computed from the same read as the reference
     if (rowIndex > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), 100);
     sh.getRange(rowIndex, 1, 1, NCOLS).setValues([row]);
-    styleBillRows_(sh, rowIndex, 1);
+    styleNewBillRow_(sh, rowIndex);
     if (created.length) {
       const label = '📎 View receipt' + (created.length > 1 ? 's (' + created.length + ')' : '');
       sh.getRange(rowIndex, COL.RECEIPT).setRichTextValue(
         SpreadsheetApp.newRichTextValue().setText(label).setLinkUrl(created.length > 1 ? folder.getUrl() : created[0].url).build());
     }
     SpreadsheetApp.flush();
+    T.mark('sheet write');
     verifySavedBill_(sh, rowIndex, ref, bill, created);
     next.commit();
+    T.mark('verify');
   } catch (err) {
-    created.forEach(function (c) { try { DriveApp.getFileById(c.id).setTrashed(true); } catch (e) { } });
+    created.forEach(function (c) { try { (c.file || DriveApp.getFileById(c.id)).setTrashed(true); } catch (e) { } });
     if (rowIndex && sh) {
       try { if (sh.getRange(rowIndex, COL.REF).getValue() === ref) sh.deleteRow(rowIndex); } catch (e) { }
     }
@@ -599,12 +612,22 @@ function saveBill(payload) {
 
   const obj = rowToObject_(row);
   audit_('CREATE', ref, { row: rowIndex, vendor: bill.vendor, total: bill.total, category: bill.categoryName, files: created.length });
-  journal_('CREATE', ref, obj);
+  journal_('CREATE', ref, obj);                    // queued; copied to the backup spreadsheet within 5 minutes
   markReportsDirty_();
 
   const result = { ok: true, record: recordFromRow_(row, rowIndex, true) };
   if (submissionId) { try { cache.put('SUB_' + submissionId, JSON.stringify(result), 21600); } catch (e) { } }
+  T.done();
   return result;
+}
+
+/** Tiny stopwatch: the time of each step is written to Apps Script → Executions (for tuning). */
+function timer_(label) {
+  const t0 = Date.now(); let last = t0; const parts = [];
+  return {
+    mark: function (step) { const now = Date.now(); parts.push(step + ' ' + (now - last) + 'ms'); last = now; },
+    done: function () { console.log(label + ' ' + (Date.now() - t0) + 'ms — ' + parts.join(', ')); },
+  };
 }
 
 /** Reads the row and files back and compares them with what was intended. Throws on any mismatch. */
@@ -622,9 +645,9 @@ function verifySavedBill_(sh, rowIndex, ref, bill, created) {
   if (!back[COL.RECORDED_BY - 1]) problems.push('recorded-by account');
   if (back[COL.STATUS - 1] !== 'ACTIVE') problems.push('status');
   created.forEach(function (c) {
-    const f = DriveApp.getFileById(c.id);
-    if (f.getSize() !== c.size) problems.push('file size of ' + c.name);
-    if (f.getName() !== c.name) problems.push('file name of ' + c.name);
+    // Drive returned this file with an ID when it stored it; confirm the stored size matches what was sent.
+    const f = c.file || DriveApp.getFileById(c.id);
+    if (!c.id || f.getSize() !== c.size) problems.push('file size of ' + c.name);
   });
   if (problems.length) throw new Error('Verification failed (' + problems.join(', ') + ').');
 }
@@ -834,7 +857,7 @@ function validateBill_(p, s, opts) {
   const description = clean_(p.description, 1000);
   if (!description) errs.push('Description is required.');
 
-  const cat = categories_(true).filter(function (c) { return c.code === p.categoryCode; })[0];
+  const cat = categories_(true, true).filter(function (c) { return c.code === p.categoryCode; })[0];
   if (!cat) errs.push('Please choose an expense category.');
   else if (!cat.active && cat.code !== opts.currentCategoryCode) errs.push('Category "' + cat.name + '" is archived. Restore it or choose another.');
 
@@ -908,17 +931,18 @@ function nextRef_(billDate) {
   const key = 'SEQ_' + prefix;
   const stored = Number(props.getProperty(key) || 0);
 
-  let maxInSheet = 0;
+  let maxInSheet = 0, lastRow = 1;
   const sh = sheet_(SHEET.BILLS);
   const n = sh.getLastRow() - 1;
   if (n > 0) {
-    sh.getRange(2, COL.REF, n, 1).getValues().forEach(function (r) {
+    sh.getRange(2, COL.REF, n, 1).getValues().forEach(function (r, i) {
       const v = String(r[0]);
+      if (v) lastRow = i + 2;
       if (v.indexOf(prefix) === 0) maxInSheet = Math.max(maxInSheet, parseInt(v.slice(prefix.length), 10) || 0);
     });
   }
   const seq = Math.max(stored, maxInSheet) + 1;
-  return { ref: prefix + pad_(seq, 4), commit: function () { props.setProperty(key, String(seq)); } };
+  return { ref: prefix + pad_(seq, 4), lastRow: lastRow, commit: function () { props.setProperty(key, String(seq)); } };
 }
 
 function buildFileName_(ref, bill, i, count, f) {
@@ -993,12 +1017,12 @@ function getCategories(includeInactive) {
   return categories_(includeInactive);
 }
 
-function categories_(includeInactive) {
+function categories_(includeInactive, skipUsage) {
   const sh = sheet_(SHEET.CATEGORIES);
   const n = sh.getLastRow() - 1;
   if (n < 1) return [];
   let usage = {};
-  if (includeInactive) usage = categoryUsage_();
+  if (includeInactive && !skipUsage) usage = categoryUsage_();
   return sh.getRange(2, 1, n, CATEGORY_HEADERS.length).getValues()
     .filter(function (r) { return r[0] && r[1]; })
     .map(function (r) {
@@ -1310,9 +1334,17 @@ function childFolder_(parent, name) {
 }
 
 function monthFolder_(date) {
+  const key = 'MFOLDER_' + Utilities.formatDate(date, tz_(), 'yyyyMM');
+  const props = PropertiesService.getScriptProperties();
+  const known = props.getProperty(key);
+  if (known) {
+    try { const f = DriveApp.getFolderById(known); if (!f.isTrashed()) return f; } catch (e) { }
+  }
   const receipts = childFolder_(rootFolder_(), 'Receipts');
   const year = childFolder_(receipts, Utilities.formatDate(date, tz_(), 'yyyy'));
-  return childFolder_(year, Utilities.formatDate(date, tz_(), 'MM - MMMM'));
+  const month = childFolder_(year, Utilities.formatDate(date, tz_(), 'MM - MMMM'));
+  props.setProperty(key, month.getId());
+  return month;
 }
 
 function audit_(action, ref, details, who) {

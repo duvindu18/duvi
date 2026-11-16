@@ -23,6 +23,7 @@ function markReportsDirty_() {
 
 /** Time-driven (every 5 min) and on open: redraw the reports only if something changed. */
 function refreshReportsIfDirty() {
+  try { flushJournal_(); } catch (e) { console.error('journal flush: ' + e); }   // queued backup-journal entries
   const props = PropertiesService.getScriptProperties();
   const flag = props.getProperty('REPORTS_DIRTY');
   if (!flag) return;
