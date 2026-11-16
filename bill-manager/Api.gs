@@ -23,6 +23,7 @@ function api_() {
     updateCategory:         [updateCategory,      'admin'],
     deleteCategory:         [deleteCategory,      'admin'],
     restoreCategory:        [restoreCategory,     'admin'],
+    setCategoryEmployees:   [setCategoryEmployees, 'admin'],
     listUsers:              [listUsers,           'admin'],
     saveUser:               [saveUser,            'admin'],
     deleteUser:             [deleteUser,          'admin'],

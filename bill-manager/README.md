@@ -156,6 +156,15 @@ or in the spreadsheet (menu → **👥 Manage users**):
 | **Delete** | Removes them and signs them out. Bills they recorded keep their name. |
 | **Search** | Filter by name or login. Each person shows their bill count and when they were last seen. |
 
+**What employees see** (set by Admins)
+* **Categories:** 🏷️ Categories → *Employees: shown / hidden* per category. Hidden categories (e.g. *Salaries and Bonus*)
+  are Admin-only. New categories have a *Show to employees* tick box. Existing categories start as shown.
+* **Payment methods:** Cash, Petty Cash, Debit / Credit Card and Online / QR Payment. Change the *Employees* column in the
+  `Payment Methods` tab. Admins always see every active method.
+* **Tax:** employees have no tax field and their bills are saved with tax 0. If an Admin later adds tax to a bill,
+  it is kept when the employee corrects the bill.
+* All three rules are also enforced by the server, so they can't be bypassed.
+
 **Roles**
 * **Employee:** records bills and corrects their own (within the edit window), nothing else.
   They see only the entry form, their confirmations and *My bills*.

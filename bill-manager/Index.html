@@ -121,7 +121,7 @@
         <div class="grid">
           <label class="field"><span class="req" id="amountLabel">Amount excl. tax</span>
             <input id="amount" class="money" inputmode="decimal" placeholder="0.00" required></label>
-          <label class="field">Tax / VAT
+          <label class="field" id="taxWrap">Tax / VAT
             <input id="tax" class="money" inputmode="decimal" placeholder="0.00"></label>
           <div class="full total-box"><span>Total</span><span class="val" id="totalView">0.00</span></div>
           <label class="field"><span class="req">Method</span><select id="method" required></select></label>
@@ -303,6 +303,7 @@
         $('sSheet').classList.toggle('hidden', !d.user.isAdmin);
         $('tabMine').textContent = d.user.isAdmin ? 'All bills' : 'My bills';
         $('tabSum').classList.toggle('hidden', !d.user.isAdmin);
+        $('taxWrap').classList.toggle('hidden', !d.showTax);            // employees don't enter tax
         $('tabs').classList.remove('hidden');
         $('attachReq').textContent = d.requireAttachment ? '' : '(optional)';
         $('attachReq').className = d.requireAttachment ? 'req' : 'muted';
@@ -596,7 +597,7 @@
       $('appSub').classList.remove('hidden');
       $('btnClear').classList.remove('hidden');
       $('saveLabel').textContent = 'Record bill';
-      $('amountLabel').textContent = 'Amount excl. tax (' + state.data.currency + ')';
+      $('amountLabel').textContent = (state.data.showTax ? 'Amount excl. tax (' : 'Amount (') + state.data.currency + ')';
       document.querySelectorAll('.invalid').forEach(function (n) { n.classList.remove('invalid'); });
       hideError();
       updateTotal(); updatePaymentFields(); updateNamePreview();

@@ -205,6 +205,16 @@ PART 8 - TEST BEFORE REAL USE  (10 minutes)
 ---------------------------------------------------------------------
 DAILY USE FOR THE ADMIN
 ---------------------------------------------------------------------
+What employees see (you decide)
+   Categories: Categories icon > each category has an
+   "Employees: shown / hidden" switch. Hidden ones are for Admins
+   only (e.g. Salaries and Bonus). New categories get a
+   "Show to employees" tick box.
+   Payment methods: employees can choose Cash, Petty Cash,
+   Debit / Credit Card and Online / QR Payment. To change this,
+   tick or untick the "Employees" column in the Payment Methods tab.
+   Tax: employees don't see a tax field; their bills are saved
+   without tax. Admins can add tax later (edit the bill).
 Summary tab in the app (Admins only, next to "All bills")
    A quick look at any month on your phone: total, bills, change on
    last month, unpaid, tax, year to date, a 12-month chart (tap a

@@ -72,7 +72,8 @@ const COL = {};
 BILL_COLUMNS.forEach(function (c, i) { COL[c[0]] = i + 1; });
 const NCOLS = BILL_COLUMNS.length;
 
-const CATEGORY_HEADERS = ['Code', 'Category Name', 'Group', 'Monthly Budget (LKR)', 'Active', 'Created At', 'Updated At', 'Notes'];
+const CATEGORY_HEADERS = ['Code', 'Category Name', 'Group', 'Monthly Budget (LKR)', 'Active', 'Created At', 'Updated At', 'Notes', 'Shown to Employees'];
+const CAT_EMP_COL = 9;
 const PAY_STATUSES = ['Paid', 'Unpaid', 'Partially Paid'];
 
 /** Your existing chart of accounts (spelling corrected) + a few common additions. */
@@ -104,6 +105,8 @@ const DEFAULT_CATEGORIES = [
 ];
 
 const DEFAULT_METHODS = ['Cash', 'Petty Cash', 'Bank Transfer', 'Cheque', 'Debit / Credit Card', 'Online / QR Payment', 'Standing Order'];
+/** Methods employees may choose (Admins see all). Change with the "Employees" column in the Payment Methods tab. */
+const EMPLOYEE_METHODS = ['Cash', 'Petty Cash', 'Debit / Credit Card', 'Online / QR Payment'];
 
 const DEFAULT_SETTINGS = [
   ['COMPANY_NAME',          'MAARAA',  'Shown on the entry form and folder names.'],
@@ -309,7 +312,17 @@ function ensureCategoriesSheet_() {
     });
     sh.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
   }
-  compactTable_(sh, CATEGORY_HEADERS.length, [5]);
+  if (sh.getMaxColumns() < CATEGORY_HEADERS.length) sh.insertColumnsAfter(sh.getMaxColumns(), CATEGORY_HEADERS.length - sh.getMaxColumns());
+  sh.getRange(1, 1, 1, CATEGORY_HEADERS.length).setValues([CATEGORY_HEADERS]);
+  styleHeader_(sh, CATEGORY_HEADERS.length);
+  sh.setColumnWidth(CAT_EMP_COL, 120);
+  // Existing categories (from before this column existed) are shown to employees until the admin hides them.
+  const nCat = lastDataRow_(sh, 1) - 1;
+  if (nCat > 0) {
+    const emp = sh.getRange(2, CAT_EMP_COL, nCat, 1).getValues().map(function (r) { return [r[0] === '' || r[0] === null ? true : r[0]]; });
+    sh.getRange(2, CAT_EMP_COL, nCat, 1).setValues(emp);
+  }
+  compactTable_(sh, CATEGORY_HEADERS.length, [5, CAT_EMP_COL]);
   const n = Math.max(lastDataRow_(sh, 1) - 1, 1);
   sh.getRange(2, 4, n, 1).setNumberFormat(currencyFormat_());
   sh.getRange(2, 6, n, 2).setNumberFormat('dd/MM/yyyy HH:mm');
@@ -318,13 +331,22 @@ function ensureCategoriesSheet_() {
 
 function ensureMethodsSheet_() {
   const sh = getOrCreateSheet_(SHEET.METHODS);
-  sh.getRange(1, 1, 1, 2).setValues([['Payment Method', 'Active']]);
+  sh.getRange(1, 1, 1, 3).setValues([['Payment Method', 'Active', 'Employees']]);
   if (lastDataRow_(sh, 1) < 2) {
     sh.getRange(2, 1, DEFAULT_METHODS.length, 2).setValues(DEFAULT_METHODS.map(function (m) { return [m, true]; }));
   }
-  styleHeader_(sh, 2);
-  sh.setColumnWidth(1, 220).setColumnWidth(2, 80);
-  compactTable_(sh, 2, [2]);
+  // Fill the Employees column once (blank = not decided yet): only the agreed employee methods are ticked.
+  const nM = lastDataRow_(sh, 1) - 1;
+  if (nM > 0) {
+    const vals = sh.getRange(2, 1, nM, 3).getValues();
+    const isEmp = function (name) { return EMPLOYEE_METHODS.map(normMethod_).indexOf(normMethod_(name)) >= 0; };
+    sh.getRange(2, 3, nM, 1).setValues(vals.map(function (r) { return [r[2] === '' || r[2] === null ? isEmp(r[0]) : r[2]]; }));
+  }
+  styleHeader_(sh, 3);
+  sh.setColumnWidth(1, 220).setColumnWidth(2, 80).setColumnWidth(3, 100);
+  compactTable_(sh, 3, [2, 3]);
+  sh.getRange('E1').setValue('Tick "Employees" for the methods staff may choose. Admins always see every active method.')
+    .setFontColor('#616161').setFontStyle('italic');
 }
 
 function ensureAuditSheet_() {
@@ -484,8 +506,9 @@ function getFormData() {
     requireAttachment: toBool_(s.REQUIRE_ATTACHMENT),
     maxFiles: Number(s.MAX_FILES_PER_BILL) || 10,
     today: Utilities.formatDate(new Date(), tz_(), 'yyyy-MM-dd'),
-    categories: categories_(false),
-    methods: getPaymentMethods_(),
+    categories: categories_(false).filter(function (c) { return u.role === 'Admin' || c.employees; }),
+    methods: getPaymentMethods_(isEmployee_(u)),
+    showTax: u.role === 'Admin',
     statuses: PAY_STATUSES,
     vendors: recentDistinct_(COL.VENDOR, 300),
     projects: recentDistinct_(COL.PROJECT, 150),
@@ -494,13 +517,19 @@ function getFormData() {
   };
 }
 
-function getPaymentMethods_() {
+/** Active payment methods. forEmployees=true → only those ticked in the "Employees" column. */
+function getPaymentMethods_(forEmployees) {
   const sh = sheet_(SHEET.METHODS);
-  if (sh.getLastRow() < 2) return DEFAULT_METHODS.slice();
-  return sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues()
-    .filter(function (r) { return r[0] && r[1] !== false; })
+  const n = lastDataRow_(sh, 1) - 1;
+  if (n < 1) return (forEmployees ? EMPLOYEE_METHODS : DEFAULT_METHODS).slice();
+  const truthy = function (v) { return v === true || String(v).toUpperCase() === 'TRUE'; };
+  return sh.getRange(2, 1, n, 3).getValues()
+    .filter(function (r) { return r[0] && r[1] !== false && String(r[1]).toUpperCase() !== 'FALSE'; })
+    .filter(function (r) { return !forEmployees || (r[2] === '' ? EMPLOYEE_METHODS.indexOf(String(r[0]).trim()) >= 0 : truthy(r[2])); })
     .map(function (r) { return String(r[0]).trim(); });
 }
+function normMethod_(s) { return String(s || '').toLowerCase().replace(/[^a-z]/g, ''); }
+function isEmployee_(u) { return !u || u.role !== 'Admin'; }
 
 function recentDistinct_(col, limit) {
   const sh = sheet_(SHEET.BILLS);
@@ -759,7 +788,8 @@ function updateBill(ref, payload) {
   if (block) throw new Error(block);
 
   const existingIds = String(before[COL.FILE_IDS - 1] || '').split('\n').filter(String);
-  const bill = validateBill_(payload, s, { existingFiles: existingIds.length, currentCategoryCode: before[COL.CAT_CODE - 1], isEdit: true });
+  const bill = validateBill_(payload, s, { existingFiles: existingIds.length, currentCategoryCode: before[COL.CAT_CODE - 1], isEdit: true,
+      currentMethod: before[COL.METHOD - 1], currentTax: before[COL.TAX - 1], user: user });
   const files = (payload.files || []).map(function (f) {
     const bytes = Utilities.base64Decode(f.data);
     return { name: String(f.name || 'receipt'), mimeType: f.mimeType || 'application/octet-stream', bytes: bytes,
@@ -861,12 +891,18 @@ function validateBill_(p, s, opts) {
   if (!cat) errs.push('Please choose an expense category.');
   else if (!cat.active && cat.code !== opts.currentCategoryCode) errs.push('Category "' + cat.name + '" is archived. Restore it or choose another.');
 
-  const methods = getPaymentMethods_();
+  const employee = isEmployee_(opts.user || CURRENT_USER_);
+  if (cat && employee && !cat.employees && cat.code !== opts.currentCategoryCode)
+    errs.push('Category "' + cat.name + '" is not available for employees.');
+
+  const methods = getPaymentMethods_(employee);
   const paymentMethod = clean_(p.paymentMethod, 60);
-  if (!paymentMethod || methods.indexOf(paymentMethod) < 0) errs.push('Please choose a payment method.');
+  if (!paymentMethod || (methods.indexOf(paymentMethod) < 0 && paymentMethod !== opts.currentMethod)) errs.push('Please choose a payment method.');
 
   const amount = parseMoney_(p.amount);
-  const tax = p.tax === '' || p.tax == null ? 0 : parseMoney_(p.tax);
+  // Employees don't enter tax: new bills get 0; when they edit, any tax an Admin entered is kept.
+  const tax = employee ? (opts.isEdit ? (Number(opts.currentTax) || 0) : 0)
+                       : (p.tax === '' || p.tax == null ? 0 : parseMoney_(p.tax));
   if (amount === null || amount <= 0) errs.push('Amount must be a number greater than zero.');
   if (tax === null || tax < 0) errs.push('Tax must be zero or a positive number.');
 
@@ -1027,7 +1063,8 @@ function categories_(includeInactive, skipUsage) {
     .filter(function (r) { return r[0] && r[1]; })
     .map(function (r) {
       return { code: String(r[0]), name: String(r[1]), group: String(r[2] || ''), budget: r[3] === '' ? '' : Number(r[3]) || 0,
-               active: r[4] !== false && String(r[4]).toUpperCase() !== 'FALSE', usage: usage[String(r[0])] || 0 };
+               active: r[4] !== false && String(r[4]).toUpperCase() !== 'FALSE', usage: usage[String(r[0])] || 0,
+               employees: !(r[CAT_EMP_COL - 1] === false || String(r[CAT_EMP_COL - 1]).toUpperCase() === 'FALSE') };
     })
     .filter(function (c) { return includeInactive || c.active; })
     .sort(function (a, b) { return a.group.localeCompare(b.group) || a.name.localeCompare(b.name); });
@@ -1054,7 +1091,8 @@ function addCategory(input) {
     const maxNum = all.reduce(function (m, c) { return Math.max(m, parseInt(String(c.code).replace(/\D/g, ''), 10) || 0); }, 0);
     const code = 'CAT-' + pad_(maxNum + 1, 3);
     const now = new Date();
-    appendRowAt_(sheet_(SHEET.CATEGORIES), 1, [code, name, group, budget, true, now, now, ''], [5]);
+    const employees = input.employees !== false;
+    appendRowAt_(sheet_(SHEET.CATEGORIES), 1, [code, name, group, budget, true, now, now, '', employees], [5, CAT_EMP_COL]);
     markReportsDirty_();
     audit_('CATEGORY_ADD', code, { name: name, group: group, budget: budget });
     journal_('CATEGORY_ADD', code, { name: name, group: group, budget: budget });
@@ -1076,7 +1114,9 @@ function updateCategory(code, input) {
     if (budget === null || (budget !== '' && budget < 0)) throw new Error('Budget must be a positive number or blank.');
     const group = clean_(input.group, 60) || cat.group || 'Other';
 
-    setCategoryFields_(code, { name: name, group: group, budget: budget });
+    const fields = { name: name, group: group, budget: budget };
+    if (input.employees !== undefined) fields.employees = input.employees !== false;
+    setCategoryFields_(code, fields);
     let updatedBills = 0;
     if (name !== cat.name) {
       const sh = sheet_(SHEET.BILLS);
@@ -1125,6 +1165,19 @@ function deleteCategory(code) {
   });
 }
 
+/** Admin: show or hide a category in the employees' form (Admins always see every active category). */
+function setCategoryEmployees(code, shown) {
+  requireAdmin_();
+  return withLock_(function () {
+    const cat = categories_(true, true).filter(function (c) { return c.code === code; })[0];
+    if (!cat) throw new Error('Category not found.');
+    setCategoryFields_(code, { employees: shown !== false });
+    audit_('CATEGORY_EMPLOYEES', code, { name: cat.name, shownToEmployees: shown !== false });
+    journal_('CATEGORY_EMPLOYEES', code, { name: cat.name, shownToEmployees: shown !== false });
+    return { message: '"' + cat.name + '" is now ' + (shown !== false ? 'shown to' : 'hidden from') + ' employees.' };
+  });
+}
+
 function restoreCategory(code) {
   requireAdmin_();
   return withLock_(function () {
@@ -1143,6 +1196,7 @@ function setCategoryFields_(code, f) {
   if (f.group !== undefined) sh.getRange(row, 3).setValue(f.group);
   if (f.budget !== undefined) sh.getRange(row, 4).setValue(f.budget);
   if (f.active !== undefined) sh.getRange(row, 5).setValue(f.active);
+  if (f.employees !== undefined) sh.getRange(row, CAT_EMP_COL).setValue(f.employees);
   sh.getRange(row, 7).setValue(new Date());
 }
 

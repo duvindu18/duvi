@@ -255,6 +255,11 @@
   /* ------------------------------------------------------------------ category manager */
   .cm-add { display: grid; grid-template-columns: 2fr 1.5fr 1fr auto; gap: 10px; align-items: end; }
   .cm-add .primary { min-height: 50px; padding: 0 22px; }
+  .cm-add { grid-template-columns: 2fr 1.5fr 1fr auto auto; }
+  .cm-emp { min-height: 50px; white-space: nowrap; }
+  .emp-toggle { border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+    border: 1.5px solid var(--line); background: transparent; color: var(--muted); }
+  .emp-toggle.on { background: var(--btn); color: var(--btn-ink); border-color: var(--btn); }
   @media (max-width: 640px) { .cm-add { grid-template-columns: 1fr; } }
   .cm-list { margin-top: 10px; }
   .cm-group { font: 600 12px ui-monospace, "Roboto Mono", monospace; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin: 22px 0 4px; }

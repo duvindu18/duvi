@@ -2,11 +2,13 @@
   <p class="muted small" style="margin-top:0">
     Add, rename or remove expense categories. Renaming updates every existing bill.
     Categories already used by bills are <b>archived</b> (hidden from the form) instead of deleted, so history is never lost.
+    <b>Employees: shown / hidden</b> chooses which categories staff can pick. Admins always see them all.
   </p>
   <form id="cm-addForm" class="cm-add" autocomplete="off">
     <label class="field">New category<input id="cm-name" maxlength="80" placeholder="e.g. Plotting &amp; Scanning"></label>
     <label class="field">Group<input id="cm-group" list="cm-groups" maxlength="60" placeholder="e.g. Office &amp; Administration"></label>
     <label class="field">Monthly budget<input id="cm-budget" class="money" inputmode="decimal" placeholder="optional"></label>
+    <label class="um-check cm-emp"><input type="checkbox" id="cm-emp" checked> Show to employees</label>
     <button class="primary" type="submit">Add</button>
   </form>
   <datalist id="cm-groups"></datalist>
@@ -62,6 +64,7 @@
       const info = el('div', {}, [
         el('span', { class: 'nm', text: c.name }),
         c.active ? null : el('span', { class: 'badge grey', text: 'archived' }),
+        c.active && !c.employees ? el('span', { class: 'badge grey', text: 'admins only' }) : null,
         el('div', { class: 'meta', text: c.code + ' · ' + c.usage + ' bill(s)' + (c.budget !== '' ? ' · budget ' + money(c.budget) : '') }),
       ]);
       const acts = el('div', { class: 'acts' });
@@ -73,6 +76,11 @@
         } }));
         acts.appendChild(el('button', { type: 'button', class: 'ghost', text: 'No', onclick: function () { pendingDelete = null; render(); } }));
       } else if (c.active) {
+        acts.appendChild(el('button', { type: 'button', class: 'emp-toggle' + (c.employees ? ' on' : ''), 'aria-pressed': c.employees ? 'true' : 'false',
+          title: 'Tap to ' + (c.employees ? 'hide this category from' : 'show this category to') + ' employees',
+          text: c.employees ? '👁 Employees: shown' : '🚫 Employees: hidden', onclick: function () {
+            run('setCategoryEmployees', c.code, !c.employees).then(changed).catch(function (e) { msg(e.message, 'error'); });
+          } }));
         acts.appendChild(el('button', { type: 'button', class: 'ghost', text: 'Edit / rename', onclick: function () { editMode(box, c); } }));
         acts.appendChild(el('button', { type: 'button', class: 'danger', text: c.usage ? 'Archive' : 'Delete', onclick: function () { pendingDelete = c.code; render(); } }));
       } else {
@@ -112,7 +120,7 @@
         const b = $('cm-budget').value.trim();
         if (!name) { msg('Enter a category name.', 'error'); return; }
         if (b && isNaN(parseAmount(b))) { msg('Budget must be a number.', 'error'); return; }
-        run('addCategory', { name: name, group: $('cm-group').value.trim(), budget: b ? parseAmount(b) : '' })
+        run('addCategory', { name: name, group: $('cm-group').value.trim(), budget: b ? parseAmount(b) : '', employees: $('cm-emp').checked })
           .then(function (res) { $('cm-name').value = ''; $('cm-budget').value = ''; return changed(res); })
           .catch(function (e) { msg(e.message, 'error'); });
       });
