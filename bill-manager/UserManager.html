@@ -1,11 +1,12 @@
 <div id="um-root">
   <p class="muted small" style="margin-top:0">
-    Only the Google accounts listed here can sign in and record bills.
-    <b>Employees</b> can only record bills. <b>Admins</b> can also manage categories and this list.
+    Only the people listed here can sign in (Login + 6-digit PIN) and record bills.
+    <b>Employees</b> can only record bills and correct their own. <b>Admins</b> can also manage categories and this list.
   </p>
 
   <form id="um-form" class="um-form" autocomplete="off">
-    <label class="field full">Google account e-mail<input id="um-email" type="email" inputmode="email" maxlength="120" placeholder="name@gmail.com" required></label>
+    <label class="field">Login<input id="um-email" maxlength="60" autocapitalize="none" spellcheck="false" placeholder="e.g. kasun" required></label>
+    <label class="field" id="um-pin-wrap">PIN (6 digits)<input id="um-pin" inputmode="numeric" maxlength="6" placeholder="leave empty = random"></label>
     <label class="field">Name<input id="um-name" maxlength="80" placeholder="Shown on every bill they record" required></label>
     <label class="field">Role
       <select id="um-role"><option value="Employee">Employee: record bills only</option><option value="Admin">Admin: full control</option></select>
@@ -18,6 +19,11 @@
   </form>
 
   <div id="um-msg" class="alert hidden"></div>
+  <div id="um-pinbox" class="pinbox hidden">
+    <div class="small muted">Give these to the person privately. The PIN is not shown again.</div>
+    <div class="pinrow"><span>Login</span><b id="um-pin-login"></b></div>
+    <div class="pinrow"><span>PIN</span><b id="um-pin-value" class="pin"></b></div>
+  </div>
   <div class="um-filter">
     <input id="um-search" placeholder="Search name or e-mail" aria-label="Search">
   </div>
@@ -28,7 +34,13 @@
   const UM = (function () {
     let users = [], me = '', editing = null, pendingDelete = null;
 
+    function showPin(login, pin) {
+      $('um-pin-login').textContent = login; $('um-pin-value').textContent = pin;
+      $('um-pinbox').classList.remove('hidden');
+    }
+
     function msg(text, kind) {
+      $('um-pinbox').classList.add('hidden');
       const m = $('um-msg');
       if (!text) { m.className = 'alert hidden'; return; }
       m.textContent = text; m.className = 'alert ' + (kind || 'ok');
@@ -44,6 +56,7 @@
       $('um-form').reset();
       $('um-active').checked = true;
       $('um-email').disabled = false;
+      $('um-pin-wrap').classList.remove('hidden');
       $('um-role').disabled = false;
       $('um-active').disabled = false;
       $('um-submit').textContent = 'Add account';
@@ -58,6 +71,7 @@
       $('um-active').checked = u.active;
       const locked = u.isOwner || u.email === me;
       $('um-email').disabled = u.isOwner;
+      $('um-pin-wrap').classList.add('hidden');
       $('um-role').disabled = locked;
       $('um-active').disabled = locked;
       $('um-submit').textContent = 'Save changes';
@@ -86,7 +100,7 @@
           el('div', {}, [el('span', { class: 'nm', text: u.name || u.email }),
             el('span', { class: 'badge', text: u.isOwner ? 'Owner' : u.role }),
             u.active ? null : el('span', { class: 'badge grey', text: 'off' })]),
-          el('div', { class: 'meta', text: u.email }),
+          el('div', { class: 'meta', text: 'Login: ' + u.email + (u.hasPin ? '' : ' · NO PIN YET') }),
           el('div', { class: 'meta', text: u.bills + ' bill(s)' + (u.lastSeen ? ' · last seen ' + u.lastSeen : ' · never signed in') }),
         ]),
       ]));
@@ -107,6 +121,10 @@
           } }));
         }
         acts.appendChild(el('button', { type: 'button', class: 'ghost', text: 'Edit', onclick: function () { startEdit(u); } }));
+        acts.appendChild(el('button', { type: 'button', class: 'ghost', text: u.hasPin ? 'New PIN' : 'Set PIN', onclick: function () {
+          run('setUserPin', u.email, '').then(function (r) { msg(''); showPin(u.email, r.pin); return load(); })
+            .catch(function (e) { msg(e.message, 'error'); });
+        } }));
         if (!self) acts.appendChild(el('button', { type: 'button', class: 'danger', text: 'Delete', onclick: function () { pendingDelete = u.email; render(); } }));
       }
       box.appendChild(acts);
@@ -119,11 +137,17 @@
       $('um-form').addEventListener('submit', function (ev) {
         ev.preventDefault();
         const data = { email: $('um-email').value, name: $('um-name').value, role: $('um-role').value,
-                       active: $('um-active').checked, originalEmail: editing || '' };
-        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(data.email.trim())) { msg('Enter a valid Google account e-mail.', 'error'); return; }
+                       active: $('um-active').checked, originalEmail: editing || '', pin: editing ? '' : $('um-pin').value.trim() };
+        if (!/^[A-Za-z0-9._@+-]{2,60}$/.test(data.email.trim())) { msg('Login: 2–60 letters, numbers, dots or dashes (e.g. kasun).', 'error'); return; }
+        if (data.pin && !/^\d{6}$/.test(data.pin)) { msg('The PIN must be exactly 6 digits (or leave it empty for a random one).', 'error'); return; }
         if (!data.name.trim()) { msg('Enter the person\'s name.', 'error'); return; }
         $('um-submit').disabled = true;
-        run('saveUser', data).then(function (r) { resetForm(); msg(r.message, 'ok'); return load(); })
+        run('saveUser', data).then(function (r) {
+            const login = data.email.trim().toLowerCase();
+            resetForm();
+            if (r.pin) { msg(''); showPin(login, r.pin); } else msg(r.message, 'ok');
+            return load();
+          })
           .catch(function (e) { msg(e.message, 'error'); })
           .then(function () { $('um-submit').disabled = false; });
       });

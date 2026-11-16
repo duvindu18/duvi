@@ -39,26 +39,26 @@
     <div id="loading" class="center pad"><div class="spinner small"></div></div>
     <div id="fatal" class="hidden"><div class="alert error" id="fatalText"></div></div>
 
-    <!-- Shown when the Google account is not signed in or not approved -->
-    <div id="access" class="hidden">
+    <!-- ============================ SIGN IN ============================ -->
+    <form id="login" class="hidden" autocomplete="on" novalidate>
       <div class="hero">
-        <h1>Access <span class="dim">needed.</span></h1>
-        <p class="lead" id="accessText"></p>
+        <h1>Sign <span class="dim">in.</span></h1>
+        <p class="lead" id="loginText">Use the login and 6-digit PIN your admin gave you.</p>
       </div>
-      <div class="kv-card">
-        <div class="muted small">Signed in as</div>
-        <div class="who" id="accessEmail">—</div>
+      <div class="grid login-grid">
+        <label class="field full">Login<input id="loginName" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="e.g. kasun" required></label>
+        <label class="field full">PIN<input id="loginPin" name="password" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="current-password" placeholder="••••••" required></label>
+        <label class="um-check full"><input type="checkbox" id="loginRemember" checked> Keep me signed in on this device</label>
       </div>
-      <p class="hint">Every bill is recorded under the Google account that entered it. Ask the MAARAA admin to add this account
-        (👥 Users → Add account), then reload this page.</p>
+      <div id="loginError" class="alert error hidden"></div>
       <div class="actions" style="justify-content:flex-start">
-        <a class="pill-btn" id="switchAcct" target="_top" href="https://accounts.google.com/AccountChooser">
-          <span>Use another account</span>
+        <button type="submit" class="pill-btn" id="btnLogin">
+          <span>Sign in</span>
           <span class="pill-ico"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        </a>
-        <button type="button" class="text-btn" onclick="location.reload()">Reload</button>
+        </button>
       </div>
-    </div>
+      <p class="hint">Forgot your PIN? Ask the MAARAA admin to set a new one.</p>
+    </form>
 
     <nav id="tabs" class="tabs hidden" aria-label="Views">
       <button type="button" class="tab on" data-tab="new">New bill</button>
@@ -212,6 +212,18 @@
     </div>
   </div>
 
+  <!-- Signed-in person -->
+  <div id="meModal" class="overlay hidden">
+    <div class="modal">
+      <h2 class="big" id="meName">—</h2>
+      <p class="muted" id="meInfo"></p>
+      <div class="actions">
+        <button type="button" class="text-btn" id="meClose">Close</button>
+        <button type="button" class="pill-btn" id="btnSignOut"><span>Sign out</span></button>
+      </div>
+    </div>
+  </div>
+
   <!-- Busy overlay -->
   <div id="busy" class="overlay busy hidden"><div class="spinner"></div><div id="busyText">Working…</div></div>
 
@@ -219,46 +231,86 @@
     const state = { data: null, files: [], session: [], lastPayload: null, cmReady: false, submissionId: null };
     const MAX_FILE_MB = 25;
 
-    // ------------------------------------------------------------ startup
-    run('getFormData').then(function (d) {
-      state.data = d;
-      $('appTitle').textContent = (d.company || 'MAARAA') + ' Bills';
-      $('appSub').textContent = 'Signed in as ' + d.user.name + ' (' + d.user.email + '). Reference number, renaming and backup are automatic.';
-      const chip = $('userChip');
-      chip.textContent = initials(d.user.name || d.user.email);
-      chip.title = d.user.name + ' · ' + d.user.email + ' · ' + d.user.role;
-      chip.classList.remove('hidden');
-      chip.addEventListener('click', function () { alert('Signed in as ' + d.user.name + '\n' + d.user.email + '\nRole: ' + d.user.role); });
-      $('btnCats').classList.toggle('hidden', !d.user.isAdmin);
-      $('btnUsers').classList.toggle('hidden', !d.user.isAdmin);
-      $('sSheet').classList.toggle('hidden', !d.user.isAdmin);
-      $('tabMine').textContent = d.user.isAdmin ? 'All bills' : 'My bills';
-      $('tabs').classList.remove('hidden');
-      $('attachReq').textContent = d.requireAttachment ? '' : '(optional)';
-      $('attachReq').className = d.requireAttachment ? 'req' : 'muted';
-      fillCategories(d.categories);
-      fillSelect($('method'), d.methods, 'Choose…');
-      fillSelect($('payStatus'), d.statuses);
-      fillDatalist($('vendorList'), d.vendors);
-      fillDatalist($('projectList'), d.projects);
-      resetForm();
-      $('loading').classList.add('hidden');
-      $('billForm').classList.remove('hidden');
-    }).catch(function (e) {
-      $('loading').classList.add('hidden');
-      const m = /^(SIGN_IN_REQUIRED|NOT_AUTHORISED):\s*(.*)$/.exec(e.message || '');
-      if (m) {
-        const email = (m[2].match(/[^\s@]+@[^\s@]+\.[^\s@]+/) || [''])[0];
-        $('accessEmail').textContent = email || 'not signed in';
-        $('accessText').textContent = m[1] === 'SIGN_IN_REQUIRED'
-          ? 'Please sign in with your Google account to record bills.'
-          : 'This Google account is not on the approved list for MAARAA Bills.';
-        $('access').classList.remove('hidden');
-        return;
-      }
-      $('fatalText').textContent = 'Could not load: ' + e.message;
-      $('fatal').classList.remove('hidden');
+    // ------------------------------------------------------------ startup & sign-in
+    function start() {
+      $('loading').classList.remove('hidden');
+      run('getFormData').then(function (d) {
+        state.data = d;
+        $('appTitle').textContent = (d.company || 'MAARAA') + ' Bills';
+        $('appSub').textContent = 'Signed in as ' + d.user.name + '. Reference number, renaming and backup are automatic.';
+        const chip = $('userChip');
+        chip.textContent = initials(d.user.name || d.user.email);
+        chip.title = d.user.name + ' · ' + d.user.role;
+        chip.classList.remove('hidden');
+        $('meName').textContent = d.user.name;
+        $('meInfo').textContent = 'Login: ' + d.user.email + ' · ' + d.user.role;
+        $('btnSignOut').classList.toggle('hidden', !bmToken());
+        $('btnCats').classList.toggle('hidden', !d.user.isAdmin);
+        $('btnUsers').classList.toggle('hidden', !d.user.isAdmin);
+        $('sSheet').classList.toggle('hidden', !d.user.isAdmin);
+        $('tabMine').textContent = d.user.isAdmin ? 'All bills' : 'My bills';
+        $('tabs').classList.remove('hidden');
+        $('attachReq').textContent = d.requireAttachment ? '' : '(optional)';
+        $('attachReq').className = d.requireAttachment ? 'req' : 'muted';
+        fillCategories(d.categories);
+        fillSelect($('method'), d.methods, 'Choose…');
+        fillSelect($('payStatus'), d.statuses);
+        fillDatalist($('vendorList'), d.vendors);
+        fillDatalist($('projectList'), d.projects);
+        resetForm();
+        $('loading').classList.add('hidden');
+        $('login').classList.add('hidden');
+        $('billForm').classList.remove('hidden');
+      }).catch(function (e) {
+        $('loading').classList.add('hidden');
+        const m = /^(SIGN_IN_REQUIRED|NOT_AUTHORISED):\s*(.*)$/.exec(e.message || '');
+        if (m) { showLogin(bmToken() ? m[2] : ''); return; }
+        $('fatalText').textContent = 'Could not load: ' + e.message;
+        $('fatal').classList.remove('hidden');
+      });
+    }
+
+    function showLogin(message) {
+      bmSetToken('', false);
+      ['billForm', 'mine', 'success', 'sessionCard', 'tabs', 'userChip'].forEach(function (id) { $(id).classList.add('hidden'); });
+      $('login').classList.remove('hidden');
+      const err = $('loginError');
+      if (message) { err.textContent = message; err.classList.remove('hidden'); } else err.classList.add('hidden');
+      try { $('loginName').value = localStorage.getItem('bm.login') || $('loginName').value; } catch (x) {}
+      ($('loginName').value ? $('loginPin') : $('loginName')).focus();
+    }
+
+    $('login').addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      const name = $('loginName').value.trim(), pin = $('loginPin').value.trim();
+      const err = $('loginError');
+      if (!name || !/^\d{6}$/.test(pin)) { err.textContent = 'Enter your login and your 6-digit PIN.'; err.classList.remove('hidden'); return; }
+      $('btnLogin').disabled = true;
+      runRaw('login', name, pin, navigator.userAgent).then(function (r) {
+        $('btnLogin').disabled = false;
+        bmSetToken(r.token, $('loginRemember').checked);
+        try { localStorage.setItem('bm.login', name); } catch (x) {}
+        $('loginPin').value = '';
+        err.classList.add('hidden');
+        start();
+      }).catch(function (e) {
+        $('btnLogin').disabled = false;
+        $('loginPin').value = '';
+        err.textContent = e.message; err.classList.remove('hidden');
+      });
     });
+
+    $('userChip').addEventListener('click', function () { $('meModal').classList.remove('hidden'); });
+    $('meClose').addEventListener('click', function () { $('meModal').classList.add('hidden'); });
+    $('btnSignOut').addEventListener('click', function () {
+      const t = bmToken();
+      $('meModal').classList.add('hidden');
+      runRaw('logout', t).catch(function () {});
+      state.session = [];
+      showLogin('');
+    });
+
+    start();
 
     function initials(s) {
       const p = String(s).replace(/@.*/, '').split(/[\s._-]+/).filter(Boolean);
@@ -539,7 +591,7 @@
       $('sTitle').innerHTML = (isUpdate ? 'Updated' : 'Recorded') + '<span class="dim">.</span>';
       $('sRef').textContent = r.ref;
       $('sVerified').textContent = already ? 'This bill was already recorded — no duplicate was created.'
-        : isUpdate ? '✓ ' + (changes ? changes + ' change(s) saved and verified' : 'No changes were needed') + ' · logged under ' + state.data.user.email
+        : isUpdate ? '✓ ' + (changes ? changes + ' change(s) saved and verified' : 'No changes were needed') + ' · logged under ' + state.data.user.name
         : (r.verified ? '✓ Verified: sheet row ' + r.row + ' and ' + r.files.length + ' file(s) checked in Drive' : '');
       state.editRef = null; state.editRec = null;
       const t = $('sTable'); t.innerHTML = '';

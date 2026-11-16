@@ -59,6 +59,7 @@ function showReportError_(sheetName, err) {
 }
 
 function rebuildReports() {
+  requireSheetAdmin_();
   try {
     refreshReports_();
     toast_('Monthly and Annual summaries refreshed.');
@@ -68,8 +69,8 @@ function rebuildReports() {
 }
 
 // Kept for compatibility with setup and older menu items.
-function buildSummarySheet() { renderMonthlySummary_(); }
-function buildAnnualSheet() { renderAnnualSummary_(); }
+function buildSummarySheet() { requireSheetAdmin_(); renderMonthlySummary_(); }
+function buildAnnualSheet() { requireSheetAdmin_(); renderAnnualSummary_(); }
 
 // ------------------------------------------------------------------ data
 
@@ -460,7 +461,7 @@ function exportMonthlyPdf() { exportReportPdf_(SHEET.SUMMARY, true); }
 function exportAnnualPdf() { exportReportPdf_(SHEET.ANNUAL, false); }
 
 function exportReportPdf_(sheetName, portrait) {
-  requireAdmin_();
+  requireSheetAdmin_();
   refreshReports_();
   SpreadsheetApp.flush();
   const ss = ss_();

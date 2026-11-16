@@ -60,7 +60,7 @@ const BILL_COLUMNS = [
   ['FILE_IDS',    'Attachment File IDs',          200],
   ['FILE_HASHES', 'File Fingerprints',            160],
   ['STATUS',      'Record Status',                105],
-  ['RECORDED_BY', 'Recorded By (Google Account)', 220],
+  ['RECORDED_BY', 'Recorded By (Login)',          200],
   ['RECORDED_BY_NAME', 'Recorded By (Name)',      160],
   ['RECORDED_AT', 'Recorded At',                  145],
   ['VOID_NOTE',   'Void Reason / Notes',          220],
@@ -128,6 +128,7 @@ const DEFAULT_SETTINGS = [
  * it only creates what is missing and re-applies formats & triggers.
  */
 function setup() {
+  requireSheetAdmin_();
   const ss = ss_();
   PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', ss.getId());
   ownerEmail_();
@@ -143,9 +144,21 @@ function setup() {
     try { st[1](); } catch (e) { failed.push(st[0] + ' — ' + e.message); console.error(st[0], e); }
   });
 
+  // The owner needs a PIN too, to use the entry app on a phone.
+  let ownerPinMsg = '';
+  try {
+    CURRENT_USER_ = null;
+    const o = resolveUser_(ownerEmail_());
+    if (!o.pinHash && o.row) {
+      const r = setUserPin(ownerEmail_(), '');
+      ownerPinMsg = '\n\nYour entry-app sign-in:\n   Login: ' + ownerEmail_() + '\n   PIN:   ' + r.pin +
+        '\nWrite it down. You can change it in 👥 Manage users.';
+    }
+  } catch (e) { failed.push('Owner PIN — ' + e.message); }
+
   ss.setActiveSheet(ss.getSheetByName(SHEET.BILLS) || ss.getSheets()[0]);
   audit_('SETUP', '', { version: '1.3', failed: failed });
-  const msg = failed.length ? 'Setup finished with problems:\n\n' + failed.join('\n') : 'Setup complete. Use the 🧾 Bill Manager menu to record bills.';
+  const msg = (failed.length ? 'Setup finished with problems:\n\n' + failed.join('\n') : 'Setup complete. Use the 🧾 Bill Manager menu to record bills.') + ownerPinMsg;
   try { SpreadsheetApp.getUi().alert('Bill Manager setup', msg, SpreadsheetApp.getUi().ButtonSet.OK); }
   catch (e) { console.log(msg); toast_(msg); }
   if (failed.length) console.error(msg);
@@ -401,8 +414,7 @@ function onOpen() {
       .addItem('Rebuild Bills from live journal (as new tab)', 'rebuildFromJournal')
       .addItem('Open backup folder', 'openBackupFolder'))
     .addItem('👥 Manage users (who can record bills)', 'openUserSidebar')
-    .addItem('🔗 Show links', 'showLinks')
-    .addItem('Reset Entry link…', 'resetEntryLink')
+    .addItem('🔗 Show the entry link for staff', 'showLinks')
     .addSeparator()
     .addItem('⚙️ Setup / repair', 'setup')
     .addToUi();
@@ -413,11 +425,13 @@ function include(name) {
 }
 
 function openEntryDialog() {
+  requireSheetAdmin_();
   const html = HtmlService.createTemplateFromFile('Index').evaluate().setWidth(820).setHeight(860);
   SpreadsheetApp.getUi().showModalDialog(html, 'Record a bill');
 }
 
 function openCategorySidebar() {
+  requireSheetAdmin_();
   const t = HtmlService.createTemplateFromFile('Sidebar');
   t.panel = 'categories';
   const html = t.evaluate().setTitle('Manage categories');
@@ -425,13 +439,12 @@ function openCategorySidebar() {
 }
 
 function showLinks() {
+  requireSheetAdmin_();
   const url = ScriptApp.getService().getUrl();
   const root = rootFolder_();
   const html = HtmlService.createHtmlOutput(
     '<div style="font:14px Arial;line-height:1.6">' +
-    '<p><b>Server URL</b> (paste into the Entry-link project, never give to staff):<br>' + (url ? '<code>' + url + '</code>' : 'not deployed yet — Deploy → New deployment → Web app') + '</p>' +
-    '<p><b>Entry link</b> for staff: the web-app URL of the separate Entry-link (Gateway) project. Entry link activated: <b>' +
-    (PropertiesService.getScriptProperties().getProperty('GATEWAY_AUDIENCE') ? 'yes' : 'not yet — open it once as the owner') + '</b></p>' +
+    '<p><b>Entry link for staff</b> (send this; they sign in with their Login + PIN):<br>' + (url ? '<a target="_blank" href="' + url + '">' + url + '</a>' : 'not deployed yet — Deploy → New deployment → Web app (Execute as: Me, Who has access: Anyone)') + '</p>' +
     '<p><b>Receipts &amp; backups folder:</b> <a target="_blank" href="' + root.getUrl() + '">' + escapeHtml_(root.getName()) + '</a></p>' +
     '<p>Tip: on your phone, open the web app link and choose “Add to Home screen”.</p></div>'
   ).setWidth(620).setHeight(300);
@@ -933,7 +946,7 @@ function findDuplicates_(bill, hashes, excludeRef) {
 /** Accounting rule: never delete a recorded bill — void it with a reason (keeps the number sequence intact). */
 function voidSelectedBill() {
   const ui = SpreadsheetApp.getUi();
-  try { requireAdmin_(); } catch (e) { ui.alert(e.message); return; }
+  try { requireSheetAdmin_(); } catch (e) { ui.alert(e.message); return; }
   const sh = SpreadsheetApp.getActiveSheet();
   if (sh.getName() !== SHEET.BILLS) { ui.alert('Select a row on the "' + SHEET.BILLS + '" sheet first.'); return; }
   const row = sh.getActiveRange().getRow();
@@ -1206,7 +1219,7 @@ function onBillsEdit(e) {
 /** Installable onChange trigger: flags structural changes such as deleted rows. */
 function onBillsChange(e) {
   try {
-    if (!e) return;
+    if (!e || !e.source || typeof e.source.getId !== 'function') return;   // real trigger events only
     if (['REMOVE_ROW', 'REMOVE_COLUMN', 'REMOVE_GRID'].indexOf(e.changeType) >= 0) {
       audit_('WARNING_' + e.changeType, ss_().getActiveSheet().getName(),
         { note: 'Rows/columns/sheets were removed manually. Recover with Backup & restore → Rebuild Bills from live journal.' });

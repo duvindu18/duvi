@@ -17,19 +17,11 @@ A receipt-first expense register built on Google Sheets + Google Drive.
 
 ## 1. Installation (about 15 minutes)
 
-The system has **two parts**:
+The whole system is **one Apps Script project inside the spreadsheet**, published as **one link**.
+Staff don't need Google accounts: each person signs in with a **Login** and a **6-digit PIN** that you set.
+Follow **`SETUP-STEPS.txt`** (step-by-step, with an *Upgrading* section). In short:
 
-| Part | Runs as | Who uses it |
-|---|---|---|
-| **Main Bill Manager** script, inside the spreadsheet | **You (the owner)** | Only you, and any Admins you add. It holds all data, receipts and backups. |
-| **Entry link**, a tiny separate script (`gateway/`) | **The signed-in person** | Employees. It only asks Google to confirm who they are, then passes the bill to the main script. |
-
-Employees **never get access to the spreadsheet, Drive folders, reports or other people's bills**.
-They can only open the Entry link, sign in with Google and record a bill.
-
-### A. Main Bill Manager (inside the spreadsheet)
-1. Create a Google Sheet, e.g. **"MAARAA Bills"**, then open **Extensions → Apps Script**.
-2. Create these files and paste in the contents from this folder:
+1. Create a Google Sheet ("MAARAA Bills") → **Extensions → Apps Script**. Paste these files:
 
    | Apps Script file | Type | From |
    |---|---|---|
@@ -47,30 +39,10 @@ They can only open the Entry link, sign in with Google and record a bill.
    | `Sidebar` | HTML | `Sidebar.html` |
 
    Turn on **Project Settings → Show "appsscript.json"** and paste `appsscript.json`.
-3. Select **`setup`** and press **Run**. Approve the permissions. You are added as the Owner (Admin).
-4. Choose **Deploy → New deployment → Web app**, with:
-   * **Execute as: Me**
-   * **Who has access: Anyone**
-
-   Copy the web-app URL (ends in `/exec`). This is the **server URL**. Don't give it to staff; on its own it only shows a notice.
-
-### B. Entry link (the link employees use)
-1. Go to <https://script.google.com> → **New project**, and name it **"MAARAA Bills Entry"**.
-2. Replace the code with `gateway/Gateway.gs`. Paste the server URL from A-4 into `BACKEND_URL`.
-3. Turn on **Project Settings → Show "appsscript.json"** and paste `gateway/appsscript.json`.
-4. Choose **Deploy → New deployment → Web app**, with:
-   * **Execute as: User accessing the web app**
-   * **Who has access: Anyone with Google account**
-
-   Copy this URL. **This is the Entry link.**
-5. **Open the Entry link yourself, signed in as the owner.** This activates it. From then on the server only
-   accepts sign-ins that come through *this* Entry link.
-6. Add employees (section 4). Then send them the Entry link. On a phone, use **Add to Home screen**.
-   The first time, Google asks each person to allow only *"See your email address"* and
-   *"Connect to an external service"*. The link can't see their Drive, Gmail or anything else.
-
-> If you ever re-create the Entry-link project, use menu → **Reset Entry link…** and open the new link once as the owner.
-> Re-running `setup` (menu → ⚙️ Setup / repair) is always safe.
+2. Run **`setup`** and approve the permissions (owner only, once). The message at the end shows **your Login and PIN**.
+3. Choose **Deploy → New deployment → Web app**, with **Execute as: Me** and **Who has access: Anyone**.
+   The web-app URL is the **entry link** for everyone.
+4. Add your team in **👥 Users** and give each person their Login + PIN privately.
 
 ---
 
@@ -139,7 +111,7 @@ You can rename or remove any of them.
 
 ## 3. Everyday use
 
-* **Record a bill:** web app, or menu → ➕ Record a new bill. Attach the image, fill in the details, then **Record bill**.
+* **Record a bill:** the entry link (sign in with Login + PIN), or menu → ➕ Record a new bill in the spreadsheet. Attach the image, fill in the details, then **Record bill**.
   The confirmation screen shows the reference number, all details and links to the renamed files.
 * **Categories:** the 🏷️ button in the app, or menu → 🏷️ Manage categories.
   * *Add*: new code `CAT-0NN`.
@@ -153,33 +125,41 @@ You can rename or remove any of them.
 
 ---
 
-## 4. Who can record bills (users)
+## 4. Who can record bills (users and PINs)
 
-**You decide which Google accounts can record bills.** Manage them in the spreadsheet
-(menu → **👥 Manage users**) or in the app (the **👥** button, shown to Admins only):
+**You decide who can record bills.** Manage the list in the app (the **👥** button, Admins only)
+or in the spreadsheet (menu → **👥 Manage users**):
 
 | Action | How |
 |---|---|
-| **Add** | Enter the Google e-mail, their name and the role → *Add account*. It works at once; no sharing needed. |
-| **Edit** | *Edit* → change the name, role or e-mail (e.g. to fix a typo) → *Save changes*. |
-| **Switch off / on** | Blocks or restores sign-in immediately, but keeps them in the list. Use this for leave or a temporary stop. |
-| **Delete** | Removes the account from the list. Bills they recorded keep their name and e-mail. |
-| **Search** | Filter by name or e-mail. Each person shows their bill count and when they last signed in. |
+| **Add** | Enter a Login (e.g. `kasun`), their name and role, and optionally a PIN → *Add account*. If you leave the PIN empty, a random one is made. The Login + PIN are shown **once**; give them privately. |
+| **Edit** | Change the name, role or login. Renaming a login also moves their past bills to it. |
+| **New PIN** | Forgotten PIN: makes a new one and signs that person out on every device. |
+| **Switch off / on** | Blocks or restores sign-in immediately (signs them out), but keeps them in the list. |
+| **Delete** | Removes them and signs them out. Bills they recorded keep their name. |
+| **Search** | Filter by name or login. Each person shows their bill count and when they were last seen. |
 
 **Roles**
-* **Employee: records bills, nothing else.** They see only the entry form and the confirmation of what they just recorded.
+* **Employee:** records bills and corrects their own (within the edit window), nothing else.
+  They see only the entry form, their confirmations and *My bills*.
   The server refuses any other action for them, even if someone tries to call it directly.
-* **Admin:** can also manage categories and users. The **Owner** (the account that ran setup) is always Admin,
-  and can't be switched off, demoted or deleted. You also can't remove your own Admin access by mistake.
+* **Admin:** can also manage categories and users. The **Owner** (the Google account that ran setup) is always Admin,
+  and can't be switched off, demoted or deleted.
 
-**How identity is guaranteed**
-* Google sign-in is compulsory, and every request carries a Google-signed identity token.
-* The server checks that token with Google every time. It must be issued by Google, for a verified e-mail,
-  not expired, and *for our Entry link*. Then the e-mail is looked up in the Users list.
-  Tokens from any other app, or accounts that are switched off or not listed, are refused.
-* Each bill stores **Recorded By (Google Account)** and **Recorded By (Name)**. Nobody can type in someone else's name.
-* The Audit Log records every bill, void, category change and user change with the account that made it.
-* Receipt files are created by the owner's account, so employees can't delete or change them later.
+**How sign-in is protected**
+* The PIN is never stored as written: only a salted SHA-256 hash, in hidden columns of the Users tab.
+* "Keep me signed in" keeps a phone signed in for 180 days. A new PIN, switching someone off, or deleting them
+  ends their sign-ins immediately. **Sign out** is in the menu under the initials at the top.
+* 5 wrong PINs lock that login for 15 minutes. Many wrong PINs overall pause all sign-ins for 10 minutes.
+  Every sign-in and failed attempt is written to the Audit Log.
+* Every request from the app is checked on the server (signed in, still active, PIN unchanged), and only listed actions run.
+  Maintenance (setup, backups, restore, reports) only runs for an Admin working in the spreadsheet.
+* Staff never get the spreadsheet or Drive folders; the script does the work as the owner.
+  Receipt files are owned by the owner's account, so staff can't delete them.
+* Each bill stores **Recorded By (Login)** and **Recorded By (Name)**, taken from the sign-in, not typed.
+
+> A PIN can be shared or seen, so it proves identity less strongly than a Google account.
+> For a small, trusted team this is a good balance. Ask staff never to share their PIN, and use *New PIN* if one leaks.
 
 ---
 

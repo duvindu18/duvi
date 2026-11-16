@@ -18,7 +18,22 @@
   const $ = function (id) { return document.getElementById(id); };
 
   /** Promise wrapper around google.script.run. */
-  function run(fn) {
+  /** Sign-in token (kept on the device if "Keep me signed in" was ticked). */
+  let BM_TOKEN_MEM = '';
+  function bmToken() {
+    if (BM_TOKEN_MEM) return BM_TOKEN_MEM;
+    try { return localStorage.getItem('bm.token') || sessionStorage.getItem('bm.token') || ''; } catch (e) { return ''; }
+  }
+  function bmSetToken(t, remember) {
+    BM_TOKEN_MEM = t || '';
+    try {
+      localStorage.removeItem('bm.token'); sessionStorage.removeItem('bm.token');
+      if (t) (remember ? localStorage : sessionStorage).setItem('bm.token', t);
+    } catch (e) { }
+  }
+
+  /** Calls a server function directly (only used for login / logout). */
+  function runRaw(fn) {
     const args = Array.prototype.slice.call(arguments, 1);
     return new Promise(function (resolve, reject) {
       const r = google.script.run.withSuccessHandler(resolve).withFailureHandler(function (e) {
@@ -26,6 +41,11 @@
       });
       r[fn].apply(r, args);
     });
+  }
+
+  /** Every app request goes through api(token, action, args), where the server checks who you are. */
+  function run(fn) {
+    return runRaw('api', bmToken(), fn, Array.prototype.slice.call(arguments, 1));
   }
 
   /** Tiny DOM builder: el('div', {class:'x', onclick: fn}, [children or text]). Text is always safe (textContent). */

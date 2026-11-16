@@ -19,6 +19,7 @@
 const INTEGRITY_SHEET = 'Integrity Check';
 
 function runIntegrityCheck() {
+  requireSheetAdmin_();
   const r = integrityCheck_();
   try {
     const ui = SpreadsheetApp.getUi();
@@ -86,7 +87,7 @@ function integrityCheck_() {
     }
 
     // 4b. Who entered it
-    if (!String(r[COL.RECORDED_BY - 1] || '').includes('@')) add('WARNING', ref, rowNo, 'No Google account recorded for the person who entered this bill');
+    if (!String(r[COL.RECORDED_BY - 1] || '').trim()) add('WARNING', ref, rowNo, 'No login recorded for the person who entered this bill');
 
     // 4. Category
     const code = String(r[COL.CAT_CODE - 1] || '');

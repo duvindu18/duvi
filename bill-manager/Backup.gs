@@ -67,6 +67,11 @@ function journalMany_(entries) {
 
 /** Time-driven trigger (installed by setup). */
 function runNightlyBackup() {
+  // Normally called by the daily trigger. Can't be abused from the web page: at most one per 20 h.
+  let isAdmin = false;
+  try { requireSheetAdmin_(); isAdmin = true; } catch (e) { }
+  const last = settings_().LAST_BACKUP_AT;
+  if (!isAdmin && last instanceof Date && Date.now() - last.getTime() < 20 * 3600000) return;
   try {
     const result = createSnapshot_();
     audit_('BACKUP', '', result);
@@ -81,6 +86,7 @@ function runNightlyBackup() {
 
 /** Menu item. */
 function backupNow() {
+  requireSheetAdmin_();
   const r = createSnapshot_();
   audit_('BACKUP_MANUAL', '', r);
   SpreadsheetApp.getUi().alert('Backup complete', 'Snapshot: ' + r.snapshot + '\nCSV: ' + r.csv + '\nBills backed up: ' + r.bills, SpreadsheetApp.getUi().ButtonSet.OK);
@@ -138,6 +144,7 @@ function toCsv_(rows) {
 // then you can copy rows back or rename the tab to "Bills" yourself.
 
 function restoreFromLatestSnapshot() {
+  requireSheetAdmin_();
   const ui = SpreadsheetApp.getUi();
   const snapFolder = childFolder_(backupFolder_(), 'Snapshots');
   let latest = null;
@@ -164,6 +171,7 @@ function restoreFromLatestSnapshot() {
 
 /** Replays the live journal: the latest saved state of every bill → a new tab. */
 function rebuildFromJournal() {
+  requireSheetAdmin_();
   const ui = SpreadsheetApp.getUi();
   const jsh = journalSheet_();
   const n = jsh.getLastRow() - 1;
@@ -205,6 +213,7 @@ function rebuildFromJournal() {
 }
 
 function openBackupFolder() {
+  requireSheetAdmin_();
   const f = backupFolder_();
   const html = HtmlService.createHtmlOutput('<p style="font:14px Arial">Backup folder: <a target="_blank" href="' + f.getUrl() +
     '">' + escapeHtml_(f.getName()) + '</a><br><br>Last nightly backup: ' + escapeHtml_(String(settings_().LAST_BACKUP_AT || 'not yet')) + '</p>')
