@@ -113,7 +113,7 @@ function build(html, o) {
   return { html: html, missing: missing };
 }
 
-const STYLES = ['vendor/leaflet/leaflet.css', 'theme.css', 'desktop.css', 'views.css'];
+const STYLES = ['vendor/leaflet/leaflet.css', 'theme.css', 'desktop.css', 'views.css', 'mono.css'];
 const SCRIPTS = ['vendor/leaflet/leaflet.js', 'folder-art.js', 'desktop.js', 'preview.js', 'files.js', 'folder-setup.js', 'docs.js', 'automations.js'];
 /* the phone page adds its own layout and controls after the desktop ones */
 const REMOTE_STYLES = ['remote.css'], REMOTE_SCRIPTS = ['remote.js'];
@@ -124,7 +124,7 @@ function tail(base, remote) {
 
 /* html classes the desktop stylesheet reads, set before first paint so nothing jumps */
 function htmlClass(p) {
-  return ['wc-' + p.controls, 'font-' + p.font, 'density-' + p.density, p.titleBar === 'none' ? 'no-wtitle' : '', p.reduceMotion ? 'reduce-motion' : '',
+  return ['style-' + (p.style || 'mono'), 'wc-' + p.controls, 'font-' + p.font, 'density-' + p.density, p.titleBar === 'none' ? 'no-wtitle' : '', p.reduceMotion ? 'reduce-motion' : '',
     p.pattern ? '' : 'no-pattern', p.glow ? '' : 'no-glow', p.followGlow ? '' : 'no-follow', p.roundCorners ? '' : 'square', p.sideCollapsed ? 'side-collapsed' : ''].filter(Boolean).join(' ');
 }
 

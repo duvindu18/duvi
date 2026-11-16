@@ -239,7 +239,7 @@ app.whenReady().then(async () => {
     'o.remClosed=ov.hidden;o.remView=window.__morfisPage.S.ui.view;o.remCard=!!document.getElementById("remCard");' +
     'var pick=document.getElementById("lk-pick");pick.click();await wait(150);var cp=document.querySelector(".dk-cp");o.picker=!!cp;' +
     'if(cp){var hex=cp.querySelector(".dk-cp-hex");hex.value="#2E9E6A";hex.dispatchEvent(new Event("input",{bubbles:true}));await wait(100);cp.querySelector("[data-cp=ok]").click();await wait(400);}' +
-    'o.accent=window.__morfisPage.S.settings.accent;o.accentVar=getComputedStyle(document.documentElement).getPropertyValue("--accent-fill").trim();' +
+    'o.accent=window.__morfisPage.S.settings.accent;o.accentVar=getComputedStyle(document.documentElement).getPropertyValue("--accent-fill").trim();o.mono=document.documentElement.classList.contains("style-mono");' +
     'return JSON.stringify(o)})().catch(function(e){return JSON.stringify({err:String(e&&e.stack||e)})})'));
   await shot(w, '26-accent-picked');
   await go('automations', '27-automations-own');
@@ -385,7 +385,7 @@ app.whenReady().then(async () => {
   expect(w.getTitle() === 'Morfis Atelier' && fs.existsSync(path.join(profile, 'branding', dp.branding.iconFile + '.ico')), 'app name and icon');
   expect(!extra.newOnSettings && extra.newOnProjects, 'New project shows on Projects only, not on Settings');
   expect(extra.overlayTop >= 40 && extra.remBtn && extra.remClosed && extra.remView === 'settings' && extra.remCard, 'Reminder settings opens Settings, and panels open below the window bar: ' + JSON.stringify(extra));
-  expect(extra.picker && extra.accent === '#2E9E6A' && extra.accentVar.toUpperCase() === '#2E9E6A', 'custom accent colour picker');
+  expect(extra.picker && extra.accent === '#2E9E6A' && (extra.mono ? extra.accentVar.toUpperCase() !== '#2E9E6A' : extra.accentVar.toUpperCase() === '#2E9E6A'), 'custom accent colour picker (saved; Mono keeps ink): ' + JSON.stringify(extra));
   expect(own.editor && own.cards === 1 && own.added === 1 && own.text.indexOf(own.pname) !== -1, 'custom automation: status Completed adds the close-out reminder: ' + JSON.stringify(own));
   expect(phone.on && phone.ping === 'studio-morfis' && phone.unpaired === 401 && phone.pairPage && phone.wrongPin === false && phone.paired && phone.projects === 4 && phone.blocked, 'phone access: pairing and the API: ' + JSON.stringify(phone));
   expect(phone.cors && phone.appKey && phone.appCall && phone.appTree && phone.pingId, 'phone access from the Android app (fixed page address, key header): ' + JSON.stringify(phone));

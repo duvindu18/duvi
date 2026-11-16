@@ -72,8 +72,35 @@
   /* one grey, outlines throughout: a back layer, a sheet when the folder has files, and a front panel whose top edge
      steps up at the tab. Labels, file type and number are written in the same grey. */
   var PAL = { back: '#33353D', front: '#3C3E47', sheet: '#474A54', line: '#7B7F8C', soft: '#5C606C', ink: '#C9CCD5', ink2: '#9599A6' };
-  function art(o) {
+  /* the look in use: Graphite (the drawing below) or Mono (flat grey folders, see mono()) */
+  function look() {
+    var r = document.documentElement;
+    if (!r.classList.contains('style-mono')) return 'graphite';
+    return r.getAttribute('data-theme') === 'light' ? 'mono-light' : 'mono-dark';
+  }
+  /* Mono: a flat folder in two greys and a soft tab, the number or main file type in bold ink, a white sheet when
+     it holds files, and a project's status in small grey type, with the yellow dot only while work is in progress */
+  var MONO = {
+    'mono-light': { back: '#D9D9D9', front: '#E9E9E9', sheet: '#FFFFFF', ink: '#0B0B0B', ink2: '#8A8A8A' },
+    'mono-dark': { back: '#2C2C2C', front: '#383838', sheet: '#5A5A5A', ink: '#F2F2F2', ink2: '#9A9A9A' }
+  };
+  var MONO_FONT = "Segoe UI Variable Display,Segoe UI,InterVar,Arial,sans-serif";
+  function mono(o, pal) {
+    var tag = o.num || o.kind || '', out = '';
+    out += '<path d="M12 22a8 8 0 0 1 8-8h26c2.4 0 4.6 1.1 6.1 2.9l4.8 6.1H112a8 8 0 0 1 8 8v56a8 8 0 0 1-8 8H20a8 8 0 0 1-8-8z" fill="' + pal.back + '"/>';
+    if (o.full) out += '<rect x="22" y="22" width="88" height="40" rx="4" fill="' + pal.sheet + '"/>';
+    out += '<path d="M12 40a8 8 0 0 1 8-8h92a8 8 0 0 1 8 8v46a8 8 0 0 1-8 8H20a8 8 0 0 1-8-8z" fill="' + pal.front + '"/>';
+    if (tag) out += '<text x="21" y="' + (o.status ? 66 : 84) + '" font-family="' + MONO_FONT + '" font-size="15" font-weight="700" letter-spacing="-.3" fill="' + pal.ink + '">' + tag + '</text>';
+    if (o.status) {
+      out += '<text x="21" y="84" font-family="' + MONO_FONT + '" font-size="10" font-weight="600" fill="' + pal.ink2 + '">' + (STATUS[o.status] || STATUS.not_started).label + '</text>';
+      if (o.status === 'in_progress') out += '<circle cx="109" cy="80.5" r="3.6" fill="#F5C400"/>';
+    }
+    return out;
+  }
+  function art(o, lk) {
     o = o || {};
+    lk = lk || look();
+    if (MONO[lk]) return mono(o, MONO[lk]);
     var sw = 0.8, out = '';
     /* back layer */
     out += '<rect x="13" y="9" width="106" height="80" rx="9" fill="' + PAL.back + '" stroke="' + PAL.soft + '" stroke-width="' + sw + '"/>';
@@ -111,9 +138,10 @@
   function folder(o) { return '<svg class="fd-art" viewBox="0 0 132 104" aria-hidden="true">' + art(variant(o)) + '</svg>'; }
 
   /* for File Explorer: the same drawing, square, 256 px */
+  /* File Explorer gets the light Mono folder when Mono is in use (it reads well on light and dark Explorer alike) */
   function explorerIcon(o) {
     if (typeof o === 'string') o = { status: o, count: 1 };
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><g transform="translate(0 27) scale(1.9394)">' + art(variant(o)) + '</g></svg>';
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><g transform="translate(0 27) scale(1.9394)">' + art(variant(o), look() === 'graphite' ? 'graphite' : 'mono-light') + '</g></svg>';
   }
 
   /* SVG text -> PNG data URL, drawn at size x size */
@@ -132,5 +160,7 @@
   }
 
   window.MorfisArt = { STATUS: STATUS, ORDER: ORDER, statusOf: statusOf, statusDot: statusDot, statusTag: statusTag, glyph: glyph,
-    kindOf: kindOf, fileIcon: fileIcon, folder: folder, variant: variant, kindsOf: kindsOf, explorerIcon: explorerIcon, toPng: toPng, ICON_VERSION: 'v7' };
+    kindOf: kindOf, fileIcon: fileIcon, folder: folder, variant: variant, kindsOf: kindsOf, explorerIcon: explorerIcon, toPng: toPng, look: look };
+  /* a new version redraws the Explorer icons; it follows the look, so switching it redraws them too */
+  Object.defineProperty(window.MorfisArt, 'ICON_VERSION', { get: function () { return look() === 'graphite' ? 'v7' : 'v8m'; } });
 })();

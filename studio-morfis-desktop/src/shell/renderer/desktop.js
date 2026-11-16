@@ -116,6 +116,9 @@
   function decorate() {
     var pg = page(), A = window.MorfisArt;
     if (!pg || !A || R.cur) return;
+    /* Mono: the big heading in ink, its second half in grey ("Studio overview") */
+    var hh = document.querySelector('#view .hero h1');
+    if (hh && !hh.querySelector('.mono-g')) { var w = hh.textContent.trim().split(/\s+/); if (w.length > 1) hh.innerHTML = esc(w[0]) + ' <span class="mono-g">' + esc(w.slice(1).join(' ')) + '</span>'; }
     document.querySelectorAll('#view .pcard[data-id]').forEach(function (c) {
       /* cards drawn before the art was loaded */
       if (!c.querySelector('.dk-cart') && !c.querySelector('.has-cover')) { var top = c.querySelector('.pcard-top'), p0 = pg.P(c.dataset.id), pl = top && top.querySelector('svg.plan'); if (p0 && pl) pl.outerHTML = window.MorfisCardArt(p0); }
@@ -245,6 +248,7 @@
   /* ===== look: classes on <html>, the same ones the main process sets before first paint ===== */
   var CLASS_PREFS = {
     controls: function (v) { ['windows', 'pill', 'mac'].forEach(function (k) { root.classList.toggle('wc-' + k, k === v); }); },
+    style: function (v) { ['mono', 'graphite'].forEach(function (k) { root.classList.toggle('style-' + k, k === (v || 'mono')); }); var pg = page(); if (pg && pg.renderAll) pg.renderAll(); },
     font: function (v) { ['inter', 'segoe', 'technical', 'system', 'studio'].forEach(function (k) { root.classList.toggle('font-' + k, k === v); }); },
     density: function (v) { ['comfortable', 'compact'].forEach(function (k) { root.classList.toggle('density-' + k, k === v); }); },
     titleBar: function (v) { root.classList.toggle('no-wtitle', v === 'none'); },
@@ -292,6 +296,7 @@
         sw('rememberWindow', 'Reopen at the same size and place') +
       '</div>' +
       '<div class="dk-sec"><h3>Look</h3>' +
+        field('Style', seg('style', [['mono', 'Mono'], ['graphite', 'Graphite']])) +
         field('Font', seg('font', [['inter', 'Inter'], ['segoe', 'Segoe UI'], ['technical', 'Technical'], ['system', 'System'], ['studio', 'Studio classic']])) +
         field('Spacing', seg('density', [['comfortable', 'Comfortable'], ['compact', 'Compact']])) +
         sw('pattern', 'Dot grid background', 'Fine dots behind the content') +
@@ -549,7 +554,13 @@
   });
 
   /* ===== start ===== */
-  H.getPrefs().then(function (p) { P = p; applyLook(); placeCard(); window.dispatchEvent(new CustomEvent('morfis:prefs', { detail: p })); });
+  H.getPrefs().then(function (p) {
+    P = p;
+    /* the first start with Mono: its light theme, once (the dark one stays a tap away) */
+    if (p.monoIntro && !window.MORFIS_REMOTE) {
+      var t = setInterval(function () { var pg = page(); if (!pg || !pg.S || !pg.S.ready) return; clearInterval(t); var b = document.createElement('button'); b.dataset.act = 'setTheme'; b.dataset.v = 'light'; b.hidden = true; document.body.appendChild(b); b.click(); b.remove(); H.setPref('monoIntro', false).catch(function () {}); }, 200);
+    }
+    applyLook(); placeCard(); window.dispatchEvent(new CustomEvent('morfis:prefs', { detail: p })); });
   var mo = new MutationObserver(function () { placeCard(); });
   var start = function () {
     var v = $('#view'); if (v) mo.observe(v, { childList: true });

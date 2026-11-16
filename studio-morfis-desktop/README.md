@@ -18,6 +18,16 @@ All data stays on the computer.
 
 ## Design
 
+**Two styles**, chosen in Settings > Desktop app > Look > Style. Both have a dark and a light theme.
+
+- **Mono** (the default): light grey paper, ink-black type and buttons, grey for everything secondary.
+  - **Type:** heavy, tightly set headings with the second half in grey ("Studio **overview**").
+  - **Shapes:** pill-shaped buttons, filters and tags. The main action is an ink pill with its icon in a paper circle.
+  - **Colour:** the only colour is a small yellow dot, on the app name and on projects in progress; red and amber are kept for warnings.
+  - **Folders:** flat and grey, the same in Files, on the project cards and in File Explorer.
+- **Graphite:** the dark graphite look described below, with an accent colour of your choice.
+
+
 - **Colours and type:** a graphite dark theme (and a matching light theme), Inter type bundled with the app, and one accent colour you choose with the built-in colour picker. Accent buttons are flat, with a slim accent border. Borders are 1 px and corners use four radii: 6, 8, 12 and 14 px.
 - **Background:** a fine dot grid, and a soft accent light that follows the pointer and lights up the dots under it. Both can be turned off in Settings > Desktop app.
 - **Sidebar:** Workspace and Studio groups, and the active projects. Each project has a coloured square showing its status and current stage. The button at the top, or Ctrl+B, narrows the sidebar to icons. Ctrl+K jumps to the search box.

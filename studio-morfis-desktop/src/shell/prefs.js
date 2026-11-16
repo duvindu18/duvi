@@ -31,7 +31,9 @@ const DEFAULTS = {
   pattern: true,               // a dot grid behind the content
   glow: true,
   followGlow: true,            // a soft accent light that follows the pointer
-  lookV: 2,
+  style: 'mono',               // mono (light grey, ink black, heavy type) | graphite (the dark graphite look)
+  monoIntro: false,            // set once by the move to Mono: the page then switches to the light theme
+  lookV: 3,
   roundCorners: true,
   backupKeep: 14,
   remoteOn: false,             // phone access over the local network
@@ -44,6 +46,7 @@ const DEFAULTS = {
 
 const CHOICES = {
   controls: ['windows', 'pill', 'mac'],
+  style: ['mono', 'graphite'],
   density: ['comfortable', 'compact'],
   titleBar: ['name', 'none'],
   font: ['inter', 'segoe', 'technical', 'system', 'studio'],
@@ -63,6 +66,8 @@ class Prefs {
       });
       /* version 1.3 brought the dot grid with the pointer light: switch it on once */
       if (!(raw.lookV >= 2)) { this.data.pattern = true; this.data.followGlow = true; this.data.lookV = 2; }
+      /* version 1.6 brought the Mono look: everyone moves to it once, in its light theme */
+      if (!(raw.lookV >= 3)) { this.data.style = 'mono'; this.data.monoIntro = true; this.data.lookV = 3; }
     } catch (e) { /* first start, or an unreadable file: defaults */ }
     this.clean();
   }
