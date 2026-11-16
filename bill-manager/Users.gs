@@ -21,6 +21,13 @@ const USER_HEADERS = ['Login (short name or e-mail)', 'Name', 'Role', 'Active', 
 const U_PIN_HASH = 9, U_PIN_SALT = 10, U_PIN_SET = 11;
 const ROLES = ['Employee', 'Admin'];
 const SESSION_DAYS = 180;
+
+/**
+ * The team when this system was set up. setup() adds them ONCE (only if no employees exist yet),
+ * so people you later delete never come back. After that, manage the team in 👥 Users.
+ */
+const INITIAL_TEAM = ['Asindu', 'Asvida', 'Avera', 'Bhagya', 'Binudi', 'Duvindu', 'Isirie', 'Kaushan', 'Oshini',
+  'Savidya', 'Senura', 'Tharangika', 'Uditha'];
 let CURRENT_USER_ = null;
 
 function ensureUsersSheet_() {
@@ -130,15 +137,33 @@ function randomPin_() {
   return p;
 }
 function weakPin_(p) {
-  if (/^(\d)\1+$/.test(p)) return true;                                     // 111111
+  if (/^(\d)\1+$/.test(p)) return true;                                     // 0000, 111111
   const asc = '01234567890', desc = '09876543210';
-  return asc.indexOf(p) >= 0 || desc.indexOf(p) >= 0;                       // 123456, 654321
+  return asc.indexOf(p) >= 0 || desc.indexOf(p) >= 0;                       // 1234, 654321
 }
 function validatePin_(pin) {
   pin = String(pin || '').trim();
-  if (!/^\d{6}$/.test(pin)) throw new Error('The PIN must be exactly 6 digits.');
-  if (weakPin_(pin)) throw new Error('That PIN is too easy to guess (e.g. 123456 or 111111). Choose another.');
+  if (!/^\d{4,6}$/.test(pin)) throw new Error('The PIN must be 4 to 6 digits.');
+  if (weakPin_(pin)) throw new Error('That PIN is too easy to guess (e.g. 1234 or 0000). Choose another.');
   return pin;
+}
+/** The team-wide starting PIN from Settings (DEFAULT_PIN), or '' if not set. */
+function defaultPin_() {
+  const v = String(settings_().DEFAULT_PIN == null ? '' : settings_().DEFAULT_PIN).trim();
+  return /^\d{4,6}$/.test(v) ? v : '';
+}
+/**
+ * PIN for a new person / a reset: the given one, else the team PIN (DEFAULT_PIN), else random.
+ * Admins never get the shared team PIN: anyone who knows it could otherwise act as an Admin.
+ */
+function pinOrDefault_(pin, role) {
+  const team = defaultPin_();
+  if (role === 'Admin') {
+    if (pin && pin === team) throw new Error('Admins need their own PIN, not the team PIN ' + team + '.');
+    return pin ? validatePin_(pin) : randomPin_();
+  }
+  if (pin) return validatePin_(pin);
+  return team || randomPin_();
 }
 
 /** Called by the sign-in screen. Returns { token, user } or throws. */
@@ -150,7 +175,7 @@ function login(loginName, pin, device) {
 
   let u = null;
   try { u = resolveUser_(login); } catch (e) { u = null; }
-  const ok = u && u.pinHash && /^\d{6}$/.test(String(pin || '')) && pinHash_(u.pinSalt, String(pin)) === u.pinHash;
+  const ok = u && u.pinHash && /^\d{4,6}$/.test(String(pin || '')) && pinHash_(u.pinSalt, String(pin)) === u.pinHash;
   if (!ok) {
     cache.put('LF_' + login, String(Number(cache.get('LF_' + login) || 0) + 1), 900);
     cache.put('LF_ALL', String(Number(cache.get('LF_ALL') || 0) + 1), 600);
@@ -219,9 +244,10 @@ function setUserPin(login, pin) {
     login = normLogin_(login);
     const row = findUserRow_(login);
     if (!row) throw new Error('User not found.');
-    pin = pin ? validatePin_(pin) : randomPin_();
-    const salt = Utilities.getUuid();
     const sh = sheet_(SHEET.USERS);
+    const isAdminTarget = sh.getRange(row, 3).getValue() === 'Admin' || login === ownerEmail_();
+    pin = pinOrDefault_(pin, isAdminTarget ? 'Admin' : 'Employee');
+    const salt = Utilities.getUuid();
     sh.getRange(row, U_PIN_HASH, 1, 3).setValues([[pinHash_(salt, pin), salt, new Date()]]);
     sh.getRange(row, 8).setValue(new Date());
     endSessionsFor_(login);
@@ -243,13 +269,14 @@ function listUsers() {
   const rows = n > 0 ? sh.getRange(2, 1, n, USER_HEADERS.length).getValues() : [];
   return {
     me: me.email,
+    teamPin: defaultPin_(),
     users: rows.filter(function (r) { return r[0]; }).map(function (r) {
       const login = normLogin_(r[0]);
       return { email: login, name: String(r[1] || ''), role: r[2] === 'Admin' ? 'Admin' : 'Employee',
                active: r[3] === true || String(r[3]).toUpperCase() === 'TRUE', isOwner: login === owner,
                addedAt: fmt(r[4]), lastSeen: fmt(r[6]), bills: bills[login] || 0,
                hasPin: !!r[U_PIN_HASH - 1], pinSetAt: fmt(r[U_PIN_SET - 1]) };
-    }).sort(function (a, b) { return (b.isOwner - a.isOwner) || (b.active - a.active) || a.name.localeCompare(b.name); }),
+    }).sort(function (a, b) { return a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }); }),   // alphabetical
   };
 }
 
@@ -282,21 +309,34 @@ function saveUser(input) {
     const now = new Date();
     let action, pin = '';
     if (rowOrig) {
+      const prevRole = sh.getRange(rowOrig, 3).getValue();
       sh.getRange(rowOrig, 1, 1, 4).setValues([[login, name, role, active]]);
+      if (role === 'Admin' && prevRole !== 'Admin') {
+        const team = defaultPin_(), h = String(sh.getRange(rowOrig, U_PIN_HASH).getValue()), s = String(sh.getRange(rowOrig, U_PIN_SALT).getValue());
+        if (team && h && pinHash_(s, team) === h) {         // still on the shared team PIN → private PIN
+          pin = randomPin_();
+          const salt = Utilities.getUuid();
+          sh.getRange(rowOrig, U_PIN_HASH, 1, 3).setValues([[pinHash_(salt, pin), salt, now]]);
+          endSessionsFor_(original);
+        }
+      }
       sh.getRange(rowOrig, 8).setValue(now);
       if (!active || login !== original) endSessionsFor_(original);     // sign them out everywhere
       if (login !== original) renameBillsLogin_(original, login);
       action = 'USER_UPDATE';
     } else {
-      pin = input.pin ? validatePin_(input.pin) : randomPin_();
+      pin = pinOrDefault_(input.pin, role);
       const salt = Utilities.getUuid();
       appendRowAt_(sh, 1, [login, name, role, active, now, me.email, '', now, pinHash_(salt, pin), salt, now], [4]);
       action = 'USER_ADD';
     }
+    sortUsersSheet_();
     const details = { login: login, previousLogin: original && original !== login ? original : undefined, name: name, role: role, active: active };
     audit_(action, login, details);
     journal_(action, login, details);
-    return { pin: pin, message: action === 'USER_ADD'
+    return { pin: pin, message: action === 'USER_UPDATE' && pin
+      ? name + ' is now an Admin and has been given a private PIN: ' + pin + '. Give it to them privately.'
+      : action === 'USER_ADD'
       ? 'Added ' + name + ' as ' + role + '. Login: ' + login + '   PIN: ' + pin + '. Give the PIN to them privately; it will not be shown again.'
       : 'Saved ' + name + ' (' + login + ') as ' + role + (active ? '.' : ' — access switched off and signed out.') };
   });
@@ -335,6 +375,92 @@ function renameBillsLogin_(from, to) {
     audit_('USER_LOGIN_RENAMED', to, { from: from, to: to, billsUpdated: changed });
   }
   return changed;
+}
+
+/** Keeps the Users tab in alphabetical order of name. */
+function sortUsersSheet_() {
+  const sh = sheet_(SHEET.USERS);
+  const n = lastDataRow_(sh, 1) - 1;
+  if (n > 1) sh.getRange(2, 1, n, USER_HEADERS.length).sort({ column: 2, ascending: true });
+}
+
+/** A login made from a name: "Tharangika" → "tharangika" (made unique if needed). */
+function loginFromName_(name) {
+  const base = String(name).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '').slice(0, 40) || 'user';
+  let login = base, i = 2;
+  while (findUserRow_(login)) login = base + i++;
+  return login;
+}
+
+/**
+ * Add several people at once (Admin). text = names separated by commas or new lines.
+ * Everyone gets the default PIN (Settings → DEFAULT_PIN, 2018) unless pin is given.
+ * Names already in the list are skipped. Returns a summary.
+ */
+function addUsersBulk(text, pin, role) {
+  const me = requireAdmin_();
+  return withLock_(function () {
+    const names = String(text || '').split(/[,\n;]+/).map(function (s) { return clean_(s, 80); }).filter(String);
+    if (!names.length) throw new Error('Type at least one name.');
+    role = role === 'Admin' ? 'Admin' : 'Employee';
+    pin = pinOrDefault_(pin, role);
+    const sh = sheet_(SHEET.USERS);
+    const n = lastDataRow_(sh, 1) - 1;
+    const existingNames = n > 0 ? sh.getRange(2, 2, n, 1).getValues().map(function (r) { return String(r[0]).toLowerCase().trim(); }) : [];
+    const added = [], skipped = [];
+    names.forEach(function (name) {
+      if (existingNames.indexOf(name.toLowerCase()) >= 0) { skipped.push(name); return; }
+      const login = loginFromName_(name);
+      const salt = Utilities.getUuid(), now = new Date();
+      appendRowAt_(sh, 1, [login, name, role, true, now, me.email, '', now, pinHash_(salt, pin), salt, now], [4]);
+      existingNames.push(name.toLowerCase());
+      added.push(name);
+    });
+    sortUsersSheet_();
+    audit_('USERS_BULK_ADD', '', { added: added, skipped: skipped, role: role, by: me.email });
+    journal_('USERS_BULK_ADD', '', { added: added, role: role });
+    return { added: added, skipped: skipped, pin: added.length ? pin : '',
+      message: (added.length ? 'Added ' + added.length + ': ' + added.join(', ') + '. PIN for all of them: ' + pin + '.' : 'Nobody new to add.') +
+               (skipped.length ? ' Already in the list: ' + skipped.join(', ') + '.' : '') };
+  });
+}
+
+/** setup(): load the current team once, the first time (never re-adds people you deleted). */
+function seedInitialTeam_() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('TEAM_SEEDED')) return;
+  const sh = sheet_(SHEET.USERS);
+  const n = lastDataRow_(sh, 1) - 1;
+  const roles = n > 0 ? sh.getRange(2, 3, n, 1).getValues().map(function (r) { return r[0]; }) : [];
+  if (roles.indexOf('Employee') < 0) addUsersBulk(INITIAL_TEAM.join(','), '', 'Employee');
+  props.setProperty('TEAM_SEEDED', String(Date.now()));
+}
+
+/** Public: names for the sign-in dropdown (active people with a PIN), alphabetical. No secrets. */
+function listLoginNames() {
+  const sh = sheet_(SHEET.USERS);
+  const n = lastDataRow_(sh, 1) - 1;
+  if (n < 1) return [];
+  return sh.getRange(2, 1, n, USER_HEADERS.length).getValues()
+    .filter(function (r) { return r[0] && (r[3] === true || String(r[3]).toUpperCase() === 'TRUE') && r[U_PIN_HASH - 1]; })
+    .map(function (r) { return { login: normLogin_(r[0]), name: String(r[1] || r[0]) }; })
+    .sort(function (a, b) { return a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }); });
+}
+
+/** Anyone signed in can replace their PIN with a private one. Returns a fresh sign-in token. */
+function changeMyPin(oldPin, newPin) {
+  const u = currentUser_();
+  if (!u.row) throw new Error('Set the owner PIN in 👥 Users.');
+  if (!u.pinHash || pinHash_(u.pinSalt, String(oldPin || '')) !== u.pinHash) throw new Error('Your current PIN is not correct.');
+  newPin = validatePin_(newPin);
+  if (newPin === String(oldPin)) throw new Error('The new PIN must be different.');
+  if (newPin === defaultPin_()) throw new Error('Choose a private PIN, not the team PIN.');
+  const salt = Utilities.getUuid(), now = new Date();
+  sheet_(SHEET.USERS).getRange(u.row, U_PIN_HASH, 1, 3).setValues([[pinHash_(salt, newPin), salt, now]]);
+  endSessionsFor_(u.email);
+  audit_('PIN_CHANGED_BY_USER', u.email, {});
+  CacheService.getScriptCache().remove('LF_' + u.email);
+  return login(u.email, newPin, 'after PIN change');
 }
 
 function billsPerUser_() {

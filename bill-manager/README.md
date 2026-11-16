@@ -127,6 +127,17 @@ You can rename or remove any of them.
 
 ## 4. Who can record bills (users and PINs)
 
+**Current team** (added by setup, alphabetical): Asindu, Asvida, Avera, Bhagya, Binudi, Duvindu, Isirie, Kaushan,
+Oshini, Savidya, Senura, Tharangika, Uditha. They start with the **team PIN 2018** (Settings → `DEFAULT_PIN`).
+Each person picks their name from the alphabetical list on the sign-in screen, and can change to a private PIN
+under their initials → *Change my PIN*. Admins always get their own random PIN, never the team PIN.
+Setup adds this list only once; after that the team is managed entirely in 👥 Users, so people you remove
+never come back. *Add several people at once* takes a comma-separated list of names.
+
+> While several people share 2018, any of them can pick someone else's name, so "Recorded by" depends on trust.
+> Ask everyone to change to a private PIN in the first week. The team PIN then only matters for newcomers.
+
+
 **You decide who can record bills.** Manage the list in the app (the **👥** button, Admins only)
 or in the spreadsheet (menu → **👥 Manage users**):
 

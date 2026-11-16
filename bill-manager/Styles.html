@@ -151,6 +151,7 @@
   }
   .pill-btn .pill-ico svg { width: 22px; height: 22px; }
   .pill-btn.danger { background: var(--err); color: #fff; padding: 6px 26px; }
+  .pill-btn:not(:has(.pill-ico)) { padding-right: 26px; }
   .soft-btn {
     display: inline-flex; align-items: center; min-height: 60px; padding: 0 24px; border-radius: 999px;
     background: var(--field); color: var(--ink); font-weight: 600; font-size: 16px; border: 0;
@@ -282,6 +283,11 @@
   .lock { font-size: 12px; color: var(--muted); }
 
   .login-grid { max-width: 420px; }
+  .pin-form { margin: 6px 0 4px; padding: 14px; border-radius: 14px; background: var(--field); }
+  .pin-form input { background: var(--bg); }
+  .um-bulk { margin-top: 14px; padding: 14px 16px; border-radius: var(--radius); background: var(--surface); }
+  .um-bulk summary { cursor: pointer; font-weight: 700; }
+  .um-bulk textarea { margin-top: 10px; }
   #loginPin { letter-spacing: 8px; font-size: 22px; }
 
   /* ------------------------------------------------------------------ user manager */

@@ -43,11 +43,12 @@
     <form id="login" class="hidden" autocomplete="on" novalidate>
       <div class="hero">
         <h1>Sign <span class="dim">in.</span></h1>
-        <p class="lead" id="loginText">Use the login and 6-digit PIN your admin gave you.</p>
+        <p class="lead" id="loginText">Choose your name and enter your PIN.</p>
       </div>
       <div class="grid login-grid">
-        <label class="field full">Login<input id="loginName" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="e.g. kasun" required></label>
-        <label class="field full">PIN<input id="loginPin" name="password" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="current-password" placeholder="••••••" required></label>
+        <label class="field full" id="loginPickWrap">Your name<select id="loginPick"><option value="">Loading names…</option></select></label>
+        <label class="field full hidden" id="loginNameWrap">Login<input id="loginName" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="e.g. kasun"></label>
+        <label class="field full">PIN<input id="loginPin" name="password" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="current-password" placeholder="••••" required></label>
         <label class="um-check full"><input type="checkbox" id="loginRemember" checked> Keep me signed in on this device</label>
       </div>
       <div id="loginError" class="alert error hidden"></div>
@@ -217,6 +218,14 @@
     <div class="modal">
       <h2 class="big" id="meName">—</h2>
       <p class="muted" id="meInfo"></p>
+      <form id="pinForm" class="grid pin-form" autocomplete="off">
+        <div class="full small muted">Change my PIN: choose a private PIN that only you know (4–6 digits).</div>
+        <label class="field">Current PIN<input id="pinOld" type="password" inputmode="numeric" maxlength="6"></label>
+        <label class="field">New PIN<input id="pinNew" type="password" inputmode="numeric" maxlength="6"></label>
+        <label class="field">Repeat new PIN<input id="pinNew2" type="password" inputmode="numeric" maxlength="6"></label>
+        <div class="field" style="justify-content:flex-end"><button type="submit" class="primary" id="btnPin">Change PIN</button></div>
+        <div id="pinMsg" class="alert full hidden"></div>
+      </form>
       <div class="actions">
         <button type="button" class="text-btn" id="meClose">Close</button>
         <button type="button" class="pill-btn" id="btnSignOut"><span>Sign out</span></button>
@@ -276,15 +285,34 @@
       $('login').classList.remove('hidden');
       const err = $('loginError');
       if (message) { err.textContent = message; err.classList.remove('hidden'); } else err.classList.add('hidden');
-      try { $('loginName').value = localStorage.getItem('bm.login') || $('loginName').value; } catch (x) {}
-      ($('loginName').value ? $('loginPin') : $('loginName')).focus();
+      let last = '';
+      try { last = localStorage.getItem('bm.login') || ''; } catch (x) {}
+      $('loginName').value = last;
+      runRaw('listLoginNames').then(function (list) {
+        const sel = $('loginPick'); sel.innerHTML = '';
+        sel.appendChild(el('option', { value: '', text: 'Choose your name…' }));
+        list.forEach(function (p) { sel.appendChild(el('option', { value: p.login, text: p.name })); });
+        sel.appendChild(el('option', { value: '__other', text: 'Other (type my login)' }));
+        if (last && list.some(function (p) { return p.login === last; })) sel.value = last;
+        syncLoginPick();
+        (sel.value ? $('loginPin') : sel).focus();
+      }).catch(function () {                       // list not available → type the login instead
+        $('loginPickWrap').classList.add('hidden'); $('loginNameWrap').classList.remove('hidden');
+      });
     }
+    function syncLoginPick() {
+      const other = $('loginPick').value === '__other';
+      $('loginNameWrap').classList.toggle('hidden', !other);
+      if (!other) $('loginName').value = $('loginPick').value;
+    }
+    $('loginPick').addEventListener('change', function () { syncLoginPick(); ($('loginPick').value === '__other' ? $('loginName') : $('loginPin')).focus(); });
 
     $('login').addEventListener('submit', function (ev) {
       ev.preventDefault();
+      if (!$('loginPickWrap').classList.contains('hidden') && $('loginPick').value !== '__other') $('loginName').value = $('loginPick').value;
       const name = $('loginName').value.trim(), pin = $('loginPin').value.trim();
       const err = $('loginError');
-      if (!name || !/^\d{6}$/.test(pin)) { err.textContent = 'Enter your login and your 6-digit PIN.'; err.classList.remove('hidden'); return; }
+      if (!name || !/^\d{4,6}$/.test(pin)) { err.textContent = 'Choose your name and enter your PIN (4–6 digits).'; err.classList.remove('hidden'); return; }
       $('btnLogin').disabled = true;
       runRaw('login', name, pin, navigator.userAgent).then(function (r) {
         $('btnLogin').disabled = false;
@@ -300,7 +328,26 @@
       });
     });
 
-    $('userChip').addEventListener('click', function () { $('meModal').classList.remove('hidden'); });
+    $('userChip').addEventListener('click', function () {
+      $('pinForm').classList.toggle('hidden', !bmToken());
+      $('pinMsg').classList.add('hidden');
+      $('meModal').classList.remove('hidden');
+    });
+    $('pinForm').addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      const m = $('pinMsg');
+      const say = function (t, k) { m.textContent = t; m.className = 'alert full ' + k; };
+      const o = $('pinOld').value.trim(), n1 = $('pinNew').value.trim(), n2 = $('pinNew2').value.trim();
+      if (!/^\d{4,6}$/.test(n1)) { say('The new PIN must be 4–6 digits.', 'error'); return; }
+      if (n1 !== n2) { say('The two new PINs are not the same.', 'error'); return; }
+      $('btnPin').disabled = true;
+      run('changeMyPin', o, n1).then(function (r) {
+        bmSetToken(r.token, true);
+        ['pinOld', 'pinNew', 'pinNew2'].forEach(function (id) { $(id).value = ''; });
+        say('Done. Your new PIN works from now on, on this device and others.', 'ok');
+      }).catch(function (e) { say(e.message, 'error'); })
+        .then(function () { $('btnPin').disabled = false; });
+    });
     $('meClose').addEventListener('click', function () { $('meModal').classList.add('hidden'); });
     $('btnSignOut').addEventListener('click', function () {
       const t = bmToken();

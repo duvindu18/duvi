@@ -17,6 +17,7 @@ function api_() {
     checkReceiptHashes:     [checkReceiptHashes,  'employee'],
     listMyBills:            [listMyBills,         'employee'],   // own bills only (Admins: all)
     updateBill:             [updateBill,          'employee'],   // own bills, within the edit window
+    changeMyPin:            [changeMyPin,         'employee'],   // replace your own PIN
     getCategories:          [getCategories,       'admin'],
     addCategory:            [addCategory,         'admin'],
     updateCategory:         [updateCategory,      'admin'],
@@ -26,6 +27,7 @@ function api_() {
     saveUser:               [saveUser,            'admin'],
     deleteUser:             [deleteUser,          'admin'],
     setUserPin:             [setUserPin,          'admin'],
+    addUsersBulk:           [addUsersBulk,        'admin'],
   };
 }
 

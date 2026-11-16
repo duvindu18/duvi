@@ -9,8 +9,15 @@ You need    : a computer (Chrome recommended), the MAARAA owner Google
 The zip contains one folder:
   1-Main-Bill-Manager   -> goes into the Google Sheet (13 files)
 
-Staff do NOT need a Google account. Each person signs in with a
-Login (e.g. "kasun") and a 6-digit PIN that you give them.
+Staff do NOT need a Google account. Each person picks their name
+from a list and types the team PIN  2018  (they can change it to a
+private PIN afterwards).
+
+Your current team is added automatically by setup (alphabetical):
+  Asindu, Asvida, Avera, Bhagya, Binudi, Duvindu, Isirie, Kaushan,
+  Oshini, Savidya, Senura, Tharangika, Uditha
+People come and go: add or remove them any time in the Users
+screen (Part 6). Nothing else needs to change.
 
 TIP: Open each file in Notepad, press Ctrl+A then Ctrl+C to copy all,
      then Ctrl+A then Ctrl+V in Apps Script to replace everything.
@@ -88,6 +95,8 @@ PART 3 - RUN SETUP
 [ ] 3.3  Go back to the SPREADSHEET tab. A message box shows
            "Setup complete"  and  YOUR LOGIN + PIN for the app.
          >>> WRITE DOWN YOUR PIN. <<<
+         As an Admin you get your OWN random PIN, never the team PIN,
+         so nobody can sign in as you with 2018.
          (If the box doesn't appear, reload the spreadsheet with F5
           and run setup from the menu: Bill Manager > Setup / repair.)
 [ ] 3.4  Reload the spreadsheet (F5). Check that:
@@ -118,7 +127,9 @@ PART 4 - PUBLISH THE APP (one link for everyone)
 PART 5 - TRY IT YOURSELF
 ---------------------------------------------------------------------
 [ ] 5.1  Open the ENTRY LINK on your phone or in a new browser tab.
-[ ] 5.2  Sign in with the login and PIN from step 3.3.
+[ ] 5.2  Choose "Owner" in the name list (or "Other" and type your
+         login) and enter the PIN from step 3.3. Tip: in Users > Edit,
+         change the name "Owner" to your own name.
          Keep "Keep me signed in on this device" ticked.
 [ ] 5.3  Record a test bill with a photo. You should see "Recorded."
          with a number like BILL-202611-0001 and a green
@@ -128,30 +139,31 @@ PART 5 - TRY IT YOURSELF
 
 
 ---------------------------------------------------------------------
-PART 6 - ADD YOUR TEAM
+PART 6 - YOUR TEAM (changes from time to time)
 ---------------------------------------------------------------------
-Either in the app (people icon at the top), or in the spreadsheet
-(Bill Manager > Manage users).
+Open the Users screen: the people icon at the top of the app, or in
+the spreadsheet Bill Manager > Manage users. Everyone is listed in
+alphabetical order.
 
-[ ] 6.1  For each person, enter:
-            Login   : a short name, e.g.  kasun   (lower case, no
-                      spaces; dots and dashes are fine)
-            PIN     : leave empty for a random PIN, or type 6 digits
-                      (easy ones like 123456 or 111111 are refused)
-            Name    : full name (shown on every bill they record)
-            Role    : Employee  = record bills + correct own bills
-                      Admin     = also categories and users
-         Click "Add account".
-[ ] 6.2  A box shows their LOGIN and PIN. Write it down and give it to
-         them PRIVATELY (in person or a private message). The PIN is
-         never shown again; if it is lost, use "New PIN".
-[ ] 6.3  Later changes, in the same screen:
-            Edit        - change name, role or login
-            Switch off  - blocks sign-in at once (e.g. leave or
-                          resignation); keeps them in the list
-            New PIN     - forgotten PIN; signs them out everywhere
-            Delete      - removes them; their past bills keep their
-                          name
+[ ] 6.1  Check the list: the 13 current employees are there with the
+         team PIN 2018.
+[ ] 6.2  Someone NEW joins:
+            - one person: fill in Login (e.g. nadun), Name, Role >
+              "Add account" (leave PIN empty = team PIN 2018)
+            - several people: "Add several people at once" > type the
+              names separated by commas > "Add people"
+[ ] 6.3  Someone LEAVES or is on long leave:
+            - "Switch off": blocks sign-in at once and keeps their
+              history (recommended)
+            - or "Delete": removes them; their past bills keep their
+              name
+[ ] 6.4  Forgotten PIN: "Reset PIN" sets it back to the team PIN 2018
+         (Admins get a new random PIN instead).
+[ ] 6.5  Someone should manage categories and users too: Edit > Role
+         = Admin. They automatically get a private PIN, shown once.
+[ ] 6.6  To change the team PIN for NEW people: Settings tab >
+         DEFAULT_PIN. People who already have 2018 keep it until they
+         change it or you press Reset PIN.
 
 
 ---------------------------------------------------------------------
@@ -159,13 +171,15 @@ PART 7 - SEND THE LINK TO STAFF
 ---------------------------------------------------------------------
 [ ] 7.1  Send the ENTRY LINK (4.5) with this message:
 
-   "Open this link and sign in with your login and PIN.
+   "Open this link, choose your name and type PIN 2018.
     Keep 'Keep me signed in' ticked so you only do it once.
     Then use your browser menu > Add to Home screen, so it opens
-    like an app. Never share your PIN: every bill you record is
-    saved under your name."
+    like an app.
+    Please tap your initials (top right) > Change my PIN and choose
+    a private PIN. Every bill you record is saved under your name,
+    so only you should be able to sign in as you."
 
-[ ] 7.2  5 wrong PINs lock that login for 15 minutes.
+[ ] 7.2  5 wrong PINs lock that name for 15 minutes.
 
 
 ---------------------------------------------------------------------
@@ -235,14 +249,12 @@ Your bills, receipts and users are kept. Only the code changes.
          Version: New version > Deploy.
          >>> From now on, THIS link is the entry link for everyone. <<<
          (Bill Manager > Show the entry link for staff shows it.)
-[ ] U.5  Your existing users keep their names and roles. Their login
-         is what was in the first column (their e-mail). In the app,
-         open the people icon (Users). For each person:
-            - Edit: shorten the login if you like (e.g. kasun)
-            - Set PIN: write down the PIN that appears
-         Then send each person the entry link with their login + PIN.
-         (Renaming a login also moves their past bills to the new
-          login, so "My bills" keeps working.)
+[ ] U.5  Setup adds the 13 current employees with PIN 2018 if no
+         employees are listed yet. Open the people icon (Users) and
+         check the list. Anyone added earlier keeps their name and
+         role. Press "Set PIN" on them to give them the team PIN, or
+         Delete them if they are listed twice. Then send everyone the
+         entry link (Part 7).
 [ ] U.6  The old "MAARAA Bills Entry" project (the Google sign-in
          link) is no longer needed. You can delete it at
          https://script.google.com. Its link now only says
@@ -265,6 +277,9 @@ The link stays the same, so you don't need to send it again.
 ---------------------------------------------------------------------
 TROUBLESHOOTING
 ---------------------------------------------------------------------
+My name is not in the list on the sign-in screen
+   -> The admin adds you (Part 6.2), or switches you back on.
+
 "Login or PIN is not correct"
    -> Check the login spelling (it is in the Users screen), or give
       them a New PIN.

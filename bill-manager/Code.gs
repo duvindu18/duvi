@@ -119,6 +119,7 @@ const DEFAULT_SETTINGS = [
   ['BACKUP_SPREADSHEET_ID', '',        'Auto-filled: separate spreadsheet with the live backup journal.'],
   ['LAST_BACKUP_AT',        '',        'Auto-filled: time of the last successful nightly backup.'],
   ['EDIT_WINDOW_DAYS',      30,        'Employees can correct their own bills for this many days after recording (Admins: always).'],
+  ['DEFAULT_PIN',           '2018',    'PIN given to new team members and used by "Reset PIN" (4–6 digits). Leave empty to create a random PIN for each person instead.'],
 ];
 
 // ================================ SETUP ====================================
@@ -136,6 +137,7 @@ function setup() {
   const steps = [
     ['Settings tab', ensureSettingsSheet_], ['Categories tab', ensureCategoriesSheet_], ['Payment Methods tab', ensureMethodsSheet_],
     ['Bills tab', ensureBillsSheet_], ['Audit Log tab', ensureAuditSheet_], ['Users tab', ensureUsersSheet_],
+    ['Team list', seedInitialTeam_],
     ['Monthly & Annual summaries', refreshReports_], ['Drive folders', function () { rootFolder_(); backupFolder_(); }],
     ['Backup journal', backupBook_], ['Automatic triggers', installTriggers_], ['Tidy up', removeEmptyDefaultSheet_],
   ];
@@ -150,7 +152,7 @@ function setup() {
     CURRENT_USER_ = null;
     const o = resolveUser_(ownerEmail_());
     if (!o.pinHash && o.row) {
-      const r = setUserPin(ownerEmail_(), '');
+      const r = setUserPin(ownerEmail_(), randomPin_());
       ownerPinMsg = '\n\nYour entry-app sign-in:\n   Login: ' + ownerEmail_() + '\n   PIN:   ' + r.pin +
         '\nWrite it down. You can change it in 👥 Manage users.';
     }
@@ -171,7 +173,17 @@ function ensureSettingsSheet_() {
   }
   const existing = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues().map(function (r) { return r[0]; }) : [];
   const missing = DEFAULT_SETTINGS.filter(function (s) { return existing.indexOf(s[0]) < 0; });
-  if (missing.length) sh.getRange(sh.getLastRow() + 1, 1, missing.length, 3).setValues(missing);
+  if (missing.length) {
+    const at = sh.getLastRow() + 1;
+    sh.getRange(at, 2, missing.length, 1).setNumberFormat('@');      // keep values such as a PIN as typed
+    sh.getRange(at, 1, missing.length, 3).setValues(missing);
+  }
+  const pinRow = findRowByValue_(sh, 1, 'DEFAULT_PIN');
+  if (pinRow) {
+    const c = sh.getRange(pinRow, 2), v = c.getValue();
+    c.setNumberFormat('@');
+    if (typeof v === 'number') c.setValue(String(v));
+  }
   styleHeader_(sh, 3);
   sh.setColumnWidth(1, 220).setColumnWidth(2, 320).setColumnWidth(3, 560);
   sh.getRange('B:B').setHorizontalAlignment('left');

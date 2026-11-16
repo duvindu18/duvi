@@ -1,12 +1,13 @@
 <div id="um-root">
   <p class="muted small" style="margin-top:0">
-    Only the people listed here can sign in (Login + 6-digit PIN) and record bills.
+    Only the people listed here can sign in and record bills. New people get the team PIN
+    (<b id="um-teampin">2018</b>, set in Settings → DEFAULT_PIN) and can change it to a private one after signing in.
     <b>Employees</b> can only record bills and correct their own. <b>Admins</b> can also manage categories and this list.
   </p>
 
   <form id="um-form" class="um-form" autocomplete="off">
     <label class="field">Login<input id="um-email" maxlength="60" autocapitalize="none" spellcheck="false" placeholder="e.g. kasun" required></label>
-    <label class="field" id="um-pin-wrap">PIN (6 digits)<input id="um-pin" inputmode="numeric" maxlength="6" placeholder="leave empty = random"></label>
+    <label class="field" id="um-pin-wrap">PIN (4–6 digits)<input id="um-pin" inputmode="numeric" maxlength="6" placeholder="empty = team PIN"></label>
     <label class="field">Name<input id="um-name" maxlength="80" placeholder="Shown on every bill they record" required></label>
     <label class="field">Role
       <select id="um-role"><option value="Employee">Employee: record bills only</option><option value="Admin">Admin: full control</option></select>
@@ -17,6 +18,14 @@
       <button type="submit" class="primary" id="um-submit">Add account</button>
     </div>
   </form>
+
+  <details class="um-bulk">
+    <summary>Add several people at once</summary>
+    <p class="small muted">Type names separated by commas or on separate lines. Each gets a login from their name
+      (e.g. "Tharangika" → tharangika), the role Employee and the team PIN. Names already listed are skipped.</p>
+    <textarea id="um-bulk-names" rows="3" placeholder="e.g. Nadun, Sachini, Ravindu"></textarea>
+    <div class="um-btns" style="margin-top:8px"><button type="button" class="primary" id="um-bulk-add">Add people</button></div>
+  </details>
 
   <div id="um-msg" class="alert hidden"></div>
   <div id="um-pinbox" class="pinbox hidden">
@@ -47,7 +56,11 @@
     }
 
     function load() {
-      return run('listUsers').then(function (r) { users = r.users; me = r.me; render(); })
+      return run('listUsers').then(function (r) {
+          users = r.users; me = r.me;
+          $('um-teampin').textContent = r.teamPin || '(none: random PINs)';
+          render();
+        })
         .catch(function (e) { msg(e.message, 'error'); $('um-list').innerHTML = ''; });
     }
 
@@ -121,7 +134,7 @@
           } }));
         }
         acts.appendChild(el('button', { type: 'button', class: 'ghost', text: 'Edit', onclick: function () { startEdit(u); } }));
-        acts.appendChild(el('button', { type: 'button', class: 'ghost', text: u.hasPin ? 'New PIN' : 'Set PIN', onclick: function () {
+        acts.appendChild(el('button', { type: 'button', class: 'ghost', text: u.hasPin ? 'Reset PIN' : 'Set PIN', onclick: function () {
           run('setUserPin', u.email, '').then(function (r) { msg(''); showPin(u.email, r.pin); return load(); })
             .catch(function (e) { msg(e.message, 'error'); });
         } }));
@@ -133,13 +146,24 @@
 
     function init() {
       $('um-search').addEventListener('input', render);
+      $('um-bulk-add').addEventListener('click', function () {
+        const text = $('um-bulk-names').value;
+        if (!text.trim()) { msg('Type at least one name.', 'error'); return; }
+        $('um-bulk-add').disabled = true;
+        run('addUsersBulk', text, '', 'Employee').then(function (r) {
+          $('um-bulk-names').value = '';
+          msg(r.message, r.added.length ? 'ok' : 'warn');
+          return load();
+        }).catch(function (e) { msg(e.message, 'error'); })
+          .then(function () { $('um-bulk-add').disabled = false; });
+      });
       $('um-cancel').addEventListener('click', function () { resetForm(); msg(''); });
       $('um-form').addEventListener('submit', function (ev) {
         ev.preventDefault();
         const data = { email: $('um-email').value, name: $('um-name').value, role: $('um-role').value,
                        active: $('um-active').checked, originalEmail: editing || '', pin: editing ? '' : $('um-pin').value.trim() };
         if (!/^[A-Za-z0-9._@+-]{2,60}$/.test(data.email.trim())) { msg('Login: 2–60 letters, numbers, dots or dashes (e.g. kasun).', 'error'); return; }
-        if (data.pin && !/^\d{6}$/.test(data.pin)) { msg('The PIN must be exactly 6 digits (or leave it empty for a random one).', 'error'); return; }
+        if (data.pin && !/^\d{4,6}$/.test(data.pin)) { msg('The PIN must be 4–6 digits (or leave it empty for the team PIN).', 'error'); return; }
         if (!data.name.trim()) { msg('Enter the person\'s name.', 'error'); return; }
         $('um-submit').disabled = true;
         run('saveUser', data).then(function (r) {
