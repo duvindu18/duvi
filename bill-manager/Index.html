@@ -3,8 +3,9 @@
 <head>
   <base target="_top">
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Bill Manager</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>MAARAA Bills</title>
   <?!= include('Styles'); ?>
 </head>
 <body>
@@ -12,113 +13,138 @@
 
   <header class="topbar">
     <div class="brand">
-      <span class="logo">🧾</span>
-      <div>
-        <div class="title" id="appTitle">Bill Manager</div>
-        <div class="sub" id="appSub">Record a bill</div>
-      </div>
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M8 3h16v26l-4-2.5-4 2.5-4-2.5L8 29z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/>
+        <path d="M12.5 11h7M12.5 16h7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        <circle cx="24.5" cy="24.5" r="3.2" class="dot"/>
+      </svg>
+      <span class="title" id="appTitle">MAARAA Bills</span>
     </div>
-    <button type="button" class="ghost" id="btnCats">🏷️ Categories</button>
+    <div class="top-actions">
+      <button type="button" class="icon-btn" id="btnCats" title="Manage categories" aria-label="Manage categories">
+        <svg viewBox="0 0 24 24"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg>
+      </button>
+      <button type="button" class="icon-btn" id="btnTheme" title="Light / dark mode" aria-label="Toggle dark mode">
+        <svg class="moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        <svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
   </header>
 
   <main>
-    <div id="loading" class="card center"><p class="muted">Loading…</p></div>
-    <div id="fatal" class="card hidden"><div class="alert error" id="fatalText"></div></div>
+    <div id="loading" class="center pad"><div class="spinner small"></div></div>
+    <div id="fatal" class="hidden"><div class="alert error" id="fatalText"></div></div>
 
     <!-- ============================ ENTRY FORM ============================ -->
-    <form id="billForm" class="card hidden" novalidate autocomplete="off">
+    <form id="billForm" class="hidden" novalidate autocomplete="off">
+      <div class="hero">
+        <h1>Record a <span class="dim">bill.</span><br><span class="dim">Snap it,</span> file it.</h1>
+        <p class="lead" id="appSub">Reference number, renaming and backup are automatic.</p>
+      </div>
+
       <section>
-        <h2><span class="step">1</span> Bill image <span id="attachReq" class="req"></span></h2>
+        <div class="sec-head"><span class="num">01</span><h2>Receipt <span id="attachReq" class="req"></span></h2></div>
         <div id="drop" class="drop">
-          <p><strong>Drop photos, screenshots or PDFs here</strong><br>
-             <span class="muted small">or paste a screenshot with Ctrl + V · several pages allowed</span></p>
           <div class="row-btns">
-            <label class="btn secondary">📷 Take photo
+            <label class="pill-btn">
+              <span>Take photo</span>
+              <span class="pill-ico"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span>
               <input type="file" id="camInput" accept="image/*" capture="environment" hidden>
             </label>
-            <label class="btn secondary">📁 Choose files
+            <label class="soft-btn">Choose files
               <input type="file" id="fileInput" accept="image/*,application/pdf" multiple hidden>
             </label>
           </div>
+          <p class="hint">Drop or paste (Ctrl + V) photos, screenshots or PDFs. Several pages allowed.</p>
         </div>
         <div id="thumbs" class="thumbs"></div>
-        <p class="muted small" style="margin:8px 0 0">Files are renamed automatically to the bill's reference number, e.g.
-          <code id="namePreview">BILL-YYYYMM-NNNN_Category_Date_Payee.jpg</code></p>
+        <p class="hint">Saved as <code id="namePreview">BILL-YYYYMM-NNNN_Category_Date_Payee.jpg</code></p>
       </section>
 
       <section>
-        <h2><span class="step">2</span> Bill details</h2>
+        <div class="sec-head"><span class="num">02</span><h2>Details</h2></div>
         <div class="grid">
           <label class="field"><span class="req">Bill date</span><input type="date" id="billDate" required></label>
-          <label class="field"><span class="req">Expense category</span><select id="category" required></select></label>
-          <label class="field"><span class="req">Company / person (payee)</span>
-            <input id="vendor" list="vendorList" maxlength="150" placeholder="e.g. Ceylon Electricity Board" required></label>
-          <label class="field">Vendor invoice / receipt no
-            <input id="invoiceNo" maxlength="80" placeholder="number printed on the bill"></label>
+          <label class="field"><span class="req">Category</span><select id="category" required></select></label>
+          <label class="field"><span class="req">Paid to</span>
+            <input id="vendor" list="vendorList" maxlength="150" placeholder="Company or person" required></label>
+          <label class="field">Invoice / receipt no
+            <input id="invoiceNo" maxlength="80" placeholder="Optional"></label>
           <label class="field full"><span class="req">Description</span>
-            <textarea id="description" maxlength="1000" placeholder="What was purchased / paid for" required></textarea></label>
-          <label class="field full">Project / client (optional)
-            <input id="project" list="projectList" maxlength="150" placeholder="e.g. Mr. Edward Samarasekara – council drawings"></label>
+            <textarea id="description" maxlength="1000" rows="2" placeholder="What was purchased or paid for" required></textarea></label>
+          <label class="field full">Project / client
+            <input id="project" list="projectList" maxlength="150" placeholder="Optional"></label>
         </div>
         <datalist id="vendorList"></datalist>
         <datalist id="projectList"></datalist>
       </section>
 
       <section>
-        <h2><span class="step">3</span> Payment</h2>
+        <div class="sec-head"><span class="num">03</span><h2>Payment</h2></div>
         <div class="grid">
-          <label class="field"><span class="req">Payment method</span><select id="method" required></select></label>
-          <label class="field" id="payRefWrap">Payment ref (cheque / txn no)
-            <input id="paymentRef" maxlength="80"></label>
           <label class="field"><span class="req" id="amountLabel">Amount excl. tax</span>
             <input id="amount" class="money" inputmode="decimal" placeholder="0.00" required></label>
           <label class="field">Tax / VAT
             <input id="tax" class="money" inputmode="decimal" placeholder="0.00"></label>
-          <div class="full total-box"><span>Bill total</span><span class="val" id="totalView">0.00</span></div>
-          <label class="field"><span class="req">Payment status</span><select id="payStatus"></select></label>
+          <div class="full total-box"><span>Total</span><span class="val" id="totalView">0.00</span></div>
+          <label class="field"><span class="req">Method</span><select id="method" required></select></label>
+          <label class="field" id="payRefWrap">Cheque / transaction no
+            <input id="paymentRef" maxlength="80"></label>
+          <label class="field"><span class="req">Status</span><select id="payStatus"></select></label>
           <label class="field" id="dueWrap">Due date<input type="date" id="dueDate"></label>
-          <label class="field full">Remarks<textarea id="remarks" maxlength="1000" placeholder="optional"></textarea></label>
+          <label class="field full">Remarks<textarea id="remarks" maxlength="1000" rows="2" placeholder="Optional"></textarea></label>
         </div>
       </section>
 
       <div id="formError" class="alert error hidden"></div>
-      <div class="actions">
-        <button type="button" class="ghost" id="btnClear">Clear</button>
-        <button type="submit" class="primary" id="btnSave" title="Ctrl + Enter">✔ Record bill</button>
+      <div class="actions sticky-actions">
+        <button type="button" class="text-btn" id="btnClear">Clear</button>
+        <button type="submit" class="pill-btn" id="btnSave" title="Ctrl + Enter">
+          <span>Record bill</span>
+          <span class="pill-ico"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        </button>
       </div>
     </form>
 
     <!-- ========================== SUCCESS VIEW ============================ -->
-    <div id="success" class="card hidden">
-      <div class="success-head">
-        <div class="tick">✓</div>
-        <div class="muted small">Bill recorded successfully</div>
+    <div id="success" class="hidden">
+      <div class="hero">
+        <div class="tick"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h1>Recorded<span class="dim">.</span></h1>
         <div class="ref" id="sRef"></div>
-        <div class="small" id="sVerified" style="color:#137333;margin-top:6px;font-weight:600"></div>
+        <div class="verified" id="sVerified"></div>
       </div>
       <table class="kv" id="sTable"></table>
       <div class="actions">
-        <a class="btn ghost" id="sSheet" target="_blank" rel="noopener">Open in sheet</a>
-        <button type="button" class="primary" id="btnAnother">➕ Record another bill</button>
+        <a class="text-btn" id="sSheet" target="_blank" rel="noopener">Open in sheet</a>
+        <button type="button" class="pill-btn" id="btnAnother">
+          <span>Record another</span>
+          <span class="pill-ico"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        </button>
       </div>
     </div>
 
-    <div id="sessionCard" class="card hidden">
-      <h3>Recorded in this session</h3>
+    <div id="sessionCard" class="hidden">
+      <div class="list-head"><h2 class="big">Recent</h2><span class="muted" id="sessionCount"></span></div>
       <ul class="session" id="sessionList"></ul>
     </div>
+
+    <footer class="foot">
+      <span>MAARAA Bills</span>
+      <span class="muted">Photo · Screenshot · PDF · Auto reference · Daily backup</span>
+    </footer>
   </main>
 
   <!-- Duplicate warning -->
   <div id="dupModal" class="overlay hidden">
     <div class="modal">
-      <div class="modal-head"><h3>⚠️ Possible duplicate</h3></div>
-      <p>This bill looks like one that is already recorded:</p>
-      <ul id="dupList"></ul>
-      <p class="muted small">Recording the same bill twice overstates expenses. Record it anyway only if it is a genuinely separate bill.</p>
+      <h2 class="big">Possible duplicate<span class="dim">.</span></h2>
+      <p class="muted">This bill looks like one already recorded:</p>
+      <ul id="dupList" class="dup-list"></ul>
+      <p class="hint">Recording the same bill twice overstates expenses. Continue only if it is a separate bill.</p>
       <div class="actions">
-        <button type="button" class="ghost" id="dupCancel">Go back</button>
-        <button type="button" class="danger" id="dupForce">Record anyway</button>
+        <button type="button" class="text-btn" id="dupCancel">Go back</button>
+        <button type="button" class="pill-btn danger" id="dupForce"><span>Record anyway</span></button>
       </div>
     </div>
   </div>
@@ -126,7 +152,8 @@
   <!-- Category manager -->
   <div id="catModal" class="overlay hidden">
     <div class="modal wide">
-      <div class="modal-head"><h3>🏷️ Manage categories</h3><button type="button" class="ghost" id="catClose">✕ Close</button></div>
+      <div class="modal-head"><h2 class="big">Categories<span class="dim">.</span></h2>
+        <button type="button" class="icon-btn" id="catClose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
       <?!= include('CategoryManager'); ?>
     </div>
   </div>
@@ -141,10 +168,10 @@
     // ------------------------------------------------------------ startup
     run('getFormData').then(function (d) {
       state.data = d;
-      $('appTitle').textContent = (d.company ? d.company + ' ' : '') + 'Bill Manager';
-      $('appSub').textContent = 'Record a bill · ' + d.user;
+      $('appTitle').textContent = (d.company || 'MAARAA') + ' Bills';
+      $('appSub').textContent = 'Reference number, renaming and backup are automatic. Signed in as ' + d.user + '.';
       $('attachReq').textContent = d.requireAttachment ? '' : '(optional)';
-      $('attachReq').className = d.requireAttachment ? 'req' : 'muted small';
+      $('attachReq').className = d.requireAttachment ? 'req' : 'muted';
       fillCategories(d.categories);
       fillSelect($('method'), d.methods, 'Choose…');
       fillSelect($('payStatus'), d.statuses);
@@ -230,9 +257,9 @@
       box.innerHTML = '';
       state.files.forEach(function (f, i) {
         box.appendChild(el('div', { class: 'thumb' }, [
-          f.url ? el('img', { src: f.url, alt: f.name }) : el('div', { class: 'pdf', text: '📄' }),
+          f.url ? el('img', { src: f.url, alt: f.name }) : el('div', { class: 'pdf', text: 'PDF' }),
           el('div', { class: 'cap', text: (i + 1) + '. ' + f.name }),
-          el('div', { class: 'cap', style: f.warn ? 'color:#b06000;font-weight:700;white-space:normal' : '', text: f.warn || f.status }),
+          el('div', { class: 'cap' + (f.warn ? ' warn' : ''), text: f.warn || f.status }),
           el('button', { type: 'button', class: 'rm', title: 'Remove', text: '✕', onclick: function () {
             if (f.url) URL.revokeObjectURL(f.url);
             state.files.splice(i, 1); renderThumbs();
@@ -405,7 +432,7 @@
       const ul = $('dupList'); ul.innerHTML = '';
       matches.forEach(function (m) {
         ul.appendChild(el('li', {}, [el('b', { text: m.ref }), ' — ' + m.billDate + ', ' + m.vendor + ', ' + money(m.total, state.data.currency),
-          el('div', { class: 'small muted', text: 'Matched on: ' + m.reason })]));
+          el('div', { class: 'hint', text: 'Matched on: ' + m.reason })]));
       });
       $('dupModal').classList.remove('hidden');
     }
@@ -433,7 +460,7 @@
       row('Payment', r.paymentMethod + (r.paymentRef ? ' · ' + r.paymentRef : '') + ' · ' + r.paymentStatus + (r.dueDate ? ' (due ' + r.dueDate + ')' : ''));
       row('Amount excl. tax', money(r.amount, cur));
       if (r.tax) row('Tax / VAT', money(r.tax, cur));
-      row('Total', el('b', { text: money(r.total, cur) }));
+      row('Total', el('b', { class: 'tot', text: money(r.total, cur) }));
       row('Remarks', r.remarks);
       if (r.files.length) {
         row('Receipt files', el('ul', { class: 'files' }, r.files.map(function (f) {
@@ -446,9 +473,17 @@
       state.session.unshift(r);
       const ul = $('sessionList'); ul.innerHTML = '';
       state.session.forEach(function (s) {
-        ul.appendChild(el('li', {}, [el('span', {}, [el('span', { class: 'r', text: s.ref }), ' · ' + s.vendor + ' · ' + s.category]),
-          el('span', { text: money(s.total, cur) })]));
+        ul.appendChild(el('li', {}, [
+          el('div', { class: 'tile', text: (s.category || '?').slice(0, 2).toUpperCase() }),
+          el('div', { class: 'grow' }, [
+            el('div', { class: 'ttl', text: s.vendor + ' · ' + s.category }),
+            el('div', { class: 'meta' }, [el('b', { text: s.ref }), ' ' + s.billDate]),
+          ]),
+          el('div', { class: 'amt', text: money(s.total, cur) }),
+        ]));
       });
+      $('sessionCount').textContent = state.session.length + ' this session · ' +
+        money(state.session.reduce(function (t, s) { return t + Math.round(s.total * 100); }, 0) / 100, cur);
       $('sessionCard').classList.remove('hidden');
 
       if (state.data.vendors.indexOf(r.vendor) < 0) { state.data.vendors.push(r.vendor); fillDatalist($('vendorList'), state.data.vendors); }
@@ -476,6 +511,7 @@
         CM.reload();
       }
     });
+    $('btnTheme').addEventListener('click', toggleTheme);
     $('catClose').addEventListener('click', function () { $('catModal').classList.add('hidden'); });
   </script>
 </body>
