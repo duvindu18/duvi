@@ -1,0 +1,44 @@
+<script>
+  /** Shared helpers for all Bill Manager pages. */
+  const $ = function (id) { return document.getElementById(id); };
+
+  /** Promise wrapper around google.script.run. */
+  function run(fn) {
+    const args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      const r = google.script.run.withSuccessHandler(resolve).withFailureHandler(function (e) {
+        reject(new Error((e && e.message) ? e.message.replace(/^Exception:\s*/, '').replace(/^Error:\s*/, '') : String(e)));
+      });
+      r[fn].apply(r, args);
+    });
+  }
+
+  /** Tiny DOM builder: el('div', {class:'x', onclick: fn}, [children or text]). Text is always safe (textContent). */
+  function el(tag, attrs, children) {
+    const n = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      const v = attrs[k];
+      if (v == null || v === false) return;
+      if (k.indexOf('on') === 0 && typeof v === 'function') n.addEventListener(k.slice(2), v);
+      else if (k === 'class') n.className = v;
+      else if (k === 'text') n.textContent = v;
+      else n.setAttribute(k, v === true ? '' : v);
+    });
+    [].concat(children == null ? [] : children).forEach(function (c) {
+      if (c == null || c === false) return;
+      n.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(String(c)) : c);
+    });
+    return n;
+  }
+
+  function money(n, sym) {
+    const v = Number(n) || 0;
+    return (sym ? sym + ' ' : '') + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function parseAmount(s) {
+    const t = String(s == null ? '' : s).replace(/rs\.?|lkr|,|\s/gi, '');
+    if (t === '') return NaN;
+    return /^\d+(\.\d+)?$/.test(t) ? Number(t) : NaN;
+  }
+</script>

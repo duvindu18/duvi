@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bill Manager</title>
+  <?!= include('Styles'); ?>
+</head>
+<body>
+  <?!= include('Common'); ?>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🧾</span>
+      <div>
+        <div class="title" id="appTitle">Bill Manager</div>
+        <div class="sub" id="appSub">Record a bill</div>
+      </div>
+    </div>
+    <button type="button" class="ghost" id="btnCats">🏷️ Categories</button>
+  </header>
+
+  <main>
+    <div id="loading" class="card center"><p class="muted">Loading…</p></div>
+    <div id="fatal" class="card hidden"><div class="alert error" id="fatalText"></div></div>
+
+    <!-- ============================ ENTRY FORM ============================ -->
+    <form id="billForm" class="card hidden" novalidate autocomplete="off">
+      <section>
+        <h2><span class="step">1</span> Bill image <span id="attachReq" class="req"></span></h2>
+        <div id="drop" class="drop">
+          <p><strong>Drop photos, screenshots or PDFs here</strong><br>
+             <span class="muted small">or paste a screenshot with Ctrl + V · several pages allowed</span></p>
+          <div class="row-btns">
+            <label class="btn secondary">📷 Take photo
+              <input type="file" id="camInput" accept="image/*" capture="environment" hidden>
+            </label>
+            <label class="btn secondary">📁 Choose files
+              <input type="file" id="fileInput" accept="image/*,application/pdf" multiple hidden>
+            </label>
+          </div>
+        </div>
+        <div id="thumbs" class="thumbs"></div>
+        <p class="muted small" style="margin:8px 0 0">Files are renamed automatically to the bill's reference number, e.g.
+          <code id="namePreview">BILL-YYYYMM-NNNN_Category_Date_Payee.jpg</code></p>
+      </section>
+
+      <section>
+        <h2><span class="step">2</span> Bill details</h2>
+        <div class="grid">
+          <label class="field"><span class="req">Bill date</span><input type="date" id="billDate" required></label>
+          <label class="field"><span class="req">Expense category</span><select id="category" required></select></label>
+          <label class="field"><span class="req">Company / person (payee)</span>
+            <input id="vendor" list="vendorList" maxlength="150" placeholder="e.g. Ceylon Electricity Board" required></label>
+          <label class="field">Vendor invoice / receipt no
+            <input id="invoiceNo" maxlength="80" placeholder="number printed on the bill"></label>
+          <label class="field full"><span class="req">Description</span>
+            <textarea id="description" maxlength="1000" placeholder="What was purchased / paid for" required></textarea></label>
+          <label class="field full">Project / client (optional)
+            <input id="project" list="projectList" maxlength="150" placeholder="e.g. Mr. Edward Samarasekara – council drawings"></label>
+        </div>
+        <datalist id="vendorList"></datalist>
+        <datalist id="projectList"></datalist>
+      </section>
+
+      <section>
+        <h2><span class="step">3</span> Payment</h2>
+        <div class="grid">
+          <label class="field"><span class="req">Payment method</span><select id="method" required></select></label>
+          <label class="field" id="payRefWrap">Payment ref (cheque / txn no)
+            <input id="paymentRef" maxlength="80"></label>
+          <label class="field"><span class="req" id="amountLabel">Amount excl. tax</span>
+            <input id="amount" class="money" inputmode="decimal" placeholder="0.00" required></label>
+          <label class="field">Tax / VAT
+            <input id="tax" class="money" inputmode="decimal" placeholder="0.00"></label>
+          <div class="full total-box"><span>Bill total</span><span class="val" id="totalView">0.00</span></div>
+          <label class="field"><span class="req">Payment status</span><select id="payStatus"></select></label>
+          <label class="field" id="dueWrap">Due date<input type="date" id="dueDate"></label>
+          <label class="field full">Remarks<textarea id="remarks" maxlength="1000" placeholder="optional"></textarea></label>
+        </div>
+      </section>
+
+      <div id="formError" class="alert error hidden"></div>
+      <div class="actions">
+        <button type="button" class="ghost" id="btnClear">Clear</button>
+        <button type="submit" class="primary" id="btnSave">✔ Record bill</button>
+      </div>
+    </form>
+
+    <!-- ========================== SUCCESS VIEW ============================ -->
+    <div id="success" class="card hidden">
+      <div class="success-head">
+        <div class="tick">✓</div>
+        <div class="muted small">Bill recorded successfully</div>
+        <div class="ref" id="sRef"></div>
+      </div>
+      <table class="kv" id="sTable"></table>
+      <div class="actions">
+        <a class="btn ghost" id="sSheet" target="_blank" rel="noopener">Open in sheet</a>
+        <button type="button" class="primary" id="btnAnother">➕ Record another bill</button>
+      </div>
+    </div>
+
+    <div id="sessionCard" class="card hidden">
+      <h3>Recorded in this session</h3>
+      <ul class="session" id="sessionList"></ul>
+    </div>
+  </main>
+
+  <!-- Duplicate warning -->
+  <div id="dupModal" class="overlay hidden">
+    <div class="modal">
+      <div class="modal-head"><h3>⚠️ Possible duplicate</h3></div>
+      <p>This bill looks like one that is already recorded:</p>
+      <ul id="dupList"></ul>
+      <p class="muted small">Recording the same bill twice overstates expenses. Record it anyway only if it is a genuinely separate bill.</p>
+      <div class="actions">
+        <button type="button" class="ghost" id="dupCancel">Go back</button>
+        <button type="button" class="danger" id="dupForce">Record anyway</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category manager -->
+  <div id="catModal" class="overlay hidden">
+    <div class="modal wide">
+      <div class="modal-head"><h3>🏷️ Manage categories</h3><button type="button" class="ghost" id="catClose">✕ Close</button></div>
+      <?!= include('CategoryManager'); ?>
+    </div>
+  </div>
+
+  <!-- Busy overlay -->
+  <div id="busy" class="overlay busy hidden"><div class="spinner"></div><div id="busyText">Working…</div></div>
+
+  <script>
+    const state = { data: null, files: [], session: [], lastPayload: null, cmReady: false };
+    const MAX_FILE_MB = 25;
+
+    // ------------------------------------------------------------ startup
+    run('getFormData').then(function (d) {
+      state.data = d;
+      $('appTitle').textContent = (d.company ? d.company + ' ' : '') + 'Bill Manager';
+      $('appSub').textContent = 'Record a bill · ' + d.user;
+      $('attachReq').textContent = d.requireAttachment ? '' : '(optional)';
+      $('attachReq').className = d.requireAttachment ? 'req' : 'muted small';
+      fillCategories(d.categories);
+      fillSelect($('method'), d.methods, 'Choose…');
+      fillSelect($('payStatus'), d.statuses);
+      fillDatalist($('vendorList'), d.vendors);
+      fillDatalist($('projectList'), d.projects);
+      resetForm();
+      $('loading').classList.add('hidden');
+      $('billForm').classList.remove('hidden');
+    }).catch(function (e) {
+      $('loading').classList.add('hidden');
+      $('fatalText').textContent = 'Could not load: ' + e.message;
+      $('fatal').classList.remove('hidden');
+    });
+
+    function fillSelect(sel, items, placeholder) {
+      sel.innerHTML = '';
+      if (placeholder) sel.appendChild(el('option', { value: '', text: placeholder }));
+      items.forEach(function (v) { sel.appendChild(el('option', { value: v, text: v })); });
+    }
+    function fillDatalist(dl, items) {
+      dl.innerHTML = '';
+      items.forEach(function (v) { dl.appendChild(el('option', { value: v })); });
+    }
+    function fillCategories(cats) {
+      const sel = $('category'), keep = sel.value;
+      sel.innerHTML = '';
+      sel.appendChild(el('option', { value: '', text: 'Choose…' }));
+      const groups = {};
+      cats.filter(function (c) { return c.active; }).forEach(function (c) { (groups[c.group || 'Other'] = groups[c.group || 'Other'] || []).push(c); });
+      Object.keys(groups).sort().forEach(function (g) {
+        const og = el('optgroup', { label: g });
+        groups[g].forEach(function (c) { og.appendChild(el('option', { value: c.code, text: c.name })); });
+        sel.appendChild(og);
+      });
+      if (keep && sel.querySelector('option[value="' + keep + '"]')) sel.value = keep;
+      updateNamePreview();
+    }
+
+    // ------------------------------------------------------------ files
+    const drop = $('drop');
+    ['dragenter', 'dragover'].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+    ['dragleave', 'drop'].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
+    drop.addEventListener('drop', function (e) { addFiles(e.dataTransfer.files); });
+    $('fileInput').addEventListener('change', function (e) { addFiles(e.target.files); e.target.value = ''; });
+    $('camInput').addEventListener('change', function (e) { addFiles(e.target.files); e.target.value = ''; });
+    document.addEventListener('paste', function (e) {
+      if ($('billForm').classList.contains('hidden')) return;
+      const items = (e.clipboardData && e.clipboardData.files) || [];
+      if (items.length) { e.preventDefault(); addFiles(items); }
+    });
+
+    function addFiles(list) {
+      const max = (state.data && state.data.maxFiles) || 10;
+      Array.prototype.forEach.call(list, function (f, i) {
+        const okType = /^image\//.test(f.type) || f.type === 'application/pdf';
+        if (!okType) { showError('"' + f.name + '" is not an image or PDF.'); return; }
+        if (f.size > MAX_FILE_MB * 1048576) { showError('"' + f.name + '" is larger than ' + MAX_FILE_MB + ' MB.'); return; }
+        if (state.files.length >= max) { showError('Maximum ' + max + ' files per bill.'); return; }
+        const name = f.name && f.name !== 'image.png' ? f.name : 'screenshot-' + Date.now() + '-' + i + '.png';
+        state.files.push({ file: f, name: name, url: /^image\//.test(f.type) ? URL.createObjectURL(f) : null });
+      });
+      renderThumbs();
+    }
+
+    function renderThumbs() {
+      const box = $('thumbs');
+      box.innerHTML = '';
+      state.files.forEach(function (f, i) {
+        box.appendChild(el('div', { class: 'thumb' }, [
+          f.url ? el('img', { src: f.url, alt: f.name }) : el('div', { class: 'pdf', text: '📄' }),
+          el('div', { class: 'cap', text: (i + 1) + '. ' + f.name }),
+          el('button', { type: 'button', class: 'rm', title: 'Remove', text: '✕', onclick: function () {
+            if (f.url) URL.revokeObjectURL(f.url);
+            state.files.splice(i, 1); renderThumbs();
+          } }),
+        ]));
+      });
+    }
+
+    /** Hash of the ORIGINAL file (used to detect the same receipt being uploaded twice). */
+    function sha256(file) {
+      if (!window.crypto || !crypto.subtle || !file.arrayBuffer) return Promise.resolve('');
+      return file.arrayBuffer().then(function (buf) { return crypto.subtle.digest('SHA-256', buf); })
+        .then(function (h) { return Array.prototype.map.call(new Uint8Array(h), function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); })
+        .catch(function () { return ''; });
+    }
+
+    function readAsBase64(blob) {
+      return new Promise(function (res, rej) {
+        const r = new FileReader();
+        r.onload = function () { res(String(r.result).split(',')[1]); };
+        r.onerror = rej;
+        r.readAsDataURL(blob);
+      });
+    }
+
+    /** Large phone photos are scaled to max 2000 px and saved as JPEG — still perfectly legible, ~10x smaller. */
+    function compressImage(file) {
+      return new Promise(function (res, rej) {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = function () {
+          const MAX = 2000;
+          const s = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+          const w = Math.round(img.naturalWidth * s), h = Math.round(img.naturalHeight * s);
+          const c = document.createElement('canvas'); c.width = w; c.height = h;
+          const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h);
+          URL.revokeObjectURL(url);
+          c.toBlob(function (b) { b ? res(b) : rej(new Error('compress failed')); }, 'image/jpeg', 0.85);
+        };
+        img.onerror = function () { URL.revokeObjectURL(url); rej(new Error('decode failed')); };
+        img.src = url;
+      });
+    }
+
+    function prepareFile(f) {
+      const file = f.file;
+      const isImg = /^image\//.test(file.type) && !/gif|svg/.test(file.type);
+      return sha256(file).then(function (hash) {
+        const small = isImg && file.size > 400 * 1024;
+        const p = small ? compressImage(file).then(function (b) { return { blob: b, type: 'image/jpeg' }; })
+                               .catch(function () { return { blob: file, type: file.type }; })
+                        : Promise.resolve({ blob: file, type: file.type });
+        return p.then(function (r) {
+          return readAsBase64(r.blob).then(function (data) {
+            return { name: f.name, mimeType: r.type || 'application/octet-stream', data: data, hash: hash };
+          });
+        });
+      });
+    }
+
+    // ------------------------------------------------------------ form behaviour
+    function updateTotal() {
+      const a = parseAmount($('amount').value), t = parseAmount($('tax').value);
+      const total = (isNaN(a) ? 0 : a) + (isNaN(t) ? 0 : t);
+      $('totalView').textContent = money(total, state.data ? state.data.currency : '');
+    }
+    function updatePaymentFields() {
+      const m = $('method').value;
+      $('payRefWrap').classList.toggle('hidden', !m || /cash/i.test(m));
+      $('dueWrap').classList.toggle('hidden', $('payStatus').value === 'Paid');
+    }
+    function updateNamePreview() {
+      if (!state.data) return;
+      const sel = $('category');
+      const cat = sel.selectedIndex > 0 ? sel.options[sel.selectedIndex].text : 'Category';
+      const d = $('billDate').value || state.data.today;
+      const slug = function (s) { return String(s || '').replace(/[^\w\s-]/g, '').trim().replace(/[\s_-]+/g, '-').slice(0, 30) || 'NA'; };
+      $('namePreview').textContent = state.data.refPrefix + '-' + d.slice(0, 7).replace('-', '') + '-NNNN_' + slug(cat) + '_' + d + '_' + slug($('vendor').value || 'Payee') + '.jpg';
+    }
+    ['amount', 'tax'].forEach(function (id) {
+      $(id).addEventListener('input', updateTotal);
+      $(id).addEventListener('blur', function () { const v = parseAmount(this.value); if (!isNaN(v)) this.value = v.toFixed(2); });
+    });
+    $('method').addEventListener('change', updatePaymentFields);
+    $('payStatus').addEventListener('change', updatePaymentFields);
+    ['category', 'billDate', 'vendor'].forEach(function (id) { $(id).addEventListener('input', updateNamePreview); $(id).addEventListener('change', updateNamePreview); });
+    $('btnClear').addEventListener('click', resetForm);
+
+    function resetForm() {
+      $('billForm').reset();
+      state.files.forEach(function (f) { if (f.url) URL.revokeObjectURL(f.url); });
+      state.files = [];
+      renderThumbs();
+      $('billDate').value = state.data.today;
+      $('billDate').max = state.data.today;
+      $('payStatus').value = 'Paid';
+      if (state.data.methods.indexOf('Cash') >= 0) $('method').value = 'Cash';
+      $('amountLabel').textContent = 'Amount excl. tax (' + state.data.currency + ')';
+      document.querySelectorAll('.invalid').forEach(function (n) { n.classList.remove('invalid'); });
+      hideError();
+      updateTotal(); updatePaymentFields(); updateNamePreview();
+    }
+
+    function showError(text) { const b = $('formError'); b.textContent = text; b.classList.remove('hidden'); }
+    function hideError() { $('formError').classList.add('hidden'); }
+    function busy(text) { $('busyText').textContent = text; $('busy').classList.toggle('hidden', !text); }
+
+    function validate() {
+      const errs = [];
+      document.querySelectorAll('.invalid').forEach(function (n) { n.classList.remove('invalid'); });
+      const need = function (id, label) { if (!$(id).value.trim()) { errs.push(label + ' is required.'); $(id).classList.add('invalid'); } };
+      need('billDate', 'Bill date'); need('category', 'Expense category'); need('vendor', 'Payee');
+      need('description', 'Description'); need('method', 'Payment method');
+      const a = parseAmount($('amount').value);
+      if (isNaN(a) || a <= 0) { errs.push('Amount must be a number greater than zero.'); $('amount').classList.add('invalid'); }
+      if ($('tax').value.trim() && isNaN(parseAmount($('tax').value))) { errs.push('Tax must be a number.'); $('tax').classList.add('invalid'); }
+      if ($('billDate').value > state.data.today) { errs.push('Bill date cannot be in the future.'); $('billDate').classList.add('invalid'); }
+      if (state.data.requireAttachment && !state.files.length) { errs.push('Please attach the bill photo, screenshot or PDF.'); $('drop').classList.add('invalid'); }
+      return errs;
+    }
+
+    // ------------------------------------------------------------ submit
+    $('billForm').addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      hideError();
+      const errs = validate();
+      if (errs.length) { showError(errs.join('\n')); return; }
+      busy('Preparing ' + state.files.length + ' file(s)…');
+      Promise.all(state.files.map(prepareFile)).then(function (files) {
+        state.lastPayload = {
+          billDate: $('billDate').value, vendor: $('vendor').value, invoiceNo: $('invoiceNo').value,
+          categoryCode: $('category').value, description: $('description').value, project: $('project').value,
+          paymentMethod: $('method').value, paymentRef: $('payRefWrap').classList.contains('hidden') ? '' : $('paymentRef').value,
+          amount: parseAmount($('amount').value), tax: $('tax').value.trim() ? parseAmount($('tax').value) : 0,
+          paymentStatus: $('payStatus').value, dueDate: $('dueWrap').classList.contains('hidden') ? '' : $('dueDate').value,
+          remarks: $('remarks').value, files: files, force: false,
+        };
+        send();
+      }).catch(function (e) { busy(''); showError('Could not read the files: ' + e.message); });
+    });
+
+    function send() {
+      busy('Uploading & recording…');
+      $('btnSave').disabled = true;
+      run('saveBill', state.lastPayload).then(function (res) {
+        busy(''); $('btnSave').disabled = false;
+        if (res.duplicate) { showDuplicates(res.matches); return; }
+        showSuccess(res.record);
+      }).catch(function (e) {
+        busy(''); $('btnSave').disabled = false;
+        showError(e.message);
+      });
+    }
+
+    function showDuplicates(matches) {
+      const ul = $('dupList'); ul.innerHTML = '';
+      matches.forEach(function (m) {
+        ul.appendChild(el('li', {}, [el('b', { text: m.ref }), ' — ' + m.billDate + ', ' + m.vendor + ', ' + money(m.total, state.data.currency),
+          el('div', { class: 'small muted', text: 'Matched on: ' + m.reason })]));
+      });
+      $('dupModal').classList.remove('hidden');
+    }
+    $('dupCancel').addEventListener('click', function () { $('dupModal').classList.add('hidden'); });
+    $('dupForce').addEventListener('click', function () {
+      $('dupModal').classList.add('hidden');
+      state.lastPayload.force = true;
+      send();
+    });
+
+    // ------------------------------------------------------------ success view
+    function showSuccess(r) {
+      const cur = state.data.currency;
+      $('sRef').textContent = r.ref;
+      const t = $('sTable'); t.innerHTML = '';
+      const row = function (k, v) { if (v === '' || v == null) return; t.appendChild(el('tr', {}, [el('th', { text: k }), el('td', {}, [v])])); };
+      row('Bill date', r.billDate + '  (' + r.period + ')');
+      row('Payee', r.vendor);
+      row('Invoice / receipt no', r.invoiceNo);
+      row('Category', r.category);
+      row('Description', r.description);
+      row('Project / client', r.project);
+      row('Payment', r.paymentMethod + (r.paymentRef ? ' · ' + r.paymentRef : '') + ' · ' + r.paymentStatus + (r.dueDate ? ' (due ' + r.dueDate + ')' : ''));
+      row('Amount excl. tax', money(r.amount, cur));
+      if (r.tax) row('Tax / VAT', money(r.tax, cur));
+      row('Total', el('b', { text: money(r.total, cur) }));
+      row('Remarks', r.remarks);
+      if (r.files.length) {
+        row('Receipt files', el('ul', { class: 'files' }, r.files.map(function (f) {
+          return el('li', {}, [el('a', { href: f.url, target: '_blank', rel: 'noopener', text: f.name })]);
+        })));
+      }
+      row('Recorded', r.recordedAt + ' by ' + r.recordedBy);
+      $('sSheet').href = r.sheetUrl;
+
+      state.session.unshift(r);
+      const ul = $('sessionList'); ul.innerHTML = '';
+      state.session.forEach(function (s) {
+        ul.appendChild(el('li', {}, [el('span', {}, [el('span', { class: 'r', text: s.ref }), ' · ' + s.vendor + ' · ' + s.category]),
+          el('span', { text: money(s.total, cur) })]));
+      });
+      $('sessionCard').classList.remove('hidden');
+
+      if (state.data.vendors.indexOf(r.vendor) < 0) { state.data.vendors.push(r.vendor); fillDatalist($('vendorList'), state.data.vendors); }
+      if (r.project && state.data.projects.indexOf(r.project) < 0) { state.data.projects.push(r.project); fillDatalist($('projectList'), state.data.projects); }
+
+      $('billForm').classList.add('hidden');
+      $('success').classList.remove('hidden');
+      window.scrollTo(0, 0);
+    }
+
+    $('btnAnother').addEventListener('click', function () {
+      resetForm();
+      $('success').classList.add('hidden');
+      $('billForm').classList.remove('hidden');
+      window.scrollTo(0, 0);
+    });
+
+    // ------------------------------------------------------------ categories
+    $('btnCats').addEventListener('click', function () {
+      $('catModal').classList.remove('hidden');
+      if (!state.cmReady) {
+        state.cmReady = true;
+        CM.init({ onChange: function (cats) { state.data.categories = cats; fillCategories(cats); } });
+      } else {
+        CM.reload();
+      }
+    });
+    $('catClose').addEventListener('click', function () { $('catModal').classList.add('hidden'); });
+  </script>
+</body>
+</html>

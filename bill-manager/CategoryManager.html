@@ -1,0 +1,124 @@
+<div id="cm-root">
+  <p class="muted small" style="margin-top:0">
+    Add, rename or remove expense categories. Renaming updates every existing bill.
+    Categories already used by bills are <b>archived</b> (hidden from the form) instead of deleted, so history is never lost.
+  </p>
+  <form id="cm-addForm" class="cm-add" autocomplete="off">
+    <label class="field">New category<input id="cm-name" maxlength="80" placeholder="e.g. Plotting &amp; Scanning"></label>
+    <label class="field">Group<input id="cm-group" list="cm-groups" maxlength="60" placeholder="e.g. Office &amp; Administration"></label>
+    <label class="field">Monthly budget<input id="cm-budget" class="money" inputmode="decimal" placeholder="optional"></label>
+    <button class="primary" type="submit">Add</button>
+  </form>
+  <datalist id="cm-groups"></datalist>
+  <div id="cm-msg" class="alert hidden"></div>
+  <label class="small muted" style="display:flex;gap:6px;align-items:center;margin-top:12px">
+    <input type="checkbox" id="cm-showArchived" style="width:auto"> Show archived categories
+  </label>
+  <div id="cm-list" class="cm-list"><p class="muted">Loading…</p></div>
+</div>
+
+<script>
+  const CM = (function () {
+    let cats = [], onChange = null, pendingDelete = null;
+
+    function msg(text, kind) {
+      const m = $('cm-msg');
+      m.textContent = text;
+      m.className = 'alert ' + (kind || 'ok');
+      if (!text) m.className = 'alert hidden';
+    }
+
+    function load() {
+      return run('getCategories', true).then(function (c) { cats = c; render(); })
+        .catch(function (e) { msg(e.message, 'error'); });
+    }
+
+    function changed(res) {
+      msg(res && res.message ? res.message : 'Saved.', res && res.archived ? 'warn' : 'ok');
+      pendingDelete = null;
+      return load().then(function () { if (onChange) onChange(cats); });
+    }
+
+    function render() {
+      const showArchived = $('cm-showArchived').checked;
+      const list = $('cm-list');
+      list.innerHTML = '';
+      const groups = {};
+      cats.forEach(function (c) { if (c.group) groups[c.group] = true; });
+      const dl = $('cm-groups'); dl.innerHTML = '';
+      Object.keys(groups).sort().forEach(function (g) { dl.appendChild(el('option', { value: g })); });
+
+      const visible = cats.filter(function (c) { return c.active || showArchived; });
+      if (!visible.length) { list.appendChild(el('p', { class: 'muted', text: 'No categories yet.' })); return; }
+      let lastGroup = null;
+      visible.forEach(function (c) {
+        if (c.group !== lastGroup) { list.appendChild(el('div', { class: 'cm-group', text: c.group || 'Ungrouped' })); lastGroup = c.group; }
+        list.appendChild(item(c));
+      });
+    }
+
+    function item(c) {
+      const box = el('div', { class: 'cm-item' + (c.active ? '' : ' archived') });
+      const info = el('div', {}, [
+        el('span', { class: 'nm', text: c.name }),
+        c.active ? null : el('span', { class: 'badge grey', text: 'archived' }),
+        el('div', { class: 'meta', text: c.code + ' · ' + c.usage + ' bill(s)' + (c.budget !== '' ? ' · budget ' + money(c.budget) : '') }),
+      ]);
+      const acts = el('div', { class: 'acts' });
+
+      if (pendingDelete === c.code) {
+        acts.appendChild(el('span', { class: 'small', text: c.usage ? 'Archive (in use)?' : 'Delete permanently?' }));
+        acts.appendChild(el('button', { type: 'button', class: 'danger', text: 'Yes', onclick: function () {
+          run('deleteCategory', c.code).then(changed).catch(function (e) { msg(e.message, 'error'); });
+        } }));
+        acts.appendChild(el('button', { type: 'button', class: 'ghost', text: 'No', onclick: function () { pendingDelete = null; render(); } }));
+      } else if (c.active) {
+        acts.appendChild(el('button', { type: 'button', class: 'ghost', text: 'Edit / rename', onclick: function () { editMode(box, c); } }));
+        acts.appendChild(el('button', { type: 'button', class: 'danger', text: c.usage ? 'Archive' : 'Delete', onclick: function () { pendingDelete = c.code; render(); } }));
+      } else {
+        acts.appendChild(el('button', { type: 'button', class: 'secondary', text: 'Restore', onclick: function () {
+          run('restoreCategory', c.code).then(changed).catch(function (e) { msg(e.message, 'error'); });
+        } }));
+      }
+      box.appendChild(info);
+      box.appendChild(acts);
+      return box;
+    }
+
+    function editMode(box, c) {
+      box.innerHTML = '';
+      const name = el('input', { value: c.name, maxlength: 80, 'aria-label': 'Name' });
+      const group = el('input', { value: c.group, list: 'cm-groups', maxlength: 60, 'aria-label': 'Group' });
+      const budget = el('input', { value: c.budget === '' ? '' : c.budget, class: 'money', inputmode: 'decimal', placeholder: 'Budget', 'aria-label': 'Monthly budget' });
+      box.appendChild(el('div', { class: 'cm-edit' }, [name, group, budget]));
+      box.appendChild(el('div', { class: 'acts', style: 'margin-top:6px' }, [
+        el('button', { type: 'button', class: 'primary', text: 'Save', onclick: function () {
+          const b = budget.value.trim();
+          if (b && isNaN(parseAmount(b))) { msg('Budget must be a number.', 'error'); return; }
+          run('updateCategory', c.code, { name: name.value, group: group.value, budget: b ? parseAmount(b) : '' })
+            .then(changed).catch(function (e) { msg(e.message, 'error'); });
+        } }),
+        el('button', { type: 'button', class: 'ghost', text: 'Cancel', onclick: render }),
+      ]));
+      name.focus();
+    }
+
+    function init(opts) {
+      onChange = opts && opts.onChange;
+      $('cm-showArchived').addEventListener('change', render);
+      $('cm-addForm').addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        const name = $('cm-name').value.trim();
+        const b = $('cm-budget').value.trim();
+        if (!name) { msg('Enter a category name.', 'error'); return; }
+        if (b && isNaN(parseAmount(b))) { msg('Budget must be a number.', 'error'); return; }
+        run('addCategory', { name: name, group: $('cm-group').value.trim(), budget: b ? parseAmount(b) : '' })
+          .then(function (res) { $('cm-name').value = ''; $('cm-budget').value = ''; return changed(res); })
+          .catch(function (e) { msg(e.message, 'error'); });
+      });
+      return load();
+    }
+
+    return { init: init, reload: load };
+  })();
+</script>
