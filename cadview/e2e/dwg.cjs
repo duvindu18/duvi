@@ -1,5 +1,6 @@
 // DWG import check: open → converted to DXF on the device → drawn; reopen uses the cached DXF; compare DWG with DXF.
 const { chromium, devices } = require('playwright');
+const { openSample } = require('./open.cjs');
 const [url = 'http://localhost:4173/', shots = '.'] = process.argv.slice(2);
 const results = [];
 const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${n}${info ? ' - ' + info : ''}`); };
@@ -8,9 +9,9 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
   const p = await (await b.newContext({ ...devices['Pixel 7'] })).newPage();
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
-  await p.addInitScript(() => localStorage.setItem('cadview.coach', '1'));
+  await p.addInitScript(() => { localStorage.setItem('cadview.coach', '1'); localStorage.setItem('cadview.welcome', '1'); });
   await p.goto(url);
-  await p.click('[data-sample="floorplan-2018.dwg"]');
+  await openSample(p, 'floorplan-2018.dwg');
   await p.waitForSelector('#viewer.active', { timeout: 30000 });
   await p.waitForFunction(() => !document.querySelector('#loading.show'));
   await p.waitForTimeout(800);
@@ -37,8 +38,7 @@ const check = (n, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PAS
   check('reopening uses the cached DXF (no re-conversion)', /converted earlier/.test(st), st);
   check('measurement restored on reopen', (await p.locator('.label.dim').count()) >= 1);
   // compare DWG (current) with DXF rev B
-  const other = await p.evaluate(async () => Array.from(new Uint8Array(await (await fetch('samples/floorplan-rev-B.dxf')).arrayBuffer())));
-  await p.evaluate(async (arr) => window.cadview.runCompare('floorplan-rev-B.dxf', new Uint8Array(arr).buffer), other);
+  await p.setInputFiles('#compareInput', require('path').join(__dirname, '../samples/floorplan-rev-B.dxf'));
   await p.waitForSelector('#legend:not([hidden])', { timeout: 20000 });
   check('a DWG can be compared with another revision', true, (await p.textContent('#legend')).replace(/\s+/g, ' ').trim().slice(0, 90));
   check('no page errors', errors.length === 0, errors.join(' | '));

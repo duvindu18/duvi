@@ -9,7 +9,7 @@ const [url, ...files] = process.argv.slice(2);
     const p = await ctx.newPage();
     const errors = [];
     p.on('pageerror', (e) => errors.push(e.message));
-    await p.addInitScript(() => localStorage.setItem('cadview.coach', '1'));
+    await p.addInitScript(() => { localStorage.setItem('cadview.coach', '1'); localStorage.setItem('cadview.welcome', '1'); });
     await p.goto(url);
     const res = await p.evaluate(async (f) => {
       const buf = await (await fetch(f)).arrayBuffer();

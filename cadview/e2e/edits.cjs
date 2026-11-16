@@ -1,5 +1,6 @@
 // Notes with a real finger tap, moving placed points by holding them, and removing a file from the list.
 const { chromium, devices } = require('playwright');
+const { openSample } = require('./open.cjs');
 const [url = 'http://localhost:4173/', shots = '.'] = process.argv.slice(2);
 const res = [];
 const check = (n, ok, info = '') => { res.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${n}${info ? ' - ' + info : ''}`); };
@@ -9,7 +10,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const ctx = await b.newContext({ ...devices['Pixel 7'] });
   const p = await ctx.newPage();
   const errors = []; p.on('pageerror', (e) => errors.push(e.message));
-  await p.addInitScript(() => localStorage.setItem('cadview.coach', '1'));
+  await p.addInitScript(() => { localStorage.setItem('cadview.coach', '1'); localStorage.setItem('cadview.welcome', '1'); });
   const cdp = await ctx.newCDPSession(p);
   const T = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y], id) => ({ x, y, id })) });
   const tap = async (x, y) => { await T('touchStart', [[x, y]]); await sleep(70); await T('touchEnd', []); await sleep(450); };
@@ -17,7 +18,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const scr = (x, y) => p.evaluate(([x, y]) => { const v = window.cadview.viewer, d = window.cadview.doc, V = v.bounds.min.constructor, s = v.toScreen(new V(x - d.origin[0], y - d.origin[1], 0)); const r = v.renderer.domElement.getBoundingClientRect(); return [r.left + s.x, r.top + s.y]; }, [x, y]);
 
   await p.goto(url);
-  await p.click('[data-sample="floorplan-rev-A.dxf"]'); await p.waitForSelector('#viewer.active'); await sleep(800);
+  await openSample(p, 'floorplan-rev-A.dxf'); await p.waitForSelector('#viewer.active'); await sleep(800);
 
   // 1. note with a real tap
   await p.click('#dock [data-tool=note]');
@@ -66,7 +67,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('remove dialog says the original file is not deleted', /not changed or deleted/.test(txt), txt.slice(0, 110));
   await p.click('#yes'); await sleep(500);
   check('file removed from the list', (await p.locator('#recent .card').count()) === 0);
-  await p.click('[data-sample="floorplan-rev-A.dxf"]'); await p.waitForSelector('#viewer.active'); await sleep(800);
+  await openSample(p, 'floorplan-rev-A.dxf'); await p.waitForSelector('#viewer.active'); await sleep(800);
   check('reopening the same file brings its notes back', (await p.locator('.label.pin').count()) === 1);
 
   check('no page errors', !errors.length, errors.join(' | '));

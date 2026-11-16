@@ -1,5 +1,6 @@
 // Monochrome view and PDF/PNG export (whole drawing, selected area, 3D view).
 const { chromium, devices } = require('playwright');
+const { openSample } = require('./open.cjs');
 const fs = require('fs');
 const [url = 'http://localhost:4173/', out = '.'] = process.argv.slice(2);
 const res = []; const check = (n, ok, i = '') => { res.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${n}${i ? ' - ' + i : ''}`); };
@@ -8,9 +9,9 @@ const res = []; const check = (n, ok, i = '') => { res.push(ok); console.log(`${
   const ctx = await b.newContext({ ...devices['Pixel 7'], acceptDownloads: true });
   const p = await ctx.newPage();
   const errors = []; p.on('pageerror', (e) => errors.push(e.message));
-  await p.addInitScript(() => localStorage.setItem('cadview.coach', '1'));
+  await p.addInitScript(() => { localStorage.setItem('cadview.coach', '1'); localStorage.setItem('cadview.welcome', '1'); });
   await p.goto(url);
-  await p.evaluate(async () => { const buf = await (await fetch('samples/detail.dwg')).arrayBuffer(); await window.cadview.openBytes('detail.dwg', buf); });
+  await openSample(p, 'detail.dwg'); await p.waitForSelector('#viewer.active'); await p.waitForFunction(() => !document.querySelector('#loading.show'));
   await p.waitForTimeout(1000);
   // monochrome
   await p.click('#dock [data-tool=more]'); await p.waitForTimeout(300);
@@ -40,7 +41,7 @@ const res = []; const check = (n, ok, i = '') => { res.push(ok); console.log(`${
   const w = fs.readFileSync(png).readUInt32BE(16), h = fs.readFileSync(png).readUInt32BE(20);
   check('PNG of the selected area', sig === 'PNG' && Math.max(w, h) === 4096, `${png.split('/').pop()} ${w}×${h}`);
   // 3D export
-  await p.goto(url); await p.waitForTimeout(400); await p.click('[data-sample="house.skp"]'); await p.waitForSelector('#viewer.active'); await p.waitForTimeout(900);
+  await p.goto(url); await p.waitForTimeout(400); await openSample(p, 'house.skp'); await p.waitForSelector('#viewer.active'); await p.waitForTimeout(900);
   await p.click('#btnShare'); await p.waitForTimeout(300); await p.click('[data-key=format] [data-v=png]'); await p.waitForTimeout(200);
   const png3 = await exportNow();
   check('PNG of the 3D view', fs.readFileSync(png3).subarray(1, 4).toString() === 'PNG', png3.split('/').pop());

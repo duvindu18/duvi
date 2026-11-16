@@ -16,7 +16,7 @@ URL: `[[SUPPORT URL]]privacy.html`
 
 ### App access
 **All functionality is available without any special access.**
-(There is no login. The sample files on the home screen let a reviewer try every feature.)
+(There is no login. Put the sample-files link from the review notes below in the "instructions" box, so the reviewer has files to open.)
 
 ### Content rating (IARC questionnaire)
 - Email: your contact email
@@ -88,7 +88,7 @@ Expected result: **4+**. Apple changed the age rating questions in 2025, with mo
 Already answered in the build: `ITSAppUsesNonExemptEncryption = NO` in Info.plist. App Store Connect won't ask about it for each build. Reason: the app uses no encryption apart from what iOS provides, and doesn't even make network requests.
 
 ### Content rights
-**Does your app contain, show, or access third-party content?** **No**. The sample drawings were made for this project. User files belong to the user.
+**Does your app contain, show, or access third-party content?** **No**. The sample drawings on the support page were made for this project. User files belong to the user.
 
 ### Digital Services Act (EU trader status)
 App Store Connect asks this under **Business** once, for the whole account. Google asks the same in Play Console account details.
@@ -103,11 +103,15 @@ If you're not sure, ask a local adviser. Neither store gives legal advice on thi
 ### Notes for App Review (paste this)
 > CADView is an offline viewer for CAD drawings (DWG, DXF) and 3D models (SketchUp SKP, GLB, OBJ, STL and others). It has no account and makes no network requests.
 >
-> To test without your own files, tap any card under "Samples" on the home screen. "Wall section" shows hatches, line types and leaders. "Revision compare" shows the compare feature. "House" is a SketchUp model.
+> Test files (made for this app, free to use) can be downloaded here: [[SUPPORT URL]]#samples
+> In Safari, tap a file, then Download; then open CADView, tap "Open a file" and pick it from Downloads. On Android, download it in Chrome and open it from the app the same way.
+> - detail.dwg: construction detail with hatches, line types, leaders and multi-line text
+> - floorplan-rev-A.dxf and floorplan-rev-B.dxf: open A, then More → Compare revision and pick B
+> - house.skp: SketchUp model (tags, components, section cut)
 >
 > To test opening a file from another app: in Files, long-press a .dwg or .dxf file, tap Share, then tap CADView.
 >
-> Export: open a sample, tap the Share button at the top right, then choose PDF or PNG.
+> Export: open any file, tap the Share button at the top right, then choose PDF or PNG.
 
 ---
 

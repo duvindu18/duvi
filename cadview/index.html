@@ -20,7 +20,6 @@
       <div class="brand"><span class="logo" aria-hidden="true"></span><span>CADView</span></div>
       <div class="head-btns">
         <button class="icon-btn" id="btnTheme" aria-label="Switch light or dark mode"><i data-icon="moon"></i></button>
-        <button class="icon-btn" id="btnHelp" aria-label="How to use"><i data-icon="help"></i></button>
       </div>
     </header>
     <div class="home-body">
@@ -35,16 +34,6 @@
         <div><b>DWG and DXF</b><span>AutoCAD R12 to 2018+, converted on the device.</span></div>
         <div><b>SketchUp</b><span>Components, materials and tags, even in large models.</span></div>
         <div><b>Measure</b><span>Lengths and areas that snap to corners and ends.</span></div>
-      </div>
-
-      <div class="sec-head"><h2>Samples</h2></div>
-      <div class="sample-cards">
-        <button class="scard" data-sample="floorplan-rev-A.dxf"><div class="simg" style="background-image:url(samples/thumbs/plan.png)"></div><div class="srow"><div><b>Floor plan</b><small>DXF</small></div><span class="pill-sm">Open</span></div></button>
-        <button class="scard" data-sample="house.skp"><div class="simg" style="background-image:url(samples/thumbs/skp.png)"></div><div class="srow"><div><b>House</b><small>SketchUp</small></div><span class="pill-sm">Open</span></div></button>
-        <button class="scard" data-sample="compare"><div class="simg" style="background-image:url(samples/thumbs/compare.png)"></div><div class="srow"><div><b>Revision compare</b><small>DXF rev A → B</small></div><span class="pill-sm">Open</span></div></button>
-        <button class="scard" data-sample="floorplan-2018.dwg"><div class="simg" style="background-image:url(samples/thumbs/dwg.png)"></div><div class="srow"><div><b>Floor plan</b><small>AutoCAD DWG</small></div><span class="pill-sm">Open</span></div></button>
-        <button class="scard" data-sample="detail.dwg"><div class="simg" style="background-image:url(samples/thumbs/detail.png)"></div><div class="srow"><div><b>Wall section</b><small>DWG · hatches</small></div><span class="pill-sm">Open</span></div></button>
-        <button class="scard" data-sample="house.obj"><div class="simg" style="background-image:url(samples/thumbs/obj.png)"></div><div class="srow"><div><b>House shell</b><small>OBJ</small></div><span class="pill-sm">Open</span></div></button>
       </div>
 
       <div class="sec-head"><h2 id="recentTitle">Recent</h2><span id="storage" class="label-sm"></span></div>
@@ -111,7 +100,12 @@
 
   <div id="coach" hidden>
     <div class="coach-card">
-      <h3>Gestures</h3>
+      <div id="welcomeHead" hidden>
+        <h2>Welcome to CADView</h2>
+        <p class="muted">A few things worth knowing before you start.</p>
+        <h4>Gestures</h4>
+      </div>
+      <h3 id="coachTitle">Gestures</h3>
       <ul>
         <li><b>Drag</b><span id="coachDrag">Move around</span></li>
         <li><b>Pinch</b><span>Zoom in and out</span></li>
@@ -120,6 +114,18 @@
         <li><b>Two-finger tap</b><span>Zoom out</span></li>
         <li><b>Hold</b><span>Options. While measuring: magnifier. On a placed point: move it.</span></li>
       </ul>
+      <div id="welcomeTips" hidden>
+        <h4>Good to know</h4>
+        <ul class="tips">
+          <li><b>Offline and private.</b> Files are opened on this device and never uploaded.</li>
+          <li><b>Opening files.</b> Use Open a file, or in another app tap Share or Open with and choose CADView.</li>
+          <li><b>DWG files</b> are converted on the device. A large one can take several seconds the first time; after that it opens straight away.</li>
+          <li><b>Large SketchUp files may not open.</b> Very big or complex .skp models can run out of memory on a phone, and some SketchUp features aren't supported yet. If a model doesn't open, or shows only its preview, export it from SketchUp as .glb or .dae (File → Export → 3D Model) and open that.</li>
+          <li><b>Not shown yet:</b> paper-space layouts (sheets) and line weights. The model space drawing is shown.</li>
+          <li><b>Removing a file</b> from the list deletes only the app's copy, never your original.</li>
+        </ul>
+        <p class="muted" style="font-size:13px">Gestures are always available under More → Gestures.</p>
+      </div>
       <button class="btn primary" id="coachOk">Got it</button>
     </div>
   </div>

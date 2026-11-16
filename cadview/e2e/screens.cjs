@@ -1,5 +1,6 @@
 // Screenshot matrix across phone sizes, orientations and colour schemes; also checks for layout overflow.
 const { chromium, devices } = require('playwright');
+const { openSample } = require('./open.cjs');
 const [url = 'http://localhost:4173/', out = '.'] = process.argv.slice(2);
 const targets = [
   ['iphone-se', { ...devices['iPhone SE'] }, 'dark'],
@@ -15,9 +16,9 @@ const targets = [
   for (const [name, dev, scheme] of targets) {
     const ctx = await b.newContext({ ...dev, colorScheme: scheme, deviceScaleFactor: 1 });
     const p = await ctx.newPage();
-    await p.addInitScript(() => localStorage.setItem('cadview.coach', '1'));
+    await p.addInitScript(() => { localStorage.setItem('cadview.coach', '1'); localStorage.setItem('cadview.welcome', '1'); });
     await p.goto(url);
-    await p.click('[data-sample="floorplan-rev-A.dxf"]'); await p.waitForSelector('#viewer.active'); await p.waitForTimeout(600);
+    await openSample(p, 'floorplan-rev-A.dxf'); await p.waitForSelector('#viewer.active'); await p.waitForTimeout(600);
     await p.goto(url); await p.waitForTimeout(500);
     await p.screenshot({ path: `${out}/${name}-1-home.png` });
     await p.locator('#recent .open').first().click(); await p.waitForTimeout(800);

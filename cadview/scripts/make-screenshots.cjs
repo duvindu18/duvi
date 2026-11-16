@@ -1,6 +1,7 @@
 // Store screenshots at the exact pixel sizes each store asks for, rendered from the real app.
 // Usage: npm run build && npx vite preview --port 4173 &  then  node scripts/make-screenshots.cjs [url]
 const { chromium } = require('playwright');
+const { openSample } = require('../e2e/open.cjs');
 const fs = require('fs'), path = require('path');
 const url = process.argv[2] || 'http://localhost:4173/';
 const out = path.join(__dirname, '../store/screenshots');
@@ -18,7 +19,7 @@ async function scenes(p, dir) {
   const box = async () => p.locator('#canvasHost canvas').boundingBox();
   const scr = (x, y) => p.evaluate(([x, y]) => { const v = window.cadview.viewer, d = window.cadview.doc, V = v.bounds.min.constructor; return v.toScreen(new V(x - d.origin[0], y - d.origin[1], 0)); }, [x, y]);
   const tap = async (x, y) => { const r = await box(), s = await scr(x, y); await p.touchscreen.tap(r.x + s.x, r.y + s.y); await sleep(420); };
-  const sample = async (s) => { await p.goto(url); await sleep(400); await p.click(`[data-sample="${s}"]`); await p.waitForSelector('#viewer.active'); await p.waitForFunction(() => !document.querySelector('#loading.show')); await sleep(900); };
+  const sample = async (s) => { await p.goto(url); await sleep(400); await openSample(p, s); await p.waitForSelector('#viewer.active'); await p.waitForFunction(() => !document.querySelector('#loading.show')); await sleep(900); };
   const shot = async (name) => { await sleep(500); await p.screenshot({ path: path.join(dir, name) }); };
 
   // 1. home with recent files
@@ -46,7 +47,7 @@ async function scenes(p, dir) {
   await shot('4-section.png');
 
   // 5. revision compare
-  await p.goto(url); await sleep(400); await p.click('[data-sample="compare"]');
+  await p.goto(url); await sleep(400); await openSample(p, 'compare');
   await p.waitForSelector('#legend:not([hidden])'); await sleep(2800); // let the result toast fade
   await shot('5-compare.png');
 
@@ -68,7 +69,7 @@ async function scenes(p, dir) {
     const dir = path.join(out, name);
     fs.mkdirSync(dir, { recursive: true });
     const ctx = await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr, isMobile: true, hasTouch: true, colorScheme: 'dark' });
-    await ctx.addInitScript(() => { localStorage.setItem('cadview.coach', '1'); if (!localStorage.getItem('cadview.theme')) localStorage.setItem('cadview.theme', 'dark'); });
+    await ctx.addInitScript(() => { localStorage.setItem('cadview.coach', '1'); localStorage.setItem('cadview.welcome', '1'); if (!localStorage.getItem('cadview.theme')) localStorage.setItem('cadview.theme', 'dark'); });
     const p = await ctx.newPage();
     const click = p.click.bind(p);
     p.click = (sel, o) => click(sel, o).catch((e) => { throw new Error(`${sel}: ${e.message.split('\n')[0]}`); });

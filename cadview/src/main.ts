@@ -264,15 +264,6 @@ $('#btnOpenAll').onclick = () => $('#fileInputAll').click();
   input.value = '';
   if (f) openBytes(f.name, await f.arrayBuffer());
 };
-document.querySelectorAll<HTMLElement>('[data-sample]').forEach((b) => (b.onclick = async () => {
-  const s = b.dataset.sample!;
-  const get = async (n: string) => (await fetch(`samples/${n}`)).arrayBuffer();
-  if (s === 'compare') {
-    await openBytes('floorplan-rev-A.dxf', await get('floorplan-rev-A.dxf'));
-    await runCompare('floorplan-rev-B.dxf', await get('floorplan-rev-B.dxf'));
-  } else openBytes(s, await get(s));
-}));
-
 async function openBytes(name: string, data: ArrayBuffer, fromLibrary = false) {
   const ext = (name.split('.').pop() ?? '').toLowerCase();
   if (ext !== 'dxf' && ext !== 'dwg' && ext !== 'skp' && !MODEL_EXT.includes(ext)) return toast(`.${ext} files aren't supported yet`);
@@ -347,7 +338,6 @@ async function openBytes(name: string, data: ArrayBuffer, fromLibrary = false) {
     if (blob) lib.saveFile({ id, name, size, opened: Date.now() }, blob); // in the background: viewing doesn't wait for storage
     else lib.touch(id, { opened: Date.now() });
     setTimeout(() => requestIdleCallbackSafe(() => saveThumb(id)), 1200);
-    maybeCoach();
   } catch (err: any) {
     loading.hide();
     if (cancelled || err?.message === 'cancelled') return;
@@ -462,18 +452,25 @@ function restoreView() {
   else if (doc!.mode === '3d' && 't' in v) { c.v3.target.fromArray(v.t); Object.assign(c.v3, { dist: v.dist, yaw: v.yaw, pitch: v.pitch }); c.apply(); }
 }
 
-function maybeCoach() {
-  if (store.get('coach') === '1') return;
+/** First launch: gestures plus the things people should know before opening their own files. */
+function showWelcome() {
   showCoach();
+  $('#welcomeHead').hidden = $('#welcomeTips').hidden = false;
+  $('#coachTitle').hidden = true;
+  $('#coachDrag').textContent = 'Move around (in 3D: orbit)';
+  $('#coachTwist').textContent = 'Rotate the view';
+  $('#coachOk').onclick = () => { $('#coach').hidden = true; store.set('welcome', '1'); store.set('coach', '1'); };
 }
 function showCoach() {
+  $('#welcomeHead').hidden = $('#welcomeTips').hidden = true;
+  $('#coachTitle').hidden = false;
   const is3 = doc?.mode === '3d';
   $('#coachDrag').textContent = is3 ? 'Orbit around the model (two fingers to move)' : 'Move around the drawing';
   $('#coachTwist').textContent = is3 ? 'Spin the model' : 'Rotate the drawing (lock it in More)';
   $('#coach').hidden = false;
   $('#coachOk').onclick = () => { $('#coach').hidden = true; store.set('coach', '1'); };
 }
-$('#btnHelp').onclick = showCoach;
+if (store.get('welcome') !== '1') showWelcome();
 $('#btnTheme').onclick = () => { haptic.tick(); toggleTheme(); };
 updateThemeButtons();
 

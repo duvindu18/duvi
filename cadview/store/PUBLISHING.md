@@ -14,7 +14,7 @@ This guide goes in order. Android can be done from any computer. iOS needs a Mac
 | `store/FORMS.md` | Answers for every questionnaire: Play "App content", data safety, content rating, Apple App Privacy, age rating, export compliance, notes for App Review |
 | `store/listing/google-play.md` | Play listing text: name, short and full description, category, release notes |
 | `store/listing/app-store.md` | App Store listing text: name, subtitle, keywords, description, URLs, category |
-| `store/website/` | Support page (`index.html`) and privacy policy (`privacy.html`) to host online |
+| `store/website/` | Support page (`index.html`), privacy policy (`privacy.html`) and sample files for reviewers (`samples/`) to host online |
 | `store/assets/play-icon-512.png` | Play Store icon, 512×512 |
 | `store/assets/play-feature-graphic-1024x500.png` | Play feature graphic |
 | `store/assets/app-store-icon-1024.png` | App Store icon (the build already contains it) |
@@ -71,7 +71,7 @@ Both stores require a public privacy policy URL. Apple also requires a support U
 
 **GitHub Pages, from a small public repo** (works even if your app's code repo stays private):
 1. On GitHub, create a new **public** repo named `cadview`.
-2. Upload the three files from `store/website/` (index.html, privacy.html, style.css) to it.
+2. Upload everything in `store/website/` (index.html, privacy.html, style.css and the `samples` folder) to it.
 3. Repo → Settings → Pages → Source: *Deploy from a branch* → `main` / root → Save.
 4. After a minute the pages are at `https://<github-user>.github.io/cadview/` and `…/cadview/privacy.html`.
 
@@ -88,7 +88,7 @@ Open both URLs on your phone before you continue. Reviewers do check that they l
 `release/CADView-1.0.0-debug.apk` installs directly. Copy it to the device, open it, and allow "Install unknown apps" for your file manager when asked.
 
 Things to try on a phone **and** a tablet in landscape:
-- Open each home-screen sample
+- Open each file from `store/website/samples/` (copy them to the device), plus some of your own drawings
 - Share a .dwg from WhatsApp or Gmail to CADView
 - Measure, add notes, export a PDF
 - Switch light/dark, rotate the device
@@ -289,7 +289,7 @@ A realistic plan: create both accounts on day 1, start the Play closed test as s
 | Privacy policy missing or doesn't load | Pages in `store/website/`. Host them (section 3) and test the links. |
 | Data safety / App Privacy doesn't match the app | The app has no network access and no SDKs that collect data, so "no data collected" is accurate. |
 | Apple 4.2 Minimum functionality (looks like a website) | It works fully offline, with native file handling, share sheet, haptics and document types. |
-| Apple 2.1 App completeness: reviewer can't test | Built-in samples cover every feature, and the review notes explain them. |
+| Apple 2.1 App completeness: reviewer can't test | Sample files are hosted with the support page (`#samples`), and the review notes link to them and explain each one. |
 | Apple 2.3.7 / Play metadata: trademarks in name or keywords | Name and keywords don't use AutoCAD or SketchUp. The description has a disclaimer. |
 | Apple 5.1.1: asks for permissions it doesn't need | No permission prompts at all. Files come through the system picker. |
 | Play: target API too low | targetSdk 36 |

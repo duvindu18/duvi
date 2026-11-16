@@ -1,6 +1,7 @@
 // End-to-end check of gestures and tools on an emulated phone, using real multi-touch input.
 // Usage: node e2e/gestures.cjs <baseUrl> <screenshotDir>
 const { chromium, devices } = require('playwright');
+const { openSample } = require('./open.cjs');
 const [url = 'http://localhost:4173/', shots = '.'] = process.argv.slice(2);
 const results = [];
 const check = (name, ok, info = '') => { results.push({ name, ok, info }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${info ? ' - ' + info : ''}`); };
@@ -28,7 +29,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   }
 
   await p.goto(url);
-  await p.click('[data-sample="floorplan-rev-A.dxf"]');
+  await openSample(p, 'floorplan-rev-A.dxf');
   await p.waitForSelector('#viewer.active');
   await p.waitForSelector('#coach:not([hidden])');
   check('gesture guide shown on first open', true);
@@ -159,7 +160,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // revision compare
   await p.goto(url); await sleep(500);
-  await p.click('[data-sample="compare"]');
+  await openSample(p, 'compare');
   await p.waitForSelector('#legend:not([hidden])', { timeout: 15000 }); await sleep(500);
   const lg = (await p.textContent('#legend')).replace(/\s+/g, ' ');
   check('compare finds the changes', /Added\s*4/.test(lg) && /Removed\s*3/.test(lg), lg.trim());
@@ -168,7 +169,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // 3D: orbit, pinch, section, parts
   await p.goto(url); await sleep(400);
-  await p.click('[data-sample="house.obj"]'); await p.waitForSelector('#viewer.active'); await sleep(900);
+  await openSample(p, 'house.obj'); await p.waitForSelector('#viewer.active'); await sleep(900);
   s0 = await state();
   await drag([[cx, cy]], [[cx + 120, cy]], 10, 16); await sleep(500);
   s1 = await state();

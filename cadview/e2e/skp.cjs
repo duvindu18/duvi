@@ -1,14 +1,15 @@
 // SketchUp (.skp) opening check: loads the bundled sample, verifies size (metres), parts, measuring and section.
 const { chromium, devices } = require('playwright');
+const { openSample } = require('./open.cjs');
 const [url = 'http://localhost:4173/', shots = '.'] = process.argv.slice(2);
 (async () => {
   const b = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
   const p = await (await b.newContext({ ...devices['Pixel 7'] })).newPage();
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
-  await p.addInitScript(() => localStorage.setItem('cadview.coach', '1'));
+  await p.addInitScript(() => { localStorage.setItem('cadview.coach', '1'); localStorage.setItem('cadview.welcome', '1'); });
   await p.goto(url);
-  await p.click('[data-sample="house.skp"]');
+  await openSample(p, 'house.skp');
   await p.waitForSelector('#viewer.active', { timeout: 30000 });
   await p.waitForFunction(() => !document.querySelector('#loading.show'));
   await p.waitForTimeout(1200);

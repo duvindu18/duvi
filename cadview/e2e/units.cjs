@@ -6,7 +6,7 @@ const dxf = (units) => `0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n${units}\n0\nEN
 (async () => {
   const b = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
   const p = await (await b.newContext({ ...devices['Pixel 7'] })).newPage();
-  await p.addInitScript(() => localStorage.setItem('cadview.coach', '1'));
+  await p.addInitScript(() => { localStorage.setItem('cadview.coach', '1'); localStorage.setItem('cadview.welcome', '1'); });
   await p.goto(url);
   const open = (name, text) => p.evaluate(([n, t]) => window.cadview.openBytes(n, new TextEncoder().encode(t).buffer), [name, text]);
   await open('mm-plan.dxf', dxf(4)); await p.waitForTimeout(700);

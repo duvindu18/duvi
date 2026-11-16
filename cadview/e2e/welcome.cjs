@@ -1,0 +1,36 @@
+// First launch: welcome card with gestures and notes; no samples, no help button on the home screen.
+const { chromium, devices } = require('playwright');
+const url = process.argv[2] || 'http://localhost:4173/';
+const results = [];
+const check = (name, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${info ? ' - ' + info : ''}`); };
+(async () => {
+  const b = await chromium.launch();
+  const ctx = await b.newContext({ ...devices['Pixel 7'] });
+  const p = await ctx.newPage();
+  const errors = []; p.on('pageerror', (e) => errors.push(e.message));
+  await p.goto(url); await p.waitForTimeout(500);
+  check('welcome shown on first launch', await p.locator('#coach').isVisible());
+  const txt = await p.textContent('#coach');
+  check('mentions large SketchUp files', /Large SketchUp files may not open/.test(txt));
+  check('lists gestures', /Pinch/.test(txt) && /Double-tap/.test(txt));
+  check('mentions files stay on the device', /never uploaded/.test(txt));
+  const box = await p.locator('.coach-card').boundingBox();
+  check('card fits the screen', box.y >= 0 && box.y + box.height <= 915, `${Math.round(box.height)} px`);
+  await p.screenshot({ path: process.argv[3] ? `${process.argv[3]}/welcome.png` : 'welcome.png' });
+  await p.click('#coachOk');
+  check('closes with Got it', !(await p.locator('#coach').isVisible()));
+  await p.reload(); await p.waitForTimeout(500);
+  check('not shown again', !(await p.locator('#coach').isVisible()));
+  check('no help button on home', (await p.locator('#btnHelp').count()) === 0);
+  check('no sample cards', (await p.locator('[data-sample], .sample-cards').count()) === 0);
+  await p.setInputFiles('#fileInput', require('path').join(__dirname, '../samples/floorplan-rev-A.dxf'));
+  await p.waitForSelector('#viewer.active'); await p.waitForTimeout(800);
+  check('opening a file does not show the gesture card again', !(await p.locator('#coach').isVisible()));
+  await p.click('#dock [data-tool=more]'); await p.waitForTimeout(300); await p.click('.tile:has-text("Gestures")'); await p.waitForTimeout(300);
+  const t2 = await p.textContent('#coach');
+  check('More → Gestures shows only gestures', (await p.locator('#coach').isVisible()) && !(await p.locator('#welcomeTips').isVisible()) && /Pinch/.test(t2));
+  check('no page errors', errors.length === 0, errors.join(' | '));
+  console.log(`${results.filter(Boolean).length}/${results.length} passed`);
+  await b.close();
+  process.exit(results.every(Boolean) ? 0 : 1);
+})();

@@ -1,17 +1,18 @@
 // Light/dark mode switch and file-picker filters.
 const { chromium, devices } = require('playwright');
+const { openSample } = require('./open.cjs');
 const [url = 'http://localhost:4173/', shots = '.'] = process.argv.slice(2);
 const res = []; const check = (n, ok, i = '') => { res.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${n}${i ? ' - ' + i : ''}`); };
 (async () => {
   const b = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
   const p = await (await b.newContext({ ...devices['Pixel 7'], colorScheme: 'dark' })).newPage();
-  await p.addInitScript(() => localStorage.setItem('cadview.coach', '1'));
+  await p.addInitScript(() => { localStorage.setItem('cadview.coach', '1'); localStorage.setItem('cadview.welcome', '1'); });
   await p.goto(url);
   const bg = () => p.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
   check('follows the phone (dark) by default', (await bg()) === '#000000');
   await p.click('#btnTheme'); await p.waitForTimeout(200);
   check('home button switches to light mode', (await bg()) === '#f2f2f2');
-  await p.click('[data-sample="floorplan-rev-A.dxf"]'); await p.waitForSelector('#viewer.active'); await p.waitForTimeout(700);
+  await openSample(p, 'floorplan-rev-A.dxf'); await p.waitForSelector('#viewer.active'); await p.waitForTimeout(700);
   await p.screenshot({ path: `${shots}/theme-light.png` });
   await p.click('#dock [data-tool=more]'); await p.waitForTimeout(350);
   const label = await p.textContent('.tile[data-i]:has-text("mode")');
