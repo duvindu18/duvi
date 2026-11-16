@@ -266,6 +266,18 @@
   .cm-edit { display: grid; grid-template-columns: 2fr 1.5fr 1fr; gap: 8px; width: 100%; }
   @media (max-width: 640px) { .cm-edit { grid-template-columns: 1fr; } }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--field); color: var(--muted); margin-left: 6px; }
+  /* ------------------------------------------------------------------ user manager */
+  .um-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end; background: var(--surface); padding: 16px; border-radius: var(--radius); }
+  .um-form .full { grid-column: 1 / -1; }
+  .um-check { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
+  .um-btns { display: flex; justify-content: flex-end; gap: 8px; }
+  .um-btns .primary { min-height: 48px; padding: 0 22px; }
+  @media (max-width: 640px) { .um-form { grid-template-columns: 1fr; } }
+  .um-filter { margin-top: 18px; }
+  .um-person { display: flex; gap: 12px; align-items: center; min-width: 0; }
+  .um-person .meta { word-break: break-all; }
+  .um-av { width: 42px; height: 42px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--btn); color: var(--btn-ink); font-weight: 700; font-size: 14px; }
   .sidebar main { padding: 16px 14px; }
+  .sidebar .um-form { grid-template-columns: 1fr; }
   .sidebar .cm-add, .sidebar .cm-edit { grid-template-columns: 1fr; }
 </style>

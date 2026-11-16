@@ -8,8 +8,15 @@
 <body class="sidebar">
   <main>
     <?!= include('Common'); ?>
-    <?!= include('CategoryManager'); ?>
+    <? if (panel === 'users') { ?>
+      <h2 class="big" style="margin:4px 0 12px">Users<span class="dim">.</span></h2>
+      <?!= include('UserManager'); ?>
+      <script>UM.init();</script>
+    <? } else { ?>
+      <h2 class="big" style="margin:4px 0 12px">Categories<span class="dim">.</span></h2>
+      <?!= include('CategoryManager'); ?>
+      <script>CM.init({});</script>
+    <? } ?>
   </main>
-  <script>CM.init({});</script>
 </body>
 </html>

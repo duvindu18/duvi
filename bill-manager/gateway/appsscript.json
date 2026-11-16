@@ -1,0 +1,14 @@
+{
+  "timeZone": "Asia/Colombo",
+  "runtimeVersion": "V8",
+  "exceptionLogging": "STACKDRIVER",
+  "webapp": {
+    "executeAs": "USER_ACCESSING",
+    "access": "ANYONE"
+  },
+  "oauthScopes": [
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/script.external_request"
+  ]
+}

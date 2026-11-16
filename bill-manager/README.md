@@ -15,45 +15,61 @@ A receipt-first expense register built on Google Sheets + Google Drive.
 
 ---
 
-## 1. Installation (10 minutes)
+## 1. Installation (about 15 minutes)
 
-1. Create a new Google Sheet, e.g. **"MAARAA Bills"**.
-2. **Extensions → Apps Script.** Delete the sample code, then create these files with the same names and
-   paste in the contents from this folder:
+The system has **two parts**:
+
+| Part | Runs as | Who uses it |
+|---|---|---|
+| **Main Bill Manager** script, inside the spreadsheet | **You (the owner)** | Only you, and any Admins you add. It holds all data, receipts and backups. |
+| **Entry link**, a tiny separate script (`gateway/`) | **The signed-in person** | Employees. It only asks Google to confirm who they are, then passes the bill to the main script. |
+
+Employees **never get access to the spreadsheet, Drive folders, reports or other people's bills**.
+They can only open the Entry link, sign in with Google and record a bill.
+
+### A. Main Bill Manager (inside the spreadsheet)
+1. Create a Google Sheet, e.g. **"MAARAA Bills"**, then open **Extensions → Apps Script**.
+2. Create these files and paste in the contents from this folder:
 
    | Apps Script file | Type | From |
    |---|---|---|
    | `Code` | Script | `Code.gs` |
+   | `Api` | Script | `Api.gs` |
+   | `Users` | Script | `Users.gs` |
    | `Backup` | Script | `Backup.gs` |
    | `Integrity` | Script | `Integrity.gs` |
-   | `Users` | Script | `Users.gs` |
    | `Index` | HTML | `Index.html` |
    | `Styles` | HTML | `Styles.html` |
    | `Common` | HTML | `Common.html` |
    | `CategoryManager` | HTML | `CategoryManager.html` |
+   | `UserManager` | HTML | `UserManager.html` |
    | `Sidebar` | HTML | `Sidebar.html` |
 
-   Optional: **Project Settings → Show "appsscript.json"** and paste `appsscript.json`. It sets the time zone to
-   Asia/Colombo and lists the permissions the script needs.
-3. In the editor, select the function **`setup`** and press **Run**. Approve the permissions (Sheets, Drive,
-   triggers, e-mail for backup alerts). Setup creates:
-   * the tabs `Bills`, `Monthly Summary`, `Annual Summary`, `Categories`, `Payment Methods`, `Audit Log`, `Settings`
-   * the Drive folder **MAARAA Bill Manager** with `Receipts/` and `_Backups/`
-   * a separate spreadsheet **"MAARAA Bills — Backup Journal"**
-   * a nightly backup at about 2 AM, plus the audit triggers
-4. Reload the spreadsheet. A **🧾 Bill Manager** menu appears. You can already record bills from it.
-5. **Deploy the web app.** Choose **Deploy → New deployment → type "Web app"** with these settings:
+   Turn on **Project Settings → Show "appsscript.json"** and paste `appsscript.json`.
+3. Select **`setup`** and press **Run**. Approve the permissions. You are added as the Owner (Admin).
+4. Choose **Deploy → New deployment → Web app**, with:
+   * **Execute as: Me**
+   * **Who has access: Anyone**
+
+   Copy the web-app URL (ends in `/exec`). This is the **server URL**. Don't give it to staff; on its own it only shows a notice.
+
+### B. Entry link (the link employees use)
+1. Go to <https://script.google.com> → **New project**, and name it **"MAARAA Bills Entry"**.
+2. Replace the code with `gateway/Gateway.gs`. Paste the server URL from A-4 into `BACKEND_URL`.
+3. Turn on **Project Settings → Show "appsscript.json"** and paste `gateway/appsscript.json`.
+4. Choose **Deploy → New deployment → Web app**, with:
    * **Execute as: User accessing the web app**
    * **Who has access: Anyone with Google account**
 
-   These two settings are what *force a Google sign-in* and let the system read each person's real account.
-   No one is let in unless an Admin approved their account (step 6).
-   Open the URL on your phone and choose **Add to Home screen**. Menu → **🔗 Show web app link** shows it again later.
-6. **Add your staff.** Use menu → **👥 Users & access → Add user…**, then enter their Google e-mail, their name, and Admin or Staff.
-   This adds them to the `Users` tab and shares the spreadsheet and the receipts folder with them.
-   The first time each person opens the link, Google asks them to sign in and approve the app once.
+   Copy this URL. **This is the Entry link.**
+5. **Open the Entry link yourself, signed in as the owner.** This activates it. From then on the server only
+   accepts sign-ins that come through *this* Entry link.
+6. Add employees (section 4). Then send them the Entry link. On a phone, use **Add to Home screen**.
+   The first time, Google asks each person to allow only *"See your email address"* and
+   *"Connect to an external service"*. The link can't see their Drive, Gmail or anything else.
 
-> Re-running `setup` (menu → ⚙️ Setup / repair) is safe. It only adds what is missing and never deletes data.
+> If you ever re-create the Entry-link project, use menu → **Reset Entry link…** and open the new link once as the owner.
+> Re-running `setup` (menu → ⚙️ Setup / repair) is always safe.
 
 ---
 
@@ -124,24 +140,33 @@ You can rename or remove any of them.
 
 ---
 
-## 4. Sign-in and who-entered-what
+## 4. Who can record bills (users)
 
-* **Google sign-in is compulsory.** The web app cannot be opened without signing in to a Google account.
-* **Only approved accounts get in.** Accounts that are not Active in the `Users` tab see an *Access needed*
-  screen with the account they are signed in as and a *Use another account* button. Nothing is recorded.
-* **Identity comes from Google, not from the form.** Each bill stores **Recorded By (Google Account)**
-  and **Recorded By (Name)**. The name is taken from the Users tab, and nobody can type in someone else's name.
-  The confirmation screen shows "Recorded by Kasun Perera · kasun@gmail.com".
-* **Roles.** *Staff* can record bills. *Admin* can also manage categories, void bills and add or remove users.
-  The owner (the account that ran setup) is always Admin.
-* **Audit trail.** Every save, void, category change, user change and manual sheet edit is written to the
-  `Audit Log` with the Google account that did it. The nightly integrity check flags any bill without an account.
-* **Removing someone** (👥 Users & access → Remove a user's access…) takes away their sign-in and sharing.
-  The bills they already recorded keep their name.
+**You decide which Google accounts can record bills.** Manage them in the spreadsheet
+(menu → **👥 Manage users**) or in the app (the **👥** button, shown to Admins only):
 
-> Note: because the app runs as the signed-in person, receipt files they upload are owned by their account
-> (inside your shared folder). The nightly integrity check reports any receipt that is later deleted or moved,
-> and Drive Trash keeps it for 30 days.
+| Action | How |
+|---|---|
+| **Add** | Enter the Google e-mail, their name and the role → *Add account*. It works at once; no sharing needed. |
+| **Edit** | *Edit* → change the name, role or e-mail (e.g. to fix a typo) → *Save changes*. |
+| **Switch off / on** | Blocks or restores sign-in immediately, but keeps them in the list. Use this for leave or a temporary stop. |
+| **Delete** | Removes the account from the list. Bills they recorded keep their name and e-mail. |
+| **Search** | Filter by name or e-mail. Each person shows their bill count and when they last signed in. |
+
+**Roles**
+* **Employee: records bills, nothing else.** They see only the entry form and the confirmation of what they just recorded.
+  The server refuses any other action for them, even if someone tries to call it directly.
+* **Admin:** can also manage categories and users. The **Owner** (the account that ran setup) is always Admin,
+  and can't be switched off, demoted or deleted. You also can't remove your own Admin access by mistake.
+
+**How identity is guaranteed**
+* Google sign-in is compulsory, and every request carries a Google-signed identity token.
+* The server checks that token with Google every time. It must be issued by Google, for a verified e-mail,
+  not expired, and *for our Entry link*. Then the e-mail is looked up in the Users list.
+  Tokens from any other app, or accounts that are switched off or not listed, are refused.
+* Each bill stores **Recorded By (Google Account)** and **Recorded By (Name)**. Nobody can type in someone else's name.
+* The Audit Log records every bill, void, category change and user change with the account that made it.
+* Receipt files are created by the owner's account, so employees can't delete or change them later.
 
 ---
 

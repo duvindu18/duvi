@@ -22,6 +22,9 @@
     </div>
     <div class="top-actions">
       <button type="button" class="avatar hidden" id="userChip" title=""></button>
+      <button type="button" class="icon-btn hidden" id="btnUsers" title="Manage users" aria-label="Manage users">
+        <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M2.8 19.5c.6-3.4 3.2-5.3 6.2-5.3s5.6 1.9 6.2 5.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M15.5 4.8a3.2 3.2 0 0 1 0 6.3M18 14.6c1.8.7 3 2.4 3.3 4.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
       <button type="button" class="icon-btn hidden" id="btnCats" title="Manage categories" aria-label="Manage categories">
         <svg viewBox="0 0 24 24"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg>
       </button>
@@ -47,7 +50,7 @@
         <div class="who" id="accessEmail">—</div>
       </div>
       <p class="hint">Every bill is recorded under the Google account that entered it. Ask the MAARAA admin to add this account
-        (Bill Manager → Users &amp; access → Add user), then reload this page.</p>
+        (👥 Users → Add account), then reload this page.</p>
       <div class="actions" style="justify-content:flex-start">
         <a class="pill-btn" id="switchAcct" target="_top" href="https://accounts.google.com/AccountChooser">
           <span>Use another account</span>
@@ -180,6 +183,15 @@
     </div>
   </div>
 
+  <!-- User manager (Admin only) -->
+  <div id="userModal" class="overlay hidden">
+    <div class="modal wide">
+      <div class="modal-head"><h2 class="big">Users<span class="dim">.</span></h2>
+        <button type="button" class="icon-btn" id="userClose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      <?!= include('UserManager'); ?>
+    </div>
+  </div>
+
   <!-- Busy overlay -->
   <div id="busy" class="overlay busy hidden"><div class="spinner"></div><div id="busyText">Working…</div></div>
 
@@ -198,6 +210,7 @@
       chip.classList.remove('hidden');
       chip.addEventListener('click', function () { alert('Signed in as ' + d.user.name + '\n' + d.user.email + '\nRole: ' + d.user.role); });
       $('btnCats').classList.toggle('hidden', !d.user.isAdmin);
+      $('btnUsers').classList.toggle('hidden', !d.user.isAdmin);
       $('attachReq').textContent = d.requireAttachment ? '' : '(optional)';
       $('attachReq').className = d.requireAttachment ? 'req' : 'muted';
       fillCategories(d.categories);
@@ -556,6 +569,11 @@
       }
     });
     $('btnTheme').addEventListener('click', toggleTheme);
+    $('btnUsers').addEventListener('click', function () {
+      $('userModal').classList.remove('hidden');
+      if (!state.umReady) { state.umReady = true; UM.init(); } else { UM.reload(); }
+    });
+    $('userClose').addEventListener('click', function () { $('userModal').classList.add('hidden'); });
     $('catClose').addEventListener('click', function () { $('catModal').classList.add('hidden'); });
   </script>
 </body>

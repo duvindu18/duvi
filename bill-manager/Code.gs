@@ -391,31 +391,12 @@ function onOpen() {
       .addItem('Restore Bills from latest snapshot (as new tab)', 'restoreFromLatestSnapshot')
       .addItem('Rebuild Bills from live journal (as new tab)', 'rebuildFromJournal')
       .addItem('Open backup folder', 'openBackupFolder'))
-    .addSubMenu(ui.createMenu('👥 Users & access')
-      .addItem('Add user…', 'addUserPrompt')
-      .addItem('Remove a user\'s access…', 'deactivateUserPrompt')
-      .addItem('Open Users tab', 'openUsersSheet'))
-    .addItem('🔗 Show web app link / receipts folder', 'showLinks')
+    .addItem('👥 Manage users (who can record bills)', 'openUserSidebar')
+    .addItem('🔗 Show links', 'showLinks')
+    .addItem('Reset Entry link…', 'resetEntryLink')
     .addSeparator()
     .addItem('⚙️ Setup / repair', 'setup')
     .addToUi();
-}
-
-/** Web app entry point (Deploy → New deployment → Web app). */
-function doGet() {
-  let email = '';
-  try { email = Session.getActiveUser().getEmail(); } catch (e) { }
-  if (!email) {
-    return HtmlService.createHtmlOutput('<div style="font:16px system-ui;padding:40px;max-width:520px">' +
-      '<h1 style="font-size:40px;letter-spacing:-1px">Sign in required.</h1>' +
-      '<p>MAARAA Bills records who enters every bill, so you must open this page signed in to your Google account.</p>' +
-      '<p><a href="https://accounts.google.com/ServiceLogin" target="_top">Sign in with Google</a></p></div>')
-      .setTitle('Sign in required');
-  }
-  return HtmlService.createTemplateFromFile('Index').evaluate()
-    .setTitle((settings_().COMPANY_NAME || '') + ' Bill Manager')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
 }
 
 function include(name) {
@@ -428,7 +409,9 @@ function openEntryDialog() {
 }
 
 function openCategorySidebar() {
-  const html = HtmlService.createTemplateFromFile('Sidebar').evaluate().setTitle('Manage categories');
+  const t = HtmlService.createTemplateFromFile('Sidebar');
+  t.panel = 'categories';
+  const html = t.evaluate().setTitle('Manage categories');
   SpreadsheetApp.getUi().showSidebar(html);
 }
 
@@ -443,10 +426,12 @@ function showLinks() {
   const root = rootFolder_();
   const html = HtmlService.createHtmlOutput(
     '<div style="font:14px Arial;line-height:1.6">' +
-    '<p><b>Web app:</b> ' + (url ? '<a target="_blank" href="' + url + '">' + url + '</a>' : 'not deployed yet — Deploy → New deployment → Web app') + '</p>' +
+    '<p><b>Server URL</b> (paste into the Entry-link project, never give to staff):<br>' + (url ? '<code>' + url + '</code>' : 'not deployed yet — Deploy → New deployment → Web app') + '</p>' +
+    '<p><b>Entry link</b> for staff: the web-app URL of the separate Entry-link (Gateway) project. Entry link activated: <b>' +
+    (PropertiesService.getScriptProperties().getProperty('GATEWAY_AUDIENCE') ? 'yes' : 'not yet — open it once as the owner') + '</b></p>' +
     '<p><b>Receipts &amp; backups folder:</b> <a target="_blank" href="' + root.getUrl() + '">' + escapeHtml_(root.getName()) + '</a></p>' +
     '<p>Tip: on your phone, open the web app link and choose “Add to Home screen”.</p></div>'
-  ).setWidth(560).setHeight(220);
+  ).setWidth(620).setHeight(300);
   SpreadsheetApp.getUi().showModalDialog(html, 'Links');
 }
 
@@ -534,7 +519,7 @@ function saveBill(payload) {
   }
 
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(60000)) throw new Error('The system is busy recording another bill. Please press "Record bill" again — it will not be duplicated.');
+  if (!lock.tryLock(25000)) throw new Error('The system is busy recording another bill. Please press "Record bill" again — it will not be duplicated.');
   const created = [];
   let ref, row, rowIndex = 0, folder, sh;
   try {
@@ -817,7 +802,7 @@ function voidSelectedBill() {
 
 /** Returns categories. includeInactive=true also returns archived ones and usage counts (for the manager). */
 function getCategories(includeInactive) {
-  currentUser_();
+  requireAdmin_();
   return categories_(includeInactive);
 }
 
