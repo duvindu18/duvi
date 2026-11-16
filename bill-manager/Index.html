@@ -84,7 +84,7 @@
       <div id="formError" class="alert error hidden"></div>
       <div class="actions">
         <button type="button" class="ghost" id="btnClear">Clear</button>
-        <button type="submit" class="primary" id="btnSave">✔ Record bill</button>
+        <button type="submit" class="primary" id="btnSave" title="Ctrl + Enter">✔ Record bill</button>
       </div>
     </form>
 
@@ -94,6 +94,7 @@
         <div class="tick">✓</div>
         <div class="muted small">Bill recorded successfully</div>
         <div class="ref" id="sRef"></div>
+        <div class="small" id="sVerified" style="color:#137333;margin-top:6px;font-weight:600"></div>
       </div>
       <table class="kv" id="sTable"></table>
       <div class="actions">
@@ -134,7 +135,7 @@
   <div id="busy" class="overlay busy hidden"><div class="spinner"></div><div id="busyText">Working…</div></div>
 
   <script>
-    const state = { data: null, files: [], session: [], lastPayload: null, cmReady: false };
+    const state = { data: null, files: [], session: [], lastPayload: null, cmReady: false, submissionId: null };
     const MAX_FILE_MB = 25;
 
     // ------------------------------------------------------------ startup
@@ -203,7 +204,23 @@
         if (f.size > MAX_FILE_MB * 1048576) { showError('"' + f.name + '" is larger than ' + MAX_FILE_MB + ' MB.'); return; }
         if (state.files.length >= max) { showError('Maximum ' + max + ' files per bill.'); return; }
         const name = f.name && f.name !== 'image.png' ? f.name : 'screenshot-' + Date.now() + '-' + i + '.png';
-        state.files.push({ file: f, name: name, url: /^image\//.test(f.type) ? URL.createObjectURL(f) : null });
+        const item = { file: f, name: name, url: /^image\//.test(f.type) ? URL.createObjectURL(f) : null, status: 'Preparing…', warn: '' };
+        // Compress + fingerprint straight away so "Record bill" is instant.
+        item.ready = prepareFile(item).then(function (p) {
+          item.prepared = p; item.status = 'Ready';
+          renderThumbs();
+          if (p.hash) {
+            run('checkReceiptHashes', [p.hash]).then(function (m) {
+              if (m && m.length) {
+                item.warn = '⚠ Already recorded as ' + m[0].ref;
+                renderThumbs();
+                showError('Heads-up: "' + item.name + '" is the same image as ' + m[0].ref + ' (' + m[0].vendor + ', ' + m[0].billDate + '). Remove it unless this is a different bill.');
+              }
+            }).catch(function () {});
+          }
+          return p;
+        }, function (e) { item.status = 'Could not read file'; renderThumbs(); throw e; });
+        state.files.push(item);
       });
       renderThumbs();
     }
@@ -215,6 +232,7 @@
         box.appendChild(el('div', { class: 'thumb' }, [
           f.url ? el('img', { src: f.url, alt: f.name }) : el('div', { class: 'pdf', text: '📄' }),
           el('div', { class: 'cap', text: (i + 1) + '. ' + f.name }),
+          el('div', { class: 'cap', style: f.warn ? 'color:#b06000;font-weight:700;white-space:normal' : '', text: f.warn || f.status }),
           el('button', { type: 'button', class: 'rm', title: 'Remove', text: '✕', onclick: function () {
             if (f.url) URL.revokeObjectURL(f.url);
             state.files.splice(i, 1); renderThumbs();
@@ -302,6 +320,11 @@
     $('payStatus').addEventListener('change', updatePaymentFields);
     ['category', 'billDate', 'vendor'].forEach(function (id) { $(id).addEventListener('input', updateNamePreview); $(id).addEventListener('change', updateNamePreview); });
     $('btnClear').addEventListener('click', resetForm);
+    document.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !$('billForm').classList.contains('hidden')) {
+        e.preventDefault(); $('btnSave').click();
+      }
+    });
 
     function resetForm() {
       $('billForm').reset();
@@ -311,7 +334,11 @@
       $('billDate').value = state.data.today;
       $('billDate').max = state.data.today;
       $('payStatus').value = 'Paid';
-      if (state.data.methods.indexOf('Cash') >= 0) $('method').value = 'Cash';
+      let lastMethod = '';
+      try { lastMethod = localStorage.getItem('bm.method') || ''; } catch (e) {}
+      if (state.data.methods.indexOf(lastMethod) >= 0) $('method').value = lastMethod;
+      else if (state.data.methods.indexOf('Cash') >= 0) $('method').value = 'Cash';
+      state.submissionId = null;
       $('amountLabel').textContent = 'Amount excl. tax (' + state.data.currency + ')';
       document.querySelectorAll('.invalid').forEach(function (n) { n.classList.remove('invalid'); });
       hideError();
@@ -329,7 +356,7 @@
       need('billDate', 'Bill date'); need('category', 'Expense category'); need('vendor', 'Payee');
       need('description', 'Description'); need('method', 'Payment method');
       const a = parseAmount($('amount').value);
-      if (isNaN(a) || a <= 0) { errs.push('Amount must be a number greater than zero.'); $('amount').classList.add('invalid'); }
+      if (isNaN(a) || a <= 0) { errs.push('Amount must be a number greater than zero, with at most 2 decimals.'); $('amount').classList.add('invalid'); }
       if ($('tax').value.trim() && isNaN(parseAmount($('tax').value))) { errs.push('Tax must be a number.'); $('tax').classList.add('invalid'); }
       if ($('billDate').value > state.data.today) { errs.push('Bill date cannot be in the future.'); $('billDate').classList.add('invalid'); }
       if (state.data.requireAttachment && !state.files.length) { errs.push('Please attach the bill photo, screenshot or PDF.'); $('drop').classList.add('invalid'); }
@@ -342,9 +369,11 @@
       hideError();
       const errs = validate();
       if (errs.length) { showError(errs.join('\n')); return; }
+      if (!state.submissionId) state.submissionId = uuid();
       busy('Preparing ' + state.files.length + ' file(s)…');
-      Promise.all(state.files.map(prepareFile)).then(function (files) {
+      Promise.all(state.files.map(function (f) { return f.ready; })).then(function (files) {
         state.lastPayload = {
+          submissionId: state.submissionId,
           billDate: $('billDate').value, vendor: $('vendor').value, invoiceNo: $('invoiceNo').value,
           categoryCode: $('category').value, description: $('description').value, project: $('project').value,
           paymentMethod: $('method').value, paymentRef: $('payRefWrap').classList.contains('hidden') ? '' : $('paymentRef').value,
@@ -362,10 +391,13 @@
       run('saveBill', state.lastPayload).then(function (res) {
         busy(''); $('btnSave').disabled = false;
         if (res.duplicate) { showDuplicates(res.matches); return; }
-        showSuccess(res.record);
+        try { localStorage.setItem('bm.method', state.lastPayload.paymentMethod); } catch (e) {}
+        state.submissionId = null;
+        showSuccess(res.record, res.alreadyRecorded);
       }).catch(function (e) {
         busy(''); $('btnSave').disabled = false;
-        showError(e.message);
+        // The same submission ID is kept, so pressing "Record bill" again can never create a second copy.
+        showError(e.message + '\n\nYou can safely press "Record bill" again.');
       });
     }
 
@@ -385,9 +417,11 @@
     });
 
     // ------------------------------------------------------------ success view
-    function showSuccess(r) {
+    function showSuccess(r, already) {
       const cur = state.data.currency;
       $('sRef').textContent = r.ref;
+      $('sVerified').textContent = already ? 'This bill was already recorded — no duplicate was created.'
+        : (r.verified ? '✓ Verified: sheet row ' + r.row + ' and ' + r.files.length + ' file(s) checked in Drive' : '');
       const t = $('sTable'); t.innerHTML = '';
       const row = function (k, v) { if (v === '' || v == null) return; t.appendChild(el('tr', {}, [el('th', { text: k }), el('td', {}, [v])])); };
       row('Bill date', r.billDate + '  (' + r.period + ')');

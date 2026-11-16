@@ -31,6 +31,11 @@
     return n;
   }
 
+  function uuid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+  }
+
   function money(n, sym) {
     const v = Number(n) || 0;
     return (sym ? sym + ' ' : '') + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -39,6 +44,6 @@
   function parseAmount(s) {
     const t = String(s == null ? '' : s).replace(/rs\.?|lkr|,|\s/gi, '');
     if (t === '') return NaN;
-    return /^\d+(\.\d+)?$/.test(t) ? Number(t) : NaN;
+    return /^\d{1,12}(\.\d{1,2})?$/.test(t) ? Number(t) : NaN;   // exact to the cent
   }
 </script>

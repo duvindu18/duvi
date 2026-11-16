@@ -62,6 +62,7 @@ const BILL_COLUMNS = [
   ['RECORDED_BY', 'Recorded By',                  180],
   ['RECORDED_AT', 'Recorded At',                  145],
   ['VOID_NOTE',   'Void Reason / Notes',          220],
+  ['SUBMISSION_ID', 'Submission ID',              120],
 ];
 const COL = {};
 BILL_COLUMNS.forEach(function (c, i) { COL[c[0]] = i + 1; });
@@ -198,6 +199,7 @@ function ensureBillsSheet_() {
 
   // Technical columns are kept but hidden.
   sh.hideColumns(COL.FILE_IDS, 2);
+  sh.hideColumns(COL.SUBMISSION_ID);
   if (!sh.getFilter()) sh.getRange(1, 1, sh.getMaxRows(), NCOLS).createFilter();
   protectWarn_(sh, 'Bills ledger — please record bills with the entry form; void instead of deleting');
 }
@@ -378,6 +380,7 @@ function onOpen() {
     .addSeparator()
     .addItem('🚫 Void selected bill…', 'voidSelectedBill')
     .addItem('↻ Rebuild reports', 'rebuildReports')
+    .addItem('✅ Run integrity check', 'runIntegrityCheck')
     .addSeparator()
     .addSubMenu(ui.createMenu('🛟 Backup & restore')
       .addItem('Back up now', 'backupNow')
@@ -476,14 +479,29 @@ function recentDistinct_(col, limit) {
 
 /**
  * Called by the entry form.
- * payload = { billDate:'yyyy-mm-dd', vendor, invoiceNo, categoryCode, description, project,
+ * payload = { submissionId, billDate:'yyyy-mm-dd', vendor, invoiceNo, categoryCode, description, project,
  *             paymentMethod, paymentRef, amount, tax, paymentStatus, dueDate, remarks,
  *             files:[{name, mimeType, data(base64), hash}], force:boolean }
  * Returns { ok:true, record } or { ok:false, duplicate:true, matches:[…] }.
+ *
+ * Precision guarantees:
+ *  • Idempotent: the form sends a unique submissionId. If the same submission arrives twice
+ *    (double tap, lost connection + retry) the first record is returned and nothing is duplicated.
+ *  • Atomic: if any step fails, uploaded files are trashed and the half-written row is removed.
+ *  • Verified: after writing, the row is read back from the sheet and every file is re-opened in Drive
+ *    and its size compared byte-for-byte before the bill is confirmed to the user.
  */
 function saveBill(payload) {
+  payload = payload || {};
   const s = settings_();
-  const bill = validateBill_(payload || {}, s);
+  const submissionId = /^[A-Za-z0-9-]{8,64}$/.test(payload.submissionId || '') ? payload.submissionId : '';
+  const cache = CacheService.getScriptCache();
+  if (submissionId) {
+    const cached = cache.get('SUB_' + submissionId);
+    if (cached) return JSON.parse(cached);
+  }
+
+  const bill = validateBill_(payload, s);
   const files = (payload.files || []).map(function (f) {
     const bytes = Utilities.base64Decode(f.data);
     return { name: String(f.name || 'receipt'), mimeType: f.mimeType || 'application/octet-stream', bytes: bytes,
@@ -496,23 +514,32 @@ function saveBill(payload) {
   }
 
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(30000)) throw new Error('The system is busy recording another bill. Please try again in a moment.');
+  if (!lock.tryLock(60000)) throw new Error('The system is busy recording another bill. Please press "Record bill" again — it will not be duplicated.');
   const created = [];
-  let ref, row, rowIndex;
+  let ref, row, rowIndex = 0, folder, sh;
   try {
+    sh = sheet_(SHEET.BILLS);
+    // Second line of defence for idempotency (cache may have expired).
+    if (submissionId) {
+      const existingRow = findRowByValue_(sh, COL.SUBMISSION_ID, submissionId);
+      if (existingRow) {
+        const v = sh.getRange(existingRow, 1, 1, NCOLS).getValues()[0];
+        return { ok: true, alreadyRecorded: true, record: recordFromRow_(v, existingRow, true) };
+      }
+    }
+
     const next = nextRef_(bill.billDate);
     ref = next.ref;
-    const folder = monthFolder_(bill.billDate);
+    folder = monthFolder_(bill.billDate);
     files.forEach(function (f, i) {
       const name = buildFileName_(ref, bill, i, files.length, f);
       const file = folder.createFile(Utilities.newBlob(f.bytes, f.mimeType, name));
       file.setDescription(ref + ' | ' + fmtDate_(bill.billDate) + ' | ' + bill.vendor + ' | ' + bill.categoryName +
         ' | ' + (s.CURRENCY_SYMBOL || '') + bill.total.toFixed(2) + ' | original: ' + f.name);
-      created.push({ id: file.getId(), name: name, url: file.getUrl(), hash: f.hash, mimeType: f.mimeType });
+      created.push({ id: file.getId(), name: name, url: file.getUrl(), hash: f.hash, mimeType: f.mimeType, size: f.bytes.length });
     });
 
-    row = buildRow_(ref, bill, created);
-    const sh = sheet_(SHEET.BILLS);
+    row = buildRow_(ref, bill, created, submissionId);
     rowIndex = sh.getLastRow() + 1;
     sh.getRange(rowIndex, 1, 1, NCOLS).setValues([row]);
     if (created.length) {
@@ -521,10 +548,15 @@ function saveBill(payload) {
         SpreadsheetApp.newRichTextValue().setText(label).setLinkUrl(created.length > 1 ? folder.getUrl() : created[0].url).build());
     }
     SpreadsheetApp.flush();
+    verifySavedBill_(sh, rowIndex, ref, bill, created);
     next.commit();
   } catch (err) {
     created.forEach(function (c) { try { DriveApp.getFileById(c.id).setTrashed(true); } catch (e) { } });
-    throw err;
+    if (rowIndex && sh) {
+      try { if (sh.getRange(rowIndex, COL.REF).getValue() === ref) sh.deleteRow(rowIndex); } catch (e) { }
+    }
+    audit_('CREATE_FAILED', ref || '', { error: String(err && err.message || err) });
+    throw new Error('The bill was NOT recorded (nothing was saved). ' + String(err && err.message || err));
   } finally {
     lock.releaseLock();
   }
@@ -533,20 +565,70 @@ function saveBill(payload) {
   audit_('CREATE', ref, { row: rowIndex, vendor: bill.vendor, total: bill.total, category: bill.categoryName, files: created.length });
   journal_('CREATE', ref, obj);
 
+  const result = { ok: true, record: recordFromRow_(row, rowIndex, true) };
+  if (submissionId) { try { cache.put('SUB_' + submissionId, JSON.stringify(result), 21600); } catch (e) { } }
+  return result;
+}
+
+/** Reads the row and files back and compares them with what was intended. Throws on any mismatch. */
+function verifySavedBill_(sh, rowIndex, ref, bill, created) {
+  const back = sh.getRange(rowIndex, 1, 1, NCOLS).getValues()[0];
+  const problems = [];
+  const eqMoney = function (a, b) { return Math.round(Number(a) * 100) === Math.round(Number(b) * 100); };
+  if (back[COL.REF - 1] !== ref) problems.push('reference');
+  if (!(back[COL.BILL_DATE - 1] instanceof Date) || fmtDate_(back[COL.BILL_DATE - 1]) !== fmtDate_(bill.billDate)) problems.push('bill date');
+  if (!eqMoney(back[COL.AMOUNT - 1], bill.amount)) problems.push('amount');
+  if (!eqMoney(back[COL.TAX - 1], bill.tax)) problems.push('tax');
+  if (!eqMoney(back[COL.TOTAL - 1], bill.total)) problems.push('total');
+  if (back[COL.CAT_CODE - 1] !== bill.categoryCode) problems.push('category');
+  if (String(back[COL.VENDOR - 1]) !== bill.vendor) problems.push('payee');
+  if (back[COL.STATUS - 1] !== 'ACTIVE') problems.push('status');
+  created.forEach(function (c) {
+    const f = DriveApp.getFileById(c.id);
+    if (f.getSize() !== c.size) problems.push('file size of ' + c.name);
+    if (f.getName() !== c.name) problems.push('file name of ' + c.name);
+  });
+  if (problems.length) throw new Error('Verification failed (' + problems.join(', ') + ').');
+}
+
+function recordFromRow_(v, rowIndex, verified) {
+  const d = v[COL.BILL_DATE - 1], due = v[COL.DUE_DATE - 1];
+  const names = String(v[COL.FILE_NAMES - 1] || '').split('\n').filter(String);
+  const links = String(v[COL.FILE_LINKS - 1] || '').split('\n').filter(String);
   return {
-    ok: true,
-    record: {
-      ref: ref, row: rowIndex,
-      billDate: fmtDate_(bill.billDate), period: Utilities.formatDate(bill.billDate, tz_(), 'MMMM yyyy'),
-      vendor: bill.vendor, invoiceNo: bill.invoiceNo, category: bill.categoryName, description: bill.description,
-      project: bill.project, paymentMethod: bill.paymentMethod, paymentRef: bill.paymentRef,
-      amount: bill.amount, tax: bill.tax, total: bill.total, paymentStatus: bill.paymentStatus,
-      dueDate: bill.dueDate ? fmtDate_(bill.dueDate) : '', remarks: bill.remarks,
-      files: created.map(function (c) { return { name: c.name, url: c.url, mimeType: c.mimeType }; }),
-      recordedBy: obj.RECORDED_BY, recordedAt: Utilities.formatDate(new Date(), tz_(), 'dd/MM/yyyy HH:mm'),
-      sheetUrl: ss_().getUrl() + '#gid=' + sheet_(SHEET.BILLS).getSheetId() + '&range=A' + rowIndex,
-    },
+    ref: v[COL.REF - 1], row: rowIndex, verified: !!verified,
+    billDate: d instanceof Date ? fmtDate_(d) : String(d),
+    period: d instanceof Date ? Utilities.formatDate(d, tz_(), 'MMMM yyyy') : '',
+    vendor: v[COL.VENDOR - 1], invoiceNo: v[COL.INVOICE_NO - 1], category: v[COL.CATEGORY - 1],
+    description: v[COL.DESCRIPTION - 1], project: v[COL.PROJECT - 1],
+    paymentMethod: v[COL.METHOD - 1], paymentRef: v[COL.PAY_REF - 1],
+    amount: Number(v[COL.AMOUNT - 1]) || 0, tax: Number(v[COL.TAX - 1]) || 0, total: Number(v[COL.TOTAL - 1]) || 0,
+    paymentStatus: v[COL.PAY_STATUS - 1], dueDate: due instanceof Date ? fmtDate_(due) : '',
+    remarks: v[COL.REMARKS - 1],
+    files: names.map(function (n, i) { return { name: n, url: links[i] || '' }; }),
+    recordedBy: v[COL.RECORDED_BY - 1],
+    recordedAt: v[COL.RECORDED_AT - 1] instanceof Date ? Utilities.formatDate(v[COL.RECORDED_AT - 1], tz_(), 'dd/MM/yyyy HH:mm') : '',
+    sheetUrl: ss_().getUrl() + '#gid=' + sheet_(SHEET.BILLS).getSheetId() + '&range=A' + rowIndex,
   };
+}
+
+/** Called by the form as soon as a file is attached: warns early if this exact image is already recorded. */
+function checkReceiptHashes(hashes) {
+  hashes = (hashes || []).filter(function (h) { return /^[0-9a-f]{64}$/.test(h); });
+  if (!hashes.length) return [];
+  const sh = sheet_(SHEET.BILLS);
+  const n = sh.getLastRow() - 1;
+  if (n < 1) return [];
+  const out = [];
+  sh.getRange(2, 1, n, NCOLS).getValues().forEach(function (r) {
+    if (r[COL.STATUS - 1] === 'VOID') return;
+    const rh = String(r[COL.FILE_HASHES - 1] || '').split(/\s+/);
+    hashes.forEach(function (h) {
+      if (rh.indexOf(h) >= 0) out.push({ hash: h, ref: r[COL.REF - 1], vendor: r[COL.VENDOR - 1],
+        billDate: r[COL.BILL_DATE - 1] instanceof Date ? fmtDate_(r[COL.BILL_DATE - 1]) : '' });
+    });
+  });
+  return out;
 }
 
 function validateBill_(p, s) {
@@ -588,12 +670,12 @@ function validateBill_(p, s) {
     billDate: billDate, vendor: vendor, invoiceNo: clean_(p.invoiceNo, 80),
     categoryCode: cat.code, categoryName: cat.name, description: description,
     project: clean_(p.project, 150), paymentMethod: paymentMethod, paymentRef: clean_(p.paymentRef, 80),
-    amount: round2_(amount), tax: round2_(tax), total: round2_(amount + tax),
+    amount: round2_(amount), tax: round2_(tax), total: (Math.round(amount * 100) + Math.round(tax * 100)) / 100,
     paymentStatus: paymentStatus, dueDate: dueDate, remarks: clean_(p.remarks, 1000),
   };
 }
 
-function buildRow_(ref, b, files) {
+function buildRow_(ref, b, files, submissionId) {
   const row = new Array(NCOLS).fill('');
   const set = function (k, v) { row[COL[k] - 1] = v; };
   set('REF', ref);
@@ -621,6 +703,7 @@ function buildRow_(ref, b, files) {
   set('STATUS', 'ACTIVE');
   set('RECORDED_BY', userEmail_());
   set('RECORDED_AT', new Date());
+  set('SUBMISSION_ID', submissionId || '');
   return row;
 }
 
@@ -847,7 +930,11 @@ function categoryUsage_() {
 
 // ========================= AUDIT OF MANUAL EDITS ============================
 
-/** Installable onEdit trigger: logs every manual change to the ledger and mirrors the row to the journal. */
+/**
+ * Installable onEdit trigger: logs every manual change to the ledger, keeps derived fields exact
+ * (Total = Amount + Tax, Period = month of Bill Date, Category Code follows the Category name)
+ * and mirrors the corrected row to the backup journal.
+ */
 function onBillsEdit(e) {
   try {
     if (!e || !e.range) return;
@@ -862,12 +949,53 @@ function onBillsEdit(e) {
     const first = Math.max(2, e.range.getRow());
     const last = e.range.getLastRow();
     if (last < 2) return;
-    const rows = sh.getRange(first, 1, last - first + 1, NCOLS).getValues();
+    const c1 = e.range.getColumn(), c2 = e.range.getLastColumn();
+    const touched = function (key) { return COL[key] >= c1 && COL[key] <= c2; };
+    const range = sh.getRange(first, 1, last - first + 1, NCOLS);
+    const rows = range.getValues();
+    const fixes = [];
+
+    if (touched('REF')) fixes.push('WARNING: reference number edited by hand');
+    const catByName = {};
+    if (touched('CATEGORY')) getCategories(true).forEach(function (c) { catByName[c.name.toLowerCase()] = c; });
+
+    rows.forEach(function (r, i) {
+      if (!r[COL.REF - 1]) return;
+      const rowNo = first + i;
+      if (touched('AMOUNT') || touched('TAX') || touched('TOTAL')) {
+        const a = Math.round((Number(r[COL.AMOUNT - 1]) || 0) * 100), t = Math.round((Number(r[COL.TAX - 1]) || 0) * 100);
+        const total = (a + t) / 100;
+        if (Math.round(Number(r[COL.TOTAL - 1]) * 100) !== a + t) {
+          sh.getRange(rowNo, COL.TOTAL).setValue(total);
+          r[COL.TOTAL - 1] = total;
+          fixes.push('row ' + rowNo + ': Total recalculated to ' + total.toFixed(2));
+        }
+      }
+      if (touched('BILL_DATE') && r[COL.BILL_DATE - 1] instanceof Date) {
+        const d = r[COL.BILL_DATE - 1];
+        const p = new Date(d.getFullYear(), d.getMonth(), 1);
+        sh.getRange(rowNo, COL.PERIOD).setValue(p);
+        r[COL.PERIOD - 1] = p;
+      }
+      if (touched('CATEGORY')) {
+        const c = catByName[String(r[COL.CATEGORY - 1]).toLowerCase()];
+        if (c) {
+          if (c.code !== r[COL.CAT_CODE - 1]) {
+            sh.getRange(rowNo, COL.CAT_CODE).setValue(c.code);
+            r[COL.CAT_CODE - 1] = c.code;
+          }
+        } else {
+          fixes.push('row ' + rowNo + ': unknown category "' + r[COL.CATEGORY - 1] + '"');
+        }
+      }
+    });
+
     audit_('MANUAL_EDIT', String(rows[0][COL.REF - 1] || ''), {
-      range: e.range.getA1Notation(), oldValue: e.oldValue, newValue: e.value, rows: rows.length,
+      range: e.range.getA1Notation(), oldValue: e.oldValue, newValue: e.value, rows: rows.length, autoFixes: fixes,
     });
     journalMany_(rows.filter(function (r) { return r[COL.REF - 1]; })
       .map(function (r) { return ['EDIT', r[COL.REF - 1], rowToObject_(r)]; }));
+    if (fixes.length) toast_(fixes.slice(0, 3).join(' · '));
   } catch (err) {
     console.error('onBillsEdit: ' + err);
   }
@@ -1024,9 +1152,10 @@ function parseIsoDate_(s) {
 }
 
 function parseMoney_(v) {
-  if (typeof v === 'number') return isFinite(v) ? v : null;
-  const s = String(v || '').replace(/rs\.?|lkr|,|\s/gi, '');
-  if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
+  if (typeof v === 'number') return isFinite(v) && v >= 0 && Math.abs(Math.round(v * 100) - v * 100) < 1e-6 ? v : null;
+  const s = String(v == null ? '' : v).replace(/rs\.?|lkr|,|\s/gi, '');
+  // Max 2 decimal places, max 12 digits: amounts are exact to the cent.
+  if (!/^\d{1,12}(\.\d{1,2})?$/.test(s)) return null;
   return Number(s);
 }
 

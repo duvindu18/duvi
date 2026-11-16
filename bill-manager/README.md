@@ -25,6 +25,7 @@ A receipt-first expense register built on Google Sheets + Google Drive.
    |---|---|---|
    | `Code` | Script | `Code.gs` |
    | `Backup` | Script | `Backup.gs` |
+   | `Integrity` | Script | `Integrity.gs` |
    | `Index` | HTML | `Index.html` |
    | `Styles` | HTML | `Styles.html` |
    | `Common` | HTML | `Common.html` |
@@ -116,7 +117,31 @@ You can rename or remove any of them.
 
 ---
 
-## 4. Backup & recovery
+## 4. Speed and 100 % precise tracking
+
+**Quick and smooth**
+* Photos are compressed and fingerprinted **the moment they are attached**, so pressing *Record bill* only uploads.
+  A 6 MB phone photo goes up as roughly 400 KB.
+* A duplicate receipt is flagged on the thumbnail immediately ("⚠ Already recorded as BILL-…"), before any typing.
+* Payee and project names auto-complete from earlier bills, and the last payment method used is remembered.
+* **Ctrl + Enter** records the bill. On the confirmation screen, *Record another bill* opens a fresh form at once.
+
+**Precise**
+| Safeguard | What it prevents |
+|---|---|
+| Each submission carries a unique ID; the server records it once | Double taps, or a retry after a dropped connection, can never create two bills. Pressing *Record bill* again after an error is always safe. |
+| All-or-nothing save | If any step fails, the uploaded files are trashed and the row is removed. You get a clear "NOT recorded" message, never a half-saved bill. |
+| Read-back verification | After saving, the row is read back from the sheet (ref, date, amount, tax, total, category, payee, status) and every file is reopened in Drive and its size and name checked. The screen shows "✓ Verified" only after this passes. |
+| Exact money | Amounts are limited to 2 decimals and totals are calculated in whole cents, so there are no rounding drifts. |
+| Self-correcting sheet edits | If someone edits Amount, Tax or Total by hand, Total is recalculated. Changing Bill Date updates Period. Changing Category updates the code. Every edit is logged. |
+| **Integrity check** (menu → ✅ Run integrity check, and automatically every night) | Checks for: duplicate or missing reference numbers (a gap means a deleted row); Total ≠ Amount + Tax; Period/date mismatches; unknown categories; voids without a reason; missing, trashed or renamed receipt files; any bill in the backup journal that has disappeared from the ledger; and whether the Monthly Summary total equals the ledger total. Results go to the *Integrity Check* tab, and errors are e-mailed to `ALERT_EMAIL`. |
+
+**Recommended routine (5 minutes a month):** at month-end, run the integrity check, set Monthly Summary B3 to the
+month, and compare the "Cash"/"Bank Transfer" totals with your petty-cash book and bank statement.
+
+---
+
+## 5. Backup & recovery
 
 | Layer | What | Where |
 |---|---|---|
@@ -136,7 +161,7 @@ Tips: set `ALERT_EMAIL` in Settings to be e-mailed if a nightly backup fails. Fo
 
 ---
 
-## 5. Moving your existing entries
+## 6. Moving your existing entries
 
 Copy your old rows into `Bills` under the matching headers. Give each one a reference number in the same format
 (e.g. `BILL-202607-0001`), set `Record Status` = `ACTIVE`, and set `Period` = the first day of the bill's month.

@@ -70,6 +70,7 @@ function runNightlyBackup() {
   try {
     const result = createSnapshot_();
     audit_('BACKUP', '', result);
+    try { integrityCheck_(); } catch (e) { audit_('INTEGRITY_ERROR', '', { error: String(e) }); }
   } catch (err) {
     audit_('BACKUP_ERROR', '', { error: String(err) });
     const to = settings_().ALERT_EMAIL;
