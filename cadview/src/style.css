@@ -100,6 +100,7 @@ svg { display: block; flex: none; }
 .home-foot { margin: 56px 4px 0; padding-top: 22px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
 .home-foot .brand { font-size: 22px; }
 .home-foot .fmts { color: var(--muted); font-size: 12px; letter-spacing: .02em; }
+.home-foot .about-link { align-self: flex-start; color: var(--muted); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; padding: 6px 0; }
 @media (min-width: 768px) { .scard { flex-basis: 260px; } .specs { grid-template-columns: repeat(4, 1fr); } }
 
 /* ---------------- Viewer ---------------- */

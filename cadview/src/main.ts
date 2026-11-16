@@ -358,6 +358,9 @@ async function openBytes(name: string, data: ArrayBuffer, fromLibrary = false) {
 /** Put the current doc on screen. */
 function mount() {
   const d = doc!;
+  // the dock's buttons depend on the mode; build it first so the fit padding sees its real size
+  buildDock();
+  measurePadding();
   if (d.mode === '2d') {
     viewer.setContent(d.s2!.root, '2d', { bounds: d.s2!.bounds });
     viewer.lod = d.s2!.lod;
@@ -374,7 +377,6 @@ function mount() {
   $('#title').textContent = d.name;
   $('#subtitle').textContent = subtitleText();
   $('#legend').hidden = true;
-  buildDock();
   setTool('none');
   restoreAnnotations();
 }
@@ -390,6 +392,14 @@ function skpFallback(name: string, r: { error: string; thumb: Uint8Array | null;
     <p class="muted">To get the full 3D model, open it in SketchUp and use <b>File → Export → 3D Model</b> (.dae or .glb), then open that file here.</p>
     <p class="muted" style="font-size:12px">Details: ${esc(r.error)}</p>`, undefined, { onClose: () => img && URL.revokeObjectURL(img) });
 }
+
+// ---------------- about ----------------
+declare const __APP_VERSION__: string;
+$('#btnAbout').onclick = () => openSheet('CADView', `
+  <p class="muted" style="margin-top:0">Version ${__APP_VERSION__}</p>
+  <p><b>Privacy.</b> CADView works offline. Files you open are read on this device and are not uploaded anywhere. The app has no account, no analytics, no ads and no tracking, and it doesn't use the internet.</p>
+  <p>The list of recent files, notes, measurements and settings are stored inside the app. Removing a file from the list deletes only the app's copy, never your original.</p>
+  <p class="muted" style="font-size:13px">DWG files are read with acad-ts and SketchUp files with openskp (both MIT licence). Rendering uses three.js (MIT). AutoCAD and SketchUp are trademarks of their owners; CADView is not affiliated with them.</p>`);
 
 // ---------------- library ----------------
 async function renderLibrary() {

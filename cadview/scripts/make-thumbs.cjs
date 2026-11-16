@@ -3,7 +3,7 @@ const { chromium } = require('playwright');
 const path = require('path');
 const out = path.join(__dirname, '../public/samples/thumbs');
 const url = process.argv[2] || 'http://localhost:4173/';
-const items = [['plan', 'floorplan-rev-A.dxf'], ['dwg', 'floorplan-2018.dwg'], ['skp', 'house.skp'], ['obj', 'house.obj'], ['compare', 'compare']];
+const items = [['plan', 'floorplan-rev-A.dxf'], ['dwg', 'floorplan-2018.dwg'], ['skp', 'house.skp'], ['obj', 'house.obj'], ['compare', 'compare'], ['detail', 'detail.dwg']];
 (async () => {
   const b = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
   for (const [name, sample] of items) {

@@ -1,3 +1,6 @@
 node_modules/
 dist/
 release/
+# test output written by e2e/*.cjs
+/*.png
+/*.pdf

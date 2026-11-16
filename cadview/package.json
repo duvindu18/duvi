@@ -1,13 +1,18 @@
 {
   "name": "cadview",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Offline CAD and 3D model viewer for Android and iOS",
   "scripts": {
     "dev": "vite --host",
     "build": "tsc && vite build",
     "test": "vitest run",
     "cap:android": "npm run build && npx cap sync android && npx cap open android",
-    "cap:ios": "npm run build && npx cap sync ios && npx cap open ios"
+    "cap:ios": "npm run build && npx cap sync ios && npx cap open ios",
+    "release:android": "npm run build && npx cap sync android && cd android && ./gradlew bundleRelease",
+    "release:apk": "npm run build && npx cap sync android && cd android && ./gradlew assembleRelease",
+    "release:ios": "npm run build && npx cap sync ios && npx cap open ios",
+    "store:screenshots": "node scripts/make-screenshots.cjs",
+    "store:assets": "node scripts/make-store-assets.cjs"
   },
   "license": "UNLICENSED",
   "dependencies": {

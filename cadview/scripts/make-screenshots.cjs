@@ -50,22 +50,28 @@ async function scenes(p, dir) {
   await p.waitForSelector('#legend:not([hidden])'); await sleep(2800); // let the result toast fade
   await shot('5-compare.png');
 
-  // 6. find text in light mode
+  // 6. construction detail with hatches, line types and leaders
+  await sample('detail.dwg');
+  await shot('6-detail.png');
+
+  // 7. find text in light mode
   await p.evaluate(() => localStorage.setItem('cadview.theme', 'light'));
   await sample('floorplan-rev-A.dxf');
   await p.click('#dock [data-tool=more]'); await sleep(300); await p.click('.tile:has-text("Find text")'); await sleep(300);
   await p.fill('#q', '20'); await sleep(500);
-  await shot('6-find-light.png');
+  await shot('7-find-light.png');
 }
 
 (async () => {
   const b = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
-  for (const [name, w, h, dpr] of SETS) {
+  for (const [name, w, h, dpr] of SETS.filter((s) => !process.env.ONLY || s[0].includes(process.env.ONLY))) {
     const dir = path.join(out, name);
     fs.mkdirSync(dir, { recursive: true });
     const ctx = await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr, isMobile: true, hasTouch: true, colorScheme: 'dark' });
     await ctx.addInitScript(() => { localStorage.setItem('cadview.coach', '1'); if (!localStorage.getItem('cadview.theme')) localStorage.setItem('cadview.theme', 'dark'); });
     const p = await ctx.newPage();
+    const click = p.click.bind(p);
+    p.click = (sel, o) => click(sel, o).catch((e) => { throw new Error(`${sel}: ${e.message.split('\n')[0]}`); });
     try { await scenes(p, dir); console.log(`${name}: ${w * dpr}×${h * dpr}`); } catch (e) { console.log(`${name}: FAILED ${e.message.split('\n')[0]}`); }
     await ctx.close();
   }
