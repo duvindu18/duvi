@@ -107,7 +107,9 @@ function openSplash() {
     skipTaskbar: true, alwaysOnTop: true, show: false, hasShadow: false, focusable: false, icon: branding.image(),
     webPreferences: { preload: path.join(__dirname, 'splash-preload.js'), contextIsolation: true, sandbox: true } });
   const icon = branding.iconPng();
-  splash.loadFile(path.join(RENDERER, 'splash.html'), { query: { name: branding.name(), icon: require('url').pathToFileURL(icon).href, theme: resolvedTheme(), accent: prefs.get('accent'), motion: prefs.get('reduceMotion') ? '0' : '1' } });
+  /* the studio's wordmark, unless the app has been given another name or icon */
+  const own = !prefs.get('branding').name && !prefs.get('branding').iconFile;
+  splash.loadFile(path.join(RENDERER, 'splash.html'), { query: { name: branding.name(), icon: require('url').pathToFileURL(icon).href, logo: own ? require('url').pathToFileURL(path.join(RENDERER, 'logo.png')).href : '', theme: resolvedTheme(), accent: prefs.get('accent'), motion: prefs.get('reduceMotion') ? '0' : '1' } });
   splash.once('ready-to-show', () => { if (splash) { splash.shownAt = Date.now(); splash.show(); } });
 }
 function closeSplash(then) {

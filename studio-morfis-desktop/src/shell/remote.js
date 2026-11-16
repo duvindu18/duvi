@@ -170,11 +170,11 @@ class Remote {
       '<style>:root{color-scheme:light dark;--pg:#F2F2F2;--sf:#FFFFFF;--ln:#D2D2D2;--ink:#0B0B0B;--ink2:#7A7A7A;--pill:#0B0B0B;--on:#FFFFFF}' +
       '@media (prefers-color-scheme:dark){:root{--pg:#0E0E0E;--sf:#151515;--ln:#2E2E2E;--ink:#F2F2F2;--ink2:#8E8E8E;--pill:#F2F2F2;--on:#0B0B0B}}' +
       'body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--pg);color:var(--ink);font:15px/1.5 system-ui,Roboto,sans-serif;padding:20px;box-sizing:border-box}' +
-      '.c{width:100%;max-width:380px;display:flex;flex-direction:column;gap:14px}img{width:48px;height:48px;border-radius:12px}h1{font-size:38px;line-height:1.04;letter-spacing:-.045em;font-weight:750;margin:6px 0 0}h1 span{color:var(--ink2)}p{margin:0;color:var(--ink2)}' +
+      '.c{width:100%;max-width:380px;display:flex;flex-direction:column;gap:14px}.lg{width:150px;aspect-ratio:1546/501;background:var(--ink);-webkit-mask:url(/logo.png) center/contain no-repeat;mask:url(/logo.png) center/contain no-repeat;margin-bottom:10px}h1{font-size:38px;line-height:1.04;letter-spacing:-.045em;font-weight:750;margin:6px 0 0}h1 span{color:var(--ink2)}p{margin:0;color:var(--ink2)}' +
       'input{font:700 26px/1 ui-monospace,monospace;letter-spacing:.35em;text-align:center;padding:14px;border-radius:14px;border:1px solid var(--ln);background:var(--sf);color:var(--ink);width:100%;box-sizing:border-box}' +
       'input.n{font:15px system-ui,sans-serif;letter-spacing:0;text-align:left}button{font:600 16px system-ui,sans-serif;padding:16px 22px;border-radius:999px;border:0;background:var(--pill);color:var(--on);display:flex;align-items:center;justify-content:space-between}' +
       'button i{width:34px;height:34px;border-radius:50%;background:var(--on);color:var(--pill);display:grid;place-items:center;font-style:normal;font-size:18px;margin:-10px -14px -10px 0}' +
-      '.e{color:#D93A4A;min-height:1.5em}</style></head><body><form class="c" id="f"><img src="/app-icon.png" alt=""><h1>Connect to <span>' + name + '</span></h1>' +
+      '.e{color:#D93A4A;min-height:1.5em}</style></head><body><form class="c" id="f"><span class="lg" role="img" aria-label="Studio Morfis"></span><h1>Connect to <span>' + name + '</span></h1>' +
       '<p>On the computer, open Settings &gt; Desktop app &gt; Phone access and type the PIN shown there.</p>' +
       '<input id="pin" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" required>' +
       '<input class="n" id="nm" maxlength="40" placeholder="Name of this phone" required><button>Connect<i>→</i></button><p class="e" id="e">' + (msg || '') + '</p></form>' +
@@ -200,6 +200,7 @@ class Remote {
     res.setHeader('referrer-policy', 'no-referrer');
     if (p === '/ping') return this.json(res, { app: 'studio-morfis', id: this.data.serverId, name: this.o.name(), version: this.o.version });
     if (p === '/app-icon.png') return this.sendFile(req, res, this.o.iconPng());
+    if (p === '/logo.png') { const a = this.o.asset('/logo.png'); res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'no-cache' }); return res.end(a.body); }
     if (p === '/pair' && req.method === 'POST') {
       const b = JSON.parse(String(await this.body(req, 4096)) || '{}');
       /* five wrong tries: a new PIN, and no pairing for a minute, so a PIN cannot be guessed by trying them all */

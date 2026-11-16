@@ -235,6 +235,8 @@
     var pg = page(), el = $('#wbarCrumb'), nm = $('#wbarName'), icn = $('#wbarIcon');
     if (!pg || !el) return;
     if (nm) nm.textContent = pg.brandName ? pg.brandName() : 'Studio Morfis';
+    /* the studio's own wordmark while the app keeps its own name and icon */
+    var wb = document.querySelector('.wbrand'); if (wb) wb.classList.toggle('has-logo', (pg.brandName ? pg.brandName() : 'Studio Morfis') === 'Studio Morfis' && !(pg.brandIcon && pg.brandIcon()));
     if (icn) { var src = (pg.brandIcon && pg.brandIcon()) || 'app-icon.png'; if (icn.dataset.src !== src) { icn.dataset.src = src; icn.innerHTML = '<img src="' + esc(src) + '" alt="">'; } }
     var t = '';
     if (R.cur) t = VIEWS[R.cur].crumb ? VIEWS[R.cur].crumb() : VIEWS[R.cur].title;

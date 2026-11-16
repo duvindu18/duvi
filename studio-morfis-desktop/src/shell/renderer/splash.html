@@ -18,6 +18,13 @@ body{display:grid;place-items:center}
 .name{font-weight:600;font-size:15px;letter-spacing:-.01em;color:var(--ink);max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;animation:fade .3s .1s ease-out both}
 .track{width:120px;height:2px;border-radius:2px;background:var(--track);overflow:hidden;animation:fade .3s .16s ease-out both}
 .track i{display:block;width:40%;height:100%;border-radius:2px;background:var(--accent);animation:run 1.1s cubic-bezier(.4,0,.2,1) infinite}
+.logo{display:none;position:relative;width:196px;animation:icon .32s .04s cubic-bezier(.2,0,0,1) both}
+.logo img{display:block;width:100%;height:auto}
+:root:not(.light) .logo img{filter:invert(1)}
+/* the full stop in yellow, as in the app */
+.logo i{position:absolute;right:0;bottom:0;width:6.8%;height:20.8%;border-radius:50%;background:#F5C400}
+.has-logo .icon,.has-logo .name{display:none}.has-logo .logo{display:block}.has-logo .card{gap:22px}
+.has-logo .track i{background:var(--ink)}
 .cap{font-size:11px;color:var(--ink-2);letter-spacing:.02em;animation:fade .3s .2s ease-out both}
 .out .card{animation:out .18s ease-in forwards}
 @keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
@@ -30,6 +37,7 @@ body{display:grid;place-items:center}
 </head>
 <body>
 <div class="card" role="status" aria-label="Loading">
+  <div class="logo"><img id="logo" alt="Studio Morfis"><i></i></div>
   <div class="icon" id="icon"></div>
   <div class="name" id="name">Studio Morfis</div>
   <div class="track" aria-hidden="true"><i></i></div>
@@ -43,6 +51,7 @@ body{display:grid;place-items:center}
   if (q.get('motion') === '0') root.classList.add('still');
   if (/^#[0-9a-f]{6}$/i.test(accent)) root.style.setProperty('--accent', accent);
   document.getElementById('name').textContent = name;
+  var logo = q.get('logo'); if (logo) { var l = document.getElementById('logo'); l.onload = function () { root.classList.add('has-logo'); }; l.src = logo; }
   var box = document.getElementById('icon'), src = q.get('icon');
   var letter = function () { box.textContent = name.charAt(0).toUpperCase(); };
   if (src) { var img = new Image(); img.alt = ''; img.onload = function () { box.style.background = 'none'; box.appendChild(img); }; img.onerror = letter; img.src = src; } else letter();

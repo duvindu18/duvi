@@ -180,3 +180,9 @@ html[data-dk-view]:not([data-dk-view="home"]):not([data-dk-view="projects"]) .to
 .dk-dev-dot.on{background:var(--good)}
 .dk-port{display:flex;align-items:center;gap:10px}
 .dk-port .in{width:110px;height:32px}
+
+/* the studio's wordmark in the window bar: one colour that follows the theme, with the full stop in yellow under Mono */
+.wbrand-logo{display:none;position:relative;height:25px;aspect-ratio:1546/501;background:var(--ink);-webkit-mask:url(logo.png) center/contain no-repeat;mask:url(logo.png) center/contain no-repeat}
+.wbrand.has-logo .wbrand-logo{display:block}
+.wbrand.has-logo .wbrand-ic,.wbrand.has-logo .wbrand-name{display:none}
+html.style-mono .wbrand-logo::after{content:"";position:absolute;right:0;bottom:0;width:6.8%;height:20.8%;border-radius:50%;background:var(--mono-dot)}

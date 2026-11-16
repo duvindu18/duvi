@@ -13,8 +13,9 @@
   body{margin:0;min-height:100vh;background:var(--page);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Roboto,sans-serif;padding:26px 20px 40px;display:flex;justify-content:center}
   body::before{content:"";position:fixed;inset:0;background-image:radial-gradient(circle at 1px 1px,var(--grid) 1px,transparent 0);background-size:22px 22px;pointer-events:none}
   main{position:relative;width:100%;max-width:440px;display:flex;flex-direction:column;gap:18px}
-  .brand{display:flex;align-items:center;gap:6px;font-weight:750;letter-spacing:-.03em;font-size:18px}
-  .brand i{width:6px;height:6px;border-radius:50%;background:var(--dot);margin-top:8px}
+  /* the studio's wordmark, in ink, with the full stop in yellow */
+  .brand{position:relative;width:132px;aspect-ratio:1546/501;background:var(--ink);-webkit-mask:url(logo.png) center/contain no-repeat;mask:url(logo.png) center/contain no-repeat}
+  .brand i{position:absolute;right:0;bottom:0;width:6.8%;height:20.8%;border-radius:50%;background:var(--dot)}
   h1{margin:18px 0 0;font-size:46px;line-height:1.02;letter-spacing:-.05em;font-weight:750}
   h1 span{color:var(--ink2)}
   p{margin:0;color:var(--ink2)}
@@ -44,7 +45,7 @@
 </head>
 <body>
 <main>
-  <div class="brand">Studio Morfis<i></i></div>
+  <div class="brand" role="img" aria-label="Studio Morfis"><i></i></div>
   <div><h1>Your studio <span>on your phone.</span></h1><p class="lead" style="margin-top:14px">Projects, documents and folders of your computer. Works offline, and catches up when it is back.</p></div>
   <p class="err" id="err" hidden></p>
   <h2>On this network <span class="spin" id="spin"></span><button class="scan" id="scan" type="button">Search again</button></h2>
