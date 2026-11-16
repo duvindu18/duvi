@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b1a2e"/><stop offset="1" stop-color="#050a12"/></linearGradient>
+  <linearGradient id="a" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#38bdf8"/></linearGradient>
+  <linearGradient id="b" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#818cf8"/><stop offset="1" stop-color="#c084fc"/></linearGradient></defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <!-- three stacked layers, top one carries a plan -->
+  <path d="M512 560 L800 690 L512 820 L224 690 Z" fill="url(#b)" opacity=".9"/>
+  <path d="M512 430 L800 560 L512 690 L224 560 Z" fill="url(#a)" opacity=".95"/>
+  <path d="M512 300 L800 430 L512 560 L224 430 Z" fill="#fff"/>
+  <path d="M512 204 L800 334" stroke="none"/>
+  <g fill="none" stroke="#0b1a2e" stroke-width="16" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M512 352 L686 430 L512 508 L338 430 Z"/>
+    <path d="M425 391 L599 469"/>
+  </g>
+</svg>

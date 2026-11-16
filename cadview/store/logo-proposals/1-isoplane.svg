@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1c1c1e"/><stop offset="1" stop-color="#000"/></linearGradient>
+  <linearGradient id="top" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff9f45"/><stop offset="1" stop-color="#ff5e3a"/></linearGradient></defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <!-- isometric cube: top face is a floor plan, sides are wireframe -->
+  <g stroke-linejoin="round" stroke-linecap="round" fill="none">
+    <path d="M512 232 L764 378 L512 524 L260 378 Z" fill="url(#top)" stroke="none"/>
+    <path d="M512 524 L512 812 M260 378 L260 666 L512 812 L764 666 L764 378" stroke="#fff" stroke-width="30"/>
+    <path d="M260 666 L512 520" stroke="#ffffff55" stroke-width="14" stroke-dasharray="26 22"/>
+    <!-- plan lines on the top face -->
+    <path d="M386 305 L638 451 M512 378 L428 427" stroke="#1c1c1e" stroke-width="18"/>
+  </g>
+  <circle cx="764" cy="666" r="34" fill="#fff"/>
+</svg>

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f6f9"/><stop offset="1" stop-color="#dde3ec"/></linearGradient>
+  <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse"><path d="M48 0H0V48" fill="none" stroke="#ffffff33" stroke-width="3"/></pattern></defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <!-- folded drawing sheet -->
+  <path d="M236 248 L512 300 L788 248 L788 776 L512 828 L236 776 Z" fill="#0f3c8c"/>
+  <path d="M512 300 L788 248 L788 776 L512 828 Z" fill="#164fb3"/>
+  <path d="M236 248 L512 300 L788 248 L788 776 L512 828 L236 776 Z" fill="url(#grid)"/>
+  <!-- a room plan on the sheet -->
+  <g fill="none" stroke="#fff" stroke-width="22" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M320 400 L460 426 L460 650 L320 624 Z"/>
+    <path d="M564 426 L704 400 L704 624 L564 650 Z"/>
+    <path d="M564 538 L704 512"/>
+  </g>
+  <path d="M320 690 L460 716" stroke="#ff5b4d" stroke-width="16" stroke-linecap="round"/>
+  <circle cx="320" cy="690" r="16" fill="#ff5b4d"/><circle cx="460" cy="716" r="16" fill="#ff5b4d"/>
+</svg>
