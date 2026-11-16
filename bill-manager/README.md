@@ -38,6 +38,7 @@ They can only open the Entry link, sign in with Google and record a bill.
    | `Users` | Script | `Users.gs` |
    | `Backup` | Script | `Backup.gs` |
    | `Integrity` | Script | `Integrity.gs` |
+   | `Reports` | Script | `Reports.gs` |
    | `Index` | HTML | `Index.html` |
    | `Styles` | HTML | `Styles.html` |
    | `Common` | HTML | `Common.html` |
@@ -114,13 +115,25 @@ Taxes & Licences, Equipment & Furniture (Capital)*.
 Capital items such as equipment are kept apart from running expenses because they are depreciated, not expensed.
 You can rename or remove any of them.
 
-**Reports**
-* **Monthly Summary**: type a month in B3 (e.g. `2026-11`). It shows the month total, tax, number of bills,
-  unpaid amount, year-to-date total, and *budget vs actual* per category. Over-budget categories are shown in red.
-  Enter budgets in the category manager.
-* **Annual Summary**: type a year in B3. It shows a category × month (Jan–Dec) grid with month totals and the
-  **Total Annual Expenses**. This replaces your old `Total` tab.
-* Voided bills are excluded everywhere.
+**Reports** (drawn by the script in a black & white, A4 print-ready layout with borders and wrapped text)
+* **Monthly Summary:** pick the **Month** and **Year** from the dropdowns at the top and the page redraws. It shows:
+  * total, number of bills, tax, unpaid, change against the previous month, and year to date;
+  * expenses by category (grouped), with budget, actual and variance;
+  * totals by payment method and by person;
+  * a register of every bill in the month, with a signature line.
+* **Annual Summary:** pick the **Year**. It shows every category for Jan–Dec, with shaded group subtotals,
+  a TOTAL row, and each category's share of the year. This replaces your old `Total` tab.
+* **🖨 Save as PDF:** the menu creates an A4 PDF (portrait for monthly, landscape for annual) in *Drive → MAARAA Bill Manager → Reports*.
+* The summaries refresh by themselves every 5 minutes, when the sheet is opened, and when a dropdown changes.
+  Voided bills are always excluded.
+
+**Correcting entries**
+* **Admin, in the sheet:** the white-header columns of `Bills` can be edited directly and have dropdowns or checks.
+  The grey-header (system) columns are locked. Total, Period and Category Code are recalculated, and
+  *Last Edited By / At* plus the Audit Log record who changed what.
+* **Employees, in the app:** **My bills → Edit** lets them correct their own bills or add a missing page,
+  within `EDIT_WINDOW_DAYS` (30 by default). Admins see **All bills** and can edit any active bill.
+  The reference number never changes.
 
 ---
 

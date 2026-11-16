@@ -40,7 +40,7 @@ const BILL_COLUMNS = [
   ['REF',         'Ref No',                       150],
   ['BILL_DATE',   'Bill Date',                    95],
   ['PERIOD',      'Period',                       75],
-  ['VENDOR',      'Company / Person (Payee)',     190],
+  ['VENDOR',      'Company / Person (Payee)',     200],
   ['INVOICE_NO',  'Vendor Invoice / Receipt No',  140],
   ['CAT_CODE',    'Category Code',                90],
   ['CATEGORY',    'Expense Category',             190],
@@ -65,6 +65,8 @@ const BILL_COLUMNS = [
   ['RECORDED_AT', 'Recorded At',                  145],
   ['VOID_NOTE',   'Void Reason / Notes',          220],
   ['SUBMISSION_ID', 'Submission ID',              120],
+  ['LAST_EDIT_BY', 'Last Edited By',             190],
+  ['LAST_EDIT_AT', 'Last Edited At',             135],
 ];
 const COL = {};
 BILL_COLUMNS.forEach(function (c, i) { COL[c[0]] = i + 1; });
@@ -116,6 +118,7 @@ const DEFAULT_SETTINGS = [
   ['BACKUP_FOLDER_ID',      '',        'Auto-filled: Drive folder for backups.'],
   ['BACKUP_SPREADSHEET_ID', '',        'Auto-filled: separate spreadsheet with the live backup journal.'],
   ['LAST_BACKUP_AT',        '',        'Auto-filled: time of the last successful nightly backup.'],
+  ['EDIT_WINDOW_DAYS',      30,        'Employees can correct their own bills for this many days after recording (Admins: always).'],
 ];
 
 // ================================ SETUP ====================================
@@ -130,13 +133,12 @@ function setup() {
   ownerEmail_();
 
   ensureSettingsSheet_();
-  ensureBillsSheet_();
   ensureCategoriesSheet_();
   ensureMethodsSheet_();
+  ensureBillsSheet_();
   ensureAuditSheet_();
   ensureUsersSheet_();
-  buildSummarySheet();
-  buildAnnualSheet();
+  refreshReports_();
 
   rootFolder_();
   backupFolder_();
@@ -166,46 +168,99 @@ function ensureSettingsSheet_() {
 
 function ensureBillsSheet_() {
   const sh = getOrCreateSheet_(SHEET.BILLS);
+  if (sh.getMaxColumns() < NCOLS) sh.insertColumnsAfter(sh.getMaxColumns(), NCOLS - sh.getMaxColumns());
   sh.getRange(1, 1, 1, NCOLS).setValues([BILL_COLUMNS.map(function (c) { return c[1]; })]);
   styleHeader_(sh, NCOLS);
+  // System columns get a grey header so it is obvious they are filled in automatically.
+  LOCKED_BILL_COLS.forEach(function (k) { sh.getRange(1, COL[k]).setBackground('#555555'); });
+  sh.setRowHeight(1, 40);
   sh.setFrozenRows(1);
   sh.setFrozenColumns(1);
   BILL_COLUMNS.forEach(function (c, i) { sh.setColumnWidth(i + 1, c[2]); });
 
-  const cur = currencyFormat_();
   const rows = sh.getMaxRows() - 1;
+  const cur = currencyFormat_();
+  sh.getRange(2, 1, rows, NCOLS).setFontFamily('Arial').setFontSize(10).setVerticalAlignment('top');
   sh.getRange(2, COL.BILL_DATE, rows, 1).setNumberFormat('dd/MM/yyyy');
   sh.getRange(2, COL.DUE_DATE, rows, 1).setNumberFormat('dd/MM/yyyy');
-  sh.getRange(2, COL.PERIOD, rows, 1).setNumberFormat('yyyy-mm');
+  sh.getRange(2, COL.PERIOD, rows, 1).setNumberFormat('mmm yyyy');
   sh.getRange(2, COL.RECORDED_AT, rows, 1).setNumberFormat('dd/MM/yyyy HH:mm');
-  sh.getRange(2, COL.AMOUNT, rows, 3).setNumberFormat(cur);
-  sh.getRange(2, COL.DESCRIPTION, rows, 1).setWrap(true);
-  sh.getRange(2, COL.FILE_NAMES, rows, 3).setWrap(false);
+  sh.getRange(2, COL.LAST_EDIT_AT, rows, 1).setNumberFormat('dd/MM/yyyy HH:mm');
+  sh.getRange(2, COL.AMOUNT, rows, 3).setNumberFormat(cur).setHorizontalAlignment('right');
 
-  // Dropdowns help when someone edits the sheet by hand.
-  const v = function (list) { return SpreadsheetApp.newDataValidation().requireValueInList(list, true).setAllowInvalid(false).build(); };
-  sh.getRange(2, COL.PAY_STATUS, rows, 1).setDataValidation(v(PAY_STATUSES));
-  sh.getRange(2, COL.STATUS, rows, 1).setDataValidation(v(['ACTIVE', 'VOID']));
+  // Dropdowns / checks on the columns an Admin may correct by hand.
+  const list = function (l) { return SpreadsheetApp.newDataValidation().requireValueInList(l, true).setAllowInvalid(false).build(); };
+  sh.getRange(2, COL.PAY_STATUS, rows, 1).setDataValidation(list(PAY_STATUSES));
+  sh.getRange(2, COL.STATUS, rows, 1).setDataValidation(list(['ACTIVE', 'VOID']));
+  sh.getRange(2, COL.CATEGORY, rows, 1).setDataValidation(SpreadsheetApp.newDataValidation()
+    .requireValueInRange(sheet_(SHEET.CATEGORIES).getRange('B2:B'), true).setAllowInvalid(false).build());
+  sh.getRange(2, COL.METHOD, rows, 1).setDataValidation(SpreadsheetApp.newDataValidation()
+    .requireValueInRange(sheet_(SHEET.METHODS).getRange('A2:A'), true).setAllowInvalid(false).build());
+  sh.getRange(2, COL.BILL_DATE, rows, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireDate().setAllowInvalid(false).build());
+  sh.getRange(2, COL.DUE_DATE, rows, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireDate().setAllowInvalid(true).build());
+  sh.getRange(2, COL.AMOUNT, rows, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireNumberGreaterThan(0).setAllowInvalid(false).build());
+  sh.getRange(2, COL.TAX, rows, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireNumberGreaterThanOrEqualTo(0).setAllowInvalid(false).build());
 
-  // Visual cues: voided rows struck through; unpaid rows amber.
+  // Black & white cues: voided rows struck through and grey; unpaid rows italic on light grey.
   const L = colLetter_;
   const all = sh.getRange(2, 1, rows, NCOLS);
   sh.setConditionalFormatRules([
     SpreadsheetApp.newConditionalFormatRule()
       .whenFormulaSatisfied('=$' + L(COL.STATUS) + '2="VOID"')
-      .setStrikethrough(true).setFontColor('#9aa0a6').setBackground('#f1f3f4')
-      .setRanges([all]).build(),
+      .setStrikethrough(true).setFontColor('#9e9e9e').setRanges([all]).build(),
     SpreadsheetApp.newConditionalFormatRule()
       .whenFormulaSatisfied('=AND($' + L(COL.STATUS) + '2="ACTIVE",$' + L(COL.PAY_STATUS) + '2<>"Paid",$' + L(COL.PAY_STATUS) + '2<>"")')
-      .setBackground('#fef7e0')
-      .setRanges([all]).build(),
+      .setItalic(true).setBackground('#eeeeee').setRanges([all]).build(),
   ]);
+
+  // Borders + wrapping on every recorded row.
+  const last = lastDataRow_(sh, COL.REF);
+  if (last > 1) styleBillRows_(sh, 2, last - 1);
 
   // Technical columns are kept but hidden.
   sh.hideColumns(COL.FILE_IDS, 2);
   sh.hideColumns(COL.SUBMISSION_ID);
   if (!sh.getFilter()) sh.getRange(1, 1, sh.getMaxRows(), NCOLS).createFilter();
-  protectWarn_(sh, 'Bills ledger — please record bills with the entry form; void instead of deleting');
+  protectBillsSheet_(sh);
+}
+
+/** Columns the system fills in. Only the owner can change them; the rest can be corrected by an Admin. */
+const LOCKED_BILL_COLS = ['REF', 'PERIOD', 'CAT_CODE', 'TOTAL', 'RECEIPT', 'FILE_NAMES', 'FILE_LINKS', 'FILE_IDS', 'FILE_HASHES',
+  'STATUS', 'RECORDED_BY', 'RECORDED_BY_NAME', 'RECORDED_AT', 'VOID_NOTE', 'SUBMISSION_ID', 'LAST_EDIT_BY', 'LAST_EDIT_AT'];
+
+function protectBillsSheet_(sh) {
+  sh.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(function (p) { p.remove(); });
+  sh.getProtections(SpreadsheetApp.ProtectionType.RANGE).forEach(function (p) {
+    if (/^(System column|Header row)/.test(p.getDescription())) p.remove();
+  });
+  const owner = ownerEmail_();
+  const lockTo = function (range, desc) {
+    const p = range.protect().setDescription(desc);
+    try { p.removeEditors(p.getEditors()); if (owner) p.addEditor(owner); if (p.canDomainEdit()) p.setDomainEdit(false); } catch (e) { }
+  };
+  lockTo(sh.getRange(1, 1, 1, NCOLS), 'Header row — locked');
+  const idx = LOCKED_BILL_COLS.map(function (k) { return COL[k]; }).sort(function (a, b) { return a - b; });
+  // Protect contiguous runs of locked columns.
+  let start = idx[0], prev = idx[0];
+  for (let i = 1; i <= idx.length; i++) {
+    if (idx[i] === prev + 1) { prev = idx[i]; continue; }
+    lockTo(sh.getRange(2, start, sh.getMaxRows() - 1, prev - start + 1), 'System column — filled automatically');
+    start = idx[i]; prev = idx[i];
+  }
+}
+
+/** Borders, wrapping and alignment for ledger rows (called after every write). */
+function styleBillRows_(sh, fromRow, n) {
+  if (n < 1) return;
+  const r = sh.getRange(fromRow, 1, n, NCOLS);
+  r.setBorder(true, true, true, true, true, true, '#9e9e9e', SpreadsheetApp.BorderStyle.SOLID)
+    .setVerticalAlignment('top').setFontFamily('Arial').setFontSize(10).setFontColor('#000000');
+  ['VENDOR', 'CATEGORY', 'DESCRIPTION', 'PROJECT', 'REMARKS', 'VOID_NOTE', 'RECORDED_BY', 'RECORDED_BY_NAME', 'LAST_EDIT_BY', 'PAY_REF', 'INVOICE_NO']
+    .forEach(function (k) { sh.getRange(fromRow, COL[k], n, 1).setWrap(true); });
+  ['FILE_NAMES', 'FILE_LINKS'].forEach(function (k) { sh.getRange(fromRow, COL[k], n, 1).setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP); });
+  sh.getRange(fromRow, COL.REF, n, 1).setFontWeight('bold');
+  sh.getRange(fromRow, COL.AMOUNT, n, 3).setHorizontalAlignment('right');
+  sh.getRange(fromRow, COL.TOTAL, n, 1).setFontWeight('bold');
 }
 
 function ensureCategoriesSheet_() {
@@ -214,28 +269,29 @@ function ensureCategoriesSheet_() {
   styleHeader_(sh, CATEGORY_HEADERS.length);
   sh.setFrozenRows(1);
   [90, 260, 220, 160, 70, 140, 140, 260].forEach(function (w, i) { sh.setColumnWidth(i + 1, w); });
-  if (sh.getLastRow() < 2) {
+  if (lastDataRow_(sh, 1) < 2) {
     const now = new Date();
     const rows = DEFAULT_CATEGORIES.map(function (c, i) {
       return ['CAT-' + pad_(i + 1, 3), c[0], c[1], '', true, now, now, ''];
     });
     sh.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
   }
-  sh.getRange('D2:D').setNumberFormat(currencyFormat_());
-  sh.getRange('F2:G').setNumberFormat('dd/MM/yyyy HH:mm');
-  sh.getRange('E2:E').insertCheckboxes();
+  compactTable_(sh, CATEGORY_HEADERS.length, [5]);
+  const n = Math.max(lastDataRow_(sh, 1) - 1, 1);
+  sh.getRange(2, 4, n, 1).setNumberFormat(currencyFormat_());
+  sh.getRange(2, 6, n, 2).setNumberFormat('dd/MM/yyyy HH:mm');
   protectWarn_(sh, 'Categories — please use "Manage categories" so history stays consistent');
 }
 
 function ensureMethodsSheet_() {
   const sh = getOrCreateSheet_(SHEET.METHODS);
-  if (sh.getLastRow() < 2) {
-    sh.getRange(1, 1, 1, 2).setValues([['Payment Method', 'Active']]);
+  sh.getRange(1, 1, 1, 2).setValues([['Payment Method', 'Active']]);
+  if (lastDataRow_(sh, 1) < 2) {
     sh.getRange(2, 1, DEFAULT_METHODS.length, 2).setValues(DEFAULT_METHODS.map(function (m) { return [m, true]; }));
   }
   styleHeader_(sh, 2);
-  sh.setColumnWidth(1, 220);
-  sh.getRange('B2:B').insertCheckboxes();
+  sh.setColumnWidth(1, 220).setColumnWidth(2, 80);
+  compactTable_(sh, 2, [2]);
 }
 
 function ensureAuditSheet_() {
@@ -245,125 +301,76 @@ function ensureAuditSheet_() {
   sh.setFrozenRows(1);
   sh.setColumnWidth(1, 150).setColumnWidth(2, 200).setColumnWidth(3, 150).setColumnWidth(4, 160).setColumnWidth(5, 700);
   sh.getRange('A2:A').setNumberFormat('dd/MM/yyyy HH:mm:ss');
+  sh.getRange('A2:E').setFontFamily('Arial').setFontSize(9).setVerticalAlignment('top');
+  sh.getRange('E2:E').setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
   protectWarn_(sh, 'Audit log — do not edit');
 }
 
-/** Monthly report: KPIs + budget vs actual for the month typed in B3. */
-function buildSummarySheet() {
-  const sh = getOrCreateSheet_(SHEET.SUMMARY);
-  const keepMonth = sh.getRange('B3').getValue();
-  sh.clear();
-  sh.setConditionalFormatRules([]);
-
-  const B = "'" + SHEET.BILLS + "'!";
-  const C = "'" + SHEET.CATEGORIES + "'!";
-  const rng = function (key) { const l = colLetter_(COL[key]); return B + l + '2:' + l; };
-  const TOTAL = rng('TOTAL'), TAX = rng('TAX'), PERIOD = rng('PERIOD'), CAT = rng('CATEGORY'), STATUS = rng('STATUS'), PAYST = rng('PAY_STATUS');
-  const cur = currencyFormat_();
-
-  sh.getRange('A1').setValue(settings_().COMPANY_NAME + ' — Monthly Expense Summary').setFontSize(16).setFontWeight('bold');
-  sh.getRange('A3').setValue('Month (type e.g. 2026-11)').setFontWeight('bold');
-  const month = keepMonth instanceof Date ? keepMonth : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-  sh.getRange('B3').setValue(month).setNumberFormat('mmmm yyyy').setBackground('#e8f0fe').setFontWeight('bold');
-  sh.getRange('C3').setValue('← change this month; only ACTIVE (non-void) bills are counted').setFontColor('#5f6368');
-
-  const kpis = [
-    ['Total expenses (month)', '=SUMIFS(' + TOTAL + ',' + PERIOD + ',$B$3,' + STATUS + ',"ACTIVE")', cur],
-    ['Tax / VAT included',     '=SUMIFS(' + TAX + ',' + PERIOD + ',$B$3,' + STATUS + ',"ACTIVE")', cur],
-    ['Number of bills',        '=COUNTIFS(' + PERIOD + ',$B$3,' + STATUS + ',"ACTIVE")', '0'],
-    ['Unpaid / part-paid (month)', '=SUMIFS(' + TOTAL + ',' + PERIOD + ',$B$3,' + STATUS + ',"ACTIVE",' + PAYST + ',"<>Paid")', cur],
-    ['Year-to-date expenses',  '=SUMIFS(' + TOTAL + ',' + PERIOD + ',">="&DATE(YEAR($B$3),1,1),' + PERIOD + ',"<="&$B$3,' + STATUS + ',"ACTIVE")', cur],
-    ['Total monthly budget',   '=SUMIFS(' + C + 'D2:D,' + C + 'E2:E,TRUE)', cur],
-  ];
-  kpis.forEach(function (k, i) {
-    sh.getRange(5 + i, 1).setValue(k[0]);
-    sh.getRange(5 + i, 2).setFormula(k[1]).setNumberFormat(k[2]).setFontWeight('bold');
-  });
-
-  const hr = 13;
-  sh.getRange(hr, 1, 1, 7).setValues([['Expense Category', 'Group', 'Monthly Budget', 'Actual (Month)', 'Variance (Budget − Actual)', '% of Budget Used', 'No. of Bills']]);
-  styleHeaderRange_(sh.getRange(hr, 1, 1, 7));
-  const r = hr + 1, A = 'A' + r + ':A';
-  sh.getRange(r, 1).setFormula('=IFERROR(SORT(FILTER(' + C + 'B2:B,' + C + 'B2:B<>"",(' + C + 'E2:E=TRUE)+(COUNTIF(' + CAT + ',' + C + 'B2:B)>0))),"")');
-  sh.getRange(r, 2).setFormula('=ARRAYFORMULA(IF(' + A + '="",,IFERROR(VLOOKUP(' + A + ',' + C + 'B2:D,2,FALSE),"")))');
-  sh.getRange(r, 3).setFormula('=ARRAYFORMULA(IF(' + A + '="",,IFERROR(VLOOKUP(' + A + ',' + C + 'B2:D,3,FALSE),"")))');
-  sh.getRange(r, 4).setFormula('=ARRAYFORMULA(IF(' + A + '="",,SUMIFS(' + TOTAL + ',' + CAT + ',' + A + ',' + PERIOD + ',$B$3,' + STATUS + ',"ACTIVE")))');
-  sh.getRange(r, 5).setFormula('=ARRAYFORMULA(IF((' + A + '="")+(C' + r + ':C=""),,C' + r + ':C-D' + r + ':D))');
-  sh.getRange(r, 6).setFormula('=ARRAYFORMULA(IF(' + A + '="",,IFERROR(D' + r + ':D/C' + r + ':C,"")))');
-  sh.getRange(r, 7).setFormula('=ARRAYFORMULA(IF(' + A + '="",,COUNTIFS(' + CAT + ',' + A + ',' + PERIOD + ',$B$3,' + STATUS + ',"ACTIVE")))');
-  sh.getRange(r, 3, 200, 3).setNumberFormat(cur);
-  sh.getRange(r, 6, 200, 1).setNumberFormat('0%');
-
-  const overBudget = SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=AND(ISNUMBER($E' + r + '),$E' + r + '<0)')
-    .setFontColor('#c5221f').setBackground('#fce8e6').setRanges([sh.getRange(r, 1, 200, 7)]).build();
-  sh.setConditionalFormatRules([overBudget]);
-
-  sh.setColumnWidth(1, 280).setColumnWidth(2, 220);
-  for (let c = 3; c <= 7; c++) sh.setColumnWidth(c, 150);
-  sh.setFrozenRows(hr);
-  protectWarn_(sh, 'Report — formulas');
+/**
+ * Repairs a small table: moves every real row up to start at row 2 (fixes rows that ended up at
+ * 1001 because empty checkboxes filled the column), puts checkboxes ONLY on real rows, trims
+ * surplus empty rows and draws borders.
+ */
+function compactTable_(sh, nCols, checkboxCols) {
+  const last = sh.getLastRow();
+  let vals = [];
+  if (last >= 2) {
+    vals = sh.getRange(2, 1, last - 1, nCols).getValues().filter(function (r) { return String(r[0]).trim() !== ''; });
+    const area = sh.getRange(2, 1, sh.getMaxRows() - 1, nCols);
+    area.clearContent().clearDataValidations().setBorder(false, false, false, false, false, false);
+  }
+  if (vals.length) {
+    sh.getRange(2, 1, vals.length, nCols).setValues(vals);
+    (checkboxCols || []).forEach(function (c) {
+      sh.getRange(2, c, vals.length, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
+    });
+    styleTableRows_(sh, 2, vals.length, nCols);
+  }
+  const keep = vals.length + 1 + 100;
+  if (sh.getMaxRows() > keep) sh.deleteRows(keep + 1, sh.getMaxRows() - keep);
 }
 
-/** Annual report: category × month matrix for the year typed in B3 (replaces the old "Total" tab). */
-function buildAnnualSheet() {
-  const sh = getOrCreateSheet_(SHEET.ANNUAL);
-  const keepYear = Number(sh.getRange('B3').getValue()) || new Date().getFullYear();
-  sh.clear();
+function styleTableRows_(sh, fromRow, n, nCols) {
+  if (n < 1) return;
+  sh.getRange(fromRow, 1, n, nCols)
+    .setBorder(true, true, true, true, true, true, '#9e9e9e', SpreadsheetApp.BorderStyle.SOLID)
+    .setFontFamily('Arial').setFontSize(10).setFontColor('#000000').setVerticalAlignment('middle').setWrap(true);
+}
 
-  const B = "'" + SHEET.BILLS + "'!";
-  const C = "'" + SHEET.CATEGORIES + "'!";
-  const rng = function (key) { const l = colLetter_(COL[key]); return B + l + '2:' + l; };
-  const TOTAL = rng('TOTAL'), PERIOD = rng('PERIOD'), CAT = rng('CATEGORY'), STATUS = rng('STATUS');
-  const cur = currencyFormat_();
-
-  sh.getRange('A1').setValue(settings_().COMPANY_NAME + ' — Total Annual Expenses').setFontSize(16).setFontWeight('bold');
-  sh.getRange('A3').setValue('Year').setFontWeight('bold');
-  sh.getRange('B3').setValue(keepYear).setNumberFormat('0').setBackground('#e8f0fe').setFontWeight('bold');
-  sh.getRange('A4').setValue('Total annual expenses').setFontWeight('bold');
-  sh.getRange('B4').setFormula('=SUMIFS(' + TOTAL + ',' + PERIOD + ',">="&DATE($B$3,1,1),' + PERIOD + ',"<"&DATE($B$3+1,1,1),' + STATUS + ',"ACTIVE")')
-    .setNumberFormat(cur).setFontWeight('bold');
-
-  const hr = 6, r = 7;
-  sh.getRange(hr, 1).setValue('Expense Category');
-  sh.getRange(hr, 2).setValue('Year Total');
-  for (let m = 0; m < 12; m++) {
-    sh.getRange(hr, 3 + m).setFormula('=DATE($B$3,' + (m + 1) + ',1)').setNumberFormat('mmm');
+/** Last row that has a real value in `col` (ignores empty cells and unticked checkboxes). */
+function lastDataRow_(sh, col) {
+  const last = sh.getLastRow();
+  if (last < 2) return 1;
+  const vals = sh.getRange(1, col, last, 1).getValues();
+  for (let i = vals.length - 1; i >= 1; i--) {
+    const v = vals[i][0];
+    if (v !== '' && v !== null && v !== false) return i + 1;
   }
-  styleHeaderRange_(sh.getRange(hr, 1, 1, 14));
+  return 1;
+}
 
-  const A = 'A' + r + ':A';
-  sh.getRange(r, 1).setFormula('=IFERROR(SORT(FILTER(' + C + 'B2:B,' + C + 'B2:B<>"",(' + C + 'E2:E=TRUE)+(COUNTIF(' + CAT + ',' + C + 'B2:B)>0))),"")');
-  sh.getRange(r, 2).setFormula('=ARRAYFORMULA(IF(' + A + '="",,SUMIFS(' + TOTAL + ',' + CAT + ',' + A + ',' + PERIOD + ',">="&DATE($B$3,1,1),' + PERIOD + ',"<"&DATE($B$3+1,1,1),' + STATUS + ',"ACTIVE")))');
-  for (let m = 0; m < 12; m++) {
-    const head = colLetter_(3 + m) + '$' + hr;
-    sh.getRange(r, 3 + m).setFormula('=ARRAYFORMULA(IF(' + A + '="",,SUMIFS(' + TOTAL + ',' + CAT + ',' + A + ',' + PERIOD + ',' + head + ',' + STATUS + ',"ACTIVE")))');
-  }
-  // Monthly totals row above the header.
-  sh.getRange(5, 1).setValue('Month total').setFontWeight('bold');
-  for (let m = 0; m < 12; m++) {
-    const l = colLetter_(3 + m);
-    sh.getRange(5, 3 + m).setFormula('=SUM(' + l + r + ':' + l + ')').setFontWeight('bold');
-  }
-  sh.getRange(5, 2).setFormula('=SUM(B' + r + ':B)').setFontWeight('bold');
-  sh.getRange(5, 2, 300, 13).setNumberFormat(cur);
-  sh.getRange(hr, 3, 1, 12).setNumberFormat('mmm');
-
-  sh.setColumnWidth(1, 280).setColumnWidth(2, 140);
-  for (let c = 3; c <= 14; c++) sh.setColumnWidth(c, 115);
-  sh.setFrozenRows(hr);
-  sh.setFrozenColumns(2);
-  protectWarn_(sh, 'Report — formulas');
+/** Writes a row directly below the last real row (never at row 1001). Returns the row number. */
+function appendRowAt_(sh, keyCol, values, checkboxCols) {
+  const row = lastDataRow_(sh, keyCol) + 1;
+  if (row > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), 50);
+  sh.getRange(row, 1, 1, values.length).setValues([values]);
+  (checkboxCols || []).forEach(function (c) {
+    sh.getRange(row, c).setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
+  });
+  styleTableRows_(sh, row, 1, values.length);
+  return row;
 }
 
 function installTriggers_() {
   const ss = ss_();
-  const handlers = ['runNightlyBackup', 'onBillsEdit', 'onBillsChange'];
+  const handlers = ['runNightlyBackup', 'onBillsEdit', 'onBillsChange', 'refreshReportsIfDirty'];
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (handlers.indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger('runNightlyBackup').timeBased().everyDays(1).atHour(2).create();
   ScriptApp.newTrigger('onBillsEdit').forSpreadsheet(ss).onEdit().create();
   ScriptApp.newTrigger('onBillsChange').forSpreadsheet(ss).onChange().create();
+  ScriptApp.newTrigger('refreshReportsIfDirty').timeBased().everyMinutes(5).create();
 }
 
 function removeEmptyDefaultSheet_() {
@@ -383,7 +390,9 @@ function onOpen() {
     .addItem('🏷️ Manage categories', 'openCategorySidebar')
     .addSeparator()
     .addItem('🚫 Void selected bill…', 'voidSelectedBill')
-    .addItem('↻ Rebuild reports', 'rebuildReports')
+    .addItem('↻ Refresh summaries', 'rebuildReports')
+    .addItem('🖨 Save Monthly Summary as PDF (A4)', 'exportMonthlyPdf')
+    .addItem('🖨 Save Annual Summary as PDF (A4 landscape)', 'exportAnnualPdf')
     .addItem('✅ Run integrity check', 'runIntegrityCheck')
     .addSeparator()
     .addSubMenu(ui.createMenu('🛟 Backup & restore')
@@ -397,6 +406,7 @@ function onOpen() {
     .addSeparator()
     .addItem('⚙️ Setup / repair', 'setup')
     .addToUi();
+  try { refreshReportsIfDirty(); } catch (e) { }
 }
 
 function include(name) {
@@ -413,12 +423,6 @@ function openCategorySidebar() {
   t.panel = 'categories';
   const html = t.evaluate().setTitle('Manage categories');
   SpreadsheetApp.getUi().showSidebar(html);
-}
-
-function rebuildReports() {
-  buildSummarySheet();
-  buildAnnualSheet();
-  toast_('Reports rebuilt.');
 }
 
 function showLinks() {
@@ -454,6 +458,7 @@ function getFormData() {
     vendors: recentDistinct_(COL.VENDOR, 300),
     projects: recentDistinct_(COL.PROJECT, 150),
     user: { email: u.email, name: u.name, role: u.role, isAdmin: u.role === 'Admin' },
+    editWindowDays: editWindowDays_(),
   };
 }
 
@@ -545,8 +550,10 @@ function saveBill(payload) {
     });
 
     row = buildRow_(ref, bill, created, submissionId, user);
-    rowIndex = sh.getLastRow() + 1;
+    rowIndex = lastDataRow_(sh, COL.REF) + 1;
+    if (rowIndex > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), 100);
     sh.getRange(rowIndex, 1, 1, NCOLS).setValues([row]);
+    styleBillRows_(sh, rowIndex, 1);
     if (created.length) {
       const label = '📎 View receipt' + (created.length > 1 ? 's (' + created.length + ')' : '');
       sh.getRange(rowIndex, COL.RECEIPT).setRichTextValue(
@@ -569,6 +576,7 @@ function saveBill(payload) {
   const obj = rowToObject_(row);
   audit_('CREATE', ref, { row: rowIndex, vendor: bill.vendor, total: bill.total, category: bill.categoryName, files: created.length });
   journal_('CREATE', ref, obj);
+  markReportsDirty_();
 
   const result = { ok: true, record: recordFromRow_(row, rowIndex, true) };
   if (submissionId) { try { cache.put('SUB_' + submissionId, JSON.stringify(result), 21600); } catch (e) { } }
@@ -638,7 +646,159 @@ function checkReceiptHashes(hashes) {
   return out;
 }
 
-function validateBill_(p, s) {
+// ======================= MY BILLS: VIEW & CORRECT OWN RECORDS ======================
+
+/** Columns a person may correct from the app (everything else is system-controlled). */
+const EDITABLE_FIELDS = ['BILL_DATE', 'VENDOR', 'INVOICE_NO', 'CAT_CODE', 'CATEGORY', 'DESCRIPTION', 'PROJECT', 'METHOD',
+  'PAY_REF', 'AMOUNT', 'TAX', 'TOTAL', 'PAY_STATUS', 'DUE_DATE', 'REMARKS', 'PERIOD'];
+
+function editWindowDays_() { return Math.max(0, Number(settings_().EDIT_WINDOW_DAYS) || 0); }
+
+/** Can this user change this ledger row? Returns '' if yes, otherwise the reason. */
+function editBlockReason_(u, r) {
+  if (r[COL.STATUS - 1] !== 'ACTIVE') return 'Voided bills cannot be edited.';
+  if (u.role === 'Admin') return '';
+  if (String(r[COL.RECORDED_BY - 1] || '').toLowerCase() !== u.email) return 'You can only edit bills you recorded.';
+  const at = r[COL.RECORDED_AT - 1], days = editWindowDays_();
+  if (at instanceof Date && days && Date.now() - at.getTime() > days * 86400000)
+    return 'Locked: bills can be corrected within ' + days + ' days. Ask an Admin.';
+  return '';
+}
+
+/** The signed-in person's own bills (Admins: everyone's), newest first. */
+function listMyBills(limit) {
+  const u = currentUser_();
+  const sh = sheet_(SHEET.BILLS);
+  const last = lastDataRow_(sh, COL.REF);
+  if (last < 2) return [];
+  const iso = function (d) { return d instanceof Date ? Utilities.formatDate(d, tz_(), 'yyyy-MM-dd') : ''; };
+  const out = [];
+  const rows = sh.getRange(2, 1, last - 1, NCOLS).getValues();
+  for (let i = rows.length - 1; i >= 0 && out.length < Math.min(Number(limit) || 60, 200); i--) {
+    const r = rows[i];
+    if (!r[COL.REF - 1]) continue;
+    if (u.role !== 'Admin' && String(r[COL.RECORDED_BY - 1] || '').toLowerCase() !== u.email) continue;
+    const reason = editBlockReason_(u, r);
+    const rec = recordFromRow_(r, i + 2, false);
+    rec.iso = { billDate: iso(r[COL.BILL_DATE - 1]), dueDate: iso(r[COL.DUE_DATE - 1]) };
+    rec.categoryCode = r[COL.CAT_CODE - 1];
+    rec.status = r[COL.STATUS - 1];
+    rec.editable = !reason;
+    rec.lockReason = reason;
+    rec.lastEditBy = r[COL.LAST_EDIT_BY - 1] || '';
+    out.push(rec);
+  }
+  return out;
+}
+
+/**
+ * Correct a recorded bill. payload = same fields as saveBill (+ optional extra files).
+ * Employees: own bills only, within EDIT_WINDOW_DAYS. Admins: any active bill.
+ * The reference number never changes. Every changed field is written to the Audit Log.
+ */
+function updateBill(ref, payload) {
+  payload = payload || {};
+  const user = currentUser_();
+  const s = settings_();
+  const submissionId = /^[A-Za-z0-9-]{8,64}$/.test(payload.submissionId || '') ? payload.submissionId : '';
+  const cache = CacheService.getScriptCache();
+  if (submissionId) { const c = cache.get('UPD_' + submissionId); if (c) return JSON.parse(c); }
+
+  const sh = sheet_(SHEET.BILLS);
+  const rowIndex = findRowByValue_(sh, COL.REF, ref);
+  if (!rowIndex) throw new Error('Bill ' + ref + ' was not found.');
+  const before = sh.getRange(rowIndex, 1, 1, NCOLS).getValues()[0];
+  const block = editBlockReason_(user, before);
+  if (block) throw new Error(block);
+
+  const existingIds = String(before[COL.FILE_IDS - 1] || '').split('\n').filter(String);
+  const bill = validateBill_(payload, s, { existingFiles: existingIds.length, currentCategoryCode: before[COL.CAT_CODE - 1], isEdit: true });
+  const files = (payload.files || []).map(function (f) {
+    const bytes = Utilities.base64Decode(f.data);
+    return { name: String(f.name || 'receipt'), mimeType: f.mimeType || 'application/octet-stream', bytes: bytes,
+             hash: /^[0-9a-f]{64}$/.test(f.hash || '') ? f.hash : sha256Hex_(bytes) };
+  });
+  if (!payload.force) {
+    const dups = findDuplicates_(bill, files.map(function (f) { return f.hash; }), ref);
+    if (dups.length) return { ok: false, duplicate: true, matches: dups };
+  }
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(25000)) throw new Error('The system is busy. Please press "Save changes" again — it will not be duplicated.');
+  const created = [];
+  let after;
+  try {
+    // Re-read inside the lock in case someone else changed it a moment ago.
+    const current = sh.getRange(rowIndex, 1, 1, NCOLS).getValues()[0];
+    if (current[COL.REF - 1] !== ref) throw new Error('The ledger changed while saving. Please reload and try again.');
+    after = current.slice();
+    const set = function (k, v) { after[COL[k] - 1] = v; };
+    set('BILL_DATE', bill.billDate);
+    set('PERIOD', new Date(bill.billDate.getFullYear(), bill.billDate.getMonth(), 1));
+    set('VENDOR', bill.vendor); set('INVOICE_NO', bill.invoiceNo);
+    set('CAT_CODE', bill.categoryCode); set('CATEGORY', bill.categoryName);
+    set('DESCRIPTION', bill.description); set('PROJECT', bill.project);
+    set('METHOD', bill.paymentMethod); set('PAY_REF', bill.paymentRef);
+    set('AMOUNT', bill.amount); set('TAX', bill.tax); set('TOTAL', bill.total);
+    set('PAY_STATUS', bill.paymentStatus); set('DUE_DATE', bill.dueDate || ''); set('REMARKS', bill.remarks);
+
+    if (files.length) {
+      const folder = monthFolder_(bill.billDate);
+      const total = existingIds.length + files.length;
+      files.forEach(function (f, i) {
+        const name = buildFileName_(ref, bill, existingIds.length + i, Math.max(total, 2), f);
+        const file = folder.createFile(Utilities.newBlob(f.bytes, f.mimeType, name));
+        file.setDescription(ref + ' | added ' + fmtDate_(new Date()) + ' by ' + user.email + ' | original: ' + f.name);
+        created.push({ id: file.getId(), name: name, url: file.getUrl(), hash: f.hash, size: f.bytes.length });
+      });
+      const join = function (k, extra) { return String(current[COL[k] - 1] || '').split('\n').filter(String).concat(extra).join('\n'); };
+      set('FILE_NAMES', join('FILE_NAMES', created.map(function (c) { return c.name; })));
+      set('FILE_LINKS', join('FILE_LINKS', created.map(function (c) { return c.url; })));
+      set('FILE_IDS', join('FILE_IDS', created.map(function (c) { return c.id; })));
+      set('FILE_HASHES', join('FILE_HASHES', created.map(function (c) { return c.hash; })));
+    }
+    set('LAST_EDIT_BY', user.email);
+    set('LAST_EDIT_AT', new Date());
+
+    const nonReceipt = after.slice();
+    sh.getRange(rowIndex, 1, 1, NCOLS).setValues([nonReceipt]);
+    const links = String(after[COL.FILE_LINKS - 1] || '').split('\n').filter(String);
+    if (links.length) {
+      const label = '📎 View receipt' + (links.length > 1 ? 's (' + links.length + ')' : '');
+      sh.getRange(rowIndex, COL.RECEIPT).setRichTextValue(SpreadsheetApp.newRichTextValue().setText(label)
+        .setLinkUrl(links.length > 1 ? monthFolder_(bill.billDate).getUrl() : links[0]).build());
+    }
+    styleBillRows_(sh, rowIndex, 1);
+    SpreadsheetApp.flush();
+    verifySavedBill_(sh, rowIndex, ref, bill, created);
+  } catch (err) {
+    created.forEach(function (c) { try { DriveApp.getFileById(c.id).setTrashed(true); } catch (e) { } });
+    try { sh.getRange(rowIndex, 1, 1, NCOLS).setValues([before]); } catch (e) { }
+    audit_('UPDATE_FAILED', ref, { error: String(err && err.message || err) });
+    throw new Error('The changes were NOT saved. ' + String(err && err.message || err));
+  } finally {
+    lock.releaseLock();
+  }
+
+  // What changed (for the audit trail)
+  const changes = {};
+  EDITABLE_FIELDS.forEach(function (k) {
+    const a = before[COL[k] - 1], b = after[COL[k] - 1];
+    const fa = a instanceof Date ? fmtDate_(a) : String(a), fb = b instanceof Date ? fmtDate_(b) : String(b);
+    if (fa !== fb) changes[k] = [fa, fb];
+  });
+  if (created.length) changes.FILES_ADDED = created.map(function (c) { return c.name; });
+  audit_('UPDATE', ref, { row: rowIndex, by: user.email, changes: changes });
+  journal_('UPDATE', ref, rowToObject_(after));
+  markReportsDirty_();
+
+  const result = { ok: true, updated: true, changes: Object.keys(changes).length, record: recordFromRow_(after, rowIndex, true) };
+  if (submissionId) { try { cache.put('UPD_' + submissionId, JSON.stringify(result), 21600); } catch (e) { } }
+  return result;
+}
+
+function validateBill_(p, s, opts) {
+  opts = opts || {};
   const errs = [];
   const billDate = parseIsoDate_(p.billDate);
   const endToday = new Date(); endToday.setHours(23, 59, 59, 999);
@@ -652,7 +812,7 @@ function validateBill_(p, s) {
 
   const cat = categories_(true).filter(function (c) { return c.code === p.categoryCode; })[0];
   if (!cat) errs.push('Please choose an expense category.');
-  else if (!cat.active) errs.push('Category "' + cat.name + '" is archived. Restore it or choose another.');
+  else if (!cat.active && cat.code !== opts.currentCategoryCode) errs.push('Category "' + cat.name + '" is archived. Restore it or choose another.');
 
   const methods = getPaymentMethods_();
   const paymentMethod = clean_(p.paymentMethod, 60);
@@ -669,8 +829,9 @@ function validateBill_(p, s) {
 
   const nFiles = (p.files || []).length;
   const max = Number(s.MAX_FILES_PER_BILL) || 10;
-  if (toBool_(s.REQUIRE_ATTACHMENT) && nFiles === 0) errs.push('Please attach the bill photo, screenshot or PDF.');
-  if (nFiles > max) errs.push('A maximum of ' + max + ' files can be attached to one bill.');
+  const existing = opts.existingFiles || 0;
+  if (toBool_(s.REQUIRE_ATTACHMENT) && !opts.isEdit && nFiles + existing === 0) errs.push('Please attach the bill photo, screenshot or PDF.');
+  if (nFiles + existing > max) errs.push('A maximum of ' + max + ' files can be attached to one bill.');
 
   if (errs.length) throw new Error(errs.join('\n'));
   return {
@@ -743,7 +904,7 @@ function buildFileName_(ref, bill, i, count, f) {
     '_' + slug_(bill.vendor, 30) + part + '.' + ext;
 }
 
-function findDuplicates_(bill, hashes) {
+function findDuplicates_(bill, hashes, excludeRef) {
   const sh = sheet_(SHEET.BILLS);
   const n = sh.getLastRow() - 1;
   if (n < 1) return [];
@@ -751,7 +912,7 @@ function findDuplicates_(bill, hashes) {
   const norm = function (v) { return String(v || '').toLowerCase().replace(/[^a-z0-9]/g, ''); };
   const out = [];
   data.forEach(function (r) {
-    if (r[COL.STATUS - 1] === 'VOID' || !r[COL.REF - 1]) return;
+    if (r[COL.STATUS - 1] === 'VOID' || !r[COL.REF - 1] || r[COL.REF - 1] === excludeRef) return;
     const reasons = [];
     const rowHashes = String(r[COL.FILE_HASHES - 1] || '').split(/\s+/).filter(String);
     if (hashes.some(function (h) { return rowHashes.indexOf(h) >= 0; })) reasons.push('the same receipt image was already uploaded');
@@ -795,6 +956,8 @@ function voidSelectedBill() {
   const updated = sh.getRange(row, 1, 1, NCOLS).getValues()[0];
   audit_('VOID', ref, { row: row, reason: reason });
   journal_('VOID', ref, rowToObject_(updated));
+  markReportsDirty_();
+  try { refreshReports_(); } catch (e) { }
   toast_(ref + ' voided. Its receipt files are kept in Drive.');
 }
 
@@ -843,8 +1006,8 @@ function addCategory(input) {
     const maxNum = all.reduce(function (m, c) { return Math.max(m, parseInt(String(c.code).replace(/\D/g, ''), 10) || 0); }, 0);
     const code = 'CAT-' + pad_(maxNum + 1, 3);
     const now = new Date();
-    sheet_(SHEET.CATEGORIES).appendRow([code, name, group, budget, true, now, now, '']);
-    sheet_(SHEET.CATEGORIES).getRange(sheet_(SHEET.CATEGORIES).getLastRow(), 5).insertCheckboxes().setValue(true);
+    appendRowAt_(sheet_(SHEET.CATEGORIES), 1, [code, name, group, budget, true, now, now, ''], [5]);
+    markReportsDirty_();
     audit_('CATEGORY_ADD', code, { name: name, group: group, budget: budget });
     journal_('CATEGORY_ADD', code, { name: name, group: group, budget: budget });
     return { added: true, code: code, message: 'Category "' + name + '" added.' };
@@ -959,7 +1122,18 @@ function onBillsEdit(e) {
     const editor = (e.user && e.user.getEmail && e.user.getEmail()) || 'unknown (sheet edit)';
     const sh = e.range.getSheet();
     const name = sh.getName();
+    // Report period dropdowns: redraw the page straight away.
+    if (name === SHEET.SUMMARY) {
+      const a1 = e.range.getA1Notation();
+      if (a1 === 'C3' || a1 === 'D3') renderMonthlySummary_();
+      return;
+    }
+    if (name === SHEET.ANNUAL) {
+      if (e.range.getA1Notation() === 'C3') renderAnnualSummary_();
+      return;
+    }
     if (name === SHEET.CATEGORIES || name === SHEET.SETTINGS || name === SHEET.METHODS) {
+      markReportsDirty_();
       audit_('MANUAL_EDIT', name + '!' + e.range.getA1Notation(), { oldValue: e.oldValue, newValue: e.value }, editor);
       SETTINGS_CACHE_ = null;
       return;
@@ -1008,6 +1182,16 @@ function onBillsEdit(e) {
         }
       }
     });
+
+    // Stamp who corrected the row and when, and keep the row tidy.
+    const now = new Date();
+    rows.forEach(function (r, i) {
+      if (!r[COL.REF - 1]) return;
+      sh.getRange(first + i, COL.LAST_EDIT_BY, 1, 2).setValues([[editor, now]]);
+      r[COL.LAST_EDIT_BY - 1] = editor; r[COL.LAST_EDIT_AT - 1] = now;
+    });
+    styleBillRows_(sh, first, rows.length);
+    markReportsDirty_();
 
     audit_('MANUAL_EDIT', String(rows[0][COL.REF - 1] || ''), {
       range: e.range.getA1Notation(), oldValue: e.oldValue, newValue: e.value, rows: rows.length, autoFixes: fixes,
@@ -1076,7 +1260,7 @@ function setSetting_(key, value) {
   const sh = getOrCreateSheet_(SHEET.SETTINGS);
   const row = findRowByValue_(sh, 1, key);
   if (row) sh.getRange(row, 2).setValue(value);
-  else sh.appendRow([key, value, '']);
+  else appendRowAt_(sh, 1, [key, value, '']);
   SETTINGS_CACHE_ = null;
 }
 
@@ -1134,7 +1318,9 @@ function rowToObject_(row) {
 
 function styleHeader_(sh, n) { styleHeaderRange_(sh.getRange(1, 1, 1, n)); }
 function styleHeaderRange_(r) {
-  r.setFontWeight('bold').setBackground('#1f3864').setFontColor('#ffffff').setWrap(true).setVerticalAlignment('middle');
+  r.setFontWeight('bold').setBackground('#000000').setFontColor('#ffffff').setFontFamily('Arial').setFontSize(10)
+    .setWrap(true).setVerticalAlignment('middle')
+    .setBorder(true, true, true, true, true, true, '#000000', SpreadsheetApp.BorderStyle.SOLID);
 }
 
 function protectWarn_(sh, desc) {
@@ -1145,7 +1331,7 @@ function protectWarn_(sh, desc) {
 
 function currencyFormat_() {
   const sym = String(settings_().CURRENCY_SYMBOL || 'Rs.').replace(/"/g, '');
-  return '"' + sym + ' "#,##0.00;[Red]-"' + sym + ' "#,##0.00';
+  return '"' + sym + ' "#,##0.00;("' + sym + ' "#,##0.00)';
 }
 
 function colLetter_(n) {

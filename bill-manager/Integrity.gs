@@ -13,7 +13,7 @@
  *  6. Receipts            required receipt present; every file still exists in Drive, not in Trash,
  *                         and is named after its bill
  *  7. Completeness        every bill ever created (per the backup journal) is still in the ledger
- *  8. Control totals      ledger total vs the Monthly Summary
+ *  8. Reports             Monthly & Annual summaries redrawn from the ledger
  */
 
 const INTEGRITY_SHEET = 'Integrity Check';
@@ -35,7 +35,7 @@ function integrityCheck_() {
   const add = function (sev, ref, row, msg) { issues.push([sev, ref || '', row || '', msg]); };
 
   const sh = sheet_(SHEET.BILLS);
-  const n = sh.getLastRow() - 1;
+  const n = lastDataRow_(sh, COL.REF) - 1;
   const data = n > 0 ? sh.getRange(2, 1, n, NCOLS).getValues() : [];
   const cats = {};
   categories_(true).forEach(function (c) { cats[c.code] = c; });
@@ -137,25 +137,8 @@ function integrityCheck_() {
     add('WARNING', '', '', 'Could not read the backup journal: ' + e);
   }
 
-  // 8. Control total vs Monthly Summary (for the month shown there)
-  try {
-    const sum = ss_().getSheetByName(SHEET.SUMMARY);
-    if (sum) {
-      const month = sum.getRange('B3').getValue();
-      const shown = Number(sum.getRange('B5').getValue()) || 0;
-      if (month instanceof Date) {
-        let cents = 0;
-        data.forEach(function (r) {
-          const p = r[COL.PERIOD - 1];
-          if (r[COL.STATUS - 1] === 'ACTIVE' && p instanceof Date && p.getFullYear() === month.getFullYear() && p.getMonth() === month.getMonth())
-            cents += Math.round((Number(r[COL.TOTAL - 1]) || 0) * 100);
-        });
-        if (Math.round(shown * 100) !== cents) add('ERROR', '', '', 'Monthly Summary total (' + shown.toFixed(2) + ') ≠ ledger total (' + (cents / 100).toFixed(2) + ') — run "Rebuild reports"');
-      }
-    }
-  } catch (e) {
-    add('WARNING', '', '', 'Could not verify the Monthly Summary: ' + e);
-  }
+  // 8. Reports are redrawn from the ledger, so they always match it.
+  try { refreshReports_(); } catch (e) { add('WARNING', '', '', 'Could not refresh the summaries: ' + e); }
   if (filesSkipped) add('INFO', '', '', filesSkipped + ' receipt file(s) not checked this run (time limit); they are checked on the next run');
 
   const errors = issues.filter(function (x) { return x[0] === 'ERROR'; }).length;

@@ -24,12 +24,15 @@ function ensureUsersSheet_() {
   styleHeader_(sh, USER_HEADERS.length);
   sh.setFrozenRows(1);
   [260, 200, 100, 70, 145, 220, 145, 145].forEach(function (w, i) { sh.setColumnWidth(i + 1, w); });
-  sh.getRange('C2:C').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(ROLES, true).build());
-  sh.getRange('D2:D').insertCheckboxes();
-  sh.getRange('E2:E').setNumberFormat('dd/MM/yyyy HH:mm');
-  sh.getRange('G2:H').setNumberFormat('dd/MM/yyyy HH:mm');
+  // Repair: older versions put empty checkboxes down the whole column, which pushed new
+  // accounts to row 1001. Move all real rows back to the top and tidy the table.
+  compactTable_(sh, USER_HEADERS.length, [4]);
   const owner = ownerEmail_();
-  if (owner && !findUserRow_(owner)) sh.appendRow([owner, 'Owner', 'Admin', true, new Date(), 'setup', '', new Date()]);
+  if (owner && !findUserRow_(owner)) appendRowAt_(sh, 1, [owner, 'Owner', 'Admin', true, new Date(), 'setup', '', new Date()], [4]);
+  const n = Math.max(lastDataRow_(sh, 1) - 1, 1);
+  sh.getRange(2, 3, n, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(ROLES, true).build());
+  sh.getRange(2, 5, n, 1).setNumberFormat('dd/MM/yyyy HH:mm');
+  sh.getRange(2, 7, n, 2).setNumberFormat('dd/MM/yyyy HH:mm');
   protectWarn_(sh, 'Users — manage with Bill Manager → Manage users');
 }
 
@@ -146,8 +149,10 @@ function saveUser(input) {
       sh.getRange(rowOrig, 8).setValue(now);
       action = 'USER_UPDATE';
     } else {
-      sh.appendRow([email, name, role, active, now, me.email, '', now]);
-      sh.getRange(sh.getLastRow(), 4).insertCheckboxes().setValue(active);
+      const row = appendRowAt_(sh, 1, [email, name, role, active, now, me.email, '', now], [4]);
+      sh.getRange(row, 3).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(ROLES, true).build());
+      sh.getRange(row, 5).setNumberFormat('dd/MM/yyyy HH:mm');
+      sh.getRange(row, 7, 1, 2).setNumberFormat('dd/MM/yyyy HH:mm');
       action = 'USER_ADD';
     }
     const details = { email: email, previousEmail: original && original !== email ? original : undefined, name: name, role: role, active: active };

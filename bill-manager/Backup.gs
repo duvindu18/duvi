@@ -169,7 +169,7 @@ function rebuildFromJournal() {
   const n = jsh.getLastRow() - 1;
   if (n < 1) { ui.alert('The journal is empty.'); return; }
 
-  const billActions = ['CREATE', 'EDIT', 'VOID', 'CATEGORY_RENAME'];
+  const billActions = ['CREATE', 'EDIT', 'UPDATE', 'VOID', 'CATEGORY_RENAME'];
   const latest = {}, order = [];
   jsh.getRange(2, 1, n, JOURNAL_HEADERS.length).getValues().forEach(function (r) {
     if (billActions.indexOf(r[1]) < 0 || !r[2]) return;

@@ -18,6 +18,8 @@ function api_() {
     getFormData:            [getFormData,         'employee'],
     saveBill:               [saveBill,            'employee'],
     checkReceiptHashes:     [checkReceiptHashes,  'employee'],
+    listMyBills:            [listMyBills,         'employee'],   // own bills only (Admins: all)
+    updateBill:             [updateBill,          'employee'],   // own bills, within the edit window
     getCategories:          [getCategories,       'admin'],
     addCategory:            [addCategory,         'admin'],
     updateCategory:         [updateCategory,      'admin'],

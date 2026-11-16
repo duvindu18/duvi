@@ -7,13 +7,15 @@ You need    : a computer (Chrome recommended), the MAARAA owner Google
               account, and this zip file unpacked.
 
 The zip contains two folders:
-  1-Main-Bill-Manager   -> goes into the Google Sheet (12 files)
+  1-Main-Bill-Manager   -> goes into the Google Sheet (13 files)
   2-Entry-Link          -> goes into a separate Apps Script project (2 files)
 
 TIP: Open each file in Notepad, press Ctrl+A then Ctrl+C to copy all,
      then Ctrl+A then Ctrl+V in Apps Script to replace everything.
 
 Tick each box [ ] as you go.
+
+ALREADY INSTALLED AN EARLIER VERSION?  Skip to "UPGRADING" at the end.
 
 
 ---------------------------------------------------------------------
@@ -57,6 +59,7 @@ How to add a file in Apps Script:
             Users        <- paste Users.gs
             Backup       <- paste Backup.gs
             Integrity    <- paste Integrity.gs
+            Reports      <- paste Reports.gs
 
 [ ] 2.3  Add these HTML files (+ > HTML), names exactly as shown:
             Index            <- paste Index.html
@@ -78,7 +81,7 @@ How to add a file in Apps Script:
            "(GMT+05:30) Colombo".
 
 [ ] 2.5  Press Ctrl+S (or the disk icon) to save.
-         You should now see 11 files plus appsscript.json, and no red
+         You should now see 12 files plus appsscript.json, and no red
          error lines.
 
 
@@ -216,6 +219,63 @@ PART 9 - TEST BEFORE REAL USE  (10 minutes)
          > Void selected bill > reason "Test".
 [ ] 9.8  (Optional) In the "Settings" tab, put your e-mail in
          ALERT_EMAIL to be warned if a backup or integrity check fails.
+
+
+---------------------------------------------------------------------
+DAILY USE FOR THE ADMIN
+---------------------------------------------------------------------
+Monthly Summary tab
+   Pick the Month (C3) and Year (D3) from the dropdowns. The page
+   redraws in a few seconds and shows the totals, budget against
+   actual by category, payment methods, who recorded what, and every
+   bill of that month.
+Annual Summary tab
+   Pick the Year (C3). It shows every category for Jan-Dec, with
+   group subtotals and the grand total.
+Print / PDF (A4)
+   Bill Manager > Save Monthly Summary as PDF (A4) or Save Annual
+   Summary as PDF (A4 landscape). The PDF is saved in
+   Drive > MAARAA Bill Manager > Reports, and a link opens it.
+Correcting a bill in the sheet (Admin)
+   In the Bills tab, edit the white-header columns directly (date,
+   payee, category, description, method, amounts, status, remarks).
+   Grey-header columns (Ref No, Total, receipts, who and when) are
+   locked and filled in automatically. Total is recalculated, and
+   "Last Edited By / At" and the Audit Log record the change.
+Employees correcting their own bills
+   In the app, they open "My bills" > Edit, change the details (or add
+   a missing page), then tap "Save changes". They can only change their
+   own bills, for 30 days. Change the number of days with
+   EDIT_WINDOW_DAYS in the Settings tab.
+Summaries refresh automatically every 5 minutes, when the
+spreadsheet is opened, and whenever a dropdown changes.
+Bill Manager > Refresh summaries forces it immediately.
+
+
+---------------------------------------------------------------------
+UPGRADING AN EXISTING INSTALLATION
+---------------------------------------------------------------------
+Your bills, users and receipts are kept. Only the code changes.
+
+[ ] U.1  Open the spreadsheet > Extensions > Apps Script.
+[ ] U.2  Replace the contents of these files with the new versions
+         from 1-Main-Bill-Manager:
+            Code, Api, Users, Backup, Integrity,
+            Index, Styles, Common
+[ ] U.3  Add the NEW script file  Reports  (+ > Script) and paste
+         Reports.gs.
+[ ] U.4  Save (Ctrl+S). Choose "setup" in the function list > Run.
+         This repairs the Users and Categories tabs (accounts that went
+         to row 1001 move back to the top), applies the black & white
+         layout, locks the system columns and redraws both summaries.
+[ ] U.5  Deploy > Manage deployments > pencil (Edit) >
+         Version: New version > Deploy.
+[ ] U.6  In the "MAARAA Bills Entry" project, replace Gateway.gs with
+         the new version from 2-Entry-Link. Keep your BACKEND_URL line!
+         Save, then Deploy > Manage deployments > Edit > New version >
+         Deploy.
+[ ] U.7  Reload the spreadsheet. Open "Monthly Summary", pick a month,
+         and check the totals.
 
 
 ---------------------------------------------------------------------

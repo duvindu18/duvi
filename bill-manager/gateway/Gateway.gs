@@ -34,6 +34,8 @@ function doGet() {
 function getFormData()               { return call_('getFormData', []); }
 function saveBill(payload)           { return call_('saveBill', [payload]); }
 function checkReceiptHashes(hashes)  { return call_('checkReceiptHashes', [hashes]); }
+function listMyBills(limit)          { return call_('listMyBills', [limit]); }
+function updateBill(ref, payload)    { return call_('updateBill', [ref, payload]); }
 function getCategories(all)          { return call_('getCategories', [all]); }
 function addCategory(input)          { return call_('addCategory', [input]); }
 function updateCategory(code, input) { return call_('updateCategory', [code, input]); }

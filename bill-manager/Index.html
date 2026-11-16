@@ -60,10 +60,19 @@
       </div>
     </div>
 
+    <nav id="tabs" class="tabs hidden" aria-label="Views">
+      <button type="button" class="tab on" data-tab="new">New bill</button>
+      <button type="button" class="tab" data-tab="mine" id="tabMine">My bills</button>
+    </nav>
+
     <!-- ============================ ENTRY FORM ============================ -->
     <form id="billForm" class="hidden" novalidate autocomplete="off">
       <div class="hero">
-        <h1>Record a <span class="dim">bill.</span><br><span class="dim">Snap it,</span> file it.</h1>
+        <h1 id="formTitle">Record a <span class="dim">bill.</span><br><span class="dim">Snap it,</span> file it.</h1>
+        <div id="editBanner" class="edit-banner hidden">
+          <span>Editing <b id="editRef"></b>. The reference number stays the same and every change is logged.</span>
+          <button type="button" class="text-btn" id="cancelEdit">Cancel</button>
+        </div>
         <p class="lead" id="appSub">Reference number, renaming and backup are automatic.</p>
       </div>
 
@@ -82,6 +91,7 @@
           </div>
           <p class="hint">Drop or paste (Ctrl + V) photos, screenshots or PDFs. Several pages allowed.</p>
         </div>
+        <div id="existingFiles" class="existing hidden"></div>
         <div id="thumbs" class="thumbs"></div>
         <p class="hint">Saved as <code id="namePreview">BILL-YYYYMM-NNNN_Category_Date_Payee.jpg</code></p>
       </section>
@@ -125,7 +135,7 @@
       <div class="actions sticky-actions">
         <button type="button" class="text-btn" id="btnClear">Clear</button>
         <button type="submit" class="pill-btn" id="btnSave" title="Ctrl + Enter">
-          <span>Record bill</span>
+          <span id="saveLabel">Record bill</span>
           <span class="pill-ico"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         </button>
       </div>
@@ -135,7 +145,7 @@
     <div id="success" class="hidden">
       <div class="hero">
         <div class="tick"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        <h1>Recorded<span class="dim">.</span></h1>
+        <h1 id="sTitle">Recorded<span class="dim">.</span></h1>
         <div class="ref" id="sRef"></div>
         <div class="verified" id="sVerified"></div>
       </div>
@@ -147,6 +157,16 @@
           <span class="pill-ico"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
         </button>
       </div>
+    </div>
+
+    <!-- ============================ MY BILLS ============================ -->
+    <div id="mine" class="hidden">
+      <div class="hero">
+        <h1>My <span class="dim">bills.</span></h1>
+        <p class="lead" id="mineSub">Tap Edit to correct a bill you recorded.</p>
+      </div>
+      <input id="mineSearch" placeholder="Search payee, reference or category" aria-label="Search my bills">
+      <ul class="session" id="mineList"></ul>
     </div>
 
     <div id="sessionCard" class="hidden">
@@ -211,6 +231,9 @@
       chip.addEventListener('click', function () { alert('Signed in as ' + d.user.name + '\n' + d.user.email + '\nRole: ' + d.user.role); });
       $('btnCats').classList.toggle('hidden', !d.user.isAdmin);
       $('btnUsers').classList.toggle('hidden', !d.user.isAdmin);
+      $('sSheet').classList.toggle('hidden', !d.user.isAdmin);
+      $('tabMine').textContent = d.user.isAdmin ? 'All bills' : 'My bills';
+      $('tabs').classList.remove('hidden');
       $('attachReq').textContent = d.requireAttachment ? '' : '(optional)';
       $('attachReq').className = d.requireAttachment ? 'req' : 'muted';
       fillCategories(d.categories);
@@ -393,7 +416,7 @@
       const cat = sel.selectedIndex > 0 ? sel.options[sel.selectedIndex].text : 'Category';
       const d = $('billDate').value || state.data.today;
       const slug = function (s) { return String(s || '').replace(/[^\w\s-]/g, '').trim().replace(/[\s_-]+/g, '-').slice(0, 30) || 'NA'; };
-      $('namePreview').textContent = state.data.refPrefix + '-' + d.slice(0, 7).replace('-', '') + '-NNNN_' + slug(cat) + '_' + d + '_' + slug($('vendor').value || 'Payee') + '.jpg';
+      $('namePreview').textContent = (state.editRef || (state.data.refPrefix + '-' + d.slice(0, 7).replace('-', '') + '-NNNN')) + '_' + slug(cat) + '_' + d + '_' + slug($('vendor').value || 'Payee') + '.jpg';
     }
     ['amount', 'tax'].forEach(function (id) {
       $(id).addEventListener('input', updateTotal);
@@ -422,6 +445,13 @@
       if (state.data.methods.indexOf(lastMethod) >= 0) $('method').value = lastMethod;
       else if (state.data.methods.indexOf('Cash') >= 0) $('method').value = 'Cash';
       state.submissionId = null;
+      state.editRef = null; state.editRec = null;
+      $('formTitle').innerHTML = 'Record a <span class="dim">bill.</span><br><span class="dim">Snap it,</span> file it.';
+      $('editBanner').classList.add('hidden');
+      $('existingFiles').classList.add('hidden');
+      $('appSub').classList.remove('hidden');
+      $('btnClear').classList.remove('hidden');
+      $('saveLabel').textContent = 'Record bill';
       $('amountLabel').textContent = 'Amount excl. tax (' + state.data.currency + ')';
       document.querySelectorAll('.invalid').forEach(function (n) { n.classList.remove('invalid'); });
       hideError();
@@ -442,7 +472,7 @@
       if (isNaN(a) || a <= 0) { errs.push('Amount must be a number greater than zero, with at most 2 decimals.'); $('amount').classList.add('invalid'); }
       if ($('tax').value.trim() && isNaN(parseAmount($('tax').value))) { errs.push('Tax must be a number.'); $('tax').classList.add('invalid'); }
       if ($('billDate').value > state.data.today) { errs.push('Bill date cannot be in the future.'); $('billDate').classList.add('invalid'); }
-      if (state.data.requireAttachment && !state.files.length) { errs.push('Please attach the bill photo, screenshot or PDF.'); $('drop').classList.add('invalid'); }
+      if (state.data.requireAttachment && !state.files.length && !(state.editRec && state.editRec.files.length)) { errs.push('Please attach the bill photo, screenshot or PDF.'); $('drop').classList.add('invalid'); }
       return errs;
     }
 
@@ -469,18 +499,21 @@
     });
 
     function send() {
-      busy('Uploading & recording…');
+      const editing = state.editRef;
+      busy(editing ? 'Saving changes…' : 'Uploading & recording…');
       $('btnSave').disabled = true;
-      run('saveBill', state.lastPayload).then(function (res) {
+      const call = editing ? run('updateBill', editing, state.lastPayload) : run('saveBill', state.lastPayload);
+      call.then(function (res) {
         busy(''); $('btnSave').disabled = false;
         if (res.duplicate) { showDuplicates(res.matches); return; }
         try { localStorage.setItem('bm.method', state.lastPayload.paymentMethod); } catch (e) {}
         state.submissionId = null;
-        showSuccess(res.record, res.alreadyRecorded);
+        state.mineLoaded = false;
+        showSuccess(res.record, res.alreadyRecorded, editing ? res.changes : null);
       }).catch(function (e) {
         busy(''); $('btnSave').disabled = false;
-        // The same submission ID is kept, so pressing "Record bill" again can never create a second copy.
-        showError(e.message + '\n\nYou can safely press "Record bill" again.');
+        // The same submission ID is kept, so pressing the button again can never create a second copy.
+        showError(e.message + '\n\nYou can safely press "' + (editing ? 'Save changes' : 'Record bill') + '" again.');
       });
     }
 
@@ -500,11 +533,15 @@
     });
 
     // ------------------------------------------------------------ success view
-    function showSuccess(r, already) {
+    function showSuccess(r, already, changes) {
       const cur = state.data.currency;
+      const isUpdate = changes != null;
+      $('sTitle').innerHTML = (isUpdate ? 'Updated' : 'Recorded') + '<span class="dim">.</span>';
       $('sRef').textContent = r.ref;
       $('sVerified').textContent = already ? 'This bill was already recorded — no duplicate was created.'
+        : isUpdate ? '✓ ' + (changes ? changes + ' change(s) saved and verified' : 'No changes were needed') + ' · logged under ' + state.data.user.email
         : (r.verified ? '✓ Verified: sheet row ' + r.row + ' and ' + r.files.length + ' file(s) checked in Drive' : '');
+      state.editRef = null; state.editRec = null;
       const t = $('sTable'); t.innerHTML = '';
       const row = function (k, v) { if (v === '' || v == null) return; t.appendChild(el('tr', {}, [el('th', { text: k }), el('td', {}, [v])])); };
       row('Bill date', r.billDate + '  (' + r.period + ')');
@@ -527,6 +564,7 @@
       row('Recorded at', r.recordedAt);
       $('sSheet').href = r.sheetUrl;
 
+      state.session = state.session.filter(function (x) { return x.ref !== r.ref; });
       state.session.unshift(r);
       const ul = $('sessionList'); ul.innerHTML = '';
       state.session.forEach(function (s) {
@@ -547,15 +585,107 @@
       if (r.project && state.data.projects.indexOf(r.project) < 0) { state.data.projects.push(r.project); fillDatalist($('projectList'), state.data.projects); }
 
       $('billForm').classList.add('hidden');
+      $('mine').classList.add('hidden');
       $('success').classList.remove('hidden');
       window.scrollTo(0, 0);
     }
 
-    $('btnAnother').addEventListener('click', function () {
-      resetForm();
+    // ------------------------------------------------------------ tabs & my bills
+    document.querySelectorAll('#tabs .tab').forEach(function (b) {
+      b.addEventListener('click', function () { showTab(b.getAttribute('data-tab')); });
+    });
+
+    function showTab(name) {
+      document.querySelectorAll('#tabs .tab').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-tab') === name); });
       $('success').classList.add('hidden');
+      $('billForm').classList.toggle('hidden', name !== 'new');
+      $('mine').classList.toggle('hidden', name !== 'mine');
+      $('sessionCard').classList.toggle('hidden', name !== 'new' || !state.session.length);
+      if (name === 'mine') loadMine();
+      window.scrollTo(0, 0);
+    }
+
+    function loadMine() {
+      const ul = $('mineList');
+      if (!state.mineLoaded) ul.innerHTML = '<li class="muted">Loading…</li>';
+      run('listMyBills', 100).then(function (list) {
+        state.mine = list; state.mineLoaded = true; renderMine();
+      }).catch(function (e) { ul.innerHTML = ''; ul.appendChild(el('li', { class: 'muted', text: e.message })); });
+    }
+
+    function renderMine() {
+      const cur = state.data.currency, q = $('mineSearch').value.trim().toLowerCase();
+      const ul = $('mineList'); ul.innerHTML = '';
+      const list = (state.mine || []).filter(function (b) {
+        return !q || (b.ref + ' ' + b.vendor + ' ' + b.category + ' ' + b.description).toLowerCase().indexOf(q) >= 0;
+      });
+      $('mineSub').textContent = state.data.user.isAdmin
+        ? 'Latest bills from everyone. Tap Edit to correct one; every change is logged.'
+        : 'Bills you recorded. You can correct them for ' + (state.data.editWindowDays || 30) + ' days; every change is logged.';
+      if (!list.length) { ul.appendChild(el('li', { class: 'muted', text: q ? 'No match.' : 'No bills yet.' })); return; }
+      list.forEach(function (b) {
+        const meta = [el('b', { text: b.ref }), ' ' + b.billDate];
+        if (state.data.user.isAdmin && b.recordedByName) meta.push(' · ' + b.recordedByName);
+        if (b.status === 'VOID') meta.push(' · VOID');
+        else if (b.paymentStatus !== 'Paid') meta.push(' · ' + b.paymentStatus);
+        if (b.lastEditBy) meta.push(' · edited');
+        ul.appendChild(el('li', { class: b.status === 'VOID' ? 'void' : '' }, [
+          el('div', { class: 'tile', text: (b.category || '?').slice(0, 2).toUpperCase() }),
+          el('div', { class: 'grow' }, [el('div', { class: 'ttl', text: b.vendor + ' · ' + b.category }), el('div', { class: 'meta' }, meta)]),
+          el('div', { class: 'right' }, [
+            el('div', { class: 'amt', text: money(b.total, cur) }),
+            b.editable ? el('button', { type: 'button', class: 'mini-btn', text: 'Edit', onclick: function () { startEdit(b); } })
+                       : el('div', { class: 'lock', title: b.lockReason, text: '🔒 ' + (b.status === 'VOID' ? 'Void' : 'Locked') }),
+          ]),
+        ]));
+      });
+    }
+    $('mineSearch').addEventListener('input', renderMine);
+
+    function startEdit(b) {
+      resetForm();
+      state.editRef = b.ref; state.editRec = b;
+      const sel = $('category');
+      if (!sel.querySelector('option[value="' + b.categoryCode + '"]')) sel.appendChild(el('option', { value: b.categoryCode, text: b.category + ' (archived)' }));
+      $('billDate').value = b.iso.billDate;
+      sel.value = b.categoryCode;
+      $('vendor').value = b.vendor || '';
+      $('invoiceNo').value = b.invoiceNo || '';
+      $('description').value = String(b.description || '').replace(/^'/, '');
+      $('project').value = b.project || '';
+      if (state.data.methods.indexOf(b.paymentMethod) < 0) $('method').appendChild(el('option', { value: b.paymentMethod, text: b.paymentMethod }));
+      $('method').value = b.paymentMethod;
+      $('paymentRef').value = b.paymentRef || '';
+      $('amount').value = Number(b.amount).toFixed(2);
+      $('tax').value = b.tax ? Number(b.tax).toFixed(2) : '';
+      $('payStatus').value = b.paymentStatus || 'Paid';
+      $('dueDate').value = b.iso.dueDate || '';
+      $('remarks').value = b.remarks || '';
+      $('formTitle').innerHTML = 'Edit <span class="dim">bill.</span>';
+      $('editRef').textContent = b.ref;
+      $('editBanner').classList.remove('hidden');
+      $('appSub').classList.add('hidden');
+      $('btnClear').classList.add('hidden');
+      $('saveLabel').textContent = 'Save changes';
+      const ex = $('existingFiles'); ex.innerHTML = '';
+      if (b.files.length) {
+        ex.appendChild(el('div', { class: 'small muted', text: 'Already attached (kept). Add more pages below if needed:' }));
+        ex.appendChild(el('ul', { class: 'files' }, b.files.map(function (f) {
+          return el('li', {}, [f.url ? el('a', { href: f.url, target: '_blank', rel: 'noopener', text: f.name }) : f.name]);
+        })));
+        ex.classList.remove('hidden');
+      }
+      updateTotal(); updatePaymentFields(); updateNamePreview();
+      document.querySelectorAll('#tabs .tab').forEach(function (t) { t.classList.toggle('on', t.getAttribute('data-tab') === 'new'); });
+      $('mine').classList.add('hidden'); $('success').classList.add('hidden'); $('sessionCard').classList.add('hidden');
       $('billForm').classList.remove('hidden');
       window.scrollTo(0, 0);
+    }
+    $('cancelEdit').addEventListener('click', function () { resetForm(); showTab('mine'); });
+
+    $('btnAnother').addEventListener('click', function () {
+      resetForm();
+      showTab('new');
     });
 
     // ------------------------------------------------------------ categories

@@ -266,6 +266,21 @@
   .cm-edit { display: grid; grid-template-columns: 2fr 1.5fr 1fr; gap: 8px; width: 100%; }
   @media (max-width: 640px) { .cm-edit { grid-template-columns: 1fr; } }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--field); color: var(--muted); margin-left: 6px; }
+  /* ------------------------------------------------------------------ tabs / my bills / edit */
+  .tabs { display: inline-flex; gap: 4px; padding: 4px; margin-top: 18px; border-radius: 999px; background: var(--field); }
+  .tab { border: 0; background: transparent; color: var(--muted); font-weight: 600; font-size: 15px; padding: 10px 18px; border-radius: 999px; }
+  .tab.on { background: var(--btn); color: var(--btn-ink); }
+  .edit-banner { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: var(--field); border-radius: 14px; padding: 12px 16px; margin-top: 14px; font-size: 14.5px; }
+  .existing { margin-top: 16px; padding: 12px 14px; border-radius: 14px; background: var(--field); }
+  .existing .files { margin-top: 6px; }
+  #mineSearch { margin: 4px 0 8px; }
+  ul.session .right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  ul.session li.void { opacity: .5; }
+  ul.session li.void .ttl { text-decoration: line-through; }
+  .mini-btn { border: 0; border-radius: 999px; padding: 6px 14px; font-weight: 600; font-size: 13px; background: var(--btn); color: var(--btn-ink); cursor: pointer; }
+  .lock { font-size: 12px; color: var(--muted); }
+
   /* ------------------------------------------------------------------ user manager */
   .um-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end; background: var(--surface); padding: 16px; border-radius: var(--radius); }
   .um-form .full { grid-column: 1 / -1; }
