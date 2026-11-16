@@ -26,6 +26,7 @@ A receipt-first expense register built on Google Sheets + Google Drive.
    | `Code` | Script | `Code.gs` |
    | `Backup` | Script | `Backup.gs` |
    | `Integrity` | Script | `Integrity.gs` |
+   | `Users` | Script | `Users.gs` |
    | `Index` | HTML | `Index.html` |
    | `Styles` | HTML | `Styles.html` |
    | `Common` | HTML | `Common.html` |
@@ -41,10 +42,16 @@ A receipt-first expense register built on Google Sheets + Google Drive.
    * a separate spreadsheet **"MAARAA Bills — Backup Journal"**
    * a nightly backup at about 2 AM, plus the audit triggers
 4. Reload the spreadsheet. A **🧾 Bill Manager** menu appears. You can already record bills from it.
-5. **For phone use**, deploy the web app: **Deploy → New deployment → type "Web app"** →
-   *Execute as: Me*, *Who has access: Only myself*. If staff also enter bills, choose *Anyone within your
-   organisation* instead. Open the URL on your phone and choose **Add to Home screen**.
-   Menu → **🔗 Show web app link** shows the URL again later.
+5. **Deploy the web app.** Choose **Deploy → New deployment → type "Web app"** with these settings:
+   * **Execute as: User accessing the web app**
+   * **Who has access: Anyone with Google account**
+
+   These two settings are what *force a Google sign-in* and let the system read each person's real account.
+   No one is let in unless an Admin approved their account (step 6).
+   Open the URL on your phone and choose **Add to Home screen**. Menu → **🔗 Show web app link** shows it again later.
+6. **Add your staff.** Use menu → **👥 Users & access → Add user…**, then enter their Google e-mail, their name, and Admin or Staff.
+   This adds them to the `Users` tab and shares the spreadsheet and the receipts folder with them.
+   The first time each person opens the link, Google asks them to sign in and approve the app once.
 
 > Re-running `setup` (menu → ⚙️ Setup / repair) is safe. It only adds what is missing and never deletes data.
 
@@ -117,7 +124,28 @@ You can rename or remove any of them.
 
 ---
 
-## 4. Speed and 100 % precise tracking
+## 4. Sign-in and who-entered-what
+
+* **Google sign-in is compulsory.** The web app cannot be opened without signing in to a Google account.
+* **Only approved accounts get in.** Accounts that are not Active in the `Users` tab see an *Access needed*
+  screen with the account they are signed in as and a *Use another account* button. Nothing is recorded.
+* **Identity comes from Google, not from the form.** Each bill stores **Recorded By (Google Account)**
+  and **Recorded By (Name)**. The name is taken from the Users tab, and nobody can type in someone else's name.
+  The confirmation screen shows "Recorded by Kasun Perera · kasun@gmail.com".
+* **Roles.** *Staff* can record bills. *Admin* can also manage categories, void bills and add or remove users.
+  The owner (the account that ran setup) is always Admin.
+* **Audit trail.** Every save, void, category change, user change and manual sheet edit is written to the
+  `Audit Log` with the Google account that did it. The nightly integrity check flags any bill without an account.
+* **Removing someone** (👥 Users & access → Remove a user's access…) takes away their sign-in and sharing.
+  The bills they already recorded keep their name.
+
+> Note: because the app runs as the signed-in person, receipt files they upload are owned by their account
+> (inside your shared folder). The nightly integrity check reports any receipt that is later deleted or moved,
+> and Drive Trash keeps it for 30 days.
+
+---
+
+## 5. Speed and 100 % precise tracking
 
 **Quick and smooth**
 * Photos are compressed and fingerprinted **the moment they are attached**, so pressing *Record bill* only uploads.
@@ -141,7 +169,7 @@ month, and compare the "Cash"/"Bank Transfer" totals with your petty-cash book a
 
 ---
 
-## 5. Backup & recovery
+## 6. Backup & recovery
 
 | Layer | What | Where |
 |---|---|---|
@@ -161,7 +189,7 @@ Tips: set `ALERT_EMAIL` in Settings to be e-mailed if a nightly backup fails. Fo
 
 ---
 
-## 6. Moving your existing entries
+## 7. Moving your existing entries
 
 Copy your old rows into `Bills` under the matching headers. Give each one a reference number in the same format
 (e.g. `BILL-202607-0001`), set `Record Status` = `ACTIVE`, and set `Period` = the first day of the bill's month.

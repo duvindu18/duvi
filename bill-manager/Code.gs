@@ -32,6 +32,7 @@ const SHEET = {
   METHODS: 'Payment Methods',
   AUDIT: 'Audit Log',
   SETTINGS: 'Settings',
+  USERS: 'Users',
 };
 
 /** Ledger columns: [key, header, width]. Order = column order in the sheet. */
@@ -59,7 +60,8 @@ const BILL_COLUMNS = [
   ['FILE_IDS',    'Attachment File IDs',          200],
   ['FILE_HASHES', 'File Fingerprints',            160],
   ['STATUS',      'Record Status',                105],
-  ['RECORDED_BY', 'Recorded By',                  180],
+  ['RECORDED_BY', 'Recorded By (Google Account)', 220],
+  ['RECORDED_BY_NAME', 'Recorded By (Name)',      160],
   ['RECORDED_AT', 'Recorded At',                  145],
   ['VOID_NOTE',   'Void Reason / Notes',          220],
   ['SUBMISSION_ID', 'Submission ID',              120],
@@ -125,12 +127,14 @@ const DEFAULT_SETTINGS = [
 function setup() {
   const ss = ss_();
   PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', ss.getId());
+  ownerEmail_();
 
   ensureSettingsSheet_();
   ensureBillsSheet_();
   ensureCategoriesSheet_();
   ensureMethodsSheet_();
   ensureAuditSheet_();
+  ensureUsersSheet_();
   buildSummarySheet();
   buildAnnualSheet();
 
@@ -387,6 +391,10 @@ function onOpen() {
       .addItem('Restore Bills from latest snapshot (as new tab)', 'restoreFromLatestSnapshot')
       .addItem('Rebuild Bills from live journal (as new tab)', 'rebuildFromJournal')
       .addItem('Open backup folder', 'openBackupFolder'))
+    .addSubMenu(ui.createMenu('👥 Users & access')
+      .addItem('Add user…', 'addUserPrompt')
+      .addItem('Remove a user\'s access…', 'deactivateUserPrompt')
+      .addItem('Open Users tab', 'openUsersSheet'))
     .addItem('🔗 Show web app link / receipts folder', 'showLinks')
     .addSeparator()
     .addItem('⚙️ Setup / repair', 'setup')
@@ -395,6 +403,15 @@ function onOpen() {
 
 /** Web app entry point (Deploy → New deployment → Web app). */
 function doGet() {
+  let email = '';
+  try { email = Session.getActiveUser().getEmail(); } catch (e) { }
+  if (!email) {
+    return HtmlService.createHtmlOutput('<div style="font:16px system-ui;padding:40px;max-width:520px">' +
+      '<h1 style="font-size:40px;letter-spacing:-1px">Sign in required.</h1>' +
+      '<p>MAARAA Bills records who enters every bill, so you must open this page signed in to your Google account.</p>' +
+      '<p><a href="https://accounts.google.com/ServiceLogin" target="_top">Sign in with Google</a></p></div>')
+      .setTitle('Sign in required');
+  }
   return HtmlService.createTemplateFromFile('Index').evaluate()
     .setTitle((settings_().COMPANY_NAME || '') + ' Bill Manager')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
@@ -436,6 +453,8 @@ function showLinks() {
 // ======================== DATA FOR THE ENTRY FORM ===========================
 
 function getFormData() {
+  const u = currentUser_();          // sign-in + approved-user check
+  touchLastSeen_(u);
   const s = settings_();
   return {
     company: s.COMPANY_NAME || '',
@@ -444,12 +463,12 @@ function getFormData() {
     requireAttachment: toBool_(s.REQUIRE_ATTACHMENT),
     maxFiles: Number(s.MAX_FILES_PER_BILL) || 10,
     today: Utilities.formatDate(new Date(), tz_(), 'yyyy-MM-dd'),
-    categories: getCategories(false),
+    categories: categories_(false),
     methods: getPaymentMethods_(),
     statuses: PAY_STATUSES,
     vendors: recentDistinct_(COL.VENDOR, 300),
     projects: recentDistinct_(COL.PROJECT, 150),
-    user: userEmail_(),
+    user: { email: u.email, name: u.name, role: u.role, isAdmin: u.role === 'Admin' },
   };
 }
 
@@ -493,6 +512,7 @@ function recentDistinct_(col, limit) {
  */
 function saveBill(payload) {
   payload = payload || {};
+  const user = currentUser_();       // identity always comes from Google, never from the form
   const s = settings_();
   const submissionId = /^[A-Za-z0-9-]{8,64}$/.test(payload.submissionId || '') ? payload.submissionId : '';
   const cache = CacheService.getScriptCache();
@@ -539,7 +559,7 @@ function saveBill(payload) {
       created.push({ id: file.getId(), name: name, url: file.getUrl(), hash: f.hash, mimeType: f.mimeType, size: f.bytes.length });
     });
 
-    row = buildRow_(ref, bill, created, submissionId);
+    row = buildRow_(ref, bill, created, submissionId, user);
     rowIndex = sh.getLastRow() + 1;
     sh.getRange(rowIndex, 1, 1, NCOLS).setValues([row]);
     if (created.length) {
@@ -582,6 +602,7 @@ function verifySavedBill_(sh, rowIndex, ref, bill, created) {
   if (!eqMoney(back[COL.TOTAL - 1], bill.total)) problems.push('total');
   if (back[COL.CAT_CODE - 1] !== bill.categoryCode) problems.push('category');
   if (String(back[COL.VENDOR - 1]) !== bill.vendor) problems.push('payee');
+  if (!back[COL.RECORDED_BY - 1]) problems.push('recorded-by account');
   if (back[COL.STATUS - 1] !== 'ACTIVE') problems.push('status');
   created.forEach(function (c) {
     const f = DriveApp.getFileById(c.id);
@@ -606,7 +627,7 @@ function recordFromRow_(v, rowIndex, verified) {
     paymentStatus: v[COL.PAY_STATUS - 1], dueDate: due instanceof Date ? fmtDate_(due) : '',
     remarks: v[COL.REMARKS - 1],
     files: names.map(function (n, i) { return { name: n, url: links[i] || '' }; }),
-    recordedBy: v[COL.RECORDED_BY - 1],
+    recordedBy: v[COL.RECORDED_BY - 1], recordedByName: v[COL.RECORDED_BY_NAME - 1],
     recordedAt: v[COL.RECORDED_AT - 1] instanceof Date ? Utilities.formatDate(v[COL.RECORDED_AT - 1], tz_(), 'dd/MM/yyyy HH:mm') : '',
     sheetUrl: ss_().getUrl() + '#gid=' + sheet_(SHEET.BILLS).getSheetId() + '&range=A' + rowIndex,
   };
@@ -614,6 +635,7 @@ function recordFromRow_(v, rowIndex, verified) {
 
 /** Called by the form as soon as a file is attached: warns early if this exact image is already recorded. */
 function checkReceiptHashes(hashes) {
+  currentUser_();
   hashes = (hashes || []).filter(function (h) { return /^[0-9a-f]{64}$/.test(h); });
   if (!hashes.length) return [];
   const sh = sheet_(SHEET.BILLS);
@@ -643,7 +665,7 @@ function validateBill_(p, s) {
   const description = clean_(p.description, 1000);
   if (!description) errs.push('Description is required.');
 
-  const cat = getCategories(true).filter(function (c) { return c.code === p.categoryCode; })[0];
+  const cat = categories_(true).filter(function (c) { return c.code === p.categoryCode; })[0];
   if (!cat) errs.push('Please choose an expense category.');
   else if (!cat.active) errs.push('Category "' + cat.name + '" is archived. Restore it or choose another.');
 
@@ -675,7 +697,7 @@ function validateBill_(p, s) {
   };
 }
 
-function buildRow_(ref, b, files, submissionId) {
+function buildRow_(ref, b, files, submissionId, user) {
   const row = new Array(NCOLS).fill('');
   const set = function (k, v) { row[COL[k] - 1] = v; };
   set('REF', ref);
@@ -701,7 +723,8 @@ function buildRow_(ref, b, files, submissionId) {
   set('FILE_IDS', files.map(function (f) { return f.id; }).join('\n'));
   set('FILE_HASHES', files.map(function (f) { return f.hash; }).join('\n'));
   set('STATUS', 'ACTIVE');
-  set('RECORDED_BY', userEmail_());
+  set('RECORDED_BY', user.email);
+  set('RECORDED_BY_NAME', user.name);
   set('RECORDED_AT', new Date());
   set('SUBMISSION_ID', submissionId || '');
   return row;
@@ -765,6 +788,7 @@ function findDuplicates_(bill, hashes) {
 /** Accounting rule: never delete a recorded bill — void it with a reason (keeps the number sequence intact). */
 function voidSelectedBill() {
   const ui = SpreadsheetApp.getUi();
+  try { requireAdmin_(); } catch (e) { ui.alert(e.message); return; }
   const sh = SpreadsheetApp.getActiveSheet();
   if (sh.getName() !== SHEET.BILLS) { ui.alert('Select a row on the "' + SHEET.BILLS + '" sheet first.'); return; }
   const row = sh.getActiveRange().getRow();
@@ -793,6 +817,11 @@ function voidSelectedBill() {
 
 /** Returns categories. includeInactive=true also returns archived ones and usage counts (for the manager). */
 function getCategories(includeInactive) {
+  currentUser_();
+  return categories_(includeInactive);
+}
+
+function categories_(includeInactive) {
   const sh = sheet_(SHEET.CATEGORIES);
   const n = sh.getLastRow() - 1;
   if (n < 1) return [];
@@ -809,6 +838,7 @@ function getCategories(includeInactive) {
 }
 
 function addCategory(input) {
+  requireAdmin_();
   return withLock_(function () {
     const name = clean_(input && input.name, 80);
     if (!name) throw new Error('Category name is required.');
@@ -816,7 +846,7 @@ function addCategory(input) {
     const budget = input.budget === '' || input.budget == null ? '' : parseMoney_(input.budget);
     if (budget === null || (budget !== '' && budget < 0)) throw new Error('Budget must be a positive number or blank.');
 
-    const all = getCategories(true);
+    const all = categories_(true);
     const clash = all.filter(function (c) { return c.name.toLowerCase() === name.toLowerCase(); })[0];
     if (clash) {
       if (clash.active) throw new Error('A category named "' + clash.name + '" already exists.');
@@ -838,12 +868,13 @@ function addCategory(input) {
 
 /** Edit name / group / budget. A rename is applied to every existing bill so reports stay consistent. */
 function updateCategory(code, input) {
+  requireAdmin_();
   return withLock_(function () {
-    const cat = getCategories(true).filter(function (c) { return c.code === code; })[0];
+    const cat = categories_(true).filter(function (c) { return c.code === code; })[0];
     if (!cat) throw new Error('Category not found.');
     const name = clean_(input.name, 80);
     if (!name) throw new Error('Category name is required.');
-    const clash = getCategories(true).filter(function (c) { return c.code !== code && c.name.toLowerCase() === name.toLowerCase(); })[0];
+    const clash = categories_(true).filter(function (c) { return c.code !== code && c.name.toLowerCase() === name.toLowerCase(); })[0];
     if (clash) throw new Error('Another category is already named "' + clash.name + '".');
     const budget = input.budget === '' || input.budget == null ? '' : parseMoney_(input.budget);
     if (budget === null || (budget !== '' && budget < 0)) throw new Error('Budget must be a positive number or blank.');
@@ -879,8 +910,9 @@ function updateCategory(code, input) {
 
 /** Unused categories are deleted; categories with bills are archived (hidden from the form, history kept). */
 function deleteCategory(code) {
+  requireAdmin_();
   return withLock_(function () {
-    const cat = getCategories(true).filter(function (c) { return c.code === code; })[0];
+    const cat = categories_(true).filter(function (c) { return c.code === code; })[0];
     if (!cat) throw new Error('Category not found.');
     if (cat.usage > 0) {
       setCategoryFields_(code, { active: false });
@@ -898,6 +930,7 @@ function deleteCategory(code) {
 }
 
 function restoreCategory(code) {
+  requireAdmin_();
   return withLock_(function () {
     setCategoryFields_(code, { active: true });
     audit_('CATEGORY_RESTORE', code, {});
@@ -938,10 +971,11 @@ function categoryUsage_() {
 function onBillsEdit(e) {
   try {
     if (!e || !e.range) return;
+    const editor = (e.user && e.user.getEmail && e.user.getEmail()) || 'unknown (sheet edit)';
     const sh = e.range.getSheet();
     const name = sh.getName();
     if (name === SHEET.CATEGORIES || name === SHEET.SETTINGS || name === SHEET.METHODS) {
-      audit_('MANUAL_EDIT', name + '!' + e.range.getA1Notation(), { oldValue: e.oldValue, newValue: e.value });
+      audit_('MANUAL_EDIT', name + '!' + e.range.getA1Notation(), { oldValue: e.oldValue, newValue: e.value }, editor);
       SETTINGS_CACHE_ = null;
       return;
     }
@@ -957,7 +991,7 @@ function onBillsEdit(e) {
 
     if (touched('REF')) fixes.push('WARNING: reference number edited by hand');
     const catByName = {};
-    if (touched('CATEGORY')) getCategories(true).forEach(function (c) { catByName[c.name.toLowerCase()] = c; });
+    if (touched('CATEGORY')) categories_(true).forEach(function (c) { catByName[c.name.toLowerCase()] = c; });
 
     rows.forEach(function (r, i) {
       if (!r[COL.REF - 1]) return;
@@ -992,7 +1026,7 @@ function onBillsEdit(e) {
 
     audit_('MANUAL_EDIT', String(rows[0][COL.REF - 1] || ''), {
       range: e.range.getA1Notation(), oldValue: e.oldValue, newValue: e.value, rows: rows.length, autoFixes: fixes,
-    });
+    }, editor);
     journalMany_(rows.filter(function (r) { return r[COL.REF - 1]; })
       .map(function (r) { return ['EDIT', r[COL.REF - 1], rowToObject_(r)]; }));
     if (fixes.length) toast_(fixes.slice(0, 3).join(' · '));
@@ -1088,11 +1122,11 @@ function monthFolder_(date) {
   return childFolder_(year, Utilities.formatDate(date, tz_(), 'MM - MMMM'));
 }
 
-function audit_(action, ref, details) {
+function audit_(action, ref, details, who) {
   try {
     const sh = ss_().getSheetByName(SHEET.AUDIT);
     if (!sh) return;
-    sh.appendRow([new Date(), userEmail_(), action, ref || '', JSON.stringify(details || {})]);
+    sh.appendRow([new Date(), who || userEmail_(), action, ref || '', JSON.stringify(details || {})]);
   } catch (err) {
     console.error('audit_: ' + err);
   }
@@ -1140,7 +1174,9 @@ function fmtDate_(d) { return Utilities.formatDate(d, tz_(), 'dd/MM/yyyy'); }
 function pad_(n, w) { return String(n).padStart(w, '0'); }
 function round2_(n) { return Math.round(n * 100) / 100; }
 function toBool_(v) { return v === true || String(v).toUpperCase() === 'TRUE'; }
+/** Best-known identity for logging (the verified signed-in user when available). */
 function userEmail_() {
+  if (CURRENT_USER_) return CURRENT_USER_.email;
   try { return Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail() || 'unknown'; } catch (e) { return 'unknown'; }
 }
 

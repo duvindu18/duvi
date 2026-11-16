@@ -38,7 +38,7 @@ function integrityCheck_() {
   const n = sh.getLastRow() - 1;
   const data = n > 0 ? sh.getRange(2, 1, n, NCOLS).getValues() : [];
   const cats = {};
-  getCategories(true).forEach(function (c) { cats[c.code] = c; });
+  categories_(true).forEach(function (c) { cats[c.code] = c; });
   const requireReceipt = toBool_(s.REQUIRE_ATTACHMENT);
   const refRe = /^([A-Z0-9]+)-(\d{6})-(\d{4,})$/;
 
@@ -84,6 +84,9 @@ function integrityCheck_() {
       if (m && m[2] !== Utilities.formatDate(d, tz_(), 'yyyyMM'))
         add('INFO', ref, rowNo, 'Bill Date was changed to another month after recording (reference month ' + m[2] + ')');
     }
+
+    // 4b. Who entered it
+    if (!String(r[COL.RECORDED_BY - 1] || '').includes('@')) add('WARNING', ref, rowNo, 'No Google account recorded for the person who entered this bill');
 
     // 4. Category
     const code = String(r[COL.CAT_CODE - 1] || '');

@@ -21,7 +21,8 @@
       <span class="title" id="appTitle">MAARAA Bills</span>
     </div>
     <div class="top-actions">
-      <button type="button" class="icon-btn" id="btnCats" title="Manage categories" aria-label="Manage categories">
+      <button type="button" class="avatar hidden" id="userChip" title=""></button>
+      <button type="button" class="icon-btn hidden" id="btnCats" title="Manage categories" aria-label="Manage categories">
         <svg viewBox="0 0 24 24"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg>
       </button>
       <button type="button" class="icon-btn" id="btnTheme" title="Light / dark mode" aria-label="Toggle dark mode">
@@ -34,6 +35,27 @@
   <main>
     <div id="loading" class="center pad"><div class="spinner small"></div></div>
     <div id="fatal" class="hidden"><div class="alert error" id="fatalText"></div></div>
+
+    <!-- Shown when the Google account is not signed in or not approved -->
+    <div id="access" class="hidden">
+      <div class="hero">
+        <h1>Access <span class="dim">needed.</span></h1>
+        <p class="lead" id="accessText"></p>
+      </div>
+      <div class="kv-card">
+        <div class="muted small">Signed in as</div>
+        <div class="who" id="accessEmail">—</div>
+      </div>
+      <p class="hint">Every bill is recorded under the Google account that entered it. Ask the MAARAA admin to add this account
+        (Bill Manager → Users &amp; access → Add user), then reload this page.</p>
+      <div class="actions" style="justify-content:flex-start">
+        <a class="pill-btn" id="switchAcct" target="_top" href="https://accounts.google.com/AccountChooser">
+          <span>Use another account</span>
+          <span class="pill-ico"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        </a>
+        <button type="button" class="text-btn" onclick="location.reload()">Reload</button>
+      </div>
+    </div>
 
     <!-- ============================ ENTRY FORM ============================ -->
     <form id="billForm" class="hidden" novalidate autocomplete="off">
@@ -169,7 +191,13 @@
     run('getFormData').then(function (d) {
       state.data = d;
       $('appTitle').textContent = (d.company || 'MAARAA') + ' Bills';
-      $('appSub').textContent = 'Reference number, renaming and backup are automatic. Signed in as ' + d.user + '.';
+      $('appSub').textContent = 'Signed in as ' + d.user.name + ' (' + d.user.email + '). Reference number, renaming and backup are automatic.';
+      const chip = $('userChip');
+      chip.textContent = initials(d.user.name || d.user.email);
+      chip.title = d.user.name + ' · ' + d.user.email + ' · ' + d.user.role;
+      chip.classList.remove('hidden');
+      chip.addEventListener('click', function () { alert('Signed in as ' + d.user.name + '\n' + d.user.email + '\nRole: ' + d.user.role); });
+      $('btnCats').classList.toggle('hidden', !d.user.isAdmin);
       $('attachReq').textContent = d.requireAttachment ? '' : '(optional)';
       $('attachReq').className = d.requireAttachment ? 'req' : 'muted';
       fillCategories(d.categories);
@@ -182,9 +210,24 @@
       $('billForm').classList.remove('hidden');
     }).catch(function (e) {
       $('loading').classList.add('hidden');
+      const m = /^(SIGN_IN_REQUIRED|NOT_AUTHORISED):\s*(.*)$/.exec(e.message || '');
+      if (m) {
+        const email = (m[2].match(/[^\s@]+@[^\s@]+\.[^\s@]+/) || [''])[0];
+        $('accessEmail').textContent = email || 'not signed in';
+        $('accessText').textContent = m[1] === 'SIGN_IN_REQUIRED'
+          ? 'Please sign in with your Google account to record bills.'
+          : 'This Google account is not on the approved list for MAARAA Bills.';
+        $('access').classList.remove('hidden');
+        return;
+      }
       $('fatalText').textContent = 'Could not load: ' + e.message;
       $('fatal').classList.remove('hidden');
     });
+
+    function initials(s) {
+      const p = String(s).replace(/@.*/, '').split(/[\s._-]+/).filter(Boolean);
+      return ((p[0] || '?')[0] + (p[1] ? p[1][0] : '')).toUpperCase();
+    }
 
     function fillSelect(sel, items, placeholder) {
       sel.innerHTML = '';
@@ -467,7 +510,8 @@
           return el('li', {}, [el('a', { href: f.url, target: '_blank', rel: 'noopener', text: f.name })]);
         })));
       }
-      row('Recorded', r.recordedAt + ' by ' + r.recordedBy);
+      row('Recorded by', (r.recordedByName ? r.recordedByName + ' · ' : '') + r.recordedBy);
+      row('Recorded at', r.recordedAt);
       $('sSheet').href = r.sheetUrl;
 
       state.session.unshift(r);
