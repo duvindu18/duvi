@@ -28,6 +28,12 @@
   new MutationObserver(function () { if (narrow() && root.classList.contains('side-collapsed')) root.classList.remove('side-collapsed'); }).observe(root, { attributes: true, attributeFilter: ['class'] });
   root.classList.remove('side-collapsed');
 
+  /* ----- the phone's status bar follows the page's light or dark theme ----- */
+  var lastBars = null;
+  function syncBars() { var light = root.getAttribute('data-theme') === 'light'; if (light !== lastBars && window.MorfisAndroid && window.MorfisAndroid.setBars) { lastBars = light; window.MorfisAndroid.setBars(light); } }
+  new MutationObserver(syncBars).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  syncBars();
+
   /* ----- the phone's Back button (called by the Android app): close what is open, then go Home ----- */
   window.__morfisBack = function () {
     var pv = $('.pv'); if (pv && !pv.hidden && window.MorfisPreview) { window.MorfisPreview.close(); return true; }

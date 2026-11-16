@@ -167,14 +167,17 @@ class Remote {
   pairPage(msg) {
     const name = String(this.o.name()).replace(/[<>&"]/g, '');
     return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + name + '</title>' +
-      '<style>:root{color-scheme:dark}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0A0A10;color:#EDEDF0;font:15px/1.5 system-ui,sans-serif;padding:20px;box-sizing:border-box}' +
-      '.c{width:100%;max-width:360px;display:flex;flex-direction:column;gap:14px}img{width:52px;height:52px;border-radius:14px}h1{font-size:22px;margin:0}p{margin:0;color:#A1A1AB}' +
-      'input{font:600 26px/1 ui-monospace,monospace;letter-spacing:.35em;text-align:center;padding:14px;border-radius:12px;border:1px solid #2B2B33;background:#141418;color:#EDEDF0;width:100%;box-sizing:border-box}' +
-      'input.n{font:15px system-ui,sans-serif;letter-spacing:0;text-align:left}button{font:600 15px system-ui,sans-serif;padding:14px;border-radius:12px;border:1px solid #7C6CF0;background:rgba(124,108,240,.18);color:#EDEDF0}' +
-      '.e{color:#F06272;min-height:1.5em}</style></head><body><form class="c" id="f"><img src="/app-icon.png" alt=""><h1>Connect to ' + name + '</h1>' +
+      '<style>:root{color-scheme:light dark;--pg:#F2F2F2;--sf:#FFFFFF;--ln:#D2D2D2;--ink:#0B0B0B;--ink2:#7A7A7A;--pill:#0B0B0B;--on:#FFFFFF}' +
+      '@media (prefers-color-scheme:dark){:root{--pg:#0E0E0E;--sf:#151515;--ln:#2E2E2E;--ink:#F2F2F2;--ink2:#8E8E8E;--pill:#F2F2F2;--on:#0B0B0B}}' +
+      'body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--pg);color:var(--ink);font:15px/1.5 system-ui,Roboto,sans-serif;padding:20px;box-sizing:border-box}' +
+      '.c{width:100%;max-width:380px;display:flex;flex-direction:column;gap:14px}img{width:48px;height:48px;border-radius:12px}h1{font-size:38px;line-height:1.04;letter-spacing:-.045em;font-weight:750;margin:6px 0 0}h1 span{color:var(--ink2)}p{margin:0;color:var(--ink2)}' +
+      'input{font:700 26px/1 ui-monospace,monospace;letter-spacing:.35em;text-align:center;padding:14px;border-radius:14px;border:1px solid var(--ln);background:var(--sf);color:var(--ink);width:100%;box-sizing:border-box}' +
+      'input.n{font:15px system-ui,sans-serif;letter-spacing:0;text-align:left}button{font:600 16px system-ui,sans-serif;padding:16px 22px;border-radius:999px;border:0;background:var(--pill);color:var(--on);display:flex;align-items:center;justify-content:space-between}' +
+      'button i{width:34px;height:34px;border-radius:50%;background:var(--on);color:var(--pill);display:grid;place-items:center;font-style:normal;font-size:18px;margin:-10px -14px -10px 0}' +
+      '.e{color:#D93A4A;min-height:1.5em}</style></head><body><form class="c" id="f"><img src="/app-icon.png" alt=""><h1>Connect to <span>' + name + '</span></h1>' +
       '<p>On the computer, open Settings &gt; Desktop app &gt; Phone access and type the PIN shown there.</p>' +
       '<input id="pin" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" required>' +
-      '<input class="n" id="nm" maxlength="40" placeholder="Name of this phone" required><button>Connect</button><p class="e" id="e">' + (msg || '') + '</p></form>' +
+      '<input class="n" id="nm" maxlength="40" placeholder="Name of this phone" required><button>Connect<i>→</i></button><p class="e" id="e">' + (msg || '') + '</p></form>' +
       '<script>var nm=document.getElementById("nm");try{nm.value=localStorage.getItem("morfis:phoneName")||(/Android/.test(navigator.userAgent)?"Android phone":"Phone")}catch(x){nm.value="Phone"}' +
       'document.getElementById("f").onsubmit=function(ev){ev.preventDefault();var e=document.getElementById("e");e.textContent="";try{localStorage.setItem("morfis:phoneName",nm.value)}catch(x){}' +
       'var A=window.MorfisAndroid,B=A&&A.server?A.server():"";' +

@@ -82,8 +82,8 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         prefs = getSharedPreferences("morfis", MODE_PRIVATE);
         web = new WebView(this);
-        web.setBackgroundColor(Color.parseColor("#0A0A10"));
         setContentView(web);
+        bars((getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK) != android.content.res.Configuration.UI_MODE_NIGHT_YES);
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -452,6 +452,13 @@ public class MainActivity extends Activity {
             ui.post(() -> showConnect(null));
         }
 
+        /** The page's theme, so the phone's status and navigation bars match it. */
+        @JavascriptInterface
+        public void setBars(boolean light) {
+            if (!trusted()) return;
+            ui.post(() -> bars(light));
+        }
+
         @JavascriptInterface
         public String lastServer() { return trusted() ? MainActivity.this.server() : ""; }
 
@@ -460,6 +467,20 @@ public class MainActivity extends Activity {
             if (!trusted() || url == null || !(url.startsWith("https://") || url.startsWith("mailto:"))) return;
             ui.post(() -> openOutside(url));
         }
+    }
+
+    /* status and navigation bars in the page's paper colour, with dark icons on the light theme */
+    @SuppressWarnings("deprecation")
+    private void bars(boolean light) {
+        int c = Color.parseColor(light ? "#F2F2F2" : "#0E0E0E");
+        getWindow().setStatusBarColor(c);
+        getWindow().setNavigationBarColor(c);
+        web.setBackgroundColor(c);
+        android.view.View d = getWindow().getDecorView();
+        int f = d.getSystemUiVisibility();
+        f = light ? (f | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR) : (f & ~android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+        if (Build.VERSION.SDK_INT >= 26) f = light ? (f | android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR) : (f & ~android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+        d.setSystemUiVisibility(f);
     }
 
     @SuppressWarnings("deprecation")
