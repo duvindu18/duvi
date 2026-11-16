@@ -490,3 +490,75 @@ function exportReportPdf_(sheetName, portrait) {
     '">Open the PDF</a> · <a target="_blank" href="' + folder.getUrl() + '">Reports folder</a></p></div>').setWidth(520).setHeight(160);
   SpreadsheetApp.getUi().showModalDialog(html, 'PDF ready');
 }
+
+// ======================================================= IN-APP SUMMARY (Admin)
+
+/**
+ * Monthly summary for the app's "Summary" tab. year/month (0–11) default to the current month.
+ * Uses the same ledger rules as the sheet reports (ACTIVE bills only, exact to the cent).
+ */
+function getMonthSummary(year, month) {
+  requireAdmin_();
+  const today = new Date();
+  const yr = Number(year) || today.getFullYear();
+  const mi = month === 0 || month ? Math.min(11, Math.max(0, Number(month))) : today.getMonth();
+  const data = reportData_();
+  const C = function (c) { return c / 100; };
+  const sum = function (list, f) { return list.reduce(function (t, b) { return t + (f ? f(b) : b.total); }, 0); };
+
+  const inMonth = data.bills.filter(function (b) { return b.y === yr && b.m === mi; })
+    .sort(function (a, b) { return b.date - a.date || b.ref.localeCompare(a.ref); });
+  const prevY = mi === 0 ? yr - 1 : yr, prevM = mi === 0 ? 11 : mi - 1;
+  const prevTotal = sum(data.bills.filter(function (b) { return b.y === prevY && b.m === prevM; }));
+  const total = sum(inMonth);
+  const unpaid = inMonth.filter(function (b) { return !b.paid; });
+
+  const months = new Array(12).fill(0);
+  data.bills.forEach(function (b) { if (b.y === yr) months[b.m] += b.total; });
+  const ytd = months.slice(0, mi + 1).reduce(function (a, b) { return a + b; }, 0);
+
+  const meta = {};
+  data.cats.forEach(function (c) { meta[c.name] = c; });
+  const byCat = {};
+  inMonth.forEach(function (b) { const c = byCat[b.category] = byCat[b.category] || { n: 0, t: 0 }; c.n++; c.t += b.total; });
+  let budgetTotal = 0;
+  data.cats.forEach(function (c) { if (c.active && c.budget !== '' && Number(c.budget) > 0) budgetTotal += Math.round(Number(c.budget) * 100); });
+  const categories = Object.keys(byCat).map(function (n) {
+    const m = meta[n] || {};
+    const budget = m.budget === '' || m.budget == null ? 0 : Math.round(Number(m.budget) * 100);
+    return { name: n, group: m.group || 'Other', bills: byCat[n].n, total: C(byCat[n].t), budget: budget ? C(budget) : null };
+  }).sort(function (a, b) { return b.total - a.total || a.name.localeCompare(b.name); });
+  // Budgeted categories with nothing spent yet, so the admin sees them too.
+  data.cats.forEach(function (c) {
+    if (c.active && c.budget !== '' && Number(c.budget) > 0 && !byCat[c.name])
+      categories.push({ name: c.name, group: c.group, bills: 0, total: 0, budget: Number(c.budget) });
+  });
+
+  // Budget use compares like with like: spending in budgeted categories vs their budgets.
+  const budgetSpent = categories.reduce(function (t, c) { return t + (c.budget != null ? Math.round(c.total * 100) : 0); }, 0);
+
+  const group = function (key) {
+    const m = {};
+    inMonth.forEach(function (b) { const k = b[key] || '—'; const x = m[k] = m[k] || { n: 0, t: 0 }; x.n++; x.t += b.total; });
+    return Object.keys(m).map(function (k) { return { name: k, bills: m[k].n, total: C(m[k].t) }; })
+      .sort(function (a, b) { return b.total - a.total || a.name.localeCompare(b.name); });
+  };
+
+  return {
+    year: yr, month: mi, label: MONTH_NAMES[mi] + ' ' + yr, prevLabel: MONTH_NAMES[prevM].slice(0, 3) + ' ' + prevY,
+    years: yearOptions_(data.bills),
+    kpi: { total: C(total), bills: inMonth.length, tax: C(sum(inMonth, function (b) { return b.tax; })),
+           unpaid: C(sum(unpaid)), unpaidBills: unpaid.length, prevTotal: C(prevTotal),
+           change: prevTotal ? (total - prevTotal) / prevTotal : null, ytd: C(ytd), budget: budgetTotal ? C(budgetTotal) : null,
+           budgetSpent: C(budgetSpent) },
+    months: months.map(C),
+    categories: categories,
+    methods: group('method'),
+    people: group('by'),
+    bills: inMonth.map(function (b) {
+      return { ref: b.ref, date: Utilities.formatDate(b.date, tz_(), 'dd/MM/yyyy'), vendor: b.vendor, category: b.category,
+               total: C(b.total), status: b.status, paid: b.paid, by: b.by };
+    }),
+    updated: Utilities.formatDate(new Date(), tz_(), 'dd/MM/yyyy HH:mm'),
+  };
+}

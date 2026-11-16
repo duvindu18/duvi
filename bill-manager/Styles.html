@@ -290,6 +290,54 @@
   .um-bulk textarea { margin-top: 10px; }
   #loginPin { letter-spacing: 8px; font-size: 22px; }
 
+  /* ------------------------------------------------------------------ summary (admin) */
+  .month-nav { display: flex; align-items: center; gap: 8px; margin: 4px 0 18px; }
+  .month-nav select { width: auto; flex: 1; max-width: 200px; font-weight: 700; }
+  .month-nav #sumYear { max-width: 110px; flex: none; }
+  #sumBody.loading { opacity: .45; pointer-events: none; transition: opacity .15s; }
+  .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 600px) {
+    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tiles .hero-k, .tiles .tile-k:nth-child(6) { grid-column: 1 / -1; }
+    .k-value { font-size: 19px; }
+  }
+  .tile-k { background: var(--surface); border-radius: var(--radius); padding: 14px 16px; min-width: 0; }
+  .tile-k.hero-k { background: var(--btn); color: var(--btn-ink); }
+  .k-label { font: 600 11px ui-monospace, "Roboto Mono", monospace; text-transform: uppercase; letter-spacing: .8px; opacity: .65; }
+  .k-value { font-size: 22px; font-weight: 700; letter-spacing: -.5px; margin-top: 4px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .hero-k .k-value { font-size: 30px; }
+  .k-sub { font-size: 12.5px; opacity: .65; margin-top: 2px; }
+
+  .yearchart { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; height: 170px; align-items: end; }
+  .ycol { display: flex; flex-direction: column; align-items: stretch; height: 100%; padding: 0; border: 0; background: none; cursor: pointer; color: var(--ink); }
+  .yval { height: 18px; font-size: 11px; font-weight: 700; text-align: center; white-space: nowrap; }
+  .ytrack { flex: 1; display: flex; align-items: flex-end; justify-content: center; border-bottom: 1px solid var(--line); }
+  .ybar { width: 70%; max-width: 26px; background: var(--dim); opacity: .45; border-radius: 4px 4px 0 0; transition: height .25s ease; }
+  .ycol:hover .ybar { opacity: .8; }
+  .ycol.sel .ybar { background: var(--ink); opacity: 1; }
+  .ylab { font-size: 11.5px; color: var(--muted); text-align: center; padding-top: 5px; }
+  .ycol.sel .ylab { color: var(--ink); font-weight: 700; }
+
+  .catbars { display: flex; flex-direction: column; gap: 14px; }
+  .catrow { cursor: default; }
+  .cat-top { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
+  .cat-name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cat-val { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .cat-track { position: relative; height: 10px; margin-top: 6px; border-radius: 4px; background: var(--field); }
+  .cat-fill { height: 100%; border-radius: 4px; background: var(--ink); min-width: 3px; transition: width .25s ease; }
+  .cat-budget { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--muted); border-radius: 1px; }
+  .cat-meta { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  .cat-meta .over { color: var(--err); font-weight: 700; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+  @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; gap: 0; } .two-col > div + div { margin-top: 26px; } }
+  .mini-list { list-style: none; margin: 0; padding: 0; }
+  .mini-list li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+  .mini-list b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .tip { position: fixed; z-index: 30; pointer-events: none; background: var(--btn); color: var(--btn-ink); font-size: 13px; font-weight: 600;
+    padding: 7px 10px; border-radius: 10px; max-width: 280px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
+
   /* ------------------------------------------------------------------ user manager */
   .um-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end; background: var(--surface); padding: 16px; border-radius: var(--radius); }
   .um-form .full { grid-column: 1 / -1; }

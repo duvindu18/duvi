@@ -64,6 +64,7 @@
     <nav id="tabs" class="tabs hidden" aria-label="Views">
       <button type="button" class="tab on" data-tab="new">New bill</button>
       <button type="button" class="tab" data-tab="mine" id="tabMine">My bills</button>
+      <button type="button" class="tab hidden" data-tab="sum" id="tabSum">Summary</button>
     </nav>
 
     <!-- ============================ ENTRY FORM ============================ -->
@@ -170,6 +171,49 @@
       <ul class="session" id="mineList"></ul>
     </div>
 
+    <!-- ============================ SUMMARY (Admin) ============================ -->
+    <div id="summary" class="hidden">
+      <div class="hero">
+        <h1>Summary<span class="dim">.</span></h1>
+        <p class="lead" id="sumSub">Monthly expenses at a glance.</p>
+      </div>
+      <div class="month-nav">
+        <button type="button" class="icon-btn" id="sumPrev" aria-label="Previous month"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <select id="sumMonth" aria-label="Month"></select>
+        <select id="sumYear" aria-label="Year"></select>
+        <button type="button" class="icon-btn" id="sumNext" aria-label="Next month"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+      <div id="sumBody">
+        <div class="tiles" id="sumTiles"></div>
+
+        <section>
+          <div class="sec-head"><span class="num">01</span><h2 id="sumYearTitle">Year at a glance</h2></div>
+          <div class="yearchart" id="sumYearChart" role="img"></div>
+          <p class="hint">Tap a month to open it.</p>
+        </section>
+
+        <section>
+          <div class="sec-head"><span class="num">02</span><h2>By category</h2></div>
+          <div id="sumCats" class="catbars"></div>
+        </section>
+
+        <section>
+          <div class="two-col">
+            <div><div class="sec-head"><span class="num">03</span><h2>By payment method</h2></div><ul class="mini-list" id="sumMethods"></ul></div>
+            <div><div class="sec-head"><span class="num">04</span><h2>By person</h2></div><ul class="mini-list" id="sumPeople"></ul></div>
+          </div>
+        </section>
+
+        <section>
+          <div class="sec-head"><span class="num">05</span><h2 id="sumBillsTitle">Bills</h2></div>
+          <ul class="session" id="sumBills"></ul>
+          <button type="button" class="text-btn hidden" id="sumMore">Show all</button>
+        </section>
+        <p class="hint" id="sumUpdated"></p>
+      </div>
+    </div>
+    <div id="tip" class="tip hidden" role="tooltip"></div>
+
     <div id="sessionCard" class="hidden">
       <div class="list-head"><h2 class="big">Recent</h2><span class="muted" id="sessionCount"></span></div>
       <ul class="session" id="sessionList"></ul>
@@ -258,6 +302,7 @@
         $('btnUsers').classList.toggle('hidden', !d.user.isAdmin);
         $('sSheet').classList.toggle('hidden', !d.user.isAdmin);
         $('tabMine').textContent = d.user.isAdmin ? 'All bills' : 'My bills';
+        $('tabSum').classList.toggle('hidden', !d.user.isAdmin);
         $('tabs').classList.remove('hidden');
         $('attachReq').textContent = d.requireAttachment ? '' : '(optional)';
         $('attachReq').className = d.requireAttachment ? 'req' : 'muted';
@@ -281,7 +326,7 @@
 
     function showLogin(message) {
       bmSetToken('', false);
-      ['billForm', 'mine', 'success', 'sessionCard', 'tabs', 'userChip'].forEach(function (id) { $(id).classList.add('hidden'); });
+      ['billForm', 'mine', 'summary', 'success', 'sessionCard', 'tabs', 'userChip'].forEach(function (id) { $(id).classList.add('hidden'); });
       $('login').classList.remove('hidden');
       const err = $('loginError');
       if (message) { err.textContent = message; err.classList.remove('hidden'); } else err.classList.add('hidden');
@@ -685,6 +730,8 @@
 
       $('billForm').classList.add('hidden');
       $('mine').classList.add('hidden');
+      $('summary').classList.add('hidden');
+      state.sumData = null;
       $('success').classList.remove('hidden');
       window.scrollTo(0, 0);
     }
@@ -699,6 +746,8 @@
       $('success').classList.add('hidden');
       $('billForm').classList.toggle('hidden', name !== 'new');
       $('mine').classList.toggle('hidden', name !== 'mine');
+      $('summary').classList.toggle('hidden', name !== 'sum');
+      if (name === 'sum') loadSummary();
       $('sessionCard').classList.toggle('hidden', name !== 'new' || !state.session.length);
       if (name === 'mine') loadMine();
       window.scrollTo(0, 0);
@@ -776,10 +825,158 @@
       }
       updateTotal(); updatePaymentFields(); updateNamePreview();
       document.querySelectorAll('#tabs .tab').forEach(function (t) { t.classList.toggle('on', t.getAttribute('data-tab') === 'new'); });
-      $('mine').classList.add('hidden'); $('success').classList.add('hidden'); $('sessionCard').classList.add('hidden');
+      $('mine').classList.add('hidden'); $('summary').classList.add('hidden'); $('success').classList.add('hidden'); $('sessionCard').classList.add('hidden');
       $('billForm').classList.remove('hidden');
       window.scrollTo(0, 0);
     }
+    // ------------------------------------------------------------ summary (Admin)
+    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    MONTHS.forEach(function (m, i) { $('sumMonth').appendChild(el('option', { value: i, text: m })); });
+
+    function loadSummary(y, m) {
+      const now = new Date();
+      if (y == null) { y = state.sumY != null ? state.sumY : now.getFullYear(); m = state.sumM != null ? state.sumM : now.getMonth(); }
+      state.sumY = y; state.sumM = m;
+      $('sumMonth').value = m;
+      $('sumBody').classList.add('loading');
+      run('getMonthSummary', y, m).then(function (d) {
+        state.sumData = d;
+        $('sumBody').classList.remove('loading');
+        renderSummary(d);
+      }).catch(function (e) {
+        $('sumBody').classList.remove('loading');
+        $('sumTiles').innerHTML = '';
+        $('sumTiles').appendChild(el('div', { class: 'alert error', text: e.message }));
+      });
+    }
+    function shiftMonth(delta) {
+      let y = state.sumY, m = state.sumM + delta;
+      if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; }
+      loadSummary(y, m);
+    }
+    $('sumPrev').addEventListener('click', function () { shiftMonth(-1); });
+    $('sumNext').addEventListener('click', function () { shiftMonth(1); });
+    $('sumMonth').addEventListener('change', function () { loadSummary(state.sumY, Number($('sumMonth').value)); });
+    $('sumYear').addEventListener('change', function () { loadSummary(Number($('sumYear').value), state.sumM); });
+    $('sumMore').addEventListener('click', function () { state.sumAll = true; renderSummary(state.sumData); });
+
+    // Shared tooltip (hover with a mouse, tap on a phone)
+    function tipShow(ev, text) {
+      const t = $('tip'); t.textContent = text; t.classList.remove('hidden');
+      const x = Math.min(window.innerWidth - t.offsetWidth - 8, Math.max(8, ev.clientX - t.offsetWidth / 2));
+      t.style.left = x + 'px'; t.style.top = Math.max(8, ev.clientY - t.offsetHeight - 14) + 'px';
+    }
+    function tipHide() { $('tip').classList.add('hidden'); }
+    function withTip(node, text) {
+      node.addEventListener('pointermove', function (ev) { tipShow(ev, text); });
+      node.addEventListener('pointerdown', function (ev) { tipShow(ev, text); });
+      node.addEventListener('pointerleave', tipHide);
+      node.setAttribute('aria-label', text);
+      return node;
+    }
+    window.addEventListener('scroll', tipHide, { passive: true });
+
+    function renderSummary(d) {
+      const cur = state.data.currency, k = d.kpi;
+      const ys = $('sumYear'); ys.innerHTML = '';
+      d.years.forEach(function (y) { ys.appendChild(el('option', { value: y, text: y })); });
+      ys.value = d.year;
+      $('sumSub').textContent = d.label + ' · amounts in ' + cur + ' · voided bills excluded';
+
+      // Headline tiles
+      const change = k.change == null ? '–' : (k.change > 0 ? '+' : '') + (k.change * 100).toFixed(1) + '%';
+      const tiles = [
+        ['Total expenses', money(k.total, cur), k.budget
+          ? 'Budgeted categories: ' + money(k.budgetSpent, cur) + ' of ' + money(k.budget, cur) + ' (' + Math.round(k.budgetSpent / k.budget * 100) + '%)'
+          : 'No budgets set (Categories → monthly budget)', true],
+        ['Bills', String(k.bills), k.unpaidBills ? k.unpaidBills + ' unpaid' : 'All paid'],
+        ['vs ' + d.prevLabel, change, money(k.prevTotal, cur) + ' last month'],
+        ['Unpaid', money(k.unpaid, cur), k.unpaidBills + ' bill(s)'],
+        ['Tax / VAT', money(k.tax, cur), 'included above'],
+        ['Year to date', money(k.ytd, cur), 'Jan – ' + MONTHS[d.month].slice(0, 3) + ' ' + d.year],
+      ];
+      const tw = $('sumTiles'); tw.innerHTML = '';
+      tiles.forEach(function (t) {
+        tw.appendChild(el('div', { class: 'tile-k' + (t[3] ? ' hero-k' : '') }, [
+          el('div', { class: 'k-label', text: t[0] }), el('div', { class: 'k-value', text: t[1] }), el('div', { class: 'k-sub', text: t[2] }),
+        ]));
+      });
+
+      // Year at a glance: 12 bars, selected month in ink
+      $('sumYearTitle').textContent = d.year + ' at a glance';
+      const yc = $('sumYearChart'); yc.innerHTML = '';
+      const ymax = Math.max.apply(null, d.months.concat([1]));
+      yc.setAttribute('aria-label', 'Monthly totals for ' + d.year + ': ' + d.months.map(function (v, i) { return MONTHS[i].slice(0, 3) + ' ' + money(v, cur); }).join(', '));
+      d.months.forEach(function (v, i) {
+        const sel = i === d.month;
+        const col = el('button', { type: 'button', class: 'ycol' + (sel ? ' sel' : ''), onclick: function () { tipHide(); loadSummary(d.year, i); } }, [
+          el('div', { class: 'yval', text: sel && v ? shortMoney(v) : '' }),
+          el('div', { class: 'ytrack' }, [el('div', { class: 'ybar', style: 'height:' + (v ? Math.max(3, v / ymax * 100) : 0) + '%' })]),
+          el('div', { class: 'ylab', text: MONTHS[i].slice(0, 1) }),
+        ]);
+        yc.appendChild(withTip(col, MONTHS[i] + ' ' + d.year + ': ' + money(v, cur)));
+      });
+
+      // By category: one bar per category, budget tick where set
+      const cw = $('sumCats'); cw.innerHTML = '';
+      if (!d.categories.length) cw.appendChild(el('p', { class: 'muted', text: 'No bills recorded for ' + d.label + '.' }));
+      const cmax = Math.max.apply(null, d.categories.map(function (c) { return Math.max(c.total, c.budget || 0); }).concat([1]));
+      d.categories.forEach(function (c) {
+        const over = c.budget != null && c.total > c.budget;
+        const share = k.total ? Math.round(c.total / k.total * 100) : 0;
+        const tipText = c.name + ': ' + money(c.total, cur) + ' · ' + c.bills + ' bill(s) · ' + share + '% of month' +
+          (c.budget != null ? ' · budget ' + money(c.budget, cur) : '');
+        cw.appendChild(withTip(el('div', { class: 'catrow' }, [
+          el('div', { class: 'cat-top' }, [
+            el('span', { class: 'cat-name', text: c.name }),
+            el('span', { class: 'cat-val', text: money(c.total, cur) }),
+          ]),
+          el('div', { class: 'cat-track' }, [
+            el('div', { class: 'cat-fill', style: 'width:' + (c.total / cmax * 100) + '%' }),
+            c.budget != null ? el('div', { class: 'cat-budget', style: 'left:' + (c.budget / cmax * 100) + '%' }) : null,
+          ]),
+          el('div', { class: 'cat-meta' }, [
+            c.bills + ' bill(s) · ' + share + '%' + (c.budget != null ? ' · budget ' + money(c.budget, cur) : ''),
+            over ? el('span', { class: 'over', text: ' ▲ over budget by ' + money(c.total - c.budget, cur) }) : null,
+          ]),
+        ]), tipText));
+      });
+
+      const mini = function (id, list) {
+        const ul = $(id); ul.innerHTML = '';
+        if (!list.length) { ul.appendChild(el('li', { class: 'muted', text: '—' })); return; }
+        list.forEach(function (x) {
+          ul.appendChild(el('li', {}, [el('span', {}, [x.name, el('span', { class: 'muted', text: '  ' + x.bills })]), el('b', { text: money(x.total, cur) })]));
+        });
+      };
+      mini('sumMethods', d.methods);
+      mini('sumPeople', d.people);
+
+      // Bills of the month
+      $('sumBillsTitle').textContent = 'Bills in ' + d.label + ' (' + d.bills.length + ')';
+      const bl = $('sumBills'); bl.innerHTML = '';
+      const show = state.sumAll ? d.bills : d.bills.slice(0, 8);
+      if (!show.length) bl.appendChild(el('li', { class: 'muted', text: 'No bills.' }));
+      show.forEach(function (b) {
+        bl.appendChild(el('li', {}, [
+          el('div', { class: 'tile', text: (b.category || '?').slice(0, 2).toUpperCase() }),
+          el('div', { class: 'grow' }, [el('div', { class: 'ttl', text: b.vendor + ' · ' + b.category }),
+            el('div', { class: 'meta' }, [el('b', { text: b.ref }), ' ' + b.date + ' · ' + b.by + (b.paid ? '' : ' · ' + b.status)])]),
+          el('div', { class: 'amt', text: money(b.total, cur) }),
+        ]));
+      });
+      $('sumMore').classList.toggle('hidden', state.sumAll || d.bills.length <= 8);
+      $('sumMore').textContent = 'Show all ' + d.bills.length + ' bills';
+      state.sumAll = false;
+      $('sumUpdated').textContent = 'Updated ' + d.updated + '. The printable version is in the spreadsheet: Monthly Summary tab.';
+    }
+
+    function shortMoney(v) {
+      if (v >= 1e6) return (v / 1e6).toFixed(v >= 1e7 ? 0 : 1) + 'M';
+      if (v >= 1e3) return (v / 1e3).toFixed(v >= 1e4 ? 0 : 1) + 'k';
+      return String(Math.round(v));
+    }
+
     $('cancelEdit').addEventListener('click', function () { resetForm(); showTab('mine'); });
 
     $('btnAnother').addEventListener('click', function () {

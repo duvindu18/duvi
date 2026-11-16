@@ -87,6 +87,12 @@ Taxes & Licences, Equipment & Furniture (Capital)*.
 Capital items such as equipment are kept apart from running expenses because they are depreciated, not expensed.
 You can rename or remove any of them.
 
+**Summary tab in the app** (Admins only, next to *All bills*): a phone-friendly monthly summary in the app's own
+black & white style. It has a month picker with ‹ › arrows; headline figures (total, bills, change against last month,
+unpaid, tax, year to date, and budget use for budgeted categories); a 12-month bar chart (hover or tap for the amount,
+tap to open that month); spending by category, with a budget tick and an "over budget" warning; totals by payment method
+and by person; and the month's bills. Employees never see it, and the server refuses it for them.
+
 **Reports** (drawn by the script in a black & white, A4 print-ready layout with borders and wrapped text)
 * **Monthly Summary:** pick the **Month** and **Year** from the dropdowns at the top and the page redraws. It shows:
   * total, number of bills, tax, unpaid, change against the previous month, and year to date;

@@ -28,6 +28,7 @@ function api_() {
     deleteUser:             [deleteUser,          'admin'],
     setUserPin:             [setUserPin,          'admin'],
     addUsersBulk:           [addUsersBulk,        'admin'],
+    getMonthSummary:        [getMonthSummary,     'admin'],   // the app's Summary tab
   };
 }
 

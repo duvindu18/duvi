@@ -205,6 +205,12 @@ PART 8 - TEST BEFORE REAL USE  (10 minutes)
 ---------------------------------------------------------------------
 DAILY USE FOR THE ADMIN
 ---------------------------------------------------------------------
+Summary tab in the app (Admins only, next to "All bills")
+   A quick look at any month on your phone: total, bills, change on
+   last month, unpaid, tax, year to date, a 12-month chart (tap a
+   month to open it), spending by category with budget ticks, totals
+   by payment method and by person, and that month's bills. Use the
+   arrows or the month and year lists to move between months.
 Monthly Summary tab
    Pick the Month (C3) and Year (D3) from the dropdowns. The page
    redraws in a few seconds and shows the totals, budget against
