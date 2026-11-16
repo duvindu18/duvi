@@ -55,6 +55,35 @@
                 <data android:mimeType="application/octet-stream" />
             </intent-filter>
 
+            <!-- CADView in the Share sheet (WhatsApp, Drive, Gmail, Files…), for CAD and 3D files only -->
+            <intent-filter android:label="CADView">
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/acad" />
+                <data android:mimeType="application/x-acad" />
+                <data android:mimeType="application/autocad_dwg" />
+                <data android:mimeType="image/vnd.dwg" />
+                <data android:mimeType="image/x-dwg" />
+                <data android:mimeType="application/dwg" />
+                <data android:mimeType="application/x-dwg" />
+                <data android:mimeType="application/dxf" />
+                <data android:mimeType="image/vnd.dxf" />
+                <data android:mimeType="image/x-dxf" />
+                <data android:mimeType="application/x-dxf" />
+                <data android:mimeType="model/gltf-binary" />
+                <data android:mimeType="model/gltf+json" />
+                <data android:mimeType="model/stl" />
+                <data android:mimeType="application/sla" />
+                <data android:mimeType="model/obj" />
+                <data android:mimeType="model/vnd.collada+xml" />
+                <data android:mimeType="model/3mf" />
+                <data android:mimeType="application/vnd.sketchup.skp" />
+                <data android:mimeType="application/vnd.koan" />
+                <data android:mimeType="application/x-tgif" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+
         </activity>
 
         <!-- AdMob app ID: this is Google's TEST ID. Replace with your own before publishing. -->

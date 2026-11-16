@@ -1066,22 +1066,29 @@ viewer.onFrame = () => {
   if (showC) $('#needle').style.transform = `rotate(${rot}rad)`;
 };
 
-// ---------------- "Open with…" from other apps (native) ----------------
-if (Capacitor.isNativePlatform()) {
-  import('@capacitor/app').then(({ App }) => {
-    App.addListener('appUrlOpen', async ({ url }) => {
-      try {
-        const { Filesystem } = await import('@capacitor/filesystem');
-        const r = await Filesystem.readFile({ path: url });
-        const bin = atob(typeof r.data === 'string' ? r.data : await (r.data as Blob).text());
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        const name = decodeURIComponent(url.split(/[/\\]/).pop() ?? 'file').replace(/\?.*$/, '');
-        openBytes(name, bytes.buffer);
-      } catch (e: any) { toast(`Couldn't open the shared file: ${e?.message ?? e}`); }
-    });
-  });
+// ---------------- files shared to the app or opened with it (native) ----------------
+// MainActivity copies the file into the app cache and sets window.__cadviewIncoming = {name, path} | {error}.
+async function takeIncoming() {
+  const inc = (window as any).__cadviewIncoming;
+  if (!inc) return;
+  (window as any).__cadviewIncoming = null;
+  if (inc.error) return toast(`Couldn't open the shared file: ${inc.error}`, 5000);
+  try {
+    const url = Capacitor.convertFileSrc(`file://${String(inc.path).split('/').map(encodeURIComponent).join('/')}`);
+    const buf = await (await fetch(url)).arrayBuffer();
+    closeSheet();
+    openBytes(inc.name, buf);
+  } catch (e: any) { toast(`Couldn't open the shared file: ${e?.message ?? e}`, 5000); }
 }
+addEventListener('cadview-incoming', takeIncoming);
+takeIncoming();
+// iOS: "Open in CADView" / share sheet hand over a file:// URL inside the app's Inbox
+if (Capacitor.getPlatform() === 'ios') import('@capacitor/app').then(({ App }) => App.addListener('appUrlOpen', ({ url }) => {
+  if (!url.startsWith('file:')) return;
+  const name = decodeURIComponent(url.split('/').pop() ?? 'file');
+  (window as any).__cadviewIncoming = { name, path: decodeURIComponent(url.replace(/^file:\/\//, '')) };
+  takeIncoming();
+}));
 
 // Offline cache for the installable web build (the native app bundles everything already).
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !Capacitor.isNativePlatform()) navigator.serviceWorker.register('sw.js');
