@@ -1,7 +1,7 @@
 // Revision compare on the streaming Drawing format. Each drawn piece (one entity, or one
 // block part) gets an order- and direction-independent 53-bit geometric hash, so the result
 // survives re-saves, handle changes and entity reordering. Both drawings must share an origin.
-import { CHUNK, type Drawing, type Bucket } from './dxf';
+import { CHUNK, TS, type Drawing, type Bucket } from './dxf';
 
 export const SAME = 0, REMOVED = 1, ADDED = 2;
 export interface DiffResult { drawing: Drawing; added: number; removed: number; same: number }
@@ -43,8 +43,8 @@ function textKeys(d: Drawing, tol: number): Float64Array {
     let h1 = 0x811c9dc5, h2 = 0x2545f491;
     const s = t.values[i];
     for (let k = 0; k < s.length; k++) { h1 = mix(h1, s.charCodeAt(k)); h2 = mix2(h2, s.charCodeAt(k)); }
-    h1 = mix(mix(h1, Math.round(t.num[i * 5] / tol)), Math.round(t.num[i * 5 + 1] / tol));
-    h2 = mix2(mix2(h2, Math.round(t.num[i * 5] / tol)), Math.round(t.num[i * 5 + 1] / tol));
+    h1 = mix(mix(h1, Math.round(t.num[i * TS] / tol)), Math.round(t.num[i * TS + 1] / tol));
+    h2 = mix2(mix2(h2, Math.round(t.num[i * TS] / tol)), Math.round(t.num[i * TS + 1] / tol));
     keys[i] = h1 * 2097152 + (h2 & 0x1fffff);
   }
   return keys;
@@ -110,7 +110,7 @@ export function diffDrawings(a: Drawing, b: Drawing, tol = autoTolerance(a, b)):
       if (states[i] !== SAME) counts[states[i]]++;
       else counts[SAME]++;
       values.push(d.text.values[i]);
-      for (let k = 0; k < 5; k++) num.push(d.text.num[i * 5 + k]);
+      for (let k = 0; k < TS; k++) num.push(d.text.num[i * TS + k]);
       align.push(d.text.align[i]); color.push(COLORS[states[i]]); layer.push(states[i]);
     }
   };
@@ -126,7 +126,7 @@ export function diffDrawings(a: Drawing, b: Drawing, tol = autoTolerance(a, b)):
     text: { values, num: Float32Array.from(num), align: Uint8Array.from(align), color: Int32Array.from(color), layer: Uint16Array.from(layer) },
     snap, snapLayer: new Uint16Array(snap.length / 3),
     bounds: [Math.min(bb[0], cb[0]), Math.min(bb[1], cb[1]), Math.min(bb[2], cb[2]), Math.max(bb[3], cb[3]), Math.max(bb[4], cb[4]), Math.max(bb[5], cb[5])],
-    skipped: {}, entities: a.entities + b.entities,
+    skipped: {}, entities: a.entities + b.entities, fills: [],
   };
   return { drawing, same: counts[SAME], removed: counts[REMOVED], added: counts[ADDED] };
 }

@@ -3,10 +3,11 @@ import { Capacitor } from '@capacitor/core';
 import { Viewer, type Pick } from './render/viewer';
 import { build2D, buildMeshes, buildSkp, loadMainThread, MODEL_EXT, WORKER_MESH, type Scene2D, type Scene3D } from './render/scene';
 import { textUniforms } from './render/text';
-import type { Drawing } from './cad/dxf';
+import { TS, type Drawing } from './cad/dxf';
 import type { SnapGrid } from './cad/snapgrid';
 import * as lib from './library';
 import { homeBanner } from './ads';
+import { renderRegion, toPdf, fitPixels, PAPER, type Rect } from './export';
 import { hydrateIcons, icon, type IconName } from './ui/icons';
 import { $, esc, toast, openSheet, closeSheet, sheetOpen, wireSheetDrag, popover, hidePopover, loading, haptic, fmtBytes, fmtAgo, consumeSkipPop } from './ui/widgets';
 
@@ -34,21 +35,54 @@ function applyThemeClass() {
 applyThemeClass();
 
 const viewer = new Viewer($('#canvasHost'), $('#labels'), $('#loupe') as HTMLCanvasElement);
+let mono = store.get('mono') === '1';
+/** while exporting: white paper, dark ink (and optionally monochrome) */
+let print: { mono: boolean } | null = null;
+const monoNow = () => (print ? print.mono : mono);
+const clayMat = new THREE.MeshStandardMaterial({ color: 0xd6d6d6, roughness: 0.9, metalness: 0, side: THREE.DoubleSide });
 function applyTheme() {
-  viewer.setBackground(cssColor('--canvas'));
-  syncSystemBars();
-  const light = isLightCanvas();
-  textUniforms.uFg.value.setHex(fgColor());
+  const light = !!print || isLightCanvas();
+  const fg = print ? 0x000000 : fgColor();
+  viewer.setBackground(print ? 0xffffff : cssColor('--canvas'));
+  if (!print) syncSystemBars();
+  textUniforms.uFg.value.setHex(fg);
   textUniforms.uDarken.value = light ? 1 : 0;
+  textUniforms.uMono.value = monoNow() ? 1 : 0;
   for (const s of [doc?.s2, compare?.scene]) {
     if (!s) continue;
-    for (const m of s.fgMaterials) m.color.setHex(fgColor());
-    for (const m of s.materials) if (m.userData.orig !== undefined && m.userData.orig >= 0) m.color.setHex(adaptColor(m.userData.orig, light), THREE.SRGBColorSpace);
+    for (const m of s.fgMaterials) m.color.setHex(fg);
+    for (const m of s.materials) {
+      const orig = m.userData.orig as number | undefined, isFill = !!m.userData.fill, alpha = (m.userData.alpha as number) ?? 1;
+      if (orig === undefined) continue;
+      if (monoNow()) {
+        // monochrome: one ink colour; fills are screened so they don't hide the linework
+        m.color.setHex(isFill && print ? 0xa8a8a8 : fg);
+        if (isFill) { m.transparent = !print || alpha < 1; m.opacity = print ? Math.min(1, alpha) : 0.3 * alpha; m.needsUpdate = true; }
+      } else {
+        if (orig < 0) m.color.setHex(fg);
+        else m.color.setHex(isFill ? adaptFill(orig, light) : adaptColor(orig, light), THREE.SRGBColorSpace);
+        if (isFill) { m.transparent = alpha < 1; m.opacity = alpha; m.needsUpdate = true; }
+      }
+    }
   }
+  // 3D monochrome: plain clay material, edges stay
+  doc?.s3?.root.traverse((o: any) => {
+    if (!o.isMesh) return;
+    if (monoNow()) { if (!o.userData.realMat) o.userData.realMat = o.material; o.material = clayMat; }
+    else if (o.userData.realMat) { o.material = o.userData.realMat; delete o.userData.realMat; }
+  });
   viewer.requestRender();
 }
 const isLightCanvas = () => new THREE.Color(cssColor('--canvas')).getHSL({ h: 0, s: 0, l: 0 }).l > 0.5;
 /** CAD palettes assume a dark screen: on a light background, darken pale colours (yellow, cyan…) so they stay readable. */
+/** fills keep their colour on white unless they're so pale they would vanish */
+function adaptFill(c: number, light: boolean) {
+  if (!light) return c;
+  const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255, lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  if (lum <= 0.86) return c;
+  const k = 0.8 / lum;
+  return (Math.round(r * k) << 16) | (Math.round(g * k) << 8) | Math.round(b * k);
+}
 function adaptColor(c: number, light: boolean) {
   if (!light) return c;
   // plain sRGB maths: pale colours (yellow, cyan, light green…) are scaled down until readable on white
@@ -109,7 +143,7 @@ interface Doc {
   meta: lib.FileMeta; drawing?: Drawing; s2?: Scene2D; s3?: Scene3D; grid: SnapGrid; stats: string[]; ms: number;
 }
 let doc: Doc | null = null;
-type Tool = 'none' | 'measure' | 'area' | 'note';
+type Tool = 'none' | 'measure' | 'area' | 'note' | 'select';
 let tool: Tool = 'none';
 let draft: THREE.Vector3[] = [];
 let compare: { name: string; scene: Scene2D; grid: SnapGrid; added: number; removed: number; same: number } | null = null;
@@ -484,7 +518,8 @@ function refreshHint() {
       ...(draft.length ? [['Undo', undoPoint] as [string, () => void]] : []),
       ...(draft.length >= 3 ? [['Finish', finishArea, true] as [string, () => void, boolean]] : [['Cancel', () => setTool('none')] as [string, () => void]]),
     ]);
-  } else if (tool === 'note') hint('Tap where the note goes', [[`All (${doc?.meta.notes.length ?? 0})`, listNotes], ['Done', () => setTool('none')]]);
+  } else if (tool === 'select') hint(selPts.length ? 'Tap the opposite corner' : 'Tap two opposite corners of the area to export', [['Cancel', () => { setTool('none'); showExport(); }]]);
+  else if (tool === 'note') hint('Tap where the note goes', [[`All (${doc?.meta.notes.length ?? 0})`, listNotes], ['Done', () => setTool('none')]]);
   else if (compare) hint(null);
   else hint(null);
 }
@@ -582,6 +617,7 @@ viewer.handlers = {
 function place(p: Pick, x: number, y: number) {
   haptic.tap();
   if (tool === 'note') return editNote(null, p.point);
+  if (tool === 'select') return selectCorner(p);
   if (tool === 'area' && draft.length >= 3) {
     const s = viewer.toScreen(draft[0]);
     if (Math.hypot(s.x - x, s.y - y) < 30) return finishArea();
@@ -825,7 +861,8 @@ function showMore() {
     { id: 'units', icon: 'ruler', label: `Units: ${units()}`, run: showUnits },
     { id: 'theme', icon: (isLight() ? 'moon' : 'sun') as IconName, label: isLight() ? 'Dark mode' : 'Light mode', run: () => { toggleTheme(); showMore(); } },
     { id: 'notes', icon: 'notes', label: 'Notes', run: listNotes },
-    { id: 'share', icon: 'image', label: 'Share image', run: () => { closeSheet(); snapshot(); } },
+    { id: 'export', icon: 'download', label: 'Export PDF / PNG', run: () => showExport() },
+    { id: 'mono', icon: 'contrast', label: 'Monochrome', on: mono, run: () => { mono = !mono; store.set('mono', mono ? '1' : '0'); applyTheme(); showMore(); } },
     { id: 'help', icon: 'hand', label: 'Gestures', run: () => { closeSheet(); showCoach(); } },
     { id: 'info', icon: 'info', label: 'File info', run: showInfo },
   ];
@@ -860,11 +897,11 @@ function showFind() {
         : '<p class="muted">No matches</p>';
       res.querySelectorAll<HTMLElement>('[data-i]').forEach((r) => (r.onclick = () => {
         const i = +r.dataset.i!;
-        const pos = new THREE.Vector3(t.num[i * 5], t.num[i * 5 + 1], t.num[i * 5 + 2]);
+        const pos = new THREE.Vector3(t.num[i * TS], t.num[i * TS + 1], t.num[i * TS + 2]);
         closeSheet();
         const L = doc!.s2!.layers[t.layer[i]];
         if (L && !L.visible) { L.visible = true; toast(`Layer "${L.name}" turned on`); }
-        viewer.focus(pos, Math.max(t.num[i * 5 + 3] * 6, 1e-6));
+        viewer.focus(pos, Math.max(t.num[i * TS + 3] * 6, 1e-6));
         viewer.setLabel({ id: 'hit', pos, html: '', cls: 'hit' });
         setTimeout(() => viewer.removeLabel('hit'), 3500);
       }));
@@ -995,39 +1032,152 @@ function exitCompare(remount = true) {
 }
 
 // ---------------- share ----------------
-$('#btnShare').onclick = snapshot;
-function snapshot() {
-  const src = viewer.capture();
-  const out = document.createElement('canvas');
-  const k = src.width / (viewer.renderer.domElement.clientWidth || 1);
-  out.width = src.width; out.height = src.height + Math.round(56 * k);
-  const ctx = out.getContext('2d')!;
-  ctx.fillStyle = isLight() ? '#fff' : '#000';
-  ctx.fillRect(0, 0, out.width, out.height);
-  ctx.drawImage(src, 0, 0);
+$('#btnShare').onclick = () => showExport();
+
+/** Notes and measurement labels drawn onto an exported image. */
+function drawMarks(ctx: CanvasRenderingContext2D, toPx: (p: THREE.Vector3) => [number, number] | null, k: number) {
   ctx.font = `600 ${13 * k}px system-ui, sans-serif`;
   ctx.textBaseline = 'middle';
   for (const { el, pos } of viewer.labelEntries()) {
-    const s = viewer.toScreen(pos);
-    if (!s.visible) continue;
-    const x = s.x * k, y = s.y * k;
+    const q = toPx(pos);
+    if (!q) continue;
+    const [x, y] = q;
     if (el.classList.contains('pin')) {
       ctx.fillStyle = '#ff5d5d'; ctx.beginPath(); ctx.arc(x, y - 16 * k, 12 * k, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(el.textContent ?? '', x, y - 16 * k);
     } else if (el.classList.contains('dim')) {
       const t = el.textContent ?? '', w = ctx.measureText(t).width + 16 * k;
-      ctx.fillStyle = 'rgba(12,15,22,.92)'; ctx.beginPath(); (ctx as any).roundRect?.(x - w / 2, y - 12 * k, w, 24 * k, 8 * k) ?? ctx.rect(x - w / 2, y - 12 * k, w, 24 * k); ctx.fill();
+      ctx.fillStyle = 'rgba(12,15,22,.92)'; ctx.beginPath();
+      if ((ctx as any).roundRect) (ctx as any).roundRect(x - w / 2, y - 12 * k, w, 24 * k, 8 * k); else ctx.rect(x - w / 2, y - 12 * k, w, 24 * k);
+      ctx.fill();
       ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(t, x, y);
     } else if (el.classList.contains('dot')) {
       ctx.fillStyle = '#facc15'; ctx.beginPath(); ctx.arc(x, y, 5 * k, 0, Math.PI * 2); ctx.fill();
     }
   }
   ctx.textAlign = 'left';
-  ctx.fillStyle = isLight() ? '#0f172a' : '#eef0f4';
-  ctx.font = `600 ${14 * k}px system-ui, sans-serif`;
-  ctx.fillText(`${doc?.name ?? ''}  ·  ${new Date().toLocaleString()}`, 16 * k, src.height + 28 * k);
-  out.toBlob((b) => b && shareFile(b, `${(doc?.name ?? 'view').replace(/\.\w+$/, '')}-markup.png`), 'image/png');
 }
+
+// ---------------- export (PDF / PNG of the whole drawing, the visible area or a selected area) ----------------
+interface ExportOpts { area: 'all' | 'view' | 'select'; format: 'pdf' | 'png'; paper: string; colour: 'colour' | 'mono'; marks: boolean }
+const exportOpts: ExportOpts = { area: 'all', format: 'pdf', paper: 'A3', colour: 'colour', marks: true, ...(() => { try { return JSON.parse(store.get('export') ?? '{}'); } catch { return {}; } })() };
+let exportRect: Rect | null = null;
+let selPts: THREE.Vector3[] = [];
+
+function selectCorner(p: Pick) {
+  selPts.push(p.point);
+  viewer.setLabel({ id: `sel:${selPts.length}`, pos: p.point, html: '', cls: p.snapped ? 'dot' : 'dot free' });
+  if (selPts.length < 2) return refreshHint();
+  const [a, b] = selPts;
+  exportRect = { x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y), x1: Math.max(a.x, b.x), y1: Math.max(a.y, b.y) };
+  selPts = [];
+  viewer.clearLabels('sel:');
+  if (exportRect.x1 - exportRect.x0 <= 0 || exportRect.y1 - exportRect.y0 <= 0) { exportRect = null; toast('Pick two corners that make a rectangle'); }
+  drawSelection();
+  setTool('none');
+  exportOpts.area = exportRect ? 'select' : 'all';
+  showExport();
+}
+function drawSelection() {
+  viewer.overlay.getObjectByName('sel')?.removeFromParent();
+  if (!exportRect || doc?.mode !== '2d') return;
+  const r = exportRect, ppu = viewer.pixelsPerUnit();
+  const pts = [new THREE.Vector3(r.x0, r.y0, 0), new THREE.Vector3(r.x1, r.y0, 0), new THREE.Vector3(r.x1, r.y1, 0), new THREE.Vector3(r.x0, r.y1, 0), new THREE.Vector3(r.x0, r.y0, 0)];
+  const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineDashedMaterial({ color: 0x3b82f6, dashSize: 8 / ppu, gapSize: 6 / ppu, depthTest: false }));
+  l.computeLineDistances();
+  l.name = 'sel'; l.renderOrder = 999;
+  viewer.overlay.add(l);
+  viewer.requestRender();
+}
+function visibleRect(): Rect {
+  const c = viewer.controls, w = viewer.renderer.domElement.clientWidth, h = viewer.renderer.domElement.clientHeight;
+  const cs = [c.screenToWorld2D(0, 0), c.screenToWorld2D(w, 0), c.screenToWorld2D(0, h), c.screenToWorld2D(w, h)];
+  return { x0: Math.min(...cs.map((q) => q[0])), y0: Math.min(...cs.map((q) => q[1])), x1: Math.max(...cs.map((q) => q[0])), y1: Math.max(...cs.map((q) => q[1])) };
+}
+function showExport() {
+  if (!doc) return;
+  const is2 = doc.mode === '2d', o = exportOpts;
+  if (!is2) o.area = 'view';
+  if (o.area === 'select' && !exportRect) o.area = 'all';
+  const seg = (key: string, opts: [string, string][], cur: string) => `<div class="seg" data-key="${key}">${opts.map(([v, l]) => `<button data-v="${v}" class="${cur === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+  openSheet('Export', `
+    ${is2 ? `<p class="muted" style="margin:0 0 6px">Area</p>${seg('area', [['all', 'Whole drawing'], ['view', 'Visible'], ['select', exportRect ? 'Selected ✓' : 'Select area…']], o.area)}` : '<p class="muted">The current 3D view is exported.</p>'}
+    <p class="muted" style="margin:14px 0 6px">Format</p>${seg('format', [['pdf', 'PDF'], ['png', 'PNG image']], o.format)}
+    ${o.format === 'pdf' ? `<p class="muted" style="margin:14px 0 6px">Paper</p>${seg('paper', Object.keys(PAPER).map((p) => [p, p] as [string, string]), o.paper)}` : ''}
+    <p class="muted" style="margin:14px 0 6px">Colours</p>${seg('colour', [['colour', 'Colour'], ['mono', 'Monochrome']], o.colour)}
+    <label class="row" style="margin-top:8px"><span class="grow">Include notes and measurements</span><input type="checkbox" class="switch" id="expMarks" ${o.marks ? 'checked' : ''}></label>
+    <div class="btns"><button class="btn primary" id="doExport">${icon('download', 18)}Export</button></div>
+    <p class="muted">Printed on white${o.format === 'pdf' ? ', fitted to the page, with the approximate scale in the footer' : ''}.</p>`, (b) => {
+    b.querySelectorAll<HTMLElement>('.seg[data-key] button').forEach((btn) => (btn.onclick = () => {
+      const key = (btn.parentElement as HTMLElement).dataset.key as keyof ExportOpts, v = btn.dataset.v!;
+      if (key === 'area' && v === 'select') { closeSheet(); selPts = []; setTool('select', false); return; }
+      (o as any)[key] = v;
+      store.set('export', JSON.stringify(o));
+      haptic.tick();
+      showExport();
+    }));
+    ($('#expMarks', b) as HTMLInputElement).onchange = (e) => { o.marks = (e.target as HTMLInputElement).checked; store.set('export', JSON.stringify(o)); };
+    $('#doExport', b).onclick = () => { closeSheet(); runExport(); };
+  });
+}
+async function runExport() {
+  const d = doc!, o = exportOpts;
+  let rect: Rect | null = null;
+  if (d.mode === '2d') {
+    if (o.area === 'select' && exportRect) rect = exportRect;
+    else if (o.area === 'view') rect = visibleRect();
+    else { const b = viewer.bounds, pad = Math.max(b.max.x - b.min.x, b.max.y - b.min.y) * 0.02; rect = { x0: b.min.x - pad, y0: b.min.y - pad, x1: b.max.x + pad, y1: b.max.y + pad }; }
+  }
+  const el = viewer.renderer.domElement;
+  const aspect = rect ? (rect.x1 - rect.x0) / (rect.y1 - rect.y0) : el.clientWidth / Math.max(1, el.clientHeight);
+  // pixels: PDF at ~200 dpi on the chosen paper, PNG 4096 px on the long side (within device limits)
+  let W: number, H: number;
+  if (o.format === 'pdf') {
+    const [pw, ph] = PAPER[o.paper] ?? PAPER.A3;
+    const long = ((Math.max(pw, ph) - 20) / 25.4) * 200, short = ((Math.min(pw, ph) - 28) / 25.4) * 200;
+    const [bw, bh] = aspect >= 1 ? [long, short] : [short, long];
+    const hgt = Math.min(bw / aspect, bh);
+    [W, H] = fitPixels(hgt * aspect, hgt);
+  } else [W, H] = fitPixels(aspect >= 1 ? 4096 : 4096 * aspect, aspect >= 1 ? 4096 / aspect : 4096);
+  loading.show(`Exporting ${o.format.toUpperCase()}`);
+  loading.progress(`Rendering ${W} × ${H} px`, 0);
+  await new Promise((r) => setTimeout(r, 30));
+  const base = d.name.replace(/\.\w+$/, '');
+  const overlayVis = viewer.overlay.visible;
+  try {
+    print = { mono: o.colour === 'mono' };
+    applyTheme();
+    viewer.overlay.getObjectByName('sel')?.removeFromParent();
+    viewer.overlay.visible = o.marks;
+    const canvas = renderRegion(viewer, rect, W, H, o.marks ? drawMarks : undefined);
+    const suffix = rect ? (o.area === 'select' ? '-area' : o.area === 'view' ? '-view' : '') : '-3d';
+    let blob: Blob | null;
+    if (o.format === 'pdf') {
+      loading.progress('Writing PDF', 0.8);
+      const du = drawingUnit();
+      blob = (await toPdf(canvas, o.paper, (iwMm) => {
+        let sc = '';
+        if (rect && TO_M[du]) {
+          const ratio = ((rect.x1 - rect.x0) * TO_M[du] * 1000) / iwMm;
+          const p = Math.pow(10, Math.floor(Math.log10(ratio))), n = (Math.round((ratio / p) * 10) / 10) * p;
+          sc = `   -   Scale approx. 1:${n >= 10 ? Math.round(n) : n.toFixed(1)} on ${o.paper} (fitted to page)`;
+        }
+        return `${d.name}   -   ${new Date().toLocaleDateString()}${sc}`.replace(/[^\x20-\x7e]/g, '?'); // PDF base fonts are Latin-only
+      })).blob;
+    } else blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+    loading.hide();
+    if (blob) shareFile(blob, `${base}${suffix}.${o.format}`);
+  } catch (e: any) {
+    loading.hide();
+    toast(`Export failed: ${e?.message ?? e}`, 5000);
+  } finally {
+    print = null;
+    viewer.overlay.visible = overlayVis;
+    applyTheme();
+    drawSelection();
+  }
+}
+
 async function shareFile(blob: Blob, name: string, text?: string) {
   try {
     if (Capacitor.isNativePlatform()) {

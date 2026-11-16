@@ -2,6 +2,10 @@
 // arrays batched by (layer, colour), so memory stays a small multiple of the output size
 // instead of the 30-40× blow-up of object-based parsers. Runs in a Web Worker.
 import { ACI } from './aci';
+import { patternSegments, fillTriangles, type PatternLine } from './hatch';
+
+/** floats per text in TextSet.num: x, y, z, height, rotation, width factor, wrap width (0 = none) */
+export const TS = 7;
 
 /** Segment data (x1,y1,z1,x2,y2,z2 …) in fixed-size chunks: no doubling or final copy, and each chunk goes straight to the GPU. */
 export interface Bucket { layer: number; color: number; chunks: Float32Array[]; length: number }
@@ -32,7 +36,7 @@ class Chunked {
 export const at = (b: Bucket, i: number) => b.chunks[(i / CHUNK) | 0][i % CHUNK];
 export interface TextSet {
   values: string[];
-  /** per text: x, y, z, height, rotation(rad) */
+  /** per text (TS floats): x, y, z, height, rotation(rad), width factor, wrap width (MTEXT box, 0 = no wrap) */
   num: Float32Array;
   /** per text: ax | ay << 2 | (multiline-from-top ? 16 : 0). ax 0 left 1 centre 2 right; ay 0 baseline 1 bottom 2 middle 3 top */
   align: Uint8Array;
@@ -52,11 +56,13 @@ export interface Drawing {
   bounds: [number, number, number, number, number, number];
   skipped: Record<string, number>;
   entities: number;
+  /** filled areas (solid hatches, SOLIDs, wide polylines, arrowheads) as x,y,z triangles */
+  fills: { layer: number; color: number; alpha: number; data: Float32Array }[];
   /** display tiles (set by the worker; then `buckets[].chunks` are released) */
   tiles?: import('./tiles').Tile[];
 }
 
-type CS = { mode: 0 | 1 | 2; color: number }; // 0 ByLayer, 1 ByBlock, 2 explicit (rgb, or -1 = foreground)
+type CS = { mode: 0 | 1 | 2; color: number; lt?: string; lts?: number }; // colour: 0 ByLayer, 1 ByBlock, 2 explicit (rgb, or -1 = foreground); lt = linetype name
 type M = Float64Array; // 3x4 affine: [m00 m01 m02 m10 m11 m12 m20 m21 m22 tx ty tz]
 
 const FG = -1;
@@ -304,9 +310,9 @@ export function cleanText(s: string): string {
 }
 
 // ---------------- sinks: where entity geometry goes ----------------
-interface TextItem { v: string; x: number; y: number; z: number; h: number; rot: number; align: number }
+interface TextItem { v: string; x: number; y: number; z: number; h: number; rot: number; align: number; wf: number; ww: number }
 interface InsertItem { name: string; m: M; layer: string; cs: CS; dim: boolean }
-interface Part { layer: string; cs: CS; segs: number[]; snaps: number[]; texts: TextItem[]; inserts: InsertItem[] }
+interface Part { layer: string; cs: CS; segs: number[]; snaps: number[]; texts: TextItem[]; inserts: InsertItem[]; fills: { a: number; t: number[] }[] }
 interface BlockDef { base: [number, number, number]; parts: Part[] }
 
 interface Sink {
@@ -314,6 +320,8 @@ interface Sink {
   seg(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number): void;
   snap(x: number, y: number, z: number): void;
   text(t: TextItem): void;
+  /** filled triangles x,y,z,… (alpha < 1 = light tint, used for very dense hatch patterns) */
+  fill(tris: number[], alpha?: number): void;
   insert(i: InsertItem): void;
   end(): void;
 }
@@ -321,12 +329,13 @@ interface Sink {
 class BlockSink implements Sink {
   cur: Part | null = null;
   constructor(public def: BlockDef) {}
-  begin(layer: string, cs: CS) { this.cur = { layer, cs, segs: [], snaps: [], texts: [], inserts: [] }; }
+  begin(layer: string, cs: CS) { this.cur = { layer, cs, segs: [], snaps: [], texts: [], inserts: [], fills: [] }; }
+  fill(tris: number[], alpha = 1) { if (tris.length) this.cur!.fills.push({ a: alpha, t: tris }); }
   seg(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number) { this.cur!.segs.push(x1, y1, z1, x2, y2, z2); }
   snap(x: number, y: number, z: number) { this.cur!.snaps.push(x, y, z); }
   text(t: TextItem) { this.cur!.texts.push(t); }
   insert(i: InsertItem) { this.cur!.inserts.push(i); }
-  end() { const c = this.cur!; if (c.segs.length || c.snaps.length || c.texts.length || c.inserts.length) this.def.parts.push(c); this.cur = null; }
+  end() { const c = this.cur!; if (c.segs.length || c.snaps.length || c.texts.length || c.inserts.length || c.fills.length) this.def.parts.push(c); this.cur = null; }
 }
 
 class WorldSink implements Sink {
@@ -345,12 +354,32 @@ class WorldSink implements Sink {
   origin: [number, number, number] | null;
   bmin = [Infinity, Infinity, Infinity];
   bmax = [-Infinity, -Infinity, -Infinity];
+  fillB: { layer: number; color: number; alpha: number; f: F32 }[] = [];
+  fillKey = new Map<string, number>();
   private cb = -1;
   private cl = 0;
   private cc = FG;
   private pieceStart = 0;
-  constructor(public layerColor: (name: string) => number, public blocks: Map<string, BlockDef>, origin: [number, number, number] | null) {
+  // current dash pattern (already scaled) and where we are in it
+  private pat: number[] | null = null;
+  private patLen = 0;
+  private pi = 0;
+  private po = 0;
+  private lx = NaN; private ly = NaN; private lz = NaN;
+  constructor(public layerColor: (name: string) => number, public blocks: Map<string, BlockDef>, origin: [number, number, number] | null,
+    public lt: { types: Map<string, number[]>; layerLt: (layer: string) => string; scale: number }) {
     this.origin = origin;
+  }
+  /** effective linetype name: ByLayer → the layer's, ByBlock → the inserting block's */
+  ltName(layer: string, cs: CS, inherited = 'CONTINUOUS') {
+    const n = (cs.lt ?? 'BYLAYER').toUpperCase();
+    return n === 'BYBLOCK' ? inherited : n === 'BYLAYER' ? this.lt.layerLt(layer) : n;
+  }
+  patternFor(name: string, lts = 1): number[] | null {
+    const p = this.lt.types.get(name);
+    if (!p || !p.length || !p.some((x) => x < 0)) return null; // continuous
+    const k = this.lt.scale * (lts || 1);
+    return p.map((x) => x * k);
   }
   layer(name: string) {
     let i = this.layerIdx.get(name);
@@ -358,8 +387,12 @@ class WorldSink implements Sink {
     return i;
   }
   resolve(layer: string, cs: CS) { return cs.mode === 2 ? cs.color : cs.mode === 1 ? FG : this.layerColor(layer); }
-  begin(layer: string, cs: CS) { this.beginResolved(layer, this.resolve(layer, cs)); }
-  beginResolved(layer: string, color: number) { this.cl = this.layer(layer); this.cc = color; this.cb = -1; }
+  begin(layer: string, cs: CS) { this.beginResolved(layer, this.resolve(layer, cs), this.patternFor(this.ltName(layer, cs), cs.lts)); }
+  beginResolved(layer: string, color: number, pattern: number[] | null = null) {
+    this.cl = this.layer(layer); this.cc = color; this.cb = -1;
+    this.pat = pattern; this.patLen = pattern ? pattern.reduce((s2, x) => s2 + Math.abs(x), 0) : 0;
+    this.pi = 0; this.po = 0; this.lx = NaN;
+  }
   private bucket() {
     if (this.cb >= 0) return this.buckets[this.cb].f;
     const key = this.cl * 33554432 + this.cc + 1;
@@ -378,6 +411,41 @@ class WorldSink implements Sink {
   }
   seg(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number) {
     if (!(isFinite(x1) && isFinite(y1) && isFinite(z1) && isFinite(x2) && isFinite(y2) && isFinite(z2))) return;
+    if (this.pat && this.patLen > 0) this.dashed(x1, y1, z1, x2, y2, z2);
+    else this.solid(x1, y1, z1, x2, y2, z2);
+  }
+  /** Split a segment by the dash pattern; the pattern carries on across connected segments (polyline corners). */
+  private dashed(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number) {
+    const p = this.pat!, L = Math.hypot(x2 - x1, y2 - y1, z2 - z1);
+    if (!(x1 === this.lx && y1 === this.ly && z1 === this.lz)) { this.pi = 0; this.po = 0; }
+    this.lx = x2; this.ly = y2; this.lz = z2;
+    if (L === 0) return;
+    if (L / this.patLen > 3000) { this.solid(x1, y1, z1, x2, y2, z2); return; } // too fine to see: solid
+    const ux = (x2 - x1) / L, uy = (y2 - y1) / L, uz = (z2 - z1) / L;
+    let t = 0, guard = 0;
+    while (t < L - 1e-12 && guard++ < 20000) {
+      const e = p[this.pi], len = Math.abs(e);
+      const step = Math.min(len - this.po, L - t);
+      if (e > 0) this.solid(x1 + ux * t, y1 + uy * t, z1 + uz * t, x1 + ux * (t + step), y1 + uy * (t + step), z1 + uz * (t + step));
+      else if (e === 0) { const d = Math.min(L - t, this.patLen * 0.004); this.solid(x1 + ux * t, y1 + uy * t, z1 + uz * t, x1 + ux * (t + d), y1 + uy * (t + d), z1 + uz * (t + d)); }
+      t += step; this.po += step;
+      if (this.po >= len - 1e-12) { this.pi = (this.pi + 1) % p.length; this.po = 0; }
+    }
+  }
+  fill(tris: number[], alpha = 1) {
+    if (tris.length < 9) return;
+    const key = `${this.cl}|${this.cc}|${alpha}`;
+    let b = this.fillKey.get(key);
+    if (b === undefined) { b = this.fillB.length; this.fillB.push({ layer: this.cl, color: this.cc, alpha, f: new F32(256) }); this.fillKey.set(key, b); }
+    const f = this.fillB[b].f, [ox, oy, oz] = this.o(tris[0], tris[1], tris[2]);
+    f.room(tris.length);
+    for (let i = 0; i < tris.length; i += 3) {
+      const x = tris[i] - ox, y = tris[i + 1] - oy, z = tris[i + 2] - oz;
+      f.a[f.n++] = x; f.a[f.n++] = y; f.a[f.n++] = z;
+      this.grow(x, y, z);
+    }
+  }
+  private solid(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number) {
     const f = this.bucket();
     const [ox, oy, oz] = this.o(x1, y1, z1);
     const a = f.room6(), n = f.off;
@@ -397,11 +465,22 @@ class WorldSink implements Sink {
     if (!t.v || !isFinite(t.x) || !isFinite(t.y)) return;
     const [ox, oy, oz] = this.o(t.x, t.y, t.z);
     this.tv.push(t.v);
-    this.tn.push(t.x - ox); this.tn.push(t.y - oy); this.tn.push(t.z - oz); this.tn.push(t.h); this.tn.push(t.rot);
+    this.tn.push(t.x - ox); this.tn.push(t.y - oy); this.tn.push(t.z - oz); this.tn.push(t.h); this.tn.push(t.rot); this.tn.push(t.wf || 1); this.tn.push(t.ww || 0);
     this.ta.push(t.align);
     this.tc.push(this.cc);
     this.tl.push(this.cl);
-    this.grow(t.x - ox, t.y - oy, t.z - oz);
+    // extents include the space the text takes up (not just its insertion point), so "fit" and exports don't cut it off
+    const x = t.x - ox, y = t.y - oy, z = t.z - oz, lines = t.v.split('\n');
+    const longest = Math.max(...lines.map((l) => l.length));
+    const w = t.ww > 0 ? t.ww : longest * t.h * 0.62 * (t.wf || 1);
+    const nl = t.ww > 0 ? Math.max(lines.length, Math.ceil((t.v.length * t.h * 0.62 * (t.wf || 1)) / t.ww)) : lines.length;
+    const hh = t.h * (1 + (nl - 1) * 1.667);
+    const ax = t.align & 3, ay = (t.align >> 2) & 3;
+    if (Math.abs(Math.sin(t.rot)) > 0.01) { const rr = Math.hypot(w, hh); this.grow(x - rr, y - rr, z); this.grow(x + rr, y + rr, z); return; }
+    const x0 = ax === 1 ? x - w / 2 : ax === 2 ? x - w : x;
+    const y0 = ay === 3 ? y - hh : ay === 2 ? y - hh / 2 : y - t.h * 0.3;
+    this.grow(x0, y0, z);
+    this.grow(x0 + w, y0 + hh + (ay === 3 || ay === 2 ? 0 : t.h * 0.3), z);
   }
   end() {
     if (this.cb >= 0) {
@@ -410,19 +489,20 @@ class WorldSink implements Sink {
     }
     this.cb = -1;
   }
-  insert(ins: InsertItem) { this.expand(ins, ins.m, this.resolve(ins.layer, ins.cs), ins.layer, 0); }
+  insert(ins: InsertItem) { this.expand(ins, ins.m, this.resolve(ins.layer, ins.cs), ins.layer, 0, this.ltName(ins.layer, ins.cs)); }
 
   /** Instantiate a block: transform its pre-tessellated parts into world buckets. */
-  private expand(ins: InsertItem, m0: M, insColor: number, insLayer: string, depth: number) {
+  private expand(ins: InsertItem, m0: M, insColor: number, insLayer: string, depth: number, insLt: string) {
     const def = this.blocks.get(ins.name);
     if (!def || depth > 12) return;
     const m = ins.dim ? m0 : mul(m0, translate(-def.base[0], -def.base[1], -def.base[2]));
-    const ys = Math.hypot(m[1], m[4], m[7]);
+    const ys = Math.hypot(m[1], m[4], m[7]), xs = Math.hypot(m[0], m[3], m[6]);
     const xr = Math.atan2(m[3], m[0]);
     for (const part of def.parts) {
       const layer = part.layer === '0' ? insLayer : part.layer;
       const color = part.cs.mode === 2 ? part.cs.color : part.cs.mode === 1 ? insColor : this.layerColor(layer);
-      this.beginResolved(layer, color);
+      const ltn = this.ltName(layer, part.cs, insLt);
+      this.beginResolved(layer, color, this.patternFor(ltn, part.cs.lts));
       const s = part.segs;
       for (let i = 0; i < s.length; i += 6) {
         const x1 = s[i], y1 = s[i + 1], z1 = s[i + 2], x2 = s[i + 3], y2 = s[i + 4], z2 = s[i + 5];
@@ -436,35 +516,82 @@ class WorldSink implements Sink {
         this.snap(m[0] * x + m[1] * y + m[2] * z + m[9], m[3] * x + m[4] * y + m[5] * z + m[10], m[6] * x + m[7] * y + m[8] * z + m[11]);
       }
       for (const t of part.texts)
-        this.text({ ...t, x: m[0] * t.x + m[1] * t.y + m[2] * t.z + m[9], y: m[3] * t.x + m[4] * t.y + m[5] * t.z + m[10], z: m[6] * t.x + m[7] * t.y + m[8] * t.z + m[11], h: t.h * ys, rot: t.rot + xr });
+        this.text({ ...t, x: m[0] * t.x + m[1] * t.y + m[2] * t.z + m[9], y: m[3] * t.x + m[4] * t.y + m[5] * t.z + m[10], z: m[6] * t.x + m[7] * t.y + m[8] * t.z + m[11], h: t.h * ys, rot: t.rot + xr, wf: t.wf * (ys ? xs / ys : 1), ww: t.ww * xs });
+      for (const fl of part.fills) {
+        const tr = fl.t, o: number[] = new Array(tr.length);
+        for (let i = 0; i < tr.length; i += 3) {
+          const x = tr[i], y = tr[i + 1], z = tr[i + 2];
+          o[i] = m[0] * x + m[1] * y + m[2] * z + m[9]; o[i + 1] = m[3] * x + m[4] * y + m[5] * z + m[10]; o[i + 2] = m[6] * x + m[7] * y + m[8] * z + m[11];
+        }
+        this.fill(o, fl.a);
+      }
       this.end();
       for (const sub of part.inserts) {
         const subLayer = sub.layer === '0' ? layer : sub.layer;
         const subColor = sub.cs.mode === 2 ? sub.cs.color : sub.cs.mode === 1 ? color : this.layerColor(subLayer);
-        this.expand(sub, mul(m, sub.m), subColor, subLayer, depth + 1);
+        this.expand(sub, mul(m, sub.m), subColor, subLayer, depth + 1, this.ltName(subLayer, sub.cs, ltn));
       }
     }
   }
 }
 
 // ---------------- entity interpretation ----------------
-function colorSpec(r: Rec): CS {
-  for (let i = 0; i < r.n; i++) if (r.codes[i] === 420) return { mode: 2, color: r.nums[i] & 0xffffff };
+function colorSpec(r: Rec, lt?: string): CS {
+  const lts = r.get(48, 1);
+  for (let i = 0; i < r.n; i++) if (r.codes[i] === 420) return { mode: 2, color: r.nums[i] & 0xffffff, lt, lts };
   let idx = 256;
   for (let i = 0; i < r.n; i++) if (r.codes[i] === 62) { idx = Math.abs(r.nums[i]); break; }
-  if (idx === 0) return { mode: 1, color: 0 };
-  if (idx >= 256) return { mode: 0, color: 0 };
-  return { mode: 2, color: idx === 7 ? FG : ACI[idx] };
+  if (idx === 0) return { mode: 1, color: 0, lt, lts };
+  if (idx >= 256) return { mode: 0, color: 0, lt, lts };
+  return { mode: 2, color: idx === 7 ? FG : ACI[idx], lt, lts };
+}
+
+export interface TextStyle { wf: number; h: number; font: string }
+/** CAD fonts (SHX "romans", "simplex"…) are narrower than the phone's sans-serif: compensate. */
+function fontFactor(font: string) {
+  const f = font.toLowerCase();
+  if (f.includes('narrow') || f.startsWith('arialn')) return 0.82;
+  if (f.endsWith('.shx') || (!f.includes('.') && f)) return 0.86;
+  return 1;
+}
+
+/** Filled arrowhead: tip at (x,y), pointing away from (tx,ty). AutoCAD's closed filled arrow is 1/3 as wide as it is long. */
+function arrow(x: number, y: number, z: number, tx: number, ty: number, size: number): number[] {
+  const dx = tx - x, dy = ty - y, L = Math.hypot(dx, dy);
+  if (!L || !(size > 0)) return [];
+  const ux = dx / L, uy = dy / L, s = Math.min(size, L), w = s / 6;
+  const bx = x + ux * s, by = y + uy * s;
+  return [x, y, z, bx - uy * w, by + ux * w, z, bx + uy * w, by - ux * w, z];
+}
+
+/** Filled band for polylines with width (also how AutoCAD users draw arrows and thick title lines). */
+function widthBand(pts: number[], ws: number[], we: number[], z: number, P: (x: number, y: number, z: number) => [number, number, number]): number[] {
+  const out: number[] = [];
+  for (let i = 0; i + 3 < pts.length; i += 2) {
+    const ax = pts[i], ay = pts[i + 1], bx = pts[i + 2], by = pts[i + 3], k = i / 2;
+    const L = Math.hypot(bx - ax, by - ay);
+    if (!L) continue;
+    const nx = -(by - ay) / L, ny = (bx - ax) / L, a = (ws[k] ?? 0) / 2, b = (we[k] ?? 0) / 2;
+    if (a <= 0 && b <= 0) continue;
+    const q = [P(ax + nx * a, ay + ny * a, z), P(ax - nx * a, ay - ny * a, z), P(bx - nx * b, by - ny * b, z), P(bx + nx * b, by + ny * b, z)];
+    out.push(...q[0], ...q[1], ...q[2], ...q[0], ...q[2], ...q[3]);
+  }
+  return out;
 }
 
 type V3 = [number, number, number];
-interface PolyState { flags: number; layer: string; cs: CS; elev: number; o: M | null; m: number; n: number; v: number[]; faces: number[] }
+interface PolyState { flags: number; layer: string; cs: CS; elev: number; o: M | null; m: number; n: number; v: number[]; faces: number[]; w0: number; w1: number }
+const PV = 6; // floats per POLYLINE vertex: x, y, z, bulge, start width, end width
 
 class EntityReader {
   skipped: Record<string, number> = {};
   count = 0;
   poly: PolyState | null = null;
-  constructor(private rd: DxfReader) {}
+  constructor(private rd: DxfReader, private ctx: { styles: Map<string, TextStyle>; arrow: () => number }) {}
+  style(r: Rec): TextStyle {
+    const n = (this.str(r, 7) || 'STANDARD').toUpperCase();
+    return this.ctx.styles.get(n) ?? this.ctx.styles.get('STANDARD') ?? { wf: 1, h: 0, font: '' };
+  }
 
   str(r: Rec, code: number, trim = true): string | null {
     for (let i = 0; i < r.n; i++) if (r.codes[i] === code) return this.rd.str(r.ss[i], r.se[i], trim);
@@ -478,7 +605,7 @@ class EntityReader {
       if (!this.poly) return;
       const f = r.get(70);
       if (f & 128 && !(f & 64)) this.poly.faces.push(r.get(71), r.get(72), r.get(73), r.get(74)); // polyface face record
-      else this.poly.v.push(r.get(10), r.get(20), r.get(30), r.get(42));
+      else this.poly.v.push(r.get(10), r.get(20), r.get(30), r.get(42), r.has(40) ? r.get(40) : this.poly.w0, r.has(41) ? r.get(41) : this.poly.w1);
       return;
     }
     if (t === 'SEQEND') { if (this.poly) this.flushPoly(sink); return; }
@@ -486,7 +613,7 @@ class EntityReader {
     this.count++;
 
     const layer = this.str(r, 8) || '0';
-    const cs = colorSpec(r);
+    const cs = colorSpec(r, this.str(r, 6) ?? undefined);
     const ex = r.has(210) ? ocs(r.get(210), r.get(220), r.get(230, 1)) : null;
     const P = (x: number, y: number, z: number): V3 =>
       ex ? [ex[0] * x + ex[1] * y + ex[2] * z, ex[3] * x + ex[4] * y + ex[5] * z, ex[6] * x + ex[7] * y + ex[8] * z] : [x, y, z];
@@ -525,25 +652,31 @@ class EntityReader {
         return;
       }
       case 'LWPOLYLINE': {
-        const xs: number[] = [], ys: number[] = [], bs: number[] = [];
+        const xs: number[] = [], ys: number[] = [], bs: number[] = [], w0: number[] = [], w1: number[] = [];
+        const cw = r.get(43, 0);
         for (let i = 0; i < r.n; i++) {
           const c = r.codes[i];
-          if (c === 10) { xs.push(r.nums[i]); ys.push(0); bs.push(0); }
+          if (c === 10) { xs.push(r.nums[i]); ys.push(0); bs.push(0); w0.push(cw); w1.push(cw); }
           else if (c === 20 && ys.length) ys[ys.length - 1] = r.nums[i];
           else if (c === 42 && bs.length) bs[bs.length - 1] = r.nums[i];
+          else if (c === 40 && w0.length) w0[w0.length - 1] = r.nums[i];
+          else if (c === 41 && w1.length) w1[w1.length - 1] = r.nums[i];
         }
         if (!xs.length) return;
+        // a constant width (43) wins over per-vertex widths written as 0 (some writers emit both)
+        if (cw > 0) for (let i = 0; i < w0.length; i++) if (!w0[i] && !w1[i]) { w0[i] = cw; w1[i] = cw; }
         const closed = (r.get(70) & 1) === 1;
         const z = r.get(38);
         sink.begin(layer, cs);
         line2(bulgePts(xs, ys, bs, closed), z);
+        if (w0.some((w) => w > 0) || w1.some((w) => w > 0)) sink.fill(this.wideBand(xs, ys, bs, w0, w1, closed, z, P));
         for (let i = 0; i < xs.length; i++) sink.snap(...P(xs[i], ys[i], z));
         sink.end();
         return;
       }
       case 'POLYLINE': {
         const flags = r.get(70);
-        this.poly = { flags, layer, cs, elev: r.get(30), o: flags & (8 | 16 | 64) ? null : ex, m: r.get(71), n: r.get(72), v: [], faces: [] };
+        this.poly = { flags, layer, cs, elev: r.get(30), o: flags & (8 | 16 | 64) ? null : ex, m: r.get(71), n: r.get(72), v: [], faces: [], w0: r.get(40, 0), w1: r.get(41, 0) };
         return;
       }
       case 'ELLIPSE': {
@@ -594,6 +727,8 @@ class EntityReader {
         }
         const order = t === '3DFACE' ? [0, 1, 2, 3] : [0, 1, 3, 2];
         sink.begin(layer, cs);
+        // SOLID/TRACE are filled (dimension arrowheads are usually SOLIDs)
+        if (t !== '3DFACE') sink.fill([...q[0], ...q[1], ...q[2], ...q[1], ...q[3], ...q[2]]);
         for (let k = 0; k < 4; k++) {
           const a = q[order[k]], b = q[order[(k + 1) % 4]];
           if (a[0] !== b[0] || a[1] !== b[1] || a[2] !== b[2]) sink.seg(a[0], a[1], a[2], b[0], b[1], b[2]);
@@ -611,9 +746,21 @@ class EntityReader {
         sink.begin(layer, cs);
         for (let i = 3; i < v.length; i += 3) sink.seg(v[i - 3], v[i - 2], v[i - 1], v[i], v[i + 1], v[i + 2]);
         if (v.length) sink.snap(v[0], v[1], v[2]);
+        if (v.length >= 6 && r.get(71, 1) === 1) sink.fill(arrow(v[0], v[1], v[2], v[3], v[4], this.ctx.arrow()));
         sink.end();
         return;
       }
+      case 'HATCH':
+        sink.begin(layer, cs);
+        this.hatch(r, sink, P);
+        sink.end();
+        return;
+      case 'MULTILEADER':
+      case 'MLEADER':
+        sink.begin(layer, cs);
+        this.mleader(r, sink);
+        sink.end();
+        return;
       case 'TEXT':
       case 'ATTRIB': {
         if (t === 'ATTRIB' && r.get(70) & 1) return; // invisible attribute
@@ -625,8 +772,9 @@ class EntityReader {
         const ax = h === 1 || h === 4 ? 1 : h === 2 ? 2 : 0;
         const ay = h === 4 ? 2 : v === 1 ? 1 : v === 2 ? 2 : v === 3 ? 3 : 0;
         const rot = (r.get(50) * Math.PI) / 180 + (ex ? Math.atan2(ex[3], ex[0]) : 0);
+        const st = this.style(r);
         sink.begin(layer, cs);
-        sink.text({ v: cleanText(raw), x: p[0], y: p[1], z: p[2], h: r.get(40, 1), rot, align: ax | (ay << 2) });
+        sink.text({ v: cleanText(raw), x: p[0], y: p[1], z: p[2], h: r.get(40, 0) || st.h || 1, rot, align: ax | (ay << 2), wf: (r.has(41) ? r.get(41) : st.wf || 1) * fontFactor(st.font), ww: 0 });
         sink.snap(...p);
         sink.end();
         return;
@@ -638,8 +786,10 @@ class EntityReader {
         const a = Math.min(9, Math.max(1, r.get(71, 1)));
         const rot = r.has(11) ? Math.atan2(r.get(21), r.get(11)) : r.get(50);
         const x = r.get(10), y = r.get(20), z = r.get(30);
+        const st = this.style(r);
         sink.begin(layer, cs);
-        sink.text({ v: cleanText(raw), x, y, z, h: r.get(40, 1), rot, align: ((a - 1) % 3) | ((a <= 3 ? 3 : a <= 6 ? 2 : 1) << 2) | 16 });
+        // code 41 = width of the MTEXT box: lines are wrapped to it when drawn
+        sink.text({ v: cleanText(raw), x, y, z, h: r.get(40, 0) || st.h || 1, rot, align: ((a - 1) % 3) | ((a <= 3 ? 3 : a <= 6 ? 2 : 1) << 2) | 16, wf: (st.wf || 1) * fontFactor(st.font), ww: r.get(41, 0) });
         sink.snap(x, y, z);
         sink.end();
         return;
@@ -677,16 +827,158 @@ class EntityReader {
     }
   }
 
+  /** Filled band of a polyline with widths; arc (bulge) segments are subdivided with interpolated width. */
+  wideBand(xs: number[], ys: number[], bs: number[], w0: number[], w1: number[], closed: boolean, z: number, P: (x: number, y: number, z: number) => V3): number[] {
+    const n = xs.length, out: number[] = [];
+    const segs = closed ? n : n - 1;
+    for (let i = 0; i < segs; i++) {
+      const j = (i + 1) % n;
+      const pts = bulgePts([xs[i], xs[j]], [ys[i], ys[j]], [bs[i] || 0, 0], false);
+      const k = pts.length / 2 - 1, ws: number[] = [], we: number[] = [];
+      for (let q = 0; q < k; q++) { ws.push(w0[i] + ((w1[i] - w0[i]) * q) / k); we.push(w0[i] + ((w1[i] - w0[i]) * (q + 1)) / k); }
+      out.push(...widthBand(pts, ws, we, z, P));
+    }
+    return out;
+  }
+
+  /** HATCH: boundary paths → pattern lines clipped to them, or a solid fill. Hatch coordinates are in OCS. */
+  hatch(r: Rec, sink: Sink, P: (x: number, y: number, z: number) => V3) {
+    const C = r.codes, N = r.nums, n = r.n;
+    const z = r.get(30);
+    let k = 0;
+    while (k < n && C[k] !== 91) k++;
+    if (k >= n) return;
+    const solid = r.get(70) === 1, nPaths = N[k++];
+    const at = (code: number, def = 0) => (k < n && C[k] === code ? N[k++] : def);
+    const loops: number[][] = [];
+    for (let pth = 0; pth < nPaths && k < n; pth++) {
+      while (k < n && C[k] !== 92) k++;
+      const flags = at(92);
+      let loop: number[] = [];
+      if (flags & 2) { // polyline path
+        const hasB = at(72), _closed = at(73, 1), cnt = at(93);
+        void _closed;
+        const xs: number[] = [], ys: number[] = [], bs: number[] = [];
+        for (let v = 0; v < cnt; v++) { xs.push(at(10)); ys.push(at(20)); bs.push(hasB ? at(42) : 0); }
+        loop = bulgePts(xs, ys, bs, true);
+      } else { // edges
+        const ne = at(93);
+        for (let e = 0; e < ne && k < n; e++) {
+          const type = at(72, 1);
+          if (type === 1) { const x1 = at(10), y1 = at(20), x2 = at(11), y2 = at(21); loop.push(x1, y1, x2, y2); }
+          else if (type === 2 || type === 3) {
+            const cx = at(10), cy = at(20);
+            const mx = type === 3 ? at(11) : 0, my = type === 3 ? at(21) : 0;
+            const rad = at(40), s0 = at(50), s1 = at(51), ccw = at(73, 1);
+            // clockwise edges store their angles mirrored (measured clockwise)
+            let a0 = (s0 * Math.PI) / 180, a1 = (s1 * Math.PI) / 180;
+            if (!ccw) { a0 = -a0; a1 = -a1; }
+            let sweep = ccw ? a1 - a0 : a0 - a1;
+            while (sweep <= 0) sweep += Math.PI * 2;
+            const steps = Math.max(8, Math.ceil((sweep / (Math.PI * 2)) * 64));
+            const maj = type === 3 ? Math.hypot(mx, my) : rad, rot = type === 3 ? Math.atan2(my, mx) : 0, minr = type === 3 ? maj * rad : rad;
+            for (let q = 0; q <= steps; q++) {
+              const a = a0 + (ccw ? 1 : -1) * (sweep * q) / steps, ex2 = maj * Math.cos(a), ey2 = minr * Math.sin(a);
+              loop.push(cx + ex2 * Math.cos(rot) - ey2 * Math.sin(rot), cy + ex2 * Math.sin(rot) + ey2 * Math.cos(rot));
+            }
+          } else if (type === 4) {
+            const deg = at(94, 3), rat = at(73), _per = at(74), nk = at(95), nc = at(96);
+            void _per;
+            const knots: number[] = [], cps: number[] = [], w: number[] = [];
+            for (let q = 0; q < nk; q++) knots.push(at(40));
+            for (let q = 0; q < nc; q++) { cps.push(at(10), at(20), 0); if (rat) w.push(at(42, 1)); }
+            const nf = at(97);
+            const fits: number[] = [];
+            for (let q = 0; q < nf; q++) fits.push(at(11), at(21), 0);
+            if (C[k] === 12) { at(12); at(22); } if (C[k] === 13) { at(13); at(23); }
+            const sp = cps.length ? splinePts(cps, knots, deg, w) : fits;
+            for (let q = 0; q < sp.length; q += 3) loop.push(sp[q], sp[q + 1]);
+          }
+        }
+      }
+      // drop consecutive duplicates (edge end = next edge start)
+      const clean: number[] = [];
+      for (let q = 0; q < loop.length; q += 2) {
+        const L2 = clean.length;
+        if (!L2 || Math.abs(clean[L2 - 2] - loop[q]) > 1e-9 || Math.abs(clean[L2 - 1] - loop[q + 1]) > 1e-9) clean.push(loop[q], loop[q + 1]);
+      }
+      if (clean.length >= 6) loops.push(clean);
+      const src = at(97);
+      for (let q = 0; q < src && k < n && C[k] === 330; q++) k++;
+    }
+    if (!loops.length) return;
+    // pattern definition lines (already scaled/rotated in the file)
+    const lines: PatternLine[] = [];
+    while (k < n && C[k] !== 78 && C[k] !== 450) k++;
+    if (k < n && C[k] === 78) {
+      const nl = at(78);
+      for (let q = 0; q < nl && k < n; q++) {
+        const angle = at(53), bx = at(43), by = at(44), ox = at(45), oy = at(46), nd = at(79);
+        const dashes: number[] = [];
+        for (let d = 0; d < nd; d++) dashes.push(at(49));
+        lines.push({ angle, bx, by, ox, oy, dashes });
+      }
+    }
+    const gradient = r.get(450) === 1;
+    const to3 = (xy: number[]) => { const o: number[] = []; for (let q = 0; q < xy.length; q += 2) o.push(...P(xy[q], xy[q + 1], z)); return o; };
+    if (solid || gradient || !lines.length) { sink.fill(to3(fillTriangles(loops))); return; }
+    const segs = patternSegments(loops, lines);
+    if (!segs) { sink.fill(to3(fillTriangles(loops)), 0.28); return; } // too dense to see as lines: light tint
+    for (let q = 0; q < segs.length; q += 4) { const a = P(segs[q], segs[q + 1], z), b = P(segs[q + 2], segs[q + 3], z); sink.seg(...a, ...b); }
+  }
+
+  /** MULTILEADER: leader lines with arrowheads, landing (dogleg) and its MTEXT. */
+  mleader(r: Rec, sink: Sink) {
+    const C = r.codes, N = r.nums, n = r.n;
+    let inLeader = false, inLine = false, text = '', tx = NaN, ty = 0, tz = 0, th = 0, trot = 0, tw = 0, asz = 0, attach = 1;
+    let conn: V3 | null = null, dogX = 0, dogY = 0, dogLen = 0, cur: number[] = [];
+    const lines: { pts: number[]; conn: V3 | null }[] = [];
+    const landings: [V3, number, number, number][] = [];
+    for (let k = 0; k < n; k++) {
+      const c = C[k], v = N[k];
+      if (c === 302 || c === 303 || c === 304 || c === 305) {
+        const sv = this.rd.str(r.ss[k], r.se[k], false);
+        if (c === 302 && sv.trim() === 'LEADER{') { inLeader = true; conn = null; dogX = 0; dogY = 0; dogLen = 0; }
+        else if (c === 304 && sv.trim() === 'LEADER_LINE{') { inLine = true; cur = []; }
+        else if (c === 305 && inLine) { inLine = false; lines.push({ pts: cur, conn }); }
+        else if (c === 303 && inLeader) { inLeader = false; if (conn) landings.push([conn, dogX, dogY, dogLen]); }
+        else if (c === 304 && !inLeader && !text) text = sv;
+        continue;
+      }
+      if (inLine) { if (c === 10) cur.push(v, 0, 0); else if (c === 20) cur[cur.length - 2] = v; else if (c === 30) cur[cur.length - 1] = v; }
+      else if (inLeader) {
+        if (c === 10) conn = [v, 0, 0]; else if (c === 20 && conn) conn[1] = v; else if (c === 30 && conn) conn[2] = v;
+        else if (c === 11) dogX = v; else if (c === 21) dogY = v; else if (c === 40) dogLen = v;
+      } else {
+        if (c === 12 && isNaN(tx)) tx = v; else if (c === 22) ty = v; else if (c === 32) tz = v;
+        else if (c === 41 && !th) th = v; else if (c === 140 && !asz) asz = v; else if (c === 42) trot = v; else if (c === 43) tw = v;
+        else if (c === 171) attach = v;
+      }
+    }
+    const size = asz || this.ctx.arrow();
+    for (const L of lines) {
+      const pts = L.pts.slice();
+      if (L.conn) pts.push(...L.conn);
+      for (let i = 3; i < pts.length; i += 3) sink.seg(pts[i - 3], pts[i - 2], pts[i - 1], pts[i], pts[i + 1], pts[i + 2]);
+      if (pts.length >= 6) { sink.fill(arrow(pts[0], pts[1], pts[2], pts[3], pts[4], size)); sink.snap(pts[0], pts[1], pts[2]); }
+    }
+    for (const [p, dx, dy, len] of landings) if (len > 0) sink.seg(p[0], p[1], p[2], p[0] + dx * len, p[1] + dy * len, p[2]);
+    if (text && !isNaN(tx)) {
+      const ax = attach === 2 ? 1 : attach === 3 ? 2 : 0;
+      sink.text({ v: cleanText(text), x: tx, y: ty, z: tz, h: th || size, rot: trot, align: ax | (3 << 2) | 16, wf: 1, ww: tw });
+    }
+  }
+
   flushPoly(sink: Sink) {
     const p = this.poly!;
     this.poly = null;
     const { v, faces } = p;
-    const nv = v.length / 4;
+    const nv = v.length / PV;
     if (!nv) return;
     sink.begin(p.layer, p.cs);
     const is3 = p.flags & (8 | 16 | 64);
     const W = (i: number): V3 => {
-      const x = v[i * 4], y = v[i * 4 + 1], z = is3 ? v[i * 4 + 2] : p.elev, o = p.o;
+      const x = v[i * PV], y = v[i * PV + 1], z = is3 ? v[i * PV + 2] : p.elev, o = p.o;
       return o ? [o[0] * x + o[1] * y + o[2] * z, o[3] * x + o[4] * y + o[5] * z, o[6] * x + o[7] * y + o[8] * z] : [x, y, z];
     };
     if (p.flags & 64) { // polyface mesh
@@ -712,12 +1004,14 @@ class EntityReader {
       for (let i = 0; i < nv; i++) sink.snap(...W(i));
     } else { // 2D polyline with bulges
       const xs: number[] = [], ys: number[] = [], bs: number[] = [];
-      for (let i = 0; i < nv; i++) { xs.push(v[i * 4]); ys.push(v[i * 4 + 1]); bs.push(v[i * 4 + 3]); }
+      const w0: number[] = [], w1: number[] = [];
+      for (let i = 0; i < nv; i++) { xs.push(v[i * PV]); ys.push(v[i * PV + 1]); bs.push(v[i * PV + 3]); w0.push(v[i * PV + 4]); w1.push(v[i * PV + 5]); }
       const pts = bulgePts(xs, ys, bs, (p.flags & 1) === 1);
       const o = p.o, z = p.elev;
       const T = (x: number, y: number): V3 => (o ? [o[0] * x + o[1] * y + o[2] * z, o[3] * x + o[4] * y + o[5] * z, o[6] * x + o[7] * y + o[8] * z] : [x, y, z]);
       for (let i = 2; i < pts.length; i += 2) sink.seg(...T(pts[i - 2], pts[i - 1]), ...T(pts[i], pts[i + 1]));
       for (let i = 0; i < nv; i++) sink.snap(...T(xs[i], ys[i]));
+      if (w0.some((w) => w > 0) || w1.some((w) => w > 0)) sink.fill(this.wideBand(xs, ys, bs, w0, w1, (p.flags & 1) === 1, z, (x, y) => T(x, y)));
     }
     sink.end();
   }
@@ -731,8 +1025,11 @@ export function parseDxf(bytes: Uint8Array, opts: ParseOptions = {}): Drawing {
   const head = new TextDecoder().decode(bytes.subarray(0, 22));
   if (head.startsWith('AutoCAD Binary DXF')) throw new Error('This is a binary DXF. Save it as ASCII DXF and try again.');
   const rd = new DxfReader(bytes);
-  const er = new EntityReader(rd);
-  const layerTable = new Map<string, { color: number; visible: boolean }>();
+  const styles = new Map<string, TextStyle>();
+  const ltypes = new Map<string, number[]>();
+  let ltscale = 1, dimasz = 0, dimscale = 1;
+  const er = new EntityReader(rd, { styles, arrow: () => (dimasz || 2.5) * (dimscale || 1) });
+  const layerTable = new Map<string, { color: number; visible: boolean; lt: string }>();
   const blocks = new Map<string, BlockDef>();
   let units = 0, acadver = '';
   let extMin: number[] | null = null, extMax: number[] | null = null;
@@ -743,7 +1040,10 @@ export function parseDxf(bytes: Uint8Array, opts: ParseOptions = {}): Drawing {
       let origin = opts.origin ?? null;
       if (!origin && extMin && extMax && extMin.every((v, i) => isFinite(v) && Math.abs(v) < 1e15 && v <= extMax![i]))
         origin = [(extMin[0] + extMax[0]) / 2, (extMin[1] + extMax[1]) / 2, 0];
-      world = new WorldSink(layerColor, blocks, origin);
+      world = new WorldSink(layerColor, blocks, origin, {
+        types: ltypes, scale: ltscale || 1,
+        layerLt: (name) => (layerTable.get(name)?.lt ?? 'CONTINUOUS'),
+      });
     }
     return world;
   };
@@ -766,7 +1066,14 @@ export function parseDxf(bytes: Uint8Array, opts: ParseOptions = {}): Drawing {
         const aci = r.get(62, 7);
         let color = Math.abs(aci) === 7 ? FG : ACI[Math.abs(aci)] ?? FG;
         for (let i = 0; i < r.n; i++) if (r.codes[i] === 420) color = r.nums[i] & 0xffffff;
-        layerTable.set(name, { color, visible: aci >= 0 && !(r.get(70) & 1) });
+        layerTable.set(name, { color, visible: aci >= 0 && !(r.get(70) & 1), lt: (er.str(r, 6) || 'CONTINUOUS').toUpperCase() });
+      } else if (r.type === 'LTYPE') {
+        const name = (er.str(r, 2) ?? '').toUpperCase(), el: number[] = [];
+        for (let i = 0; i < r.n; i++) if (r.codes[i] === 49) el.push(r.nums[i]);
+        if (name) ltypes.set(name, el);
+      } else if (r.type === 'STYLE') {
+        const name = (er.str(r, 2) ?? '').toUpperCase();
+        if (name) styles.set(name, { wf: r.get(41, 1) || 1, h: r.get(40, 0), font: er.str(r, 3) ?? '' });
       }
     } else if (section === 'BLOCKS') {
       if (r.type === 'BLOCK') {
@@ -814,6 +1121,9 @@ export function parseDxf(bytes: Uint8Array, opts: ParseOptions = {}): Drawing {
     if (section === 'HEADER') {
       if (code === 9) { headerVar = rd.str(); continue; }
       if (headerVar === '$INSUNITS' && code === 70) units = rd.num();
+      else if (headerVar === '$LTSCALE' && code === 40) ltscale = rd.num();
+      else if (headerVar === '$DIMASZ' && code === 40) dimasz = rd.num();
+      else if (headerVar === '$DIMSCALE' && code === 40) dimscale = rd.num();
       else if (headerVar === '$ACADVER' && code === 1) acadver = rd.str();
       else if (headerVar === '$DWGCODEPAGE' && code === 3) {
         const cp = CODEPAGES[rd.str().toUpperCase()];
@@ -851,6 +1161,7 @@ export function parseDxf(bytes: Uint8Array, opts: ParseOptions = {}): Drawing {
     text: { values: w.tv, num: w.tn.out(), align: Uint8Array.from(w.ta), color: w.tc.out(), layer: w.tl.out() },
     snap: w.snapP.out(),
     snapLayer: w.snapL.out(),
+    fills: w.fillB.map((b) => ({ layer: b.layer, color: b.color, alpha: b.alpha, data: b.f.out() })),
     bounds,
     skipped: er.skipped,
     entities: er.count,

@@ -19,13 +19,15 @@ export const MODEL_EXT = [...WORKER_MESH, ...MAIN_MESH];
 
 // ---------------- 2D drawings ----------------
 export interface LodItem { geom: THREE.BufferGeometry; len: Float32Array; text?: boolean }
-export interface Scene2D { root: THREE.Group; layers: THREE.Group[]; fgMaterials: THREE.LineBasicMaterial[]; materials: THREE.LineBasicMaterial[]; bounds: THREE.Box3; lod: LodItem[] }
+type ColorMat = THREE.Material & { color: THREE.Color };
+export interface Scene2D { root: THREE.Group; layers: THREE.Group[]; fgMaterials: ColorMat[]; materials: ColorMat[]; bounds: THREE.Box3; lod: LodItem[] }
 
 export function build2D(d: Drawing, fg: number, maxTex: number): Scene2D {
   const root = new THREE.Group();
   const layers = d.layers.map((l) => { const g = new THREE.Group(); g.name = l.name; g.visible = l.visible; root.add(g); return g; });
   const mats = new Map<number, THREE.LineBasicMaterial>();
-  const fgMaterials: THREE.LineBasicMaterial[] = [];
+  const fgMaterials: ColorMat[] = [];
+  const fillMats: ColorMat[] = [];
   const matFor = (color: number) => {
     let mat = mats.get(color);
     if (!mat) {
@@ -50,9 +52,27 @@ export function build2D(d: Drawing, fg: number, maxTex: number): Scene2D {
   };
   if (d.tiles) for (const t of d.tiles) add(t.layer, t.color, t.data, t.len, t.bounds);
   else for (const b of d.buckets) for (const chunk of b.chunks) add(b.layer, b.color, chunk);
+  // fills (hatches, solids, wide polylines, arrowheads) sit underneath lines and text
+  for (const f of d.fills ?? []) {
+    if (!f.data.length) continue;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(f.data, 3));
+    g.computeBoundingSphere();
+    const mat = new THREE.MeshBasicMaterial({ color: f.color < 0 ? fg : f.color, transparent: f.alpha < 1, opacity: f.alpha, side: THREE.DoubleSide, depthWrite: false, depthTest: false });
+    mat.userData.orig = f.color;
+    mat.userData.fill = true;
+    mat.userData.alpha = f.alpha;
+    if (f.color < 0) fgMaterials.push(mat);
+    fillMats.push(mat);
+    const mesh = new THREE.Mesh(g, mat);
+    mesh.renderOrder = -1;
+    mesh.userData.noSnap = true;
+    mesh.raycast = () => {};
+    layers[f.layer]?.add(mesh);
+  }
   for (const t of buildText(d.text, maxTex)) { layers[t.layer]?.add(t.mesh); lod.push({ geom: t.mesh.geometry, len: t.heights, text: true }); }
   const [x0, y0, z0, x1, y1, z1] = d.bounds;
-  return { root, layers, fgMaterials, materials: [...mats.values()], lod, bounds: new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1)) };
+  return { root, layers, fgMaterials, materials: [...mats.values(), ...fillMats], lod, bounds: new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1)) };
 }
 
 // ---------------- 3D models ----------------

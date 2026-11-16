@@ -8,13 +8,18 @@ import { Capacitor } from '@capacitor/core';
  * before publishing (and the app IDs in AndroidManifest.xml and ios/App/App/Info.plist).
  */
 export const AD_CONFIG = {
-  enabled: true,
+  // v1.0 ships without ads. To enable: npm i @capacitor-community/admob@8, set enabled: true, add your IDs,
+  // change `import(/* @vite-ignore */ PLUGIN)` below to `import('@capacitor-community/admob')`,
+  // and restore the INTERNET permission + APPLICATION_ID (Android) and GADApplicationIdentifier (iOS).
+  enabled: false,
   testing: true,
   bannerAndroid: 'ca-app-pub-3940256099942544/9214589741',
   bannerIos: 'ca-app-pub-3940256099942544/2435281174',
 };
 
-type AdMobApi = typeof import('@capacitor-community/admob');
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AdMobApi = any; // the plugin is only installed when ads are enabled
+const PLUGIN = '@capacitor-community/admob';
 let api: AdMobApi | null = null;
 let ready: Promise<boolean> | null = null;
 let wanted = false; // should the banner be visible right now?
@@ -28,7 +33,7 @@ function init(): Promise<boolean> {
   if (!native()) return Promise.resolve(false);
   return (ready ??= (async () => {
     try {
-      api = await import('@capacitor-community/admob');
+      api = await import(/* @vite-ignore */ PLUGIN);
       const { AdMob, AdmobConsentStatus, BannerAdPluginEvents } = api;
       await AdMob.initialize({ initializeForTesting: AD_CONFIG.testing });
       try {
@@ -39,7 +44,7 @@ function init(): Promise<boolean> {
         try { const t = await AdMob.trackingAuthorizationStatus(); if (t.status === 'notDetermined') await AdMob.requestTrackingAuthorization(); } catch { /* ignore */ }
       }
       // keep page content clear of the banner
-      AdMob.addListener(BannerAdPluginEvents.SizeChanged, (s) => setInset(visible ? s.height : 0));
+      AdMob.addListener(BannerAdPluginEvents.SizeChanged, (s: { height: number }) => setInset(visible ? s.height : 0));
       AdMob.addListener(BannerAdPluginEvents.FailedToLoad, () => setInset(0));
       return true;
     } catch {

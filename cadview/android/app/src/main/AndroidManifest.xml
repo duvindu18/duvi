@@ -12,7 +12,7 @@
         android:theme="@style/AppTheme">
 
         <activity
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
@@ -86,11 +86,6 @@
 
         </activity>
 
-        <!-- AdMob app ID: this is Google's TEST ID. Replace with your own before publishing. -->
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713" />
-
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -102,6 +97,6 @@
         </provider>
     </application>
 
-    <!-- Internet is used only by the AdMob banner on the home screen (the ads SDK adds the permission).
-         Drawings are processed on the device and never uploaded. -->
+    <!-- No INTERNET permission: the app works fully offline and cannot send files anywhere.
+         The web UI is served from inside the app package. (Add INTERNET back if ads are enabled.) -->
 </manifest>

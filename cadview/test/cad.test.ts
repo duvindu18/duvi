@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseDxf, bulgePts, cleanText, type Drawing, type Bucket } from '../src/cad/dxf';
+import { parseDxf, bulgePts, cleanText, TS, type Drawing, type Bucket } from '../src/cad/dxf';
 const flat = (b: Bucket) => Array.from(b.chunks.flatMap((c) => Array.from(c)));
 import { diffDrawings } from '../src/cad/diff';
 import { buildGrid, nearest } from '../src/cad/snapgrid';
@@ -59,9 +59,9 @@ describe('parseDxf', () => {
 
   it('skips paper-space entities and reports unsupported types', () => {
     const s = dxf([line(0, 0, 1, 1)])
-      .replace('0\nENDSEC\n0\nEOF', '0\nHATCH\n8\n0\n0\nLINE\n8\n0\n67\n1\n10\n9\n20\n9\n30\n0\n11\n8\n21\n8\n31\n0\n0\nENDSEC\n0\nEOF');
+      .replace('0\nENDSEC\n0\nEOF', '0\n3DSOLID\n8\n0\n0\nLINE\n8\n0\n67\n1\n10\n9\n20\n9\n30\n0\n11\n8\n21\n8\n31\n0\n0\nENDSEC\n0\nEOF');
     const d = parse(s);
-    expect(d.skipped).toEqual({ HATCH: 1 });
+    expect(d.skipped).toEqual({ '3DSOLID': 1 });
     expect(points(d).length).toBe(2);
   });
 
@@ -161,5 +161,93 @@ describe('DWG import (converted to DXF on the device)', () => {
   }
   it('rejects files that are not DWG', async () => {
     await expect(dwgToDxf(new TextEncoder().encode('0\nSECTION\n').buffer)).rejects.toThrow(/not a DWG/);
+  });
+});
+
+// ---------- line types, hatches, leaders, text styles ----------
+type Gp = [number, string | number];
+const raw = (type: string, g: Gp[]): Gp[] => [[0, type], ...g];
+function dxfFull(entities: Gp[][], o: { ltscale?: number; ltypes?: [string, number[]][]; layers?: [string, number, string][]; styles?: [string, number, string][]; blocks?: Record<string, Gp[][]> } = {}) {
+  const g: Gp[] = [[0, 'SECTION'], [2, 'HEADER'], [9, '$INSUNITS'], [70, 4], [9, '$LTSCALE'], [40, o.ltscale ?? 1], [9, '$DIMASZ'], [40, 2.5], [9, '$DIMSCALE'], [40, 1], [0, 'ENDSEC'],
+    [0, 'SECTION'], [2, 'TABLES'], [0, 'TABLE'], [2, 'LTYPE']];
+  for (const [n, el] of o.ltypes ?? []) { g.push([0, 'LTYPE'], [2, n], [70, 0], [73, el.length], [40, el.reduce((s, x) => s + Math.abs(x), 0)]); for (const e of el) g.push([49, e]); }
+  g.push([0, 'ENDTAB'], [0, 'TABLE'], [2, 'LAYER']);
+  for (const [n, aci, lt] of o.layers ?? []) g.push([0, 'LAYER'], [2, n], [70, 0], [62, aci], [6, lt]);
+  g.push([0, 'ENDTAB'], [0, 'TABLE'], [2, 'STYLE']);
+  for (const [n, wf, font] of o.styles ?? []) g.push([0, 'STYLE'], [2, n], [70, 0], [40, 0], [41, wf], [3, font]);
+  g.push([0, 'ENDTAB'], [0, 'ENDSEC'], [0, 'SECTION'], [2, 'BLOCKS']);
+  for (const [name, ents] of Object.entries(o.blocks ?? {})) { g.push([0, 'BLOCK'], [8, '0'], [2, name], [70, 0], [10, 0], [20, 0], [30, 0]); for (const e of ents) g.push(...e); g.push([0, 'ENDBLK'], [8, '0']); }
+  g.push([0, 'ENDSEC'], [0, 'SECTION'], [2, 'ENTITIES']);
+  for (const e of entities) g.push(...e);
+  g.push([0, 'ENDSEC'], [0, 'EOF']);
+  return g.map(([c, v]) => `${c}\n${v}`).join('\n') + '\n';
+}
+const fillArea = (d: Drawing) => { let a = 0; for (const f of d.fills) for (let i = 0; i < f.data.length; i += 9) { const t = f.data; a += Math.abs((t[i + 3] - t[i]) * (t[i + 7] - t[i + 1]) - (t[i + 6] - t[i]) * (t[i + 4] - t[i + 1])) / 2; } return a; };
+const square = (x0: number, y0: number, s: number): Gp[] => [[92, 2], [72, 0], [73, 1], [93, 4], [10, x0], [20, y0], [10, x0 + s], [20, y0], [10, x0 + s], [20, y0 + s], [10, x0], [20, y0 + s], [97, 0]];
+
+describe('line types', () => {
+  it('draws a ByLayer DASHED line as dashes, scaled by $LTSCALE', () => {
+    const d = parse(dxfFull([raw('LINE', [[8, 'HIDDEN'], [10, 0], [20, 0], [30, 0], [11, 100], [21, 0], [31, 0]])],
+      { ltscale: 1, ltypes: [['DASHED', [10, -5]]], layers: [['HIDDEN', 7, 'DASHED']] }));
+    expect(d.buckets[0].length / 6).toBe(7); // 100 / (10+5) → 7 dashes
+    const d2 = parse(dxfFull([raw('LINE', [[8, 'HIDDEN'], [10, 0], [20, 0], [30, 0], [11, 100], [21, 0], [31, 0]])],
+      { ltscale: 2, ltypes: [['DASHED', [10, -5]]], layers: [['HIDDEN', 7, 'DASHED']] }));
+    expect(d2.buckets[0].length / 6).toBe(4); // scale 2 → 30-unit pattern
+  });
+  it('continues the pattern around polyline corners', () => {
+    const d = parse(dxfFull([raw('LWPOLYLINE', [[8, 'H'], [90, 3], [70, 0], [10, 0], [20, 0], [10, 12], [20, 0], [10, 12], [20, 12]])],
+      { ltypes: [['DASHED', [10, -5]]], layers: [['H', 7, 'DASHED']] }));
+    // 24 units of path: dash 0-10, gap 10-15 (crosses the corner at 12), dash 15-24 → 2 dashes, not 4
+    expect(d.buckets[0].length / 6).toBe(2);
+  });
+  it('applies an entity linetype inside a block', () => {
+    const d = parse(dxfFull([raw('INSERT', [[8, '0'], [2, 'B'], [10, 0], [20, 0], [30, 0]])],
+      { ltypes: [['DASHED', [10, -5]]], blocks: { B: [raw('LINE', [[8, '0'], [6, 'DASHED'], [10, 0], [20, 0], [30, 0], [11, 30], [21, 0], [31, 0]])] } }));
+    expect(d.buckets[0].length / 6).toBe(2);
+  });
+});
+
+describe('hatches', () => {
+  it('fills a SOLID hatch', () => {
+    const d = parse(dxfFull([raw('HATCH', [[8, '0'], [10, 0], [20, 0], [30, 0], [2, 'SOLID'], [70, 1], [71, 0], [91, 1], ...square(0, 0, 10), [75, 0], [76, 1], [98, 0]])]));
+    expect(fillArea(d)).toBeCloseTo(100, 6);
+  });
+  it('leaves holes open (even-odd)', () => {
+    const d = parse(dxfFull([raw('HATCH', [[8, '0'], [10, 0], [20, 0], [30, 0], [2, 'SOLID'], [70, 1], [71, 0], [91, 2], ...square(0, 0, 10), ...square(3, 3, 4), [75, 0], [76, 1], [98, 0]])]));
+    expect(fillArea(d)).toBeCloseTo(84, 6);
+  });
+  it('clips pattern lines to the boundary', () => {
+    const d = parse(dxfFull([raw('HATCH', [[8, '0'], [10, 0], [20, 0], [30, 0], [2, 'ANSI31'], [70, 0], [71, 0], [91, 1], ...square(0, 0, 10), [75, 0], [76, 1], [52, 0], [41, 1], [77, 0],
+      [78, 1], [53, 45], [43, 0], [44, 0], [45, -2.245], [46, 2.245], [79, 0], [98, 0]])]));
+    const pts = points(d);
+    expect(pts.length).toBe(10); // 5 lines at 3.175 spacing across a 10×10 square
+    for (const [x, y] of pts) { expect(x).toBeGreaterThanOrEqual(-1e-6); expect(x).toBeLessThanOrEqual(10 + 1e-6); expect(y).toBeGreaterThanOrEqual(-1e-6); expect(y).toBeLessThanOrEqual(10 + 1e-6); }
+  });
+  it('reads arc edges in boundaries', () => {
+    // half-disc: line (-5,0)→(5,0) then arc from 0° to 180°
+    const d = parse(dxfFull([raw('HATCH', [[8, '0'], [10, 0], [20, 0], [30, 0], [2, 'SOLID'], [70, 1], [71, 0], [91, 1],
+      [92, 1], [93, 2], [72, 1], [10, -5], [20, 0], [11, 5], [21, 0], [72, 2], [10, 0], [20, 0], [40, 5], [50, 0], [51, 180], [73, 1], [97, 0], [75, 0], [76, 1], [98, 0]])]));
+    expect(fillArea(d)).toBeCloseTo((Math.PI * 25) / 2, 0);
+  });
+});
+
+describe('leaders, widths and text styles', () => {
+  it('draws a filled arrowhead on a LEADER', () => {
+    const d = parse(dxfFull([raw('LEADER', [[8, '0'], [71, 1], [76, 2], [10, 0], [20, 0], [30, 0], [10, 20], [20, 0], [30, 0]])]));
+    expect(d.fills.length).toBe(1);
+    expect(fillArea(d)).toBeCloseTo((2.5 * 2.5) / 6, 6); // length 2.5, width 2.5/3
+  });
+  it('fills a polyline with constant width', () => {
+    const d = parse(dxfFull([raw('LWPOLYLINE', [[8, '0'], [90, 2], [70, 0], [43, 2], [10, 0], [20, 0], [10, 10], [20, 0]])]));
+    expect(fillArea(d)).toBeCloseTo(20, 6);
+  });
+  it('keeps MTEXT box width for wrapping and applies style width factors', () => {
+    const d = parse(dxfFull([
+      raw('MTEXT', [[8, '0'], [10, 0], [20, 0], [30, 0], [40, 2.5], [41, 60], [71, 3], [7, 'NOTES'], [1, 'A LONG NOTE THAT SHOULD WRAP INSIDE ITS BOX']]),
+      raw('TEXT', [[8, '0'], [10, 0], [20, 0], [30, 0], [40, 2.5], [7, 'NOTES'], [1, 'X']]),
+    ], { styles: [['NOTES', 0.8, 'romans.shx']] }));
+    expect(d.text.num[6]).toBe(60); // wrap width
+    expect(d.text.align[0] & 3).toBe(2); // attachment 3 = top right
+    expect(d.text.num[TS + 5]).toBeCloseTo(0.8 * 0.86, 6);
   });
 });

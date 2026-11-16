@@ -2,7 +2,7 @@
 // per layer. Labels smaller than a few pixels are dropped in the vertex shader, which keeps a
 // zoomed-out plan readable instead of a grey smear.
 import * as THREE from 'three';
-import type { TextSet } from '../cad/dxf';
+import { TS, type TextSet } from '../cad/dxf';
 
 const CELL = 64, FONT = 44, BASE = 50; // px: atlas cell, font size, baseline inside cell
 const CAP = 0.72; // cap height as a fraction of the em: CAD text height ≈ cap height
@@ -46,19 +46,19 @@ function glyph(a: NonNullable<typeof atlas>, ch: string): number {
 const vert = /* glsl */ `
   precision highp float;
   attribute vec4 iA; // x, y, rotation, quad size
-  attribute vec4 iB; // cell, colour, text height, z
-  uniform float uPPU, uCols, uMinPx, uDarken;
+  attribute vec4 iB; // cell, colour, text height, width factor
+  uniform float uPPU, uCols, uMinPx, uDarken, uMono;
   uniform vec3 uFg;
   varying vec2 vUv;
   varying vec3 vCol;
   void main() {
     if (iB.z * uPPU < uMinPx) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
-    vec2 l = position.xy * iA.w;
+    vec2 l = vec2(position.x * iA.w * iB.w, position.y * iA.w);
     float c = cos(iA.z), s = sin(iA.z);
-    vec3 wp = vec3(iA.x + l.x * c - l.y * s, iA.y + l.x * s + l.y * c, iB.w);
+    vec3 wp = vec3(iA.x + l.x * c - l.y * s, iA.y + l.x * s + l.y * c, 0.0);
     float col = mod(iB.x, uCols), row = floor(iB.x / uCols);
     vUv = vec2(col + position.x, row + 1.0 - position.y) / uCols;
-    if (iB.y < 0.0) vCol = uFg;
+    if (iB.y < 0.0 || uMono > 0.5) vCol = uFg;
     else {
       vCol = vec3(floor(iB.y / 65536.0), mod(floor(iB.y / 256.0), 256.0), mod(iB.y, 256.0)) / 255.0;
       // same rule as line colours: pale CAD colours get darker on a light canvas
@@ -80,7 +80,7 @@ const frag = /* glsl */ `
 
 export interface TextLayer { mesh: THREE.Mesh; layer: number; heights: Float32Array }
 
-export const textUniforms = { uPPU: { value: 1 }, uFg: { value: new THREE.Color(0xffffff) }, uMinPx: { value: 4 }, uDarken: { value: 0 } };
+export const textUniforms = { uPPU: { value: 1 }, uFg: { value: new THREE.Color(0xffffff) }, uMinPx: { value: 4 }, uDarken: { value: 0 }, uMono: { value: 0 } };
 
 /** Build one instanced mesh per layer. `colorOf(i)` may override the stored colour (revision compare). */
 export function buildText(t: TextSet, maxTex: number): TextLayer[] {
@@ -91,12 +91,12 @@ export function buildText(t: TextSet, maxTex: number): TextLayer[] {
   // group texts by layer and spatial tile; inside a group sort by height (largest first) so the renderer
   // can draw just the prefix of glyphs that are big enough to read, and cull off-screen tiles entirely
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (let i = 0; i < n; i++) { const x = t.num[i * 5], y = t.num[i * 5 + 1]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  for (let i = 0; i < n; i++) { const x = t.num[i * TS], y = t.num[i * TS + 1]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
   const T = Math.max(1, Math.min(16, Math.round(Math.sqrt(n / 3000))));
   const tw = Math.max((x1 - x0) / T, 1e-9), th = Math.max((y1 - y0) / T, 1e-9);
   const groups = new Map<number, number[]>();
   for (let i = 0; i < n; i++) {
-    const tx = Math.min(T - 1, Math.floor((t.num[i * 5] - x0) / tw)), ty = Math.min(T - 1, Math.floor((t.num[i * 5 + 1] - y0) / th));
+    const tx = Math.min(T - 1, Math.floor((t.num[i * TS] - x0) / tw)), ty = Math.min(T - 1, Math.floor((t.num[i * TS + 1] - y0) / th));
     const key = t.layer[i] * 1024 + ty * T + tx;
     let arr = groups.get(key);
     if (!arr) groups.set(key, (arr = []));
@@ -112,7 +112,7 @@ export function buildText(t: TextSet, maxTex: number): TextLayer[] {
   const out: TextLayer[] = [];
   for (const [key, ids] of groups) {
     const layer = Math.floor(key / 1024);
-    ids.sort((p, q) => (t.num[q * 5 + 3] || 1) - (t.num[p * 5 + 3] || 1));
+    ids.sort((p, q) => (t.num[q * TS + 3] || 1) - (t.num[p * TS + 3] || 1));
     let glyphs = 0;
     for (const i of ids) glyphs += t.values[i].replace(/\s/g, '').length;
     const buf = new Float32Array(glyphs * 8);
@@ -121,11 +121,14 @@ export function buildText(t: TextSet, maxTex: number): TextLayer[] {
     let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity, bz = 0;
     for (const i of ids) {
       const v = t.values[i];
-      const x = t.num[i * 5], y = t.num[i * 5 + 1], z = t.num[i * 5 + 2], h = t.num[i * 5 + 3] || 1, rot = t.num[i * 5 + 4];
+      const x = t.num[i * TS], y = t.num[i * TS + 1], z = t.num[i * TS + 2], h = t.num[i * TS + 3] || 1, rot = t.num[i * TS + 4];
+      const wf = t.num[i * TS + 5] || 1, ww = t.num[i * TS + 6] || 0;
       bz = z;
       const al = t.align[i], ax = al & 3, ay = (al >> 2) & 3, multi = (al & 16) !== 0;
       const em = h / CAP;
-      const lines = v.split('\n');
+      const adv = (ch: string) => (glyph(a, ch), (a.adv.get(ch) ?? 0.6) * em * wf);
+      // MTEXT: wrap to the width of its box, like AutoCAD (words move to the next line; long words break)
+      const lines = ww > 0 ? wrap(v, ww, adv) : v.split('\n');
       const c = Math.cos(rot), s = Math.sin(rot);
       const block = h + (lines.length - 1) * LINE * h;
       let y0: number; // baseline of the first line relative to the anchor
@@ -135,21 +138,21 @@ export function buildText(t: TextSet, maxTex: number): TextLayer[] {
       const color = t.color[i];
       lines.forEach((line, li) => {
         let w = 0;
-        for (const ch of line) { glyph(a, ch); w += (a.adv.get(ch) ?? 0.6) * em; }
+        for (const ch of line) w += adv(ch);
         let pen = ax === 1 ? -w / 2 : ax === 2 ? -w : 0;
         const by = y0 - li * LINE * h;
         for (const ch of line) {
-          const adv = (a.adv.get(ch) ?? 0.6) * em;
+          const step = adv(ch);
           if (ch.trim()) {
             // quad's bottom-left corner in text space: the glyph is drawn 8px right of the cell edge, BASE px below its top
-            const lx = pen - (8 / FONT) * em, ly = by - ((CELL - BASE) / FONT) * em;
+            const lx = pen - (8 / FONT) * em * wf, ly = by - ((CELL - BASE) / FONT) * em;
             const gx = x + lx * c - ly * s, gy = y + lx * s + ly * c;
             if (gx < bx0) bx0 = gx; if (gx > bx1) bx1 = gx; if (gy < by0) by0 = gy; if (gy > by1) by1 = gy;
             heights[k / 8] = h;
             buf[k++] = gx; buf[k++] = gy; buf[k++] = rot; buf[k++] = size;
-            buf[k++] = glyph(a, ch); buf[k++] = color; buf[k++] = h; buf[k++] = z;
+            buf[k++] = glyph(a, ch); buf[k++] = color; buf[k++] = h; buf[k++] = wf;
           }
-          pen += adv;
+          pen += step;
         }
       });
     }
@@ -171,5 +174,29 @@ export function buildText(t: TextSet, maxTex: number): TextLayer[] {
     out.push({ mesh, layer, heights: heights.subarray(0, k / 8) });
   }
   a.tex.needsUpdate = true;
+  return out;
+}
+
+/** Word-wrap text to a width (in drawing units), keeping explicit line breaks. */
+function wrap(text: string, width: number, adv: (ch: string) => number): string[] {
+  const out: string[] = [];
+  for (const para of text.split('\n')) {
+    let line = '', w = 0;
+    for (const word of para.split(/(\s+)/)) {
+      if (!word) continue;
+      let ww = 0;
+      for (const ch of word) ww += adv(ch);
+      if (w + ww <= width || !line.trim()) {
+        if (!line.trim() && /^\s+$/.test(word)) continue; // no leading spaces on a wrapped line
+        if (ww > width && !/^\s+$/.test(word)) { // a single word longer than the box: break it
+          for (const ch of word) { const a = adv(ch); if (w + a > width && line) { out.push(line); line = ''; w = 0; } line += ch; w += a; }
+          continue;
+        }
+        line += word; w += ww;
+      } else if (/^\s+$/.test(word)) continue;
+      else { out.push(line.replace(/\s+$/, '')); line = word; w = ww; }
+    }
+    out.push(line.replace(/\s+$/, ''));
+  }
   return out;
 }
