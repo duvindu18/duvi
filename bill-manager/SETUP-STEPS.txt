@@ -1,0 +1,266 @@
+=====================================================================
+  MAARAA BILL MANAGER - STEP-BY-STEP SETUP
+=====================================================================
+
+Time needed : about 20 minutes
+You need    : a computer (Chrome recommended), the MAARAA owner Google
+              account, and this zip file unpacked.
+
+The zip contains two folders:
+  1-Main-Bill-Manager   -> goes into the Google Sheet (12 files)
+  2-Entry-Link          -> goes into a separate Apps Script project (2 files)
+
+TIP: Open each file in Notepad, press Ctrl+A then Ctrl+C to copy all,
+     then Ctrl+A then Ctrl+V in Apps Script to replace everything.
+
+Tick each box [ ] as you go.
+
+
+---------------------------------------------------------------------
+PART 0 - SIGN IN WITH YOUR GOOGLE ACCOUNT
+---------------------------------------------------------------------
+[ ] 0.1  Open Chrome and go to:  https://accounts.google.com
+[ ] 0.2  Sign in with the MAARAA OWNER Google account
+         (the account that should own all bills, receipts and backups).
+[ ] 0.3  If you are signed in to several Google accounts, click your
+         profile picture (top right) and SIGN OUT of the others, or use
+         a separate Chrome profile. Apps Script works best with only
+         ONE account signed in.
+
+
+---------------------------------------------------------------------
+PART 1 - CREATE THE SPREADSHEET
+---------------------------------------------------------------------
+[ ] 1.1  Go to:  https://sheets.new   (creates a blank Google Sheet)
+[ ] 1.2  Click "Untitled spreadsheet" (top left) and rename it:
+            MAARAA Bills
+[ ] 1.3  In the menu, click  Extensions > Apps Script.
+         A new tab opens with the script editor.
+[ ] 1.4  Click "Untitled project" (top left) and rename it:
+            MAARAA Bill Manager
+
+
+---------------------------------------------------------------------
+PART 2 - PASTE THE MAIN FILES  (folder: 1-Main-Bill-Manager)
+---------------------------------------------------------------------
+How to add a file in Apps Script:
+   Click the  +  next to "Files"  >  choose "Script" or "HTML"
+   > type the name WITHOUT the extension (e.g. type  Api  not  Api.gs)
+   > press Enter > delete the sample text > paste the file contents.
+
+[ ] 2.1  Code.gs
+         The file "Code.gs" already exists. Click it, select everything,
+         delete it, and paste the contents of  Code.gs  from the zip.
+
+[ ] 2.2  Add these SCRIPT files (+ > Script), names exactly as shown:
+            Api          <- paste Api.gs
+            Users        <- paste Users.gs
+            Backup       <- paste Backup.gs
+            Integrity    <- paste Integrity.gs
+
+[ ] 2.3  Add these HTML files (+ > HTML), names exactly as shown:
+            Index            <- paste Index.html
+            Styles           <- paste Styles.html
+            Common           <- paste Common.html
+            CategoryManager  <- paste CategoryManager.html
+            UserManager      <- paste UserManager.html
+            Sidebar          <- paste Sidebar.html
+
+         Names are case-sensitive: "Index" is correct, "index" is not.
+
+[ ] 2.4  appsscript.json (settings file):
+         - Click the gear icon "Project Settings" (left bar).
+         - Tick  "Show "appsscript.json" manifest file in editor".
+         - Go back to the Editor (< > icon), click  appsscript.json,
+           select all, and paste  appsscript.json  from the zip folder
+           1-Main-Bill-Manager.
+         - In Project Settings, also check Time zone shows
+           "(GMT+05:30) Colombo".
+
+[ ] 2.5  Press Ctrl+S (or the disk icon) to save.
+         You should now see 11 files plus appsscript.json, and no red
+         error lines.
+
+
+---------------------------------------------------------------------
+PART 3 - RUN SETUP (creates all tabs, folders and backups)
+---------------------------------------------------------------------
+[ ] 3.1  Open the file  Code.gs.
+[ ] 3.2  In the toolbar, open the function drop-down (next to "Debug")
+         and choose:  setup
+[ ] 3.3  Click  Run.
+[ ] 3.4  Google asks for permission:
+         - Click  "Review permissions"
+         - Choose the MAARAA owner Google account
+         - You will see "Google hasn't verified this app". This is
+           normal for your own scripts. Click "Advanced", then
+           "Go to MAARAA Bill Manager (unsafe)".
+         - Click  "Allow".
+[ ] 3.5  Wait until the log at the bottom says "Execution completed".
+[ ] 3.6  Go back to the spreadsheet tab and press F5 to reload it.
+         Check that:
+           - These tabs exist: Bills, Monthly Summary, Annual Summary,
+             Categories, Payment Methods, Audit Log, Settings, Users
+           - A new menu "Bill Manager" appears (top, next to Help)
+           - In Google Drive there is a folder "MAARAA Bill Manager"
+             with "Receipts" and "_Backups" inside
+
+
+---------------------------------------------------------------------
+PART 4 - DEPLOY THE MAIN SCRIPT (the "server")
+---------------------------------------------------------------------
+[ ] 4.1  In Apps Script, click the blue  Deploy  button > New deployment.
+[ ] 4.2  Click the gear next to "Select type" > choose  Web app.
+[ ] 4.3  Fill in:
+            Description     : MAARAA Bills server
+            Execute as      : Me (your owner e-mail)
+            Who has access  : Anyone
+[ ] 4.4  Click  Deploy  (allow access again if asked).
+[ ] 4.5  COPY the "Web app URL" (it ends with  /exec ).
+         Paste it into Notepad. This is the SERVER URL.
+         >>> Do NOT give this link to employees. <<<
+
+
+---------------------------------------------------------------------
+PART 5 - CREATE THE ENTRY LINK  (folder: 2-Entry-Link)
+---------------------------------------------------------------------
+This is the ONLY link employees will use.
+
+[ ] 5.1  Open a new tab and go to:  https://script.google.com
+[ ] 5.2  Click  "New project".
+[ ] 5.3  Rename "Untitled project" to:  MAARAA Bills Entry
+[ ] 5.4  Click  Code.gs, select all, and paste  Gateway.gs  from the
+         folder 2-Entry-Link.
+[ ] 5.5  At the top of the code, find this line:
+            const BACKEND_URL = 'PASTE_THE_MAIN_BILL_MANAGER_WEB_APP_URL_HERE';
+         Replace the text between the quotes with your SERVER URL
+         from step 4.5, for example:
+            const BACKEND_URL = 'https://script.google.com/macros/s/AKfy...../exec';
+[ ] 5.6  Project Settings (gear) > tick "Show appsscript.json" >
+         back in the Editor, open appsscript.json and paste
+         appsscript.json  from the folder 2-Entry-Link.
+[ ] 5.7  Press Ctrl+S to save.
+[ ] 5.8  Deploy > New deployment > gear > Web app, and fill in:
+            Description     : MAARAA Bills Entry
+            Execute as      : User accessing the web app
+            Who has access  : Anyone with Google account
+[ ] 5.9  Click Deploy, then COPY the Web app URL.
+         This is the ENTRY LINK. Save it in Notepad.
+
+
+---------------------------------------------------------------------
+PART 6 - ACTIVATE THE ENTRY LINK (owner, one time only)
+---------------------------------------------------------------------
+[ ] 6.1  Still signed in as the OWNER, open the ENTRY LINK in Chrome.
+[ ] 6.2  Google asks you to sign in or choose an account: pick the
+         owner account.
+[ ] 6.3  Allow the two permissions ("See your email address" and
+         "Connect to an external service"). If you see "Google hasn't
+         verified this app", click "Advanced", then
+         "Go to MAARAA Bills Entry (unsafe)", then "Allow".
+[ ] 6.4  The bill form opens, showing "Signed in as Owner (your e-mail)".
+         The Entry link is now ACTIVATED. From now on the server only
+         accepts sign-ins that come through this link.
+
+
+---------------------------------------------------------------------
+PART 7 - ADD THE PEOPLE WHO MAY RECORD BILLS
+---------------------------------------------------------------------
+Either in the spreadsheet:  Bill Manager > Manage users
+or in the Entry link:       the people icon at the top (Admins only)
+
+[ ] 7.1  For each employee, enter:
+            Google account e-mail : their Gmail / Google address
+            Name                  : full name (shown on every bill)
+            Role                  : Employee  (record bills only)
+                                    Admin     (also categories & users)
+            Allowed to sign in    : ticked
+         Click  "Add account".
+[ ] 7.2  To change someone later: Edit / Switch off / Switch on / Delete.
+         Deleting someone does NOT change bills they already recorded.
+
+
+---------------------------------------------------------------------
+PART 8 - SEND THE ENTRY LINK TO EMPLOYEES
+---------------------------------------------------------------------
+[ ] 8.1  Send them the ENTRY LINK (from 5.9), e.g. by WhatsApp or e-mail.
+[ ] 8.2  Tell them:
+         "Open the link and SIGN IN WITH YOUR GOOGLE ACCOUNT.
+          The first time, Google asks for permission: tap Advanced >
+          Go to MAARAA Bills Entry > Allow. It can only see your
+          e-mail address. Then tap the browser menu > Add to Home
+          screen, so it opens like an app."
+[ ] 8.3  Anyone NOT on your Users list sees "Access needed" and cannot
+         record anything.
+
+
+---------------------------------------------------------------------
+PART 9 - TEST BEFORE REAL USE  (10 minutes)
+---------------------------------------------------------------------
+[ ] 9.1  As the owner, on the Entry link: record a test bill with a
+         photo. You should see "Recorded." with a number like
+         BILL-202611-0001 and a green "Verified" line.
+[ ] 9.2  In the sheet tab "Bills", the row is there, and "View receipt"
+         opens the renamed photo in Drive.
+[ ] 9.3  Ask one employee to sign in and record a test bill. Check that:
+         - "Recorded By" shows their Google e-mail and name
+         - they do NOT see the people or category icons
+         - they CANNOT open the spreadsheet (they get "Request access")
+[ ] 9.4  Open the Entry link with a Google account that is NOT on the
+         list. It must show "Access needed".
+[ ] 9.5  Spreadsheet menu > Bill Manager > Run integrity check.
+         It should say "Errors: 0".
+[ ] 9.6  Bill Manager > Backup & restore > Back up now. Check that a
+         snapshot appears in Drive > MAARAA Bill Manager > _Backups.
+[ ] 9.7  Void the test bills: click a test row in "Bills" > Bill Manager
+         > Void selected bill > reason "Test".
+[ ] 9.8  (Optional) In the "Settings" tab, put your e-mail in
+         ALERT_EMAIL to be warned if a backup or integrity check fails.
+
+
+---------------------------------------------------------------------
+IF YOU CHANGE THE CODE LATER  (important)
+---------------------------------------------------------------------
+Saving the code alone does NOT update the live links. After pasting
+new code:
+   Deploy > Manage deployments > click the pencil (Edit)
+   > Version: "New version" > Deploy.
+Do this in the project you changed (main and/or entry link).
+The links stay the same, so you don't need to send them again.
+
+
+---------------------------------------------------------------------
+TROUBLESHOOTING
+---------------------------------------------------------------------
+"The Entry link is not configured yet (BACKEND_URL)"
+   -> Step 5.5: paste the SERVER URL, save, then Manage deployments >
+      Edit > New version > Deploy.
+
+"The Entry link has not been activated yet"
+   -> Do Part 6, signed in as the OWNER.
+
+"This sign-in came from an unrecognised app"
+   -> You made a new Entry-link project. In the spreadsheet:
+      Bill Manager > Reset Entry link, then repeat Part 6.
+
+"NOT_AUTHORISED ... is not on the approved users list"
+   -> Add that e-mail in Manage users (Part 7), or switch it on.
+
+"The bill server did not respond correctly"
+   -> Check the server deployment (Part 4): "Who has access" must be
+      "Anyone" and "Execute as" must be "Me".
+
+Wrong Google account keeps opening
+   -> On the Access needed screen, tap "Use another account", or sign
+      out of the other accounts in Chrome.
+
+The menu "Bill Manager" is missing
+   -> Reload the spreadsheet (F5). If it is still missing, run setup
+      again (Part 3).
+
+A row was deleted by mistake
+   -> Bill Manager > Backup & restore > Rebuild Bills from live journal.
+      It creates a new tab with every bill, so you can copy the row back.
+
+Full details: README.md in this zip.
+=====================================================================
