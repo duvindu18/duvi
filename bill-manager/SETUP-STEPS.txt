@@ -275,7 +275,11 @@ Your bills, users and receipts are kept. Only the code changes.
          Save, then Deploy > Manage deployments > Edit > New version >
          Deploy.
 [ ] U.7  Reload the spreadsheet. Open "Monthly Summary", pick a month,
-         and check the totals.
+         and check that the category breakdown and the list of bills
+         appear. Do the same in "Annual Summary".
+         Setup ends with a message. If it says "Setup finished with
+         problems", or a summary shows "This summary could not be
+         drawn", send a screenshot of that message.
 
 
 ---------------------------------------------------------------------

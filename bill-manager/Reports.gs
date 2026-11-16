@@ -24,19 +24,47 @@ function markReportsDirty_() {
 /** Time-driven (every 5 min) and on open: redraw the reports only if something changed. */
 function refreshReportsIfDirty() {
   const props = PropertiesService.getScriptProperties();
-  if (!props.getProperty('REPORTS_DIRTY')) return;
-  props.deleteProperty('REPORTS_DIRTY');
+  const flag = props.getProperty('REPORTS_DIRTY');
+  if (!flag) return;
   refreshReports_();
+  // Only clear the flag if nothing new arrived while drawing (and drawing succeeded).
+  if (props.getProperty('REPORTS_DIRTY') === flag) props.deleteProperty('REPORTS_DIRTY');
 }
 
+/** Draws both summaries. A failure in one never leaves the other undrawn. */
 function refreshReports_() {
-  renderMonthlySummary_();
-  renderAnnualSummary_();
+  const errors = [];
+  [[SHEET.SUMMARY, drawMonthlySummary_], [SHEET.ANNUAL, drawAnnualSummary_]].forEach(function (x) {
+    try { x[1](); } catch (e) { errors.push(x[0] + ': ' + e.message); showReportError_(x[0], e); }
+  });
+  if (errors.length) throw new Error('Could not draw ' + errors.join(' | '));
+}
+
+function renderMonthlySummary_() {
+  try { drawMonthlySummary_(); } catch (e) { showReportError_(SHEET.SUMMARY, e); throw e; }
+}
+function renderAnnualSummary_() {
+  try { drawAnnualSummary_(); } catch (e) { showReportError_(SHEET.ANNUAL, e); throw e; }
+}
+
+/** Never leave a blank page: write what went wrong where the admin will see it. */
+function showReportError_(sheetName, err) {
+  try {
+    const sh = getOrCreateSheet_(sheetName);
+    sh.getRange('B2').setValue('This summary could not be drawn: ' + (err && err.message || err));
+    sh.getRange('B3').setValue('Fix: Bill Manager menu → ↻ Refresh summaries. If it repeats, run ⚙️ Setup / repair and send a screenshot of this message.');
+    sh.getRange('B2:B3').setFontColor('#000000').setFontWeight('bold').setWrap(false);
+    audit_('REPORT_ERROR', sheetName, { error: String(err && err.message || err), stack: String(err && err.stack || '').slice(0, 500) });
+  } catch (e) { console.error(e); }
 }
 
 function rebuildReports() {
-  refreshReports_();
-  toast_('Monthly and Annual summaries refreshed.');
+  try {
+    refreshReports_();
+    toast_('Monthly and Annual summaries refreshed.');
+  } catch (e) {
+    SpreadsheetApp.getUi().alert('Summaries', e.message, SpreadsheetApp.getUi().ButtonSet.OK);
+  }
 }
 
 // Kept for compatibility with setup and older menu items.
@@ -126,7 +154,7 @@ function yearOptions_(bills) {
 
 // ======================================================= MONTHLY SUMMARY (A4 portrait)
 
-function renderMonthlySummary_() {
+function drawMonthlySummary_() {
   const sh = getOrCreateSheet_(SHEET.SUMMARY);
   const s = settings_();
 
@@ -318,7 +346,7 @@ function renderMonthlySummary_() {
 
 // ======================================================= ANNUAL SUMMARY (A4 landscape)
 
-function renderAnnualSummary_() {
+function drawAnnualSummary_() {
   const sh = getOrCreateSheet_(SHEET.ANNUAL);
   const s = settings_();
   let yr = 0;

@@ -132,23 +132,23 @@ function setup() {
   PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', ss.getId());
   ownerEmail_();
 
-  ensureSettingsSheet_();
-  ensureCategoriesSheet_();
-  ensureMethodsSheet_();
-  ensureBillsSheet_();
-  ensureAuditSheet_();
-  ensureUsersSheet_();
-  refreshReports_();
+  const steps = [
+    ['Settings tab', ensureSettingsSheet_], ['Categories tab', ensureCategoriesSheet_], ['Payment Methods tab', ensureMethodsSheet_],
+    ['Bills tab', ensureBillsSheet_], ['Audit Log tab', ensureAuditSheet_], ['Users tab', ensureUsersSheet_],
+    ['Monthly & Annual summaries', refreshReports_], ['Drive folders', function () { rootFolder_(); backupFolder_(); }],
+    ['Backup journal', backupBook_], ['Automatic triggers', installTriggers_], ['Tidy up', removeEmptyDefaultSheet_],
+  ];
+  const failed = [];
+  steps.forEach(function (st) {
+    try { st[1](); } catch (e) { failed.push(st[0] + ' — ' + e.message); console.error(st[0], e); }
+  });
 
-  rootFolder_();
-  backupFolder_();
-  backupBook_();
-  installTriggers_();
-  removeEmptyDefaultSheet_();
-
-  ss.setActiveSheet(ss.getSheetByName(SHEET.BILLS));
-  audit_('SETUP', '', { version: '1.0' });
-  toast_('Setup complete. Use the 🧾 Bill Manager menu to record bills.');
+  ss.setActiveSheet(ss.getSheetByName(SHEET.BILLS) || ss.getSheets()[0]);
+  audit_('SETUP', '', { version: '1.3', failed: failed });
+  const msg = failed.length ? 'Setup finished with problems:\n\n' + failed.join('\n') : 'Setup complete. Use the 🧾 Bill Manager menu to record bills.';
+  try { SpreadsheetApp.getUi().alert('Bill Manager setup', msg, SpreadsheetApp.getUi().ButtonSet.OK); }
+  catch (e) { console.log(msg); toast_(msg); }
+  if (failed.length) console.error(msg);
 }
 
 function ensureSettingsSheet_() {
@@ -406,7 +406,6 @@ function onOpen() {
     .addSeparator()
     .addItem('⚙️ Setup / repair', 'setup')
     .addToUi();
-  try { refreshReportsIfDirty(); } catch (e) { }
 }
 
 function include(name) {
