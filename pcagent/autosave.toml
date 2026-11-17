@@ -1,0 +1,120 @@
+# PC Agent - autosave configuration
+# Every open window whose process matches an [[app]] gets its save keys
+# (Ctrl+S) and is then verified by checking that the document's file on
+# disk got a newer "modified" time.
+
+[general]
+# watch mode: how often to save everything
+interval_minutes = 10
+# watch mode: only save after the keyboard/mouse were untouched this long,
+# so the agent never steals focus while you are typing or drawing
+require_idle_seconds = 60
+# where your project files live; used to find a document from its window
+# title when the app does not keep the file open (D5 Render, for example)
+search_dirs = ["~/Documents", "~/Desktop"]  # add e.g. "D:/Projects"
+search_depth = 4
+# reports + log go here (environment variables are expanded)
+log_dir = "%LOCALAPPDATA%/PCAgent/autosave"
+# if Ctrl+S opens a dialog (Save As, compatibility check, read-only...),
+# press Esc to close it and report the document as needing attention
+cancel_unexpected_dialogs = true
+# pause between windows
+between_windows_seconds = 0.5
+
+# ---------------------------------------------------------------- apps
+# process      : exe names, wildcards allowed, case-insensitive
+# extensions   : document file types this app saves
+# pre_keys     : keys sent before saving (AutoCAD: Esc Esc cancels a running command)
+# save_keys    : the save shortcut
+# timeout_seconds : how long to wait for the file on disk to change
+# untitled     : regex for never-saved documents (no file yet) -> skipped, reported
+# detect_dialogs : a window that pops up after Ctrl+S and stays 2 s counts as a prompt
+# enabled      : set false to ignore an app
+
+[[app]]
+name = "AutoCAD"
+process = ["acad.exe"]
+extensions = [".dwg", ".dxf"]
+pre_keys = ["esc", "esc"]
+save_keys = ["ctrl+s"]
+timeout_seconds = 90
+untitled = '^Drawing\d+(\.dwg)?$'
+
+[[app]]
+name = "D5 Render"
+process = ["d5*.exe"]
+extensions = [".drs"]
+save_keys = ["ctrl+s"]
+timeout_seconds = 300   # large scenes take a while
+detect_dialogs = false  # D5 shows its own progress window while saving
+untitled = '^(Untitled|New Project)'
+
+[[app]]
+name = "Word"
+process = ["winword.exe"]
+extensions = [".docx", ".docm", ".doc", ".rtf", ".dotx"]
+save_keys = ["ctrl+s"]
+timeout_seconds = 30
+untitled = '^Document\d+$'
+
+[[app]]
+name = "Excel"
+process = ["excel.exe"]
+extensions = [".xlsx", ".xlsm", ".xlsb", ".xls", ".csv"]
+save_keys = ["ctrl+s"]
+timeout_seconds = 60
+untitled = '^Book\d+$'
+
+[[app]]
+name = "PowerPoint"
+process = ["powerpnt.exe"]
+extensions = [".pptx", ".pptm", ".ppt"]
+save_keys = ["ctrl+s"]
+timeout_seconds = 60
+untitled = '^Presentation\d+$'
+
+[[app]]
+name = "Visio"
+process = ["visio.exe"]
+extensions = [".vsdx", ".vsd"]
+save_keys = ["ctrl+s"]
+timeout_seconds = 30
+untitled = '^Drawing\d+$'
+
+# ---- more apps that also use Ctrl+S: set enabled = true to use them
+
+[[app]]
+name = "SketchUp"
+enabled = false
+process = ["sketchup.exe"]
+extensions = [".skp"]
+save_keys = ["ctrl+s"]
+timeout_seconds = 120
+untitled = '^Untitled'
+
+[[app]]
+name = "Revit"
+enabled = false
+process = ["revit.exe"]
+extensions = [".rvt", ".rfa"]
+save_keys = ["ctrl+s"]
+timeout_seconds = 300
+untitled = '^Project\d+$'
+
+[[app]]
+name = "Photoshop"
+enabled = false
+process = ["photoshop.exe"]
+extensions = [".psd", ".psb"]
+save_keys = ["ctrl+s"]
+timeout_seconds = 120
+untitled = '^Untitled-\d+'
+
+[[app]]
+name = "3ds Max"
+enabled = false
+process = ["3dsmax.exe"]
+extensions = [".max"]
+save_keys = ["ctrl+s"]
+timeout_seconds = 300
+untitled = '^Untitled'
