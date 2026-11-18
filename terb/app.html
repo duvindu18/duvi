@@ -1,0 +1,970 @@
+<title>TERB Tracker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one monochrome column; record-book tables scroll inside their own frames. */
+:root{
+  --bg:#f2f2f2; --surface:#ffffff; --ink:#0b0b0b; --mute:#7c7c7c; --line:#d6d6d6; --soft:#e7e7e7;
+  --on-ink:#ffffff; --hatch:rgba(11,11,11,.16);
+  --f-display:"Inter Tight",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-body:"Inter Tight",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --r-pill:999px; --r-card:22px; --r-sm:12px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0d0d0d; --surface:#161616; --ink:#f1f1f1; --mute:#8b8b8b; --line:#2b2b2b; --soft:#1f1f1f;
+  --on-ink:#0d0d0d; --hatch:rgba(241,241,241,.2); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d0d0d; --surface:#161616; --ink:#f1f1f1; --mute:#8b8b8b; --line:#2b2b2b; --soft:#1f1f1f;
+  --on-ink:#0d0d0d; --hatch:rgba(241,241,241,.2); color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 64px}
+a{color:inherit}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.num,.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.mute{color:var(--mute)}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:-.02em}
+h2{font-size:clamp(26px,4vw,38px);font-weight:700;line-height:1.05}
+h3{font-size:18px;font-weight:650;letter-spacing:-.01em}
+.label{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--mute);font-weight:600}
+
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg)}
+.top-in{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:18px 10px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:700;font-size:22px;letter-spacing:-.03em;text-decoration:none}
+.mark{width:34px;height:34px;display:grid;place-items:center;border:2.5px solid var(--ink);border-radius:9px;font-size:12px;font-weight:800;letter-spacing:0;position:relative}
+.mark::after{content:"";position:absolute;right:-5px;bottom:-5px;width:9px;height:9px;border-radius:50%;background:var(--ink)}
+.iconbtn{width:42px;height:42px;border-radius:50%;border:0;background:transparent;display:grid;place-items:center;cursor:pointer}
+.iconbtn:hover{background:var(--soft)}
+.sync{font-size:12px;color:var(--mute);display:flex;align-items:center;gap:6px}
+.sync i{width:7px;height:7px;border-radius:50%;border:1.5px solid var(--ink);display:inline-block}
+.sync.on i{background:var(--ink)}
+nav.tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding-bottom:10px;border-bottom:1px solid var(--line)}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs a{flex:none;text-decoration:none;padding:8px 14px;border-radius:var(--r-pill);font-weight:550;font-size:14px;color:var(--mute)}
+nav.tabs a:hover{color:var(--ink)}
+nav.tabs a[aria-current="page"]{background:var(--ink);color:var(--on-ink)}
+
+/* hero */
+.hero{padding-block:36px 28px;display:grid;gap:22px}
+.hero h1{font-size:clamp(40px,7.4vw,84px);line-height:.98;font-weight:700;letter-spacing:-.045em;max-width:16ch}
+.hero h1 .g{color:var(--mute)}
+.hero p{font-size:clamp(16px,2vw,19px);color:var(--mute);max-width:60ch;margin:0}
+.cta{display:inline-flex;align-items:center;gap:18px;background:var(--ink);color:var(--on-ink);border:0;border-radius:var(--r-pill);padding:8px 8px 8px 28px;font-weight:600;font-size:17px;text-decoration:none;cursor:pointer}
+.cta span.arrow{width:46px;height:46px;border-radius:50%;background:var(--on-ink);color:var(--ink);display:grid;place-items:center}
+.cta-row{display:flex;flex-wrap:wrap;align-items:center;gap:14px 22px}
+.ulink{color:var(--mute);text-underline-offset:4px;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;font-size:15px}
+
+/* generic */
+.section{padding-block:28px;display:grid;gap:18px;border-top:1px solid var(--line)}
+.section:first-of-type{border-top:0}
+.sec-head{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:10px 20px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
+.g4{grid-template-columns:repeat(auto-fill,minmax(min(100%,190px),1fr))}
+.card{background:var(--surface);border-radius:var(--r-card);padding:20px;min-width:0}
+.btn{display:inline-flex;align-items:center;gap:8px;border:1.5px solid var(--ink);background:transparent;border-radius:var(--r-pill);padding:8px 16px;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn.solid{background:var(--ink);color:var(--on-ink)}
+.btn.ghost{border-color:var(--line)}
+.btn:hover{opacity:.85}
+.btn.sm{padding:5px 12px;font-size:13px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+
+/* state chips — form carries state, no color */
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;border-radius:var(--r-pill);padding:3px 9px;border:1.5px solid var(--ink);white-space:nowrap;line-height:1.4}
+.chip.met{background:var(--ink);color:var(--on-ink)}
+.chip.short{background:repeating-linear-gradient(135deg,var(--hatch) 0 3px,transparent 3px 7px)}
+.chip.crit{background:var(--ink);color:var(--on-ink);box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px var(--ink)}
+.chip.unk{border-style:dashed;color:var(--mute);border-color:var(--mute)}
+.chip.na{border-color:var(--line);color:var(--mute)}
+
+/* stat tiles */
+.stat{display:grid;gap:6px;align-content:start}
+.stat .big{font-family:var(--f-display);font-size:44px;font-weight:700;letter-spacing:-.04em;line-height:1}
+.stat .big small{font-size:20px;color:var(--mute);font-weight:600;letter-spacing:-.02em}
+.meter{height:10px;border-radius:var(--r-pill);background:var(--soft);position:relative;overflow:hidden}
+.meter b{position:absolute;inset:0 auto 0 0;background:var(--ink);border-radius:var(--r-pill)}
+.meter.split b.post2{background:repeating-linear-gradient(135deg,var(--ink) 0 3px,transparent 3px 6px);border:1.5px solid var(--ink)}
+
+/* phase bars */
+.phases{display:grid;gap:14px}
+.ph{display:grid;grid-template-columns:minmax(96px,150px) 1fr auto;gap:6px 16px;align-items:center}
+.ph-name{display:grid;line-height:1.2;min-width:0}
+.ph-name b{font-family:var(--f-display);font-size:17px;letter-spacing:-.01em}
+.ph-name span{font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar{height:26px;background:var(--soft);border-radius:8px;position:relative;overflow:visible}
+.bar .fill{position:absolute;inset:0 auto 0 0;background:var(--ink);border-radius:8px}
+.bar .gap{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,var(--hatch) 0 3px,transparent 3px 7px);border:1.5px dashed var(--ink);border-left:0;border-radius:0 8px 8px 0}
+.bar .tick{position:absolute;top:-5px;bottom:-5px;width:2px;background:var(--ink)}
+.bar .tick::after{content:attr(data-t);position:absolute;top:-17px;left:50%;transform:translateX(-50%);font:600 10px var(--f-mono);color:var(--mute);white-space:nowrap}
+.ph-val{display:grid;justify-items:end;line-height:1.15;min-width:84px}
+.ph-val b{font-family:var(--f-mono);font-size:16px}
+.ph-val span{font-size:12px;color:var(--mute);font-family:var(--f-mono)}
+@media (max-width:560px){.ph{grid-template-columns:1fr auto}.ph .bar{grid-column:1/-1;grid-row:2}}
+
+/* alerts */
+.alerts{display:grid;gap:10px}
+.alert{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;background:var(--surface);border-radius:16px;padding:14px 16px;align-items:start}
+.alert .chip{grid-row:1/3;margin-top:2px}
+.alert b{font-weight:650}
+.alert p{margin:0;color:var(--mute);font-size:14px}
+.alert .ref{font-family:var(--f-mono);font-size:11px;color:var(--mute);margin-left:6px}
+.alert a{font-weight:600}
+
+/* tables */
+.tbl-wrap{overflow-x:auto;background:var(--surface);border-radius:var(--r-card);-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);font-weight:650;white-space:nowrap;background:var(--surface);position:sticky;top:0}
+td.n,th.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+tr.ph-row td{background:var(--soft);font-weight:700;font-family:var(--f-display);font-size:13px;letter-spacing:.01em}
+tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
+tr.sub td{font-weight:650;background:var(--soft)}
+td.z{color:var(--mute)}
+td .below{font-weight:700;text-decoration:underline;text-decoration-style:wavy;text-underline-offset:3px}
+.cell-in{width:64px;padding:5px 6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);text-align:right;font-family:var(--f-mono);font-size:13px}
+.cell-in:focus{border-color:var(--ink);outline:none}
+.tick-box{width:20px;height:20px;accent-color:var(--ink);cursor:pointer}
+
+/* forms */
+.fields{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))}
+.field{display:grid;gap:6px;min-width:0}
+.field>span{font-size:12px;font-weight:600;color:var(--mute)}
+.field input[type=text],.field input[type=date],.field input[type=number],.field select,.field textarea,.inp{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--bg);min-width:0}
+.field input:focus,.field select:focus,.field textarea:focus,.inp:focus{border-color:var(--ink);outline:none}
+.field textarea{min-height:84px;resize:vertical}
+.check{display:flex;gap:10px;align-items:center;font-weight:550;cursor:pointer}
+.help{font-size:12.5px;color:var(--mute);margin:0}
+
+/* log-sheet cards */
+.slot{background:var(--surface);border-radius:18px;padding:14px 16px;display:grid;gap:8px;text-decoration:none;min-height:132px;align-content:start;border:1.5px solid transparent}
+.slot:hover{border-color:var(--ink)}
+.slot.empty{background:transparent;border:1.5px dashed var(--line)}
+.slot.due{border:1.5px dashed var(--ink)}
+.slot-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.slot-no{font-family:var(--f-display);font-weight:700;font-size:26px;letter-spacing:-.03em;line-height:1}
+.slot .hrs{font-family:var(--f-mono);font-size:14px}
+.dots{display:flex;gap:6px;flex-wrap:wrap}
+.dot{font-size:10.5px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;display:inline-flex;align-items:center;gap:4px;color:var(--mute)}
+.dot i{width:9px;height:9px;border-radius:50%;border:1.5px solid currentColor;display:inline-block}
+.dot.on{color:var(--ink)}
+.dot.on i{background:var(--ink);border-color:var(--ink)}
+
+/* rule list */
+.rule{display:grid;grid-template-columns:72px 1fr auto;gap:4px 16px;padding:16px 0;border-bottom:1px solid var(--line);align-items:start}
+.rule:last-child{border-bottom:0}
+.rule .sec{font-family:var(--f-mono);font-size:12px;color:var(--mute);padding-top:3px}
+.rule b{font-weight:650}
+.rule p{margin:2px 0 0;color:var(--mute);font-size:14px}
+@media (max-width:560px){.rule{grid-template-columns:1fr auto}.rule .sec{grid-column:1/-1}}
+
+.notice{border:1.5px dashed var(--ink);border-radius:16px;padding:14px 16px;font-size:14px;display:grid;gap:8px}
+.week{background:var(--bg);border-radius:16px;padding:14px;display:grid;gap:10px}
+.week-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center}
+.wrow{display:grid;grid-template-columns:120px minmax(140px,1.3fr) minmax(140px,1.3fr) 84px 72px 34px;gap:6px;align-items:center}
+.wrow .inp{padding:7px 9px;font-size:13px}
+@media (max-width:760px){.wrow{grid-template-columns:1fr 1fr}.wrow .inp.wide{grid-column:1/-1}}
+.xbtn{width:32px;height:32px;border-radius:50%;border:1px solid var(--line);background:transparent;cursor:pointer}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--on-ink);padding:10px 18px;border-radius:var(--r-pill);font-weight:600;font-size:14px;z-index:40;max-width:calc(100% - 32px)}
+.drop{border:1.5px dashed var(--ink);border-radius:var(--r-card);padding:28px;text-align:center;display:grid;gap:10px;justify-items:center;cursor:pointer}
+.drop.over{background:var(--soft)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px}
+.kv dt{color:var(--mute)}
+.kv dd{margin:0;font-family:var(--f-mono)}
+.confirm{display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap}
+.foot{margin-top:40px;padding-top:24px;border-top:1px solid var(--line);color:var(--mute);font-size:13px;display:grid;gap:6px}
+@media (prefers-reduced-motion:no-preference){.view{animation:rise .28s ease both}@keyframes rise{from{opacity:.6;transform:translateY(6px)}to{opacity:1;transform:none}}}
+</style>
+
+<header class="top">
+  <div class="wrap" style="padding-block:0">
+    <div class="top-in">
+      <a class="brand" href="#overview"><span class="mark">TE</span>TERB Tracker</a>
+      <div class="row" style="gap:6px">
+        <span class="sync" id="sync"><i></i><span>This device</span></span>
+        <button class="iconbtn" id="themeBtn" aria-label="Switch light or dark">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>
+        </button>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs">
+      <a href="#overview">Overview</a><a href="#logs">Log sheets</a><a href="#summary">Cumulative summary</a><a href="#records">Overall records</a><a href="#rules">TERB rules</a><a href="#setup">Profile</a><a href="#data">Import / export</a>
+    </nav>
+  </div>
+</header>
+<main class="wrap" id="app"><section class="hero"><h1>Loading your <span class="g">record book.</span></h1></section></main>
+
+<script>
+"use strict";
+/* ───────────── TERB reference data (BAE107, 3rd edition, ratified 06.02.2024) ───────────── */
+const ACTS=[
+ ["1.1","PP","Consultancy tenders"],["1.2","PP","Site investigations"],["1.3","PP","Precedent studies / Data collection"],["1.4","PP","Brief preparation"],["1.5","PP","Office programming"],["1.6","PP","Outline Planning Permission"],["1.7","PP","Meetings"],["1.8","PP",""],
+ ["2.1","SDP","Concept formulation"],["2.2","SDP","Meetings / Presentations / PPC"],["2.3","SDP","Drawings / reports / models / 3Ds / Visuals"],["2.4","SDP","Estimates"],["2.5","SDP",""],
+ ["3.1","DDP","Design development"],["3.2","DDP","Planning, Building & other legislation"],["3.3","DDP","Permit drawings"],["3.4","DDP","Meetings"],["3.5","DDP",""],
+ ["4.1","CDP","Working drawings / Coordination"],["4.2","CDP","Specifications"],["4.3","CDP","Co-ordinate engineering drawings"],["4.4","CDP","Bills of Quantities / Coordination with QS"],["4.5","CDP","Bid documents"],["4.6","CDP","Meetings"],["4.7","CDP",""],
+ ["5.1","BNP","Pre bid meetings"],["5.2","BNP","Bid evaluations"],["5.3","BNP","Meetings / Negotiations / Award of contract"],["5.4","BNP","Emails / Correspondence"],
+ ["6.1","CAP","Progress meetings / Technical meetings"],["6.2","CAP","Variation orders"],["6.3","CAP","Inspection / Quality control / Sample approval"],["6.4","CAP","Certification of payments"],["6.5","CAP","Taking over procedures"],["6.6","CAP","Emails / Correspondence"],
+ ["7.1","PCP","As built drawings"],["7.2","PCP","Maintenance manual"],["7.3","PCP","Final bill certification"],["7.4","PCP","Guarantees / warranties"],["7.5","PCP","Completion certificate"],["7.6","PCP","Releasing retention"],["7.7","PCP","Inspection at the end of Defects Liability"],
+ ["8.1","OTHER",""],["8.2","OTHER",""]
+].map(([code,phase,label])=>({code,phase,label}));
+const ACT=Object.fromEntries(ACTS.map(a=>[a.code,a]));
+const PH=["PP","SDP","DDP","CDP","BNP","CAP","PCP","OTHER"];
+const PHN={PP:"Preliminary",SDP:"Schematic Design",DDP:"Design Development",CDP:"Contract Documentation",BNP:"Bidding & Negotiation",CAP:"Contract Administration",PCP:"Post Construction",OTHER:"Other"};
+/* Log-sheet "Project Phases (Hrs.)" columns, as in the four-weekly record and TERB_ACTIVITY workbook */
+const LOGCOL={PP:"pre",SDP:"design",DDP:"design",CDP:"cd",BNP:"cd",CAP:"ca",PCP:"ca",OTHER:"other"};
+const LOGCOLN={pre:"Pre design",design:"Design",cd:"Contract documents",ca:"Contract administration",other:"Other",np:"Non project"};
+/* Table 2 — minimum % of total gained training hours */
+const TARGETS={
+  during1:{PP:10,SDP:25,DDP:25,CDP:10,BNP:0,CAP:5,PCP:0},
+  post1:{PP:10,SDP:20,DDP:15,CDP:15,BNP:2.5,CAP:10,PCP:2.5},
+  post2:{PP:7.5,SDP:10,DDP:10,CDP:20,BNP:5,CAP:20,PCP:2.5}
+};
+const STAGEN={during1:"Part I (during Part I)",post1:"Part II (post Part I)",post2:"Part III (post Part II)"};
+const STAGESHORT={during1:"During Part I",post1:"Post Part I",post2:"Post Part II"};
+const CAT_OK={during1:["A","B","C"],post1:["A","B"],post2:["A"]};
+const CAT_YEARS={A:5,B:3,C:2};
+const COLLAB=[["client","Client organisation"],["eng","Consultant engineers"],["qs","Consultant QS"],["oth","Others"]];
+const SHEETS_PER_BOOK=14, MAX_SHEETS=28;
+const CHECKPOINTS=[{w:12,book:1,r:1},{w:24,book:1,r:2},{w:36,book:1,r:3},{w:68,book:2,r:1},{w:80,book:2,r:2},{w:92,book:2,r:3}];
+
+/* ───────────── helpers ───────────── */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad=n=>String(n).padStart(2,"0");
+const iso=d=>d.getUTCFullYear()+"-"+pad(d.getUTCMonth()+1)+"-"+pad(d.getUTCDate());
+const pd=s=>{if(!s||!/^\d{4}-\d{2}-\d{2}$/.test(s))return null;const[y,m,d]=s.split("-").map(Number);return new Date(Date.UTC(y,m-1,d))};
+const addD=(s,n)=>{const d=pd(s);if(!d)return "";d.setUTCDate(d.getUTCDate()+n);return iso(d)};
+const diffD=(a,b)=>{const x=pd(a),y=pd(b);return x&&y?Math.round((y-x)/864e5):null};/* b - a */
+const fd=s=>{const d=pd(s);return d?pad(d.getUTCDate())+"."+pad(d.getUTCMonth()+1)+"."+d.getUTCFullYear():"—"};
+const now=new Date();const TODAY=now.getFullYear()+"-"+pad(now.getMonth()+1)+"-"+pad(now.getDate());
+const r1=x=>Math.round(x*10)/10;
+const fh=x=>{x=r1(+x||0);return (Number.isInteger(x)?x.toLocaleString("en-US"):x.toFixed(1))};
+const pct=(a,b)=>b>0?a/b*100:0;
+const fp=x=>(Math.round(x*10)/10).toFixed(1)+"%";
+const sid=no=>"s"+pad(no);
+const zero=()=>Object.fromEntries(PH.map(k=>[k,0]));
+const clone=o=>JSON.parse(JSON.stringify(o));
+const getP=(o,path)=>path.split("|").reduce((a,k)=>a==null?a:a[k],o);
+function setP(o,path,v){const ks=path.split("|");let a=o;for(let i=0;i<ks.length-1;i++){if(a[ks[i]]==null||typeof a[ks[i]]!=="object")a[ks[i]]={};a=a[ks[i]]}a[ks[ks.length-1]]=v}
+function toast(msg){const t=document.createElement("div");t.className="toast";t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2600)}
+
+/* ───────────── state + persistence ───────────── */
+const BLANK_PROFILE=()=>({
+  name:"",sliaNo:"",membership:"",baeRegistered:false,partTime:false,partTimeApproved:false,
+  partI:{status:"",date:""},partII:{status:"",date:""},
+  mentor:{name:"",arbNo:"",stampValid:""},dot:{name:"",arbNo:"",stampValid:""},
+  practices:[],counselling:[],checkpoints:{},
+  selfNeeds:{},selfComment:"",dotRating:"",dotNeeds:{},dotDate:""
+});
+let S={profile:BLANK_PROFILE(),sheets:{}};
+let mode="local", db=null, dl=null;
+const LKEY="terb-tracker.v1";
+const pending=new Map(); let saveTimer=null; const inflight=new Set();
+function loadLocal(){try{const raw=localStorage.getItem(LKEY);if(raw){const d=JSON.parse(raw);S={profile:Object.assign(BLANK_PROFILE(),d.profile||{}),sheets:d.sheets||{}}}}catch(e){}}
+function saveLocal(){try{localStorage.setItem(LKEY,JSON.stringify(S))}catch(e){}}
+function markDirty(key){pending.set(key,true);clearTimeout(saveTimer);saveTimer=setTimeout(flush,650)}
+async function flush(){
+  saveLocal();
+  if(mode!=="db"){pending.clear();return}
+  const keys=[...pending.keys()];pending.clear();
+  for(const key of keys){
+    if(inflight.has(key)){pending.set(key,true);continue}
+    inflight.add(key);
+    try{
+      if(key==="profile") await db.doc("terb/profile").set(clone(S.profile));
+      else if(S.sheets[key]) await db.doc("sheets/"+key).set(clone(S.sheets[key]));
+      else await db.doc("sheets/"+key).delete();
+    }catch(e){
+      if(e&&e.code==="quota_exceeded")toast("Storage is full: export a backup and remove unused sheets.");
+      else if(e&&e.code==="unavailable"){pending.set(key,true)}
+      else toast("Could not save ("+(e&&e.code||"error")+"). Your changes are kept on this device.");
+    }finally{inflight.delete(key)}
+  }
+  if(pending.size){clearTimeout(saveTimer);saveTimer=setTimeout(flush,1500)}
+}
+function editing(){const a=document.activeElement;return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)}
+let deferred=false,migrated=false;
+function softRender(){if(editing()){deferred=true;return}render()}
+document.addEventListener("focusout",()=>setTimeout(()=>{if(deferred&&!editing()){deferred=false;render()}},120));
+
+async function connect(){
+  const c=window.claude; if(!c||typeof c.use!=="function")return;
+  try{dl=await c.use("downloads")}catch(e){dl=null}
+  let d=null;try{d=await c.use("db")}catch(e){d=null}
+  if(!d)return;
+  db=d;mode="db";setSync("connecting");
+  let gotP=false,gotS=false;const timer=setTimeout(()=>{if(!gotP||!gotS)setSync("offline")},10000);
+  const done=()=>{if(gotP&&gotS){clearTimeout(timer);setSync("on")}};
+  db.doc("terb/profile").onSnapshot(snap=>{
+    if(!snap.metadata.fromCache){gotP=true;done();if(!snap.exists&&S.profile.name){markDirty("profile");return}}
+    if(pending.has("profile")||inflight.has("profile"))return;
+    if(snap.exists){S.profile=Object.assign(BLANK_PROFILE(),snap.data());saveLocal();softRender()}
+  },e=>{setSync("offline")});
+  db.collection("sheets").onSnapshot(snap=>{
+    if(!snap.metadata.fromCache){gotS=true;done();if(snap.empty&&Object.keys(S.sheets).length&&!migrated){migrated=true;for(const k of Object.keys(S.sheets))markDirty(k);return}}
+    const next={};
+    for(const doc of snap.docs){next[doc.id]=(pending.has(doc.id)||inflight.has(doc.id))?S.sheets[doc.id]:clone(doc.data())}
+    for(const k of [...pending.keys(),...inflight])if(k!=="profile"&&S.sheets[k]&&!next[k])next[k]=S.sheets[k];
+    S.sheets=next;saveLocal();softRender();
+  },e=>{setSync("offline")});
+}
+function setSync(s){const el=$("#sync");if(!el)return;el.className="sync"+(s==="on"?" on":"");el.querySelector("span").textContent=s==="on"?"Synced":s==="connecting"?"Connecting…":s==="offline"?"Offline · saved here":"This device"}
+
+/* ───────────── analysis ───────────── */
+function actPhases(s){const p=zero();for(const[code,a]of Object.entries(s.acts||{})){const ph=ACT[code]&&ACT[code].phase;if(ph)p[ph]+=(+a.h||0)+(+a.np||0)}return p}
+function hasOverride(s){return s.phaseOverride&&PH.some(k=>+s.phaseOverride[k])}
+function sheetPhases(s){if(hasOverride(s)){const p=zero();for(const k of PH)p[k]=+s.phaseOverride[k]||0;return p}return actPhases(s)}
+const sum=o=>Object.values(o).reduce((a,b)=>a+(+b||0),0);
+function logCols(s){const c={pre:0,design:0,cd:0,ca:0,other:0,np:0};for(const[code,a]of Object.entries(s.acts||{})){const ph=ACT[code]&&ACT[code].phase;if(!ph)continue;c[LOGCOL[ph]]+=+a.h||0;c.np+=+a.np||0}return c}
+const weekHrs=w=>(w&&w.rows||[]).reduce((t,r)=>t+(+r.hours||0),0);
+function credit(s,total){
+  const ws=(s.weeks||[]).filter(Boolean);
+  if(ws.length===4&&ws.every(w=>weekHrs(w)>0))return{weeks:ws.filter(w=>weekHrs(w)>=30).length,basis:"weekly"};
+  if(total>=120)return{weeks:4,basis:"sheet"};
+  return{weeks:Math.min(4,Math.floor(total/30)),basis:"estimate"};
+}
+function passed(x){return x&&(x.status==="passed"||x.status==="exempted")}
+function autoStage(s,from){
+  const P=S.profile;
+  if(passed(P.partII)&&(!P.partII.date||(from&&from>=P.partII.date)))return "post2";
+  if(passed(P.partI)&&(!P.partI.date||!from||from>=P.partI.date))return "post1";
+  if(!P.partI.status)return "post1";
+  return "during1";
+}
+function analyze(){
+  const P=S.profile;
+  const list=Object.values(S.sheets).filter(s=>s&&s.no).sort((a,b)=>a.no-b.no);
+  /* dates: actual where entered, otherwise estimated from the nearest dated sheet (continuous training assumed) */
+  const dated=list.filter(s=>pd(s.from));
+  const byNo={};
+  for(const s of list){
+    let from=s.from,est=false;
+    if(!pd(from)&&dated.length){const ref=dated.reduce((b,x)=>Math.abs(x.no-s.no)<Math.abs(b.no-s.no)?x:b);from=addD(ref.from,28*(s.no-ref.no));est=true}
+    const to=pd(s.to)?s.to:(from?addD(from,25):"");
+    const phases=sheetPhases(s),total=sum(phases),cr=credit(s,total);
+    const stage=s.stage||autoStage(s,from);
+    byNo[s.no]={s,no:s.no,id:sid(s.no),from,to,est,phases,total,credit:cr,stage,weeks:[4*s.no-3,4*s.no],
+      acts:actPhases(s),override:hasOverride(s),actTotal:sum(actPhases(s))};
+  }
+  const rows=list.map(s=>byNo[s.no]);
+  const factor=P.partTime?0.5:1;
+  const stW={during1:0,post1:0,post2:0},stH={during1:zero(),post1:zero(),post2:zero()};
+  let overseasW=0;
+  for(const r of rows){stW[r.stage]+=r.credit.weeks*factor;for(const k of PH)stH[r.stage][k]+=r.phases[k];if(r.s.overseas)overseasW+=r.credit.weeks*factor}
+  const postW=stW.post1+stW.post2;
+  const totalH=rows.reduce((t,r)=>t+r.total,0);
+  const postRows=rows.filter(r=>r.stage!=="during1");
+  const postH=zero();for(const r of postRows)for(const k of PH)postH[k]+=r.phases[k];
+  const curStage=rows.length?rows[rows.length-1].stage:(passed(P.partII)?"post2":"post1");
+  /* active comparison: Record 1 (post Part I vs Part II targets) until Part II, then cumulative vs Part III targets */
+  const record=curStage==="post2"?{key:"r2",title:"Overall Record 2 · cumulative",hours:postH,target:TARGETS.post2,stage:"post2",goalWeeks:104}
+    :curStage==="during1"?{key:"r0",title:"During Part I",hours:stH.during1,target:TARGETS.during1,stage:"during1",goalWeeks:null}
+    :{key:"r1",title:"Overall Record 1 · post Part I",hours:stH.post1,target:TARGETS.post1,stage:"post1",goalWeeks:52};
+  record.total=sum(record.hours);
+  const recRows=rows.filter(r=>record.stage==="post2"?r.stage!=="during1":r.stage===record.stage);
+  record.weeks=recRows.reduce((t,r)=>t+r.credit.weeks*factor,0);
+  const rawW=recRows.reduce((t,r)=>t+r.credit.weeks,0);
+  record.avg=rawW?record.total/rawW:40;
+  record.phase=PH.filter(k=>k!=="OTHER").map(k=>{const t=record.target[k]||0,h=record.hours[k],p=pct(h,record.total);return{k,t,h,p,need:Math.max(0,t/100*record.total-h),ok:p+1e-9>=t}});
+  record.short=record.phase.filter(x=>x.t>0&&!x.ok);
+  /* projection to the record's end */
+  if(record.goalWeeks){
+    const remW=Math.max(0,record.goalWeeks-(record.stage==="post2"?postW:record.weeks));
+    const a=record.avg||40;
+    const neededAt=w=>{const T=record.total+w*a;return record.phase.reduce((t,x)=>t+Math.max(0,x.t/100*T-x.h),0)};
+    record.remW=remW;record.remH=remW*a;record.needAtEnd=neededAt(remW);
+    let w=0;while(w<400&&neededAt(w)>w*a+1e-6)w++;
+    record.minWeeksToFix=w;
+    const T=record.total+remW*a;
+    record.plan=record.phase.map(x=>({k:x.k,h:Math.max(0,x.t/100*T-x.h)})).filter(x=>x.h>0.05);
+  }
+  return{rows,byNo,stW,stH,postW,postH,totalH,overseasW,factor,curStage,record,P};
+}
+
+/* ───────────── compliance rules → alerts ───────────── */
+function checks(A){
+  const P=A.P,out=[],rules=[];
+  const add=(sev,title,detail,ref,link)=>out.push({sev,title,detail,ref,link});
+  const rule=(sec,title,status,detail)=>rules.push({sec,title,status,detail});
+  const rows=A.rows;
+
+  /* Setup basics */
+  if(!P.name)add("action","Add your name and examination status","The tracker needs your Part I and Part II status to apply the right targets.","§3.1","#setup");
+  rule("§3.1","Registered with BAE as a trainee; TERB issued to you",P.baeRegistered?"met":"unk",P.baeRegistered?"Recorded in your profile.":"Tick this in your profile once you have registered.");
+  if(!P.membership)add("action","Set your SLIA membership","Trainees using the TERB must be Student or Graduate members.","§5.4.v","#setup");
+  else if(P.membership==="none")add("critical","Apply for SLIA membership now","Only Student or Graduate members may use the TERB.","§5.4.v","#setup");
+  rule("§5.4.v","Student or Graduate member of the SLIA",P.membership==="student"||P.membership==="graduate"?"met":P.membership==="none"?"crit":"unk",P.membership?({student:"Student member.",graduate:"Graduate member.",none:"Not a member yet."}[P.membership]):"Not set.");
+
+  /* Table 1 duration */
+  const gm=A.postW, gmOk=gm>=52;
+  rule("Table 1 · 2","Graduate Member: 52 weeks full-time after Part I (or 104 part-time with BAE approval)",!passed(P.partI)&&P.partI.status?"na":gmOk?"met":"short",`${fh(gm)} of 52 weeks credited after Part I.`);
+  if(gmOk&&P.membership==="student")add("action","Apply for Graduate membership","You have 52 credited weeks after Part I. Graduate membership is required to sit Part III.","Table 1","#setup");
+  const p3Total=A.postW>=104,p3Post2=A.stW.post2>=52;
+  rule("Table 1 · 6","Sit Part III: 104 weeks after Part I, of which 52 after Part II",p3Total&&p3Post2&&passed(P.partII)&&P.membership==="graduate"?"met":"short",
+    `${fh(A.postW)} of 104 weeks after Part I · ${fh(A.stW.post2)} of 52 after Part II · Part II ${passed(P.partII)?P.partII.status:"not yet passed"} · ${P.membership==="graduate"?"Graduate member":"Graduate membership needed"}.`);
+  if(P.partTime&&!P.partTimeApproved)add("critical","Part-time training needs BAE prior approval","Part-time weeks count at half value (104 part-time = 52 full-time) only with BAE's prior approval.","Table 1","#setup");
+
+  /* hours minimums */
+  const lowSheets=rows.filter(r=>r.total>0&&r.total<120);
+  rule("Form 73","Four-weekly record: minimum 120 hours per log sheet",lowSheets.length?"short":rows.length?"met":"unk",lowSheets.length?`Below 120 h: sheet ${lowSheets.map(r=>pad(r.no)).join(", ")}.`:`All ${rows.length} log sheets reach 120 h.`);
+  for(const r of lowSheets)add("action",`Log sheet ${pad(r.no)} has ${fh(r.total)} h — minimum is 120`,`Weeks ${r.weeks[0]}–${r.weeks[1]}. Only ${r.credit.weeks} of 4 weeks can be counted at 30 h each.`,"Form 73",`#sheet-${r.no}`);
+  const lowWeeks=[];for(const r of rows)(r.s.weeks||[]).forEach((w,i)=>{if(w&&weekHrs(w)>0&&weekHrs(w)<30)lowWeeks.push(`${4*r.no-3+i}`)});
+  rule("Form 15","Weekly record: minimum 30 hours per week",lowWeeks.length?"short":"met",lowWeeks.length?`Weeks under 30 h: ${lowWeeks.join(", ")}.`:"No weekly record under 30 h.");
+  if(lowWeeks.length)add("action",`Week${lowWeeks.length>1?"s":""} ${lowWeeks.join(", ")} under 30 hours`,"Each weekly record needs at least 30 hours.","Form 15","#logs");
+
+  /* Table 2 */
+  const R=A.record;
+  rule("Table 2",`Phase minimums for ${STAGEN[R.stage]}`,!R.total?"unk":R.short.length?"short":"met",!R.total?"No hours yet.":R.short.length?`Short in ${R.short.map(x=>`${x.k} (${fp(x.p)} of ${x.t}%)`).join(", ")}.`:"Every phase is at or above its minimum.");
+  if(R.total&&R.short.length){
+    add("action",`Below the Table 2 minimum in ${R.short.map(x=>x.k).join(", ")}`,R.short.map(x=>`${x.k} ${fp(x.p)} of ${x.t}% (−${fh(x.need)} h today)`).join(" · "),"Table 2","#summary");
+    if(R.goalWeeks&&R.remW>0&&R.needAtEnd>R.remH+1e-6)add("critical",`Targets can't be reached by week ${R.goalWeeks} at your pace`,`Closing the gaps needs ${fh(R.needAtEnd)} h in short phases, but only about ${fh(R.remH)} h remain (${fh(R.remW)} weeks × ${fh(R.avg)} h). Plan about ${R.minWeeksToFix} weeks dedicated to these phases, which runs ${Math.max(0,R.minWeeksToFix-R.remW)} weeks past week ${R.goalWeeks}.`,"Table 2","#overview");
+  }
+
+  /* §5.2 — 20 consecutive weeks per office */
+  const pr=P.practices||[];
+  const byPr={};for(const r of rows){const k=r.s.practiceId||"";(byPr[k]=byPr[k]||[]).push(r)}
+  if(byPr[""]&&rows.length&&pr.length)add("action",`${byPr[""].length} log sheet${byPr[""].length>1?"s are":" is"} not linked to a trainer practice`,`Sheets ${byPr[""].map(r=>pad(r.no)).join(", ")}. Link each sheet so §5.2 and the employment summary can be checked.`,"§5.2","#logs");
+  if(!pr.length&&rows.length)add("action","Add your Registered Trainer Practice","Needed to check the practice category, the 20-week rule and the employment summary.","§4","#setup");
+  let r52="met",r52d=[];
+  for(const p of pr){
+    const rs=(byPr[p.id]||[]).sort((a,b)=>a.no-b.no);
+    let best=0,run=0,prev=null;for(const r of rs){run=(prev!==null&&r.no===prev+1)?run+r.credit.weeks:r.credit.weeks;prev=r.no;best=Math.max(best,run)}
+    const ended=!!p.end;
+    if(rs.length&&best<20){if(ended){r52="crit";add("critical",`${p.name||"Practice"}: ${best} consecutive weeks — under 20`,"Experience under 20 consecutive weeks in one office is not counted.","§5.2","#setup")}else{if(r52==="met")r52="short";add("note",`${p.name||"Practice"}: ${best} consecutive weeks so far`,`Stay at least ${20-best} more weeks for this office's experience to count.`,"§5.2","#setup")}}
+    r52d.push(`${p.name||"Practice"}: ${best} consecutive weeks`);
+    /* category */
+    const stages=[...new Set(rs.map(r=>r.stage))];
+    if(!p.category){if(rs.length)add("action",`Set the trainer category of ${p.name||"your practice"}`,"Post Part I needs a Category B (or A) practice; post Part II needs Category A.","§2","#setup")}
+    else for(const st of stages){if(!CAT_OK[st].includes(p.category))add("critical",`${p.name}: Category ${p.category} can't train ${STAGESHORT[st]} trainees`,`${STAGESHORT[st]} training needs a Category ${CAT_OK[st].join(" or ")} practice.`,"§2","#setup")}
+    if(p.category&&p.mentorYears!==""&&p.mentorYears!=null&&+p.mentorYears<CAT_YEARS[p.category])add("action",`Mentor at ${p.name} is below Category ${p.category}'s ${CAT_YEARS[p.category]} years post-charter`,`Recorded: ${p.mentorYears} years.`,"§2","#setup");
+    if(ended&&!p.employmentSummary)add("action",`Employment summary for ${p.name||"practice"}`,"The principal architect must certify the duration you worked there. Original to BAE, copy stays in the TERB.","§6(e)","#setup");
+  }
+  rule("§5.2","At least 20 consecutive weeks in one registered trainer practice",pr.length?r52:"unk",pr.length?r52d.join(" · "):"Add your practice in the profile.");
+  const catBad=out.some(a=>a.ref==="§2"&&a.sev==="critical");
+  rule("§2","Practice category matches your stage (A: post Part II · B: post Part I · C: during Part I)",!pr.length||pr.some(p=>!p.category)?"unk":catBad?"crit":"met",pr.map(p=>`${p.name||"Practice"}: ${p.category?"Category "+p.category:"category not set"}`).join(" · ")||"No practice yet.");
+
+  /* stamps */
+  const stamp=(who,o)=>{
+    if(!o.stampValid){add("action",`Record the ${who}'s ARB stamp expiry`,"Every record must carry a valid ARB 'Chartered Architect' stamp.","§5.4.i","#setup");return "unk"}
+    const left=diffD(TODAY,o.stampValid);
+    if(left<0){add("critical",`${who}'s ARB stamp expired on ${fd(o.stampValid)}`,"Records stamped after this date are not valid. Ask for the renewed stamp.","§5.4.i","#setup");return "crit"}
+    if(left<=75)add("action",`${who}'s ARB stamp expires in ${left} days`,`Valid up to ${fd(o.stampValid)}. Get pending sheets certified before then.`,"§5.4.i","#setup");
+    return "met";
+  };
+  const ms=stamp("Employment Mentor",P.mentor),ds=stamp("Director of Training",P.dot);
+  const badCert=rows.filter(r=>r.s.mentorDate&&P.mentor.stampValid&&r.s.mentorDate>P.mentor.stampValid);
+  for(const r of badCert)add("critical",`Sheet ${pad(r.no)} certified after the mentor's stamp expired`,`Certified ${fd(r.s.mentorDate)}; stamp valid to ${fd(P.mentor.stampValid)}.`,"§5.4.i",`#sheet-${r.no}`);
+  rule("§5.4.i","Weekly and four-weekly records certified by the mentor with a valid ARB stamp",ms==="crit"||badCert.length?"crit":ms==="unk"?"unk":"met",P.mentor.stampValid?`Mentor stamp valid to ${fd(P.mentor.stampValid)}. DOT stamp valid to ${fd(P.dot.stampValid)}.`:"Stamp validity not recorded.");
+
+  /* certification & submission timing */
+  const noCert=rows.filter(r=>r.total>0&&!r.s.mentorDate);
+  const noDot=rows.filter(r=>r.total>0&&!r.s.dotDate);
+  if(noCert.length)add("action",`${noCert.length} log sheet${noCert.length>1?"s have":" has"} no mentor certification date`,`Sheets ${noCert.map(r=>pad(r.no)).join(", ")}. Enter the date from the stamp box, or get them certified.`,"§6(b)","#logs");
+  const lateList=[],overList=[],okLate=[];
+  for(const r of rows){
+    if(!r.total||!r.to)continue;
+    const due=addD(r.to,31);
+    const sub=r.s.submitted||r.s.dotDate;
+    if(!sub){const over=diffD(due,TODAY);if(over>0)overList.push({r,over});continue}
+    const late=diffD(due,sub);
+    if(late>0){if(r.s.dotDate)okLate.push({r,late});else lateList.push({r,late})}
+  }
+  if(overList.length){
+    const beyond=overList.filter(x=>x.over>61);
+    add("action",`No DOT review recorded for sheet${overList.length>1?"s":""} ${overList.map(x=>pad(x.r.no)).join(", ")}`,
+      `If the DOT already reviewed ${overList.length>1?"them":"it"}, enter the dates. Otherwise: late submissions are accepted for up to two months, only with an excuse letter certified by your mentor${beyond.length?`; ${beyond.length} ${beyond.length>1?"are":"is"} already past that window`:""}.`,"§3.6.ix","#logs");
+  }
+  for(const x of lateList)add(x.late>61?"critical":x.r.s.excuseLetter?"note":"action",`Sheet ${pad(x.r.no)} submitted ${x.late} days late`,x.late>61?"Beyond the two-month allowance. Talk to the DOT.":x.r.s.excuseLetter?"Excuse letter recorded.":"Attach an excuse letter certified by your mentor.","§3.6.ix",`#sheet-${x.r.no}`);
+  if(okLate.length)add("note",`${okLate.length} sheet${okLate.length>1?"s were":" was"} reviewed late but accepted by the DOT`,okLate.map(x=>`Sheet ${pad(x.r.no)}: ${x.late} days after the next monthly session`).join(" · ")+". Submit at the next monthly counselling from now on.","§5.4.iv","#logs");
+  rule("§3.6.ix","Log sheets submitted at the next monthly counselling; at most two months late, with an excuse letter",overList.some(x=>x.over>61)||lateList.some(x=>x.late>61)?"crit":overList.length||lateList.length?"short":rows.length?"met":"unk",
+    `${rows.length-noDot.length} of ${rows.filter(r=>r.total).length} sheets have a DOT review date.`);
+
+  /* missing sheets */
+  const first=rows.find(r=>pd(r.from)&&!r.est)||rows[0];
+  if(first&&first.from){
+    const elapsedW=Math.floor(diffD(first.from,TODAY)/7)+(first.no-1)*4;
+    const expectedSheets=Math.min(MAX_SHEETS,Math.floor(elapsedW/4));
+    const miss=[];for(let n=1;n<=expectedSheets;n++){if(!A.byNo[n]||!A.byNo[n].total)miss.push(n)}
+    if(miss.length){
+      const ranges=[];let a=miss[0],b=a;for(const n of miss.slice(1)){if(n===b+1)b=n;else{ranges.push([a,b]);a=b=n}}ranges.push([a,b]);
+      add("action",`Log sheet${miss.length>1?"s":""} ${ranges.map(([a,b])=>a===b?pad(a):pad(a)+"–"+pad(b)).join(", ")} not entered`,`Weeks ${ranges.map(([a,b])=>`${4*a-3}–${4*b}`).join(", ")} have ended if your training has been continuous since ${fd(first.from)} (week ${4*first.no-3}). Enter them, or set the actual dates if you took a break.`,"§6","#logs");
+    }
+  }
+
+  /* counselling */
+  const cs=(P.counselling||[]).filter(c=>c.date&&c.attended!==false).map(c=>c.date).sort();
+  if(!cs.length){if(rows.length)add("action","Record your counselling sessions","Monthly Practical Training Counselling at BAE/SLIA is compulsory; attendance is marked at the end of each session.","§5.4.iv","#setup")}
+  else{const last=cs[cs.length-1],gap=diffD(last,TODAY);
+    if(gap>61)add("critical",`No counselling attended for ${Math.floor(gap/30)} months`,`Last session ${fd(last)}. Absence over two months in a row, with records not submitted, lets the DOT refuse those records.`,"§5.4.iv","#setup");
+    else if(gap>35)add("action","Monthly counselling is due",`Last session ${fd(last)}. Sessions are generally from 5.30 p.m. at the SLIA.`,"§3.6.i","#setup");
+    let maxGap=0;for(let i=1;i<cs.length;i++)maxGap=Math.max(maxGap,diffD(cs[i-1],cs[i]));
+    rule("§5.4.iv","Attend the monthly counselling; never absent over two months in a row",gap>61||maxGap>61?"crit":gap>35?"short":"met",`${cs.length} sessions recorded · last ${fd(last)}${maxGap>61?` · longest gap ${maxGap} days`:""}.`);
+  }
+  if(!cs.length)rule("§5.4.iv","Attend the monthly counselling; never absent over two months in a row","unk","No sessions recorded.");
+
+  /* checkpoints */
+  let cpMiss=[];
+  for(const cp of CHECKPOINTS){
+    const reached=rows.some(r=>r.weeks[1]>=cp.w&&r.total>0);
+    const d=(P.checkpoints||{})[cp.w]||{};
+    if(reached&&!d.interim)cpMiss.push(cp);
+  }
+  if(cpMiss.length)add("action",`Interim report${cpMiss.length>1?"s":""} at week ${cpMiss.map(c=>c.w).join(", ")} not recorded`,"At the end of 12, 24 and 36 weeks the DOT sends the interim report and overall-record recommendation to the BAE, and your mentor lists follow-up actions.","§6(c)","#records");
+  rule("§6(c)","Interim reports and DOT recommendations at 12, 24 and 36 weeks",cpMiss.length?"short":"met",cpMiss.length?`Missing at week ${cpMiss.map(c=>c.w).join(", ")}.`:"Up to date for the weeks reached.");
+
+  /* overseas */
+  if(A.overseasW>0){const sl=A.postW-A.overseasW;rule("§5.6","Overseas training: at least 52 weeks in Sri Lanka",sl>=52?"met":"short",`${fh(sl)} weeks in Sri Lanka, ${fh(A.overseasW)} overseas.`);if(sl<52)add("note","Overseas weeks need 52 weeks in Sri Lanka as well",`${fh(sl)} Sri Lankan weeks credited so far.`,"§5.6","#logs")}
+  else rule("§5.6","Overseas training: at least 52 weeks in Sri Lanka","na","No overseas sheets.");
+
+  /* override mismatches */
+  const mm=rows.filter(r=>r.override&&r.actTotal>0);
+  if(mm.length)add("note",`Activity detail differs from the certified totals on sheet${mm.length>1?"s":""} ${mm.map(r=>pad(r.no)).join(", ")}`,"The cumulative-summary totals are used. Correct the activity hours so the log sheet matches.","§6(b)","#logs");
+  const po=rows.filter(r=>r.override&&!r.actTotal);
+  if(po.length)add("note",`Activity detail not entered for sheet${po.length>1?"s":""} ${po.map(r=>pad(r.no)).join(", ")}`,"Only phase totals are known. Transcribe the activity rows from the log sheets.","§6(b)","#logs");
+
+  rule("§3.6.xi","Submit the TERB and record sheets in person; the DOT doesn't accept them through a third party","na","Reminder.");
+  rule("§6(f)","Photocopy the whole TERB before handing it to the BAE","na","Reminder for the end of training.");
+
+  const order={critical:0,action:1,note:2};
+  out.sort((a,b)=>order[a.sev]-order[b.sev]);
+  return{alerts:out,rules};
+}
+
+/* ───────────── rendering ───────────── */
+const chip=(st,txt)=>`<span class="chip ${st}">${txt||({met:"Met",short:"Short",crit:"Critical",unk:"Not set",na:"Info"}[st])}</span>`;
+const sevChip=s=>s==="critical"?chip("crit","Critical"):s==="action"?chip("short","Action"):chip("unk","Note");
+function route(){const h=(location.hash||"#overview").slice(1);return h||"overview"}
+function render(){
+  const r=route(),A=analyze(),C=checks(A);
+  document.querySelectorAll("#tabs a").forEach(a=>{const k=a.getAttribute("href").slice(1);a.toggleAttribute("aria-current",false);if(k===r||(k==="logs"&&r.startsWith("sheet-")))a.setAttribute("aria-current","page")});
+  let html="";
+  if(r==="overview")html=vOverview(A,C);
+  else if(r==="logs")html=vLogs(A);
+  else if(r.startsWith("sheet-"))html=vSheet(A,+r.slice(6));
+  else if(r==="summary")html=vSummary(A);
+  else if(r==="records")html=vRecords(A);
+  else if(r==="rules")html=vRules(A,C);
+  else if(r==="setup")html=vSetup(A);
+  else if(r==="data")html=vData(A);
+  else html=vOverview(A,C);
+  $("#app").innerHTML=`<div class="view">${html}</div>`+foot();
+}
+function foot(){return `<div class="foot"><span>Rules from the Trainees' Experience Record Book (TERB), BAE107 third edition, approved by the BAE 13.12.2023 and ratified by the SLIA Council 06.02.2024.</span><span>The SLIA/BAE may amend these conditions. Your DOT's decision is final; this tracker helps you stay on course.</span></div>`}
+
+function phaseBars(hours,target,total){
+  return `<div class="phases">${PH.filter(k=>k!=="OTHER").map(k=>{
+    const t=target[k]||0,h=hours[k],p=pct(h,total),scale=Math.max(40,...PH.map(x=>pct(hours[x],total)),...Object.values(target))*1.08;
+    const w=p/scale*100,tw=t/scale*100,ok=p+1e-9>=t;
+    return `<div class="ph"><div class="ph-name"><b>${k}</b><span>${PHN[k]}</span></div>
+    <div class="bar" role="img" aria-label="${k} ${fp(p)} of a ${t}% minimum"><div class="fill" style="width:${w}%"></div>${!ok&&t?`<div class="gap" style="left:${w}%;width:${tw-w}%"></div>`:""}${t?`<div class="tick" style="left:calc(${tw}% - 1px)" data-t="${t}%"></div>`:""}</div>
+    <div class="ph-val"><b>${fp(p)}</b><span>${fh(h)} h${t?ok?" · met":` · −${fh(t/100*total-h)} h`:" · no min."}</span></div></div>`}).join("")}</div>`;
+}
+function vOverview(A,C){
+  const P=A.P,R=A.record,rows=A.rows;
+  const lastWeek=rows.length?Math.max(...rows.filter(r=>r.total).map(r=>r.weeks[1]),0):0;
+  const goal=R.goalWeeks||52;
+  const weeksDone=R.stage==="post2"?A.postW:R.weeks;
+  let h1;
+  if(!rows.length)h1=`Start your <span class="g">record book.</span>`;
+  else h1=`${fh(weeksDone)} weeks <span class="g">of ${goal} logged.</span> ${R.short.length?`<span class="g">Short in</span> ${R.short.map(x=>x.k).join(", ")}.`:`<span class="g">On</span> target.`}`;
+  const next=nextSheet(A);
+  const crit=C.alerts.filter(a=>a.sev==="critical").length,act=C.alerts.filter(a=>a.sev==="action").length;
+  let s=`<section class="hero"><h1>${h1}</h1>
+  <p>${rows.length?`${fh(A.totalH)} hours over ${rows.filter(r=>r.total).length} log sheets${P.name?` for ${esc(P.name)}`:""}. ${crit?`${crit} critical item${crit>1?"s":""}, `:""}${act} action${act!==1?"s":""} to take.`:"Add your profile, then enter each four-weekly log sheet, or import your TERB spreadsheets."}</p>
+  <div class="cta-row"><a class="cta" href="#sheet-${next}">${A.byNo[next]?"Open":"Start"} log sheet ${pad(next)}<span class="arrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></a>
+  <a class="ulink" href="#data">Import your TERB spreadsheets</a></div></section>`;
+  /* duration tiles */
+  const tile=(lbl,val,of,note,meter)=>`<div class="card stat"><span class="label">${lbl}</span><div class="big">${val}<small> / ${of}</small></div>${meter}<span class="help">${note}</span></div>`;
+  const m=(v,of)=>`<div class="meter"><b style="width:${Math.min(100,v/of*100)}%"></b></div>`;
+  s+=`<section class="section"><div class="sec-head"><h2>Training duration</h2><span class="mute">Table 1 · credited weeks${A.factor<1?" (part-time counts half)":""}</span></div><div class="grid g3">
+  ${tile("Graduate membership",fh(A.postW),52,A.postW>=52?"Requirement met. Apply for Graduate membership.":`${fh(52-A.postW)} more weeks after Part I.`,m(A.postW,52))}
+  ${tile("Part III · after Part I",fh(A.postW),104,`${fh(Math.max(0,104-A.postW))} weeks to go.`,m(A.postW,104))}
+  ${tile("Part III · after Part II",fh(A.stW.post2),52,passed(P.partII)?`${fh(Math.max(0,52-A.stW.post2))} weeks to go.`:"Starts counting once you pass or are exempted from Part II.",m(A.stW.post2,52))}
+  </div></section>`;
+  /* phases */
+  s+=`<section class="section"><div class="sec-head"><div><span class="label">${esc(R.title)}</span><h2>Phase balance against Table 2</h2></div><a class="btn ghost" href="#summary">Cumulative summary</a></div>
+  <div class="card">${R.total?phaseBars(R.hours,R.target,R.total):`<p class="mute">No hours yet.</p>`}</div>`;
+  if(R.total&&R.goalWeeks&&R.plan&&R.plan.length){
+    const ok=R.needAtEnd<=R.remH+1e-6;
+    s+=`<div class="grid g2"><div class="card"><span class="label">To finish week ${R.goalWeeks} on target</span>
+      <p style="margin:8px 0 12px">${R.remW>0?`About <b class="num">${fh(R.remH)} h</b> remain (${fh(R.remW)} weeks at your average ${fh(R.avg)} h/week). Put at least:`:"The record period is complete. Additional weeks needed:"}</p>
+      <dl class="kv">${R.plan.map(x=>`<dt>${x.k} · ${PHN[x.k]}</dt><dd>${fh(x.h)} h</dd>`).join("")}</dl>
+      <p class="help" style="margin-top:12px">${ok?"That fits in the remaining hours, with the rest spread over any phase.":`That is ${fh(R.needAtEnd)} h, more than remains. Plan about ${R.minWeeksToFix} weeks of work focused on these phases (Overall Record "additional weeks").`}</p></div>
+      <div class="card"><span class="label">Where the hours went</span><div style="margin-top:12px">${logColTable(A)}</div></div></div>`;
+  }
+  s+=`</section>`;
+  /* alerts */
+  s+=`<section class="section"><div class="sec-head"><h2>What needs attention</h2><a class="btn ghost" href="#rules">All TERB rules</a></div>
+  <div class="alerts">${C.alerts.length?C.alerts.map(a=>`<div class="alert">${sevChip(a.sev)}<b>${esc(a.title)}<span class="ref">${esc(a.ref)}</span></b><p>${esc(a.detail)} ${a.link?`<a href="${a.link}">Open</a>`:""}</p></div>`).join(""):`<div class="alert">${chip("met","Clear")}<b>Nothing outstanding</b><p>Every rule the tracker can check is satisfied.</p></div>`}</div></section>`;
+  return s;
+}
+function logColTable(A){
+  const c={pre:0,design:0,cd:0,ca:0,other:0};let np=0;
+  for(const r of A.rows){for(const k of PH)c[LOGCOL[k]]+=r.phases[k]}
+  for(const r of A.rows){if(!r.override)np+=logCols(r.s).np}
+  const tot=sum(c);
+  return `<dl class="kv">${Object.entries(c).filter(([k,v])=>k!=="other"||v).map(([k,v])=>`<dt>${LOGCOLN[k]}</dt><dd>${fh(v)} h · ${fp(pct(v,tot))}</dd>`).join("")}<dt>of which non-project</dt><dd>${fh(np)} h</dd></dl>`;
+}
+function nextSheet(A){for(let n=1;n<=MAX_SHEETS;n++){if(!A.byNo[n]||!A.byNo[n].total)return n}return MAX_SHEETS}
+
+/* log sheets list */
+function vLogs(A){
+  const book=b=>{let h="";for(let n=(b-1)*SHEETS_PER_BOOK+1;n<=b*SHEETS_PER_BOOK;n++){
+    const r=A.byNo[n];
+    if(!r){h+=`<a class="slot empty${n===nextSheet(A)?" due":""}" href="#sheet-${n}"><div class="slot-top"><span class="slot-no mute">${pad(n)}</span><span class="mute">wk ${4*n-3}–${4*n}</span></div><span class="mute">${n===nextSheet(A)?"Next to fill":"Not started"}</span></a>`;continue}
+    const dots=[["≥120 h",r.total>=120],["Mentor",!!r.s.mentorDate],["DOT",!!r.s.dotDate],["Detail",!r.override]];
+    h+=`<a class="slot" href="#sheet-${n}"><div class="slot-top"><span class="slot-no">${pad(n)}</span><span class="mute">wk ${r.weeks[0]}–${r.weeks[1]}</span></div>
+      <span class="hrs"><b>${fh(r.total)} h</b> <span class="mute">· ${STAGESHORT[r.stage]}</span></span>
+      <span class="mute" style="font-size:12.5px">${fd(r.from)} – ${fd(r.to)}${r.est?" (est.)":""}</span>
+      <div class="dots">${dots.map(([l,on])=>`<span class="dot${on?" on":""}"><i></i>${l}</span>`).join("")}</div></a>`}
+    return h};
+  return `<section class="hero" style="padding-bottom:12px"><h1>Log sheets <span class="g">four weeks at a time.</span></h1><p>Fourteen sheets per book, original to the DOT, coloured copy stays in the TERB. Filled dots show what is done.</p></section>
+  <section class="section"><div class="sec-head"><h3>Book 1 · weeks 1–56</h3></div><div class="grid g4">${book(1)}</div></section>
+  <section class="section"><div class="sec-head"><h3>Book 2 · weeks 57–112</h3></div><div class="grid g4">${book(2)}</div></section>`;
+}
+
+/* single log sheet editor */
+function ensureSheet(no){
+  if(!S.sheets[sid(no)]){S.sheets[sid(no)]={no,from:"",to:"",practiceId:(S.profile.practices[0]||{}).id||"",stage:"",overseas:false,acts:{},phaseOverride:null,weeks:[null,null,null,null],mentorDate:"",dotDate:"",submitted:"",excuseLetter:false,notes:""}}
+  return S.sheets[sid(no)];
+}
+function vSheet(A,no){
+  if(!(no>=1&&no<=MAX_SHEETS))return `<section class="hero"><h1>No such sheet.</h1></section>`;
+  const r=A.byNo[no],s=r?r.s:null;
+  if(!s)return `<section class="hero"><span class="label">Four weekly record · log sheet ${pad(no)}</span><h1>Weeks ${4*no-3}–${4*no} <span class="g">not started.</span></h1>
+    <div class="cta-row"><button class="cta" data-act="newsheet" data-no="${no}">Start log sheet ${pad(no)}<span class="arrow">+</span></button><a class="ulink" href="#logs">Back to all sheets</a></div></section>`;
+  const root=`sheet:${sid(no)}`;
+  const P=S.profile;
+  let h=`<section class="hero" style="padding-bottom:10px"><div class="row" style="justify-content:space-between"><a class="ulink" href="#logs">← All log sheets</a><div class="row">${no>1?`<a class="btn sm ghost" href="#sheet-${no-1}">← ${pad(no-1)}</a>`:""}${no<MAX_SHEETS?`<a class="btn sm ghost" href="#sheet-${no+1}">${pad(no+1)} →</a>`:""}</div></div>
+  <span class="label">Four weekly record (log sheet) · sheet no. ${pad(no)}</span>
+  <h1>Weeks ${r.weeks[0]}–${r.weeks[1]} <span class="g">·</span> <span data-live="total">${fh(r.total)}</span><span class="g"> h</span></h1></section>`;
+  h+=`<section class="section"><div class="fields">
+    <label class="field"><span>From (first Monday)</span><input type="date" id="f-from" data-root="${root}" data-k="from" data-rerender="1" value="${esc(s.from||"")}">${r.est?`<span class="help">Blank: ${fd(r.from)}, assuming continuous weeks</span>`:""}</label>
+    <label class="field"><span>To</span><input type="date" id="f-to" data-root="${root}" data-k="to" value="${esc(s.to||"")}"><span class="help">Blank: ${fd(r.to)}</span></label>
+    <label class="field"><span>Registered trainer practice</span><select id="f-pr" data-root="${root}" data-k="practiceId" data-rerender="1"><option value="">—</option>${(P.practices||[]).map(p=>`<option value="${esc(p.id)}"${p.id===s.practiceId?" selected":""}>${esc(p.name||"Unnamed")}</option>`).join("")}</select></label>
+    <label class="field"><span>Training stage</span><select id="f-stage" data-root="${root}" data-k="stage" data-rerender="1"><option value="">Automatic · ${STAGESHORT[autoStage(s,r.from)]}</option>${Object.keys(STAGEN).map(k=>`<option value="${k}"${s.stage===k?" selected":""}>${STAGEN[k]}</option>`).join("")}</select></label>
+  </div><label class="check"><input class="tick-box" type="checkbox" id="f-ov" data-root="${root}" data-k="overseas" data-rerender="1"${s.overseas?" checked":""}> Trained overseas during these weeks (§5.6)</label></section>`;
+  /* override notice */
+  if(r.override){
+    h+=`<div class="notice"><b>${r.actTotal?"Activity hours differ from your certified cumulative-summary totals.":"Only phase totals are known for this sheet."}</b>
+    <span>Totals used: ${PH.filter(k=>r.phases[k]).map(k=>`${k} ${fh(r.phases[k])}`).join(" · ")} = ${fh(r.total)} h.${r.actTotal?` Activities entered: ${PH.filter(k=>r.acts[k]).map(k=>`${k} ${fh(r.acts[k])}`).join(" · ")} = ${fh(r.actTotal)} h.`:""}</span>
+    <span class="help">Enter the activity rows exactly as on the paper log sheet, then remove the summary totals.</span>
+    <div class="row"><span class="confirm" id="ov-confirm"><button class="btn sm" data-act="ask" data-target="ov-confirm">Use activity hours instead</button></span></div></div>`;
+  }
+  /* activity table */
+  let t=`<div class="tbl-wrap"><table><thead><tr><th>Ref</th><th>Activity</th><th title="Participant">Part.</th><th title="Observer">Obs.</th><th class="n">Hrs</th><th class="n">Non-proj.</th>${COLLAB.map(([k,l])=>`<th title="${l}">${l.split(" ").pop()}</th>`).join("")}</tr></thead><tbody>`;
+  let cur="";
+  for(const a of ACTS){
+    if(a.phase!==cur){cur=a.phase;t+=`<tr class="ph-row"><td colspan="6">${PHN[cur]} Phase (${cur})</td><td class="n" colspan="4"><span data-live="ph-${cur}">${fh(r.acts[cur])}</span> h</td></tr>`}
+    const v=(s.acts||{})[a.code]||{};
+    const k=`acts|${a.code}`;
+    t+=`<tr><td class="mono">${a.code}</td><td>${a.label?esc(a.label):`<input class="inp" style="max-width:220px;padding:5px 8px" id="lb-${a.code}" data-root="${root}" data-k="${k}|label" value="${esc(v.label||"")}" placeholder="Other (specify)">`}</td>
+    <td><input class="tick-box" type="checkbox" id="p-${a.code}" aria-label="${a.code} participant" data-root="${root}" data-k="${k}|p"${v.p?" checked":""}></td>
+    <td><input class="tick-box" type="checkbox" id="o-${a.code}" aria-label="${a.code} observer" data-root="${root}" data-k="${k}|o"${v.o?" checked":""}></td>
+    <td class="n"><input class="cell-in" type="number" min="0" step="0.5" inputmode="decimal" id="h-${a.code}" aria-label="${a.code} hours" data-root="${root}" data-k="${k}|h" data-num="1" value="${v.h||""}"></td>
+    <td class="n"><input class="cell-in" type="number" min="0" step="0.5" inputmode="decimal" id="np-${a.code}" aria-label="${a.code} non-project hours" data-root="${root}" data-k="${k}|np" data-num="1" value="${v.np||""}"></td>
+    ${COLLAB.map(([c,l])=>`<td><input class="tick-box" type="checkbox" id="c-${c}-${a.code}" aria-label="${a.code} ${l}" data-root="${root}" data-k="${k}|c|${c}"${v.c&&v.c[c]?" checked":""}></td>`).join("")}</tr>`;
+  }
+  t+=`<tr class="tot"><td colspan="4">Total hours (minimum 120 hrs)</td><td class="n" colspan="2"><span data-live="acttotal">${fh(r.actTotal)}</span></td><td colspan="4"></td></tr></tbody></table></div>`;
+  const lc=logCols(s);
+  h+=`<section class="section"><div class="sec-head"><h3>Activities</h3><span class="mute">Tick participant or observer, enter hours</span></div>${t}
+  <div class="tbl-wrap"><table><thead><tr>${["pre","design","cd","ca","other","np"].map(k=>`<th class="n">${LOGCOLN[k]}</th>`).join("")}<th class="n">Total</th><th>Status</th></tr></thead><tbody><tr>${["pre","design","cd","ca","other","np"].map(k=>`<td class="n" data-live="lc-${k}">${fh(lc[k])}</td>`).join("")}<td class="n"><b data-live="acttotal2">${fh(r.actTotal)}</b></td><td data-live="status">${r.total>=120?chip("met","≥120 h"):chip("short","Below 120 h")}</td></tr></tbody></table></div></section>`;
+  /* weekly records */
+  h+=`<section class="section"><div class="sec-head"><div><h3>Weekly records</h3><p class="help">Optional detail from the weekly pages (min. 30 h per week, certified by the mentor at the end of each week).</p></div>
+    <span class="confirm" id="tr-confirm"><button class="btn sm" data-act="ask" data-target="tr-confirm" data-kind="transfer">Transfer weeks to activities</button></span></div><div class="grid">`;
+  for(let i=0;i<4;i++){
+    const w=(s.weeks||[])[i];const wn=4*no-3+i;const wroot=`weeks|${i}`;
+    const wstart=(w&&w.start)||(r.from?addD(r.from,7*i):"");
+    if(!w){h+=`<div class="week"><div class="week-head"><b>Week ${wn}</b><span class="mute">${fd(wstart)}</span><button class="btn sm ghost" data-act="addweek" data-i="${i}">Add weekly record</button></div></div>`;continue}
+    const wh=weekHrs(w);
+    h+=`<div class="week"><div class="week-head"><b>Week ${wn} · starting ${fd(wstart)}</b><span data-live="wk-${i}">${wh>=30?chip("met",fh(wh)+" h"):chip("short",fh(wh)+" h · min 30")}</span></div>
+    ${(w.rows||[]).map((row,j)=>`<div class="wrow">
+      <input class="inp" type="date" id="w${i}d${j}" aria-label="Date" data-root="${root}" data-k="${wroot}|rows|${j}|date" value="${esc(row.date||"")}">
+      <input class="inp wide" type="text" id="w${i}p${j}" placeholder="Project details" aria-label="Project details" data-root="${root}" data-k="${wroot}|rows|${j}|project" value="${esc(row.project||"")}">
+      <input class="inp wide" type="text" id="w${i}w${j}" placeholder="Work done" aria-label="Work done" data-root="${root}" data-k="${wroot}|rows|${j}|work" value="${esc(row.work||"")}">
+      <select class="inp" id="w${i}r${j}" aria-label="Activity ref" data-root="${root}" data-k="${wroot}|rows|${j}|ref"><option value="">Ref</option>${ACTS.map(a=>`<option${row.ref===a.code?" selected":""}>${a.code}</option>`).join("")}</select>
+      <input class="inp" type="number" min="0" step="0.5" id="w${i}h${j}" placeholder="Hrs" aria-label="Hours" data-root="${root}" data-k="${wroot}|rows|${j}|hours" data-num="1" value="${row.hours||""}">
+      <button class="xbtn" data-act="delrow" data-i="${i}" data-j="${j}" aria-label="Remove row">×</button></div>`).join("")}
+    <div class="row"><button class="btn sm ghost" data-act="addrow" data-i="${i}">Add row</button>
+    <label class="field" style="grid-auto-flow:column;align-items:center"><span>Mentor certified</span><input class="inp" type="date" id="w${i}m" data-root="${root}" data-k="${wroot}|mentorDate" value="${esc(w.mentorDate||"")}"></label>
+    <label class="field" style="grid-auto-flow:column;align-items:center"><span>DOT reviewed</span><input class="inp" type="date" id="w${i}t" data-root="${root}" data-k="${wroot}|dotDate" value="${esc(w.dotDate||"")}"></label></div></div>`;
+  }
+  h+=`</div></section>`;
+  /* certification */
+  h+=`<section class="section"><h3>Certification and submission</h3><div class="fields">
+    <label class="field"><span>Certified by Employment Mentor</span><input type="date" id="f-md" data-root="${root}" data-k="mentorDate" data-rerender="1" value="${esc(s.mentorDate||"")}"></label>
+    <label class="field"><span>Reviewed by Director of Training</span><input type="date" id="f-dd" data-root="${root}" data-k="dotDate" data-rerender="1" value="${esc(s.dotDate||"")}"></label>
+    <label class="field"><span>Submitted at counselling</span><input type="date" id="f-sd" data-root="${root}" data-k="submitted" data-rerender="1" value="${esc(s.submitted||"")}"><span class="help">Due by the session after ${fd(r.to)}: about ${fd(addD(r.to,31))}.</span></label>
+  </div><label class="check"><input class="tick-box" type="checkbox" id="f-ex" data-root="${root}" data-k="excuseLetter"${s.excuseLetter?" checked":""}> Excuse letter certified by the mentor (late submission, §3.6.ix)</label>
+  <label class="field"><span>Notes</span><textarea id="f-notes" data-root="${root}" data-k="notes">${esc(s.notes||"")}</textarea></label>
+  <div class="row"><span class="confirm" id="del-confirm"><button class="btn sm ghost" data-act="ask" data-target="del-confirm" data-kind="delete">Delete this log sheet</button></span></div></section>`;
+  return h;
+}
+
+/* cumulative summary sheet */
+function vSummary(A){
+  const P=S.profile;
+  const tKey=(()=>{try{return localStorage.getItem("terb-target")}catch(e){return null}})()||A.record.stage;
+  const tgt=TARGETS[tKey]||TARGETS.post1;
+  const rowsAll=[];for(let n=1;n<=MAX_SHEETS;n++)rowsAll.push(n);
+  const tot=zero();for(const r of A.rows)for(const k of PH)tot[k]+=r.phases[k];
+  const T=sum(tot);
+  let t=`<div class="tbl-wrap"><table><thead><tr><th>Week nos.</th><th class="n">Total hrs</th>${PH.map(k=>`<th class="n">${k}</th>`).join("")}<th>Stage</th></tr></thead><tbody>`;
+  for(const n of rowsAll){const r=A.byNo[n];if(!r&&n>Math.max(14,nextSheet(A)+1))continue;
+    t+=`<tr><td class="mono"><a href="#sheet-${n}">${4*n-3}–${4*n}</a></td><td class="n${r&&r.total?"":" z"}">${r?fh(r.total):""}</td>${PH.map(k=>`<td class="n${r&&r.phases[k]?"":" z"}">${r?(r.phases[k]?fh(r.phases[k]):"0"):""}</td>`).join("")}<td class="mute">${r?STAGESHORT[r.stage]+(r.override?" · totals":""):""}</td></tr>`}
+  t+=`<tr class="tot"><td>Total hrs</td><td class="n">${fh(T)}</td>${PH.map(k=>`<td class="n">${fh(tot[k])}</td>`).join("")}<td></td></tr>
+  <tr class="sub"><td>Total %</td><td class="n">${T?"100%":""}</td>${PH.map(k=>{const p=pct(tot[k],T),below=tgt[k]&&p<tgt[k];return `<td class="n">${below?`<span class="below">${fp(p)}</span>`:fp(p)}</td>`}).join("")}<td></td></tr>
+  <tr><td>Target %</td><td></td>${PH.map(k=>`<td class="n">${tgt[k]!=null&&k!=="OTHER"?(tgt[k]?tgt[k]+"%":"—"):""}</td>`).join("")}<td class="mute">${STAGEN[tKey]}</td></tr></tbody></table></div>`;
+  const needs=PH.filter(k=>k!=="OTHER"&&tgt[k]&&pct(tot[k],T)<tgt[k]);
+  const box=(on)=>`<span class="chip ${on?"met":"na"}" style="min-width:52px;justify-content:center">${on?"✓":"&nbsp;"}</span>`;
+  return `<section class="hero" style="padding-bottom:12px"><span class="label">Cumulative summary sheet · ${esc(P.name||"Trainee")}</span><h1>${fh(T)} h <span class="g">across ${A.rows.filter(r=>r.total).length} log sheets.</span></h1>
+  <p>Hourly inputs from the log sheets, in the book's layout. Underlined figures are below the target you compare against.</p>
+  <div class="row"><span class="label">Compare with</span>${Object.keys(TARGETS).map(k=>`<button class="btn sm${k===tKey?" solid":" ghost"}" data-act="target" data-k="${k}">${STAGEN[k]}</button>`).join("")}</div></section>
+  <section class="section">${t}<p class="help">Submit this sheet in duplicate with the relevant log sheet. Target % is the Table 2 minimum of total gained training hours.</p></section>
+  <section class="section"><h3>Assessment</h3><div class="grid g2">
+   <div class="card" style="display:grid;gap:12px"><span class="label">Self-assessment by trainee · more training needed in</span>
+    <div class="row">${PH.map(k=>`<label class="check" style="flex-direction:column;gap:4px;font-size:12px"><span>${k}</span><input class="tick-box" type="checkbox" id="sn-${k}" data-root="profile" data-k="selfNeeds|${k}"${P.selfNeeds&&P.selfNeeds[k]?" checked":""}></label>`).join("")}</div>
+    <p class="help">From your hours: ${needs.length?needs.join(", ")+" are below target.":"no phase is below target."} ${needs.length?`<button class="ulink" data-act="autoneeds">Tick these</button>`:""}</p>
+    <label class="field"><span>Comments on experience by trainee</span><textarea id="self-c" data-root="profile" data-k="selfComment">${esc(P.selfComment||"")}</textarea></label></div>
+   <div class="card" style="display:grid;gap:12px"><span class="label">Director of Training's comments · as given to you</span>
+    <div class="row">${["Excellent","Good","Fair","Weak","Critical"].map(x=>`<label class="check"><input type="radio" name="dotr" class="tick-box" id="dr-${x}" data-root="profile" data-k="dotRating" value="${x}"${P.dotRating===x?" checked":""}> ${x}</label>`).join("")}</div>
+    <span class="label">Specific comments · more training needed in</span>
+    <div class="row">${PH.filter(k=>k!=="OTHER").map(k=>`<label class="check" style="flex-direction:column;gap:4px;font-size:12px"><span>${k}</span><input class="tick-box" type="checkbox" id="dn-${k}" data-root="profile" data-k="dotNeeds|${k}"${P.dotNeeds&&P.dotNeeds[k]?" checked":""}></label>`).join("")}</div>
+    <label class="field"><span>Date</span><input type="date" id="dot-d" data-root="profile" data-k="dotDate" value="${esc(P.dotDate||"")}"></label></div></div></section>`;
+}
+
+/* overall records 1 & 2 */
+function recordTable(groups,target,prev){
+  const run=zero();let runT=0;
+  if(prev){for(const k of PH)run[k]+=prev[k];runT=sum(prev)}
+  let t=`<div class="tbl-wrap"><table><thead><tr><th>Week nos</th><th class="n">Total</th>${PH.map(k=>`<th class="n">${k}</th>`).join("")}<th>DOT</th></tr></thead><tbody>`;
+  if(prev)t+=`<tr class="sub"><td>Previous</td><td class="n">${fh(runT)}</td>${PH.map(k=>`<td class="n">${fh(prev[k])}</td>`).join("")}<td></td></tr>`;
+  for(const g of groups){
+    for(const r of g){for(const k of PH)run[k]+=r.phases[k];runT+=r.total;
+      t+=`<tr><td class="mono"><a href="#sheet-${r.no}">${r.weeks[0]}–${r.weeks[1]}</a></td><td class="n">${fh(r.total)}</td>${PH.map(k=>`<td class="n${r.phases[k]?"":" z"}">${fh(r.phases[k])}</td>`).join("")}<td class="mute">${r.s.dotDate?fd(r.s.dotDate):"—"}</td></tr>`}
+    t+=`<tr class="sub"><td>Total</td><td class="n">${fh(runT)}</td>${PH.map(k=>`<td class="n">${fh(run[k])}</td>`).join("")}<td></td></tr>
+    <tr><td>%</td><td></td>${PH.map(k=>{const p=pct(run[k],runT),b=target[k]&&p<target[k];return `<td class="n">${b?`<span class="below">${fp(p)}</span>`:fp(p)}</td>`}).join("")}<td></td></tr>`;
+  }
+  t+=`<tr class="tot"><td>% Target</td><td></td>${PH.map(k=>`<td class="n">${k==="OTHER"?"":target[k]?target[k]+"%":"—"}</td>`).join("")}<td></td></tr></tbody></table></div>`;
+  return t;
+}
+const chunk=(a,n)=>{const o=[];for(let i=0;i<a.length;i+=n)o.push(a.slice(i,i+n));return o};
+function vRecords(A){
+  const P=S.profile;
+  const r1=A.rows.filter(r=>r.stage==="post1"&&r.total),r2=A.rows.filter(r=>r.stage==="post2"&&r.total),r0=A.rows.filter(r=>r.stage==="during1"&&r.total);
+  let g1=chunk(r1,3);if(g1.length>4){const tail=g1.slice(3).flat();g1=g1.slice(0,3).concat([tail])}
+  const prev=zero();for(const r of r1)for(const k of PH)prev[k]+=r.phases[k];
+  let h=`<section class="hero" style="padding-bottom:12px"><h1>Overall records <span class="g">and recommendations.</span></h1><p>Checked and signed by the DOT for every four weeks, with a recommendation at the end of 12, 24 and 36 weeks. Originals go to the BAE at the end of training; copies stay in the TERB.</p></section>`;
+  if(r0.length)h+=`<section class="section"><div class="sec-head"><h3>During Part I</h3><span class="mute">Targets: Part I</span></div>${recordTable(chunk(r0,3),TARGETS.during1)}</section>`;
+  h+=`<section class="section"><div class="sec-head"><h3>Overall Record 1 · post Part I</h3><span class="mute">First 56 weeks · targets: Part II (post Part I)</span></div>${r1.length?recordTable(g1,TARGETS.post1):`<p class="mute">No post Part I sheets yet.</p>`}</section>`;
+  h+=`<section class="section"><div class="sec-head"><h3>Overall Record 2 · post Part II</h3><span class="mute">Previous + post Part II · targets: Part III (post Part II)</span></div>${r2.length?recordTable(chunk(r2,3),TARGETS.post2,prev):`<p class="mute">Starts once your sheets are in the post Part II stage. Set the Part II result in your profile.</p>`}</section>`;
+  /* checkpoints */
+  h+=`<section class="section"><div class="sec-head"><h3>Interim reports and recommendations</h3><span class="mute">§6(c), §6(d) · original + 2 copies</span></div><div class="tbl-wrap"><table><thead><tr><th>Book</th><th>Report</th><th>At week</th><th>Reached</th><th>Interim report (DOT)</th><th>Mentor follow-up</th><th>DOT recommendation</th></tr></thead><tbody>`;
+  for(const cp of CHECKPOINTS){const d=(P.checkpoints||{})[cp.w]||{};const reached=A.rows.some(r=>r.weeks[1]>=cp.w&&r.total>0);
+    h+=`<tr><td>${cp.book}</td><td>Interim ${cp.r}</td><td class="mono">${cp.w}</td><td>${reached?chip(d.interim?"met":"short",d.interim?"Done":"Due"):chip("na","Later")}</td>
+    <td><input class="inp" type="date" id="cp${cp.w}i" data-root="profile" data-k="checkpoints|${cp.w}|interim" data-rerender="1" value="${esc(d.interim||"")}"></td>
+    <td><input class="tick-box" type="checkbox" id="cp${cp.w}m" data-root="profile" data-k="checkpoints|${cp.w}|mentor"${d.mentor?" checked":""} aria-label="Mentor follow-up listed"></td>
+    <td><input class="inp" type="date" id="cp${cp.w}r" data-root="profile" data-k="checkpoints|${cp.w}|rec" value="${esc(d.rec||"")}"></td></tr>`}
+  h+=`</tbody></table></div></section>`;
+  return h;
+}
+
+/* rules */
+function vRules(A,C){
+  const st={met:0,short:0,crit:0,unk:0,na:0};for(const r of C.rules)st[r.status]++;
+  return `<section class="hero" style="padding-bottom:12px"><h1>${st.met} rules met. <span class="g">${st.short+st.crit} to work on${st.unk?`, ${st.unk} need details`:""}.</span></h1><p>Every requirement from the TERB that applies to you, with its section. Hours, weeks and percentages are worked out from your log sheets.</p></section>
+  <section class="section"><div class="card" style="padding-block:4px">${C.rules.map(r=>`<div class="rule"><span class="sec">${esc(r.sec)}</span><div><b>${esc(r.title)}</b><p>${esc(r.detail)}</p></div>${chip(r.status)}</div>`).join("")}</div></section>
+  <section class="section"><h3>Table 2 minimums, side by side</h3><div class="tbl-wrap"><table><thead><tr><th>Phase</th>${Object.keys(TARGETS).map(k=>`<th class="n">${STAGEN[k]}</th>`).join("")}</tr></thead><tbody>${PH.filter(k=>k!=="OTHER").map(k=>`<tr><td><b>${k}</b> <span class="mute">${PHN[k]}</span></td>${Object.keys(TARGETS).map(s=>`<td class="n">${TARGETS[s][k]?TARGETS[s][k]+"%":"—"}</td>`).join("")}</tr>`).join("")}<tr class="tot"><td>Specified minimum</td>${Object.keys(TARGETS).map(s=>`<td class="n">${sum(TARGETS[s])}%</td>`).join("")}</tr></tbody></table></div><p class="help">The remaining 25% can go to any phase. "Other" (8.1, 8.2) has no minimum.</p></section>`;
+}
+
+/* setup / profile */
+function vSetup(A){
+  const P=S.profile;const R="profile";
+  const f=(lbl,k,type="text",extra="")=>`<label class="field"><span>${lbl}</span><input type="${type}" id="pf-${k.replace(/\|/g,"-")}" data-root="${R}" data-k="${k}" value="${esc(getP(P,k)||"")}" ${extra}></label>`;
+  const sel=(lbl,k,opts,rr=1)=>`<label class="field"><span>${lbl}</span><select id="pf-${k.replace(/\|/g,"-")}" data-root="${R}" data-k="${k}"${rr?' data-rerender="1"':""}>${opts.map(([v,l])=>`<option value="${v}"${(getP(P,k)||"")===v?" selected":""}>${l}</option>`).join("")}</select></label>`;
+  const exam=[["","Not set"],["pending","Not yet"],["passed","Passed"],["exempted","Exempted"]];
+  let h=`<section class="hero" style="padding-bottom:12px"><h1>Profile <span class="g">and practice.</span></h1><p>These details set your targets, check the practice category and track your mentor's ARB stamp.</p></section>
+  <section class="section"><h3>Trainee</h3><div class="fields">${f("Trainee's name","name")}${f("SLIA membership no.","sliaNo")}
+  ${sel("SLIA membership","membership",[["","Not set"],["student","Student member"],["graduate","Graduate member"],["none","Not a member yet"]])}
+  ${sel("SLIA Part I","partI|status",exam)}${f("Part I passed / exempted on","partI|date","date",'data-rerender="1"')}
+  ${sel("SLIA Part II","partII|status",exam)}${f("Part II passed / exempted on","partII|date","date",'data-rerender="1"')}</div>
+  <div class="row" style="gap:22px"><label class="check"><input class="tick-box" type="checkbox" id="pf-bae" data-root="${R}" data-k="baeRegistered"${P.baeRegistered?" checked":""}> Registered with BAE; TERB issued to me</label>
+  <label class="check"><input class="tick-box" type="checkbox" id="pf-pt" data-root="${R}" data-k="partTime" data-rerender="1"${P.partTime?" checked":""}> Part-time training</label>
+  ${P.partTime?`<label class="check"><input class="tick-box" type="checkbox" id="pf-pta" data-root="${R}" data-k="partTimeApproved" data-rerender="1"${P.partTimeApproved?" checked":""}> BAE prior approval received</label>`:""}</div></section>
+  <section class="section"><h3>Employment Mentor and Director of Training</h3><div class="fields">
+  ${f("Employment Mentor","mentor|name")}${f("Mentor ARB reg. no.","mentor|arbNo")}${f("Mentor stamp valid up to","mentor|stampValid","date",'data-rerender="1"')}
+  ${f("Director of Training","dot|name")}${f("DOT ARB reg. no.","dot|arbNo")}${f("DOT stamp valid up to","dot|stampValid","date",'data-rerender="1"')}</div></section>
+  <section class="section"><div class="sec-head"><h3>Registered trainer practices</h3><button class="btn sm" data-act="addpr">Add practice</button></div><div class="grid">`;
+  (P.practices||[]).forEach((p,i)=>{const k=`practices|${i}`;
+    h+=`<div class="card" style="display:grid;gap:12px"><div class="fields">
+    <label class="field"><span>Practice name</span><input type="text" id="pr${i}n" data-root="${R}" data-k="${k}|name" value="${esc(p.name||"")}"></label>
+    <label class="field"><span>Category (§2)</span><select id="pr${i}c" data-root="${R}" data-k="${k}|category" data-rerender="1">${[["","Not set"],["A","A · trains Part III (post Part II)"],["B","B · trains Part II (post Part I)"],["C","C · trains Part I (during Part I)"]].map(([v,l])=>`<option value="${v}"${p.category===v?" selected":""}>${l}</option>`).join("")}</select></label>
+    <label class="field"><span>Principal architect</span><input type="text" id="pr${i}p" data-root="${R}" data-k="${k}|principal" value="${esc(p.principal||"")}"></label>
+    <label class="field"><span>Mentor's post-charter years</span><input type="number" min="0" id="pr${i}y" data-root="${R}" data-k="${k}|mentorYears" data-num="1" value="${p.mentorYears??""}"></label>
+    <label class="field"><span>Started</span><input type="date" id="pr${i}s" data-root="${R}" data-k="${k}|start" value="${esc(p.start||"")}"></label>
+    <label class="field"><span>Left (blank if current)</span><input type="date" id="pr${i}e" data-root="${R}" data-k="${k}|end" data-rerender="1" value="${esc(p.end||"")}"></label></div>
+    <div class="row" style="justify-content:space-between"><label class="check"><input class="tick-box" type="checkbox" id="pr${i}es" data-root="${R}" data-k="${k}|employmentSummary"${p.employmentSummary?" checked":""}> Employment summary certified by the principal (§6(e))</label>
+    <span class="confirm" id="prdel${i}"><button class="btn sm ghost" data-act="ask" data-target="prdel${i}" data-kind="delpr" data-i="${i}">Remove</button></span></div></div>`});
+  if(!(P.practices||[]).length)h+=`<p class="mute">No practice yet. Add the Registered Trainer Practice you work at.</p>`;
+  h+=`</div></section><section class="section"><div class="sec-head"><div><h3>Practical Training Counselling</h3><p class="help">Once a month at the SLIA, generally from 5.30 p.m. Attendance is marked at the end of the session.</p></div><button class="btn sm" data-act="addcs">Add session</button></div>`;
+  const cs=(P.counselling||[]).map((c,i)=>({c,i})).sort((a,b)=>(b.c.date||"").localeCompare(a.c.date||""));
+  h+=cs.length?`<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Attended</th><th>Note</th><th></th></tr></thead><tbody>${cs.map(({c,i})=>`<tr><td><input class="inp" type="date" id="cs${i}d" data-root="${R}" data-k="counselling|${i}|date" data-rerender="1" value="${esc(c.date||"")}"></td><td><input class="tick-box" type="checkbox" id="cs${i}a" data-root="${R}" data-k="counselling|${i}|attended"${c.attended!==false?" checked":""}></td><td><input class="inp" type="text" id="cs${i}n" data-root="${R}" data-k="counselling|${i}|note" value="${esc(c.note||"")}" placeholder="Sheets submitted, advice given"></td><td><button class="xbtn" data-act="delcs" data-i="${i}" aria-label="Remove session">×</button></td></tr>`).join("")}</tbody></table></div>`:`<p class="mute">No sessions recorded.</p>`;
+  h+=`</section>`;
+  return h;
+}
+
+/* import / export */
+let importPlan=null;
+function vData(A){
+  return `<section class="hero" style="padding-bottom:12px"><h1>Import <span class="g">and export.</span></h1><p>Bring in your TERB activity workbook (sheets named 1-4, 5-8 …) or your cumulative summary workbook, or restore a backup. Nothing changes until you apply it.</p></section>
+  <section class="section"><label class="drop" id="drop" for="file"><b>Choose a file or drop it here</b><span class="mute">.xlsx (TERB activity or cumulative summary) or .json backup</span><input type="file" id="file" accept=".xlsx,.xls,.json" hidden></label>
+  <div id="plan">${importPlan?planHtml():""}</div></section>
+  <section class="section"><h3>Export</h3><div class="row">
+   <button class="btn solid" data-act="exp-xlsx">Download workbook (.xlsx)</button>
+   <button class="btn" data-act="exp-json">Download backup (.json)</button></div>
+   <p class="help">The workbook has the cumulative summary plus one activity sheet per log sheet in the TERB_ACTIVITY layout, so it re-imports cleanly.</p>
+   ${mode==="db"?`<p class="help">Your record is saved to this artifact's private store (only you, the owner, can read or change it) and is also cached on this device.</p>`:`<p class="help">Your record is saved in this browser only. Download a backup regularly.</p>`}</section>`;
+}
+function planHtml(){
+  const p=importPlan;
+  return `<div class="card" style="display:grid;gap:12px;margin-top:14px"><b>${esc(p.title)}</b><ul style="margin:0;padding-left:18px">${p.lines.map(l=>`<li>${esc(l)}</li>`).join("")}</ul>
+  <div class="row"><button class="btn solid" data-act="apply-import">Apply import</button><button class="btn ghost" data-act="cancel-import">Cancel</button></div></div>`;
+}
+function loadXLSX(){return new Promise((res,rej)=>{if(window.XLSX)return res(window.XLSX);const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";s.onload=()=>res(window.XLSX);s.onerror=()=>rej(new Error("The spreadsheet reader didn't load. Check your connection."));document.head.appendChild(s)})}
+async function readFile(file){
+  try{
+    if(/\.json$/i.test(file.name)){const d=JSON.parse(await file.text());if(!d||!d.sheets||!d.profile)throw new Error("This JSON isn't a TERB Tracker backup.");
+      importPlan={title:`Restore backup · ${Object.keys(d.sheets).length} log sheets`,lines:["Replaces your profile and every log sheet with the backup."],apply:()=>{const old=Object.keys(S.sheets);S.profile=Object.assign(BLANK_PROFILE(),d.profile);S.sheets=d.sheets;markDirty("profile");for(const k of new Set([...old,...Object.keys(d.sheets)]))markDirty(k)}};
+    }else importPlan=parseWorkbook((await loadXLSX()).read(await file.arrayBuffer(),{type:"array",cellFormula:true}));
+  }catch(e){importPlan={title:"Couldn't read that file",lines:[e.message||String(e)],apply:null}}
+  render();
+}
+function parseWorkbook(wb){
+  const XLSX=window.XLSX,lines=[],acts={},sums={};let name="",practice="";
+  for(const nm of wb.SheetNames){
+    const ws=wb.Sheets[nm];if(!ws["!ref"])continue;const rg=XLSX.utils.decode_range(ws["!ref"]);
+    const cell=(r,c)=>ws[XLSX.utils.encode_cell({r,c})];
+    const m=/^\s*(\d+)\s*[-–]\s*(\d+)\s*$/.exec(nm);
+    if(m&&+m[2]%4===0){/* activity sheet */
+      let hdr=-1;for(let r=rg.s.r;r<=Math.min(rg.e.r,10)&&hdr<0;r++){const c0=cell(r,0);if(c0&&String(c0.v)==="1.1")hdr=r}
+      if(hdr<0)continue;const codes={};for(let c=rg.s.c;c<=rg.e.c;c++){const x=cell(hdr,c);if(x&&x.v!=null){const code=(+x.v).toFixed(1);if(ACT[code])codes[c]=code}}
+      const no=+m[2]/4,a={};
+      for(let r=hdr+1;r<=rg.e.r;r++){let formulaRow=false,vals=[];for(const c in codes){const x=cell(r,+c);if(!x)continue;if(x.f){formulaRow=true;break}if(typeof x.v==="number")vals.push([codes[c],x.v])}
+        if(formulaRow)break;for(const[code,v]of vals){a[code]=(a[code]||0)+v}}
+      if(Object.keys(a).length)acts[no]=a;continue}
+    /* summary sheet */
+    let hr=-1,cols={};
+    for(let r=rg.s.r;r<=Math.min(rg.e.r,30)&&hr<0;r++)for(let c=rg.s.c;c<=rg.e.c;c++){const x=cell(r,c);if(x&&/^WEEK\s*NOS/i.test(String(x.v).trim())){hr=r;for(let cc=c;cc<=rg.e.c;cc++){const y=cell(r,cc);if(y){const k=String(y.v).trim().toUpperCase();if(PH.includes(k))cols[k]=cc}}cols._label=c;
+      let titled=false;for(let cc=rg.s.c;cc<=rg.e.c;cc++){const t=cell(r-1,cc);if(t&&/SUMMARY/i.test(String(t.v)))titled=true}
+      if(titled)for(let cc=rg.s.c;cc<=rg.e.c;cc++){const t=cell(r-1,cc);if(t&&typeof t.v==="string"&&!/SUMMARY/i.test(t.v)&&t.v.trim())name=name||t.v.trim().replace(/^(Mr|Ms|Mrs|Miss)\.?\s+/i,"")}break}}
+    if(hr<0||Object.keys(cols).length<8)continue;
+    for(let r=hr+1;r<=rg.e.r;r++){const lab=cell(r,cols._label);if(!lab)continue;const ls=String(lab.v).trim();
+      if(/practice/i.test(ls)){const v=cell(r+1,cols._label);if(v&&v.v)practice=String(v.v).trim()}
+      const mm=/^(\d+)\s*[-–]\s*(\d+)$/.exec(ls);if(!mm||+mm[2]%4)continue;const p={};let any=0;for(const k of PH){const x=cell(r,cols[k]);const v=x&&typeof x.v==="number"?x.v:0;p[k]=v;any+=v}
+      if(any)sums[+mm[2]/4]=p}
+  }
+  const nos=[...new Set([...Object.keys(acts),...Object.keys(sums)].map(Number))].sort((a,b)=>a-b);
+  if(!nos.length)return{title:"No TERB data found",lines:["Expected sheets named like 1-4 with activity codes in row 2, or a cumulative summary with a WEEK NOS. header."],apply:null};
+  for(const no of nos){const a=acts[no],sm=sums[no];const at=a?sum(a):0;
+    let ap=null;if(a){ap=zero();for(const c in a)ap[ACT[c].phase]+=a[c]}
+    const match=a&&sm&&PH.every(k=>Math.abs(ap[k]-sm[k])<0.01);
+    lines.push(`Sheet ${pad(no)} (weeks ${4*no-3}–${4*no}): ${a?`${fh(at)} h of activities`:""}${a&&sm?" · ":""}${sm?`${fh(sum(sm))} h summary`:""}${a&&sm?(match?" · match":" · differ, summary totals kept"):""}`)}
+  if(name)lines.unshift(`Trainee's name: ${name}`);if(practice)lines.unshift(`Trainer practice: ${practice}`);
+  return{title:`Import ${nos.length} log sheet${nos.length>1?"s":""}`,lines,apply:()=>{
+    const P=S.profile;if(name&&!P.name){P.name=name}
+    if(practice&&!(P.practices||[]).some(p=>p.name===practice)){P.practices=(P.practices||[]).concat([{id:"p"+Date.now().toString(36),name:practice,category:"",principal:"",mentorYears:"",start:"",end:"",employmentSummary:false}])}
+    markDirty("profile");
+    for(const no of nos){const s=ensureSheet(no);if(!s.practiceId&&P.practices[0])s.practiceId=(P.practices.find(p=>p.name===practice)||P.practices[0]).id;
+      if(acts[no]){const keep=s.acts||{};s.acts={};for(const[c,v]of Object.entries(acts[no])){s.acts[c]=Object.assign({p:true},keep[c]||{},{h:v,np:0})}}
+      const sm=sums[no];
+      if(sm){const ap=actPhases(s);const match=PH.every(k=>Math.abs(ap[k]-sm[k])<0.01);s.phaseOverride=match?null:sm}
+      markDirty(sid(no))}
+  }};
+}
+async function saveFile(filename,data,mime){
+  if(dl){try{await dl.save({filename,data});toast("Saved "+filename)}catch(e){if(e&&e.code!=="declined")toast("Couldn't save the file ("+(e.code||"error")+").")}return}
+  if(window.claude){toast("Downloads aren't available in this view.");return}
+  const blob=data instanceof Blob?data:new Blob([data],{type:mime});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)
+}
+async function exportXlsx(){
+  let XLSX;try{XLSX=await loadXLSX()}catch(e){toast(e.message);return}
+  const A=analyze(),wb=XLSX.utils.book_new();
+  const cum=[["CUMULATIVE SUMMARY SHEET",S.profile.name||""],["WEEK NOS.","TOTAL (HOURS)",...PH]];
+  const tot=zero();
+  for(let n=1;n<=MAX_SHEETS;n++){const r=A.byNo[n];const p=r?r.phases:zero();for(const k of PH)tot[k]+=p[k];cum.push([`${4*n-3}-${4*n}`,r?r.total:0,...PH.map(k=>p[k])])}
+  const T=sum(tot);cum.push(["Total (Hours)",T,...PH.map(k=>tot[k])]);cum.push(["Total %",T?1:0,...PH.map(k=>T?tot[k]/T:0)]);
+  const tg=TARGETS[A.record.stage];cum.push(["TARGET %","",...PH.map(k=>k==="OTHER"?"":(tg[k]||0)/100)]);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cum),"Cumulative summary");
+  for(const r of A.rows){const row=ACTS.map(a=>{const v=(r.s.acts||{})[a.code];return v?(+v.h||0)+(+v.np||0)||null:null});
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["TERB ACTIVITY"],ACTS.map(a=>+a.code),row]),`${r.weeks[0]}-${r.weeks[1]}`)}
+  const out=XLSX.write(wb,{bookType:"xlsx",type:"array"});
+  await saveFile(`TERB-record-${TODAY}.xlsx`,new Blob([out]),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+}
+
+/* ───────────── events ───────────── */
+function rootObj(root){if(root==="profile")return{obj:S.profile,key:"profile"};const id=root.split(":")[1];return{obj:S.sheets[id],key:id}}
+function onField(e,commit){
+  const el=e.target;if(!el.dataset||!el.dataset.k)return;
+  const{obj,key}=rootObj(el.dataset.root);if(!obj)return;
+  let v=el.type==="checkbox"?el.checked:el.type==="radio"?el.value:el.value;
+  if(el.dataset.num)v=el.value===""?"":Math.max(0,+el.value);
+  setP(obj,el.dataset.k,v);markDirty(key);
+  if(el.dataset.rerender&&commit){render();return}
+  liveUpdate();
+}
+function liveUpdate(){
+  const r=route();if(!r.startsWith("sheet-"))return;const A=analyze(),row=A.byNo[+r.slice(6)];if(!row)return;
+  const set=(k,v)=>document.querySelectorAll(`[data-live="${k}"]`).forEach(el=>el.innerHTML=v);
+  set("total",fh(row.total));set("acttotal",fh(row.actTotal));set("acttotal2",fh(row.actTotal));
+  for(const k of PH)set("ph-"+k,fh(row.acts[k]));
+  const lc=logCols(row.s);for(const k in lc)set("lc-"+k,fh(lc[k]));
+  set("status",row.total>=120?chip("met","≥120 h"):chip("short","Below 120 h"));
+  (row.s.weeks||[]).forEach((w,i)=>{if(w){const wh=weekHrs(w);set("wk-"+i,wh>=30?chip("met",fh(wh)+" h"):chip("short",fh(wh)+" h · min 30"))}});
+}
+document.addEventListener("input",e=>{if(e.target.matches("input[type=text],input[type=number],textarea"))onField(e,false)});
+document.addEventListener("change",e=>{if(e.target.id==="file"){const f=e.target.files[0];if(f)readFile(f);return}if(e.target.matches("input[type=text],input[type=number],textarea"))return;onField(e,true)});
+document.addEventListener("click",e=>{
+  const b=e.target.closest("[data-act]");if(!b)return;const act=b.dataset.act;const r=route();
+  const no=r.startsWith("sheet-")?+r.slice(6):null;const s=no?S.sheets[sid(no)]:null;
+  if(act==="newsheet"){ensureSheet(+b.dataset.no);markDirty(sid(+b.dataset.no));render()}
+  else if(act==="addweek"&&s){s.weeks=s.weeks||[null,null,null,null];const i=+b.dataset.i;const A=analyze();const from=A.byNo[no].from;s.weeks[i]={start:from?addD(from,7*i):"",rows:Array.from({length:5},(_,d)=>({date:from?addD(from,7*i+d):"",project:"",work:"",ref:"",hours:""})),mentorDate:"",dotDate:""};markDirty(sid(no));render()}
+  else if(act==="addrow"&&s){const w=s.weeks[+b.dataset.i];w.rows.push({date:"",project:"",work:"",ref:"",hours:""});markDirty(sid(no));render()}
+  else if(act==="delrow"&&s){s.weeks[+b.dataset.i].rows.splice(+b.dataset.j,1);markDirty(sid(no));render()}
+  else if(act==="ask"){const t=document.getElementById(b.dataset.target);const kind=b.dataset.kind||"override";
+    const msg={override:"Remove the summary totals?",transfer:"Replace activity hours with the weekly totals?",delete:"Delete this sheet for good?",delpr:"Remove this practice?"}[kind];
+    t.innerHTML=`<span class="help">${msg}</span><button class="btn sm solid" data-act="do-${kind}" data-i="${b.dataset.i||""}">Yes</button><button class="btn sm ghost" data-act="cancel-ask">No</button>`}
+  else if(act==="cancel-ask")render();
+  else if(act==="do-override"&&s){s.phaseOverride=null;markDirty(sid(no));render();toast("Using activity hours")}
+  else if(act==="do-transfer"&&s){const ws=(s.weeks||[]).filter(Boolean);if(!ws.length){toast("Add weekly records first.");render();return}
+    const tot={};for(const w of ws)for(const row of w.rows||[]){if(row.ref&&+row.hours)tot[row.ref]=(tot[row.ref]||0)+(+row.hours)}
+    const keep=s.acts||{};s.acts={};for(const[c,h]of Object.entries(tot))s.acts[c]=Object.assign({p:true},keep[c]||{},{h,np:0});
+    markDirty(sid(no));render();toast(`Transferred ${ws.length} week${ws.length>1?"s":""}`)}
+  else if(act==="do-delete"&&no){delete S.sheets[sid(no)];markDirty(sid(no));location.hash="#logs";render();toast("Log sheet deleted")}
+  else if(act==="do-delpr"){S.profile.practices.splice(+b.dataset.i,1);markDirty("profile");render()}
+  else if(act==="addpr"){S.profile.practices=(S.profile.practices||[]).concat([{id:"p"+Date.now().toString(36),name:"",category:"",principal:"",mentorYears:"",start:"",end:"",employmentSummary:false}]);markDirty("profile");render()}
+  else if(act==="addcs"){S.profile.counselling=(S.profile.counselling||[]).concat([{date:TODAY,attended:true,note:""}]);markDirty("profile");render()}
+  else if(act==="delcs"){S.profile.counselling.splice(+b.dataset.i,1);markDirty("profile");render()}
+  else if(act==="target"){try{localStorage.setItem("terb-target",b.dataset.k)}catch(e){}render()}
+  else if(act==="autoneeds"){const A=analyze();const tot=zero();for(const x of A.rows)for(const k of PH)tot[k]+=x.phases[k];const T=sum(tot);let tk=null;try{tk=localStorage.getItem("terb-target")}catch(e){}const tg=TARGETS[tk]||A.record.target;S.profile.selfNeeds={};for(const k of PH)if(tg[k]&&pct(tot[k],T)<tg[k])S.profile.selfNeeds[k]=true;markDirty("profile");render()}
+  else if(act==="apply-import"){if(importPlan&&importPlan.apply){importPlan.apply();importPlan=null;flush();toast("Imported");location.hash="#overview";render()}}
+  else if(act==="cancel-import"){importPlan=null;render()}
+  else if(act==="exp-json")saveFile(`TERB-backup-${TODAY}.json`,JSON.stringify({version:1,exported:TODAY,profile:S.profile,sheets:S.sheets},null,1),"application/json");
+  else if(act==="exp-xlsx")exportXlsx();
+});
+document.addEventListener("dragover",e=>{const d=e.target.closest&&e.target.closest("#drop");if(d){e.preventDefault();d.classList.add("over")}});
+document.addEventListener("dragleave",e=>{const d=e.target.closest&&e.target.closest("#drop");if(d)d.classList.remove("over")});
+document.addEventListener("drop",e=>{const d=e.target.closest&&e.target.closest("#drop");if(!d)return;e.preventDefault();d.classList.remove("over");const f=e.dataTransfer.files[0];if(f)readFile(f)});
+window.addEventListener("hashchange",()=>{render();window.scrollTo(0,0)});
+
+/* theme toggle: explicit choice overrides the system setting */
+(function(){let t=null;try{t=localStorage.getItem("terb-theme")}catch(e){}if(t)document.documentElement.setAttribute("data-theme",t);
+$("#themeBtn").addEventListener("click",()=>{const cur=document.documentElement.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");const nx=cur==="dark"?"light":"dark";document.documentElement.setAttribute("data-theme",nx);try{localStorage.setItem("terb-theme",nx)}catch(e){}})})();
+
+loadLocal();render();connect();
+</script>
