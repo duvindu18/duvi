@@ -256,6 +256,7 @@ function shortAddr(a) {
 }
 
 /* ----- everything the page can ask for ----- */
+let explorerDarkAt = 0, explorerDarkWas = false;
 const mustExist = (p) => { if (!p || !fs.existsSync(p)) { const e = new Error('It is not there.'); e.code = 'ENOENT'; throw e; } };
 const API = {
   info: () => ({ dataDir: store.root, documents: app.getPath('documents'), zoom: prefs.get('zoom'), version: app.getVersion(), electron: process.versions.electron, packaged: app.isPackaged, platform: process.platform }),
@@ -411,6 +412,16 @@ const API = {
   },
 
   /* the app's folder icons on the real folders in File Explorer */
+  /* whether File Explorer is in dark mode (Windows: Settings > Personalisation > Colours > app mode) */
+  explorerDark() {
+    if (process.platform !== 'win32') return nativeTheme.shouldUseDarkColors;
+    if (Date.now() - (explorerDarkAt || 0) < 60000) return explorerDarkWas;
+    explorerDarkAt = Date.now();
+    try {
+      const out = require('child_process').execFileSync('reg', ['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize', '/v', 'AppsUseLightTheme'], { encoding: 'utf8', windowsHide: true, timeout: 3000 });
+      return (explorerDarkWas = /AppsUseLightTheme\s+REG_DWORD\s+0x0\b/.test(out));
+    } catch (e) { return (explorerDarkWas = false); }
+  },
   folderIcon: (o) => folderIcons.apply(o || {}),
   folderIconClear: (dir) => folderIcons.clear(dir),
   folderIconRefresh: (dirs) => folderIcons.refresh(dirs)

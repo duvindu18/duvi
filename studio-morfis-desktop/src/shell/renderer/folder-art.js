@@ -78,22 +78,40 @@
     if (!r.classList.contains('style-mono')) return 'graphite';
     return r.getAttribute('data-theme') === 'light' ? 'mono-light' : 'mono-dark';
   }
-  /* Mono: a flat folder in two greys and a soft tab, the number or main file type in bold ink, a white sheet when
-     it holds files, and a project's status in small grey type, with the yellow dot only while work is in progress */
+  /* Mono: a flat folder, a lighter tab behind a darker front, and a label pressed into the front in a shade of the
+     folder's own colour, set in heavy type along the bottom from the left edge to the right. The colour tells the
+     status: yellow while in progress, ink when completed (white in the dark theme), mid grey on hold, light grey
+     for not started and cancelled, and for the numbered standard folders, which carry their number. */
   var MONO = {
-    'mono-light': { back: '#D9D9D9', front: '#E9E9E9', sheet: '#FFFFFF', ink: '#0B0B0B', ink2: '#8A8A8A' },
-    'mono-dark': { back: '#2C2C2C', front: '#383838', sheet: '#5A5A5A', ink: '#F2F2F2', ink2: '#9A9A9A' }
+    'mono-light': {
+      in_progress: ['#F8D54E', '#F5C400', '#DDAE00'], completed: ['#3A3A3A', '#161616', '#383838'], on_hold: ['#C4C4C4', '#ABABAB', '#9B9B9B'],
+      not_started: ['#E2E2E2', '#D3D3D3', '#BEBEBE'], cancelled: ['#E2E2E2', '#D3D3D3', '#BEBEBE'], plain: ['#DCDCDC', '#CBCBCB', '#B4B4B4']
+    },
+    'mono-dark': {
+      in_progress: ['#F8D54E', '#F5C400', '#DDAE00'], completed: ['#FFFFFF', '#E6E6E6', '#D2D2D2'], on_hold: ['#6A6A6A', '#555555', '#626262'],
+      not_started: ['#3A3A3A', '#2C2C2C', '#383838'], cancelled: ['#3A3A3A', '#2C2C2C', '#383838'], plain: ['#3A3A3A', '#2C2C2C', '#3B3B3B']
+    }
   };
-  var MONO_FONT = "Segoe UI Variable Display,Segoe UI,InterVar,Arial,sans-serif";
+  var MONO_WORD = { in_progress: '.ongoing', completed: '.completed', on_hold: '.on hold', not_started: '.new', cancelled: '.cancelled' };
+  var MONO_FONT = "'Segoe UI Variable Display','Segoe UI',InterVar,Inter,Arial,sans-serif";
+  /* one size and weight for every label: the size at which the longest word just spans the front, x 14 to x 118 */
+  var measure = null, FS = 0;
+  function monoSize() {
+    if (FS) return FS;
+    var widest = 0;
+    Object.keys(MONO_WORD).forEach(function (k) {
+      var t = MONO_WORD[k], w = t.length * 0.56;
+      try { measure = measure || document.createElement('canvas').getContext('2d'); measure.font = '800 100px ' + MONO_FONT; w = measure.measureText(t).width / 100; } catch (e) { /* estimate */ }
+      widest = Math.max(widest, w - 0.03 * (t.length - 1));
+    });
+    return (FS = 104 / widest);
+  }
   function mono(o, pal) {
-    var tag = o.num || o.kind || '', out = '';
-    out += '<path d="M12 22a8 8 0 0 1 8-8h26c2.4 0 4.6 1.1 6.1 2.9l4.8 6.1H112a8 8 0 0 1 8 8v56a8 8 0 0 1-8 8H20a8 8 0 0 1-8-8z" fill="' + pal.back + '"/>';
-    if (o.full) out += '<rect x="22" y="22" width="88" height="40" rx="4" fill="' + pal.sheet + '"/>';
-    out += '<path d="M12 40a8 8 0 0 1 8-8h92a8 8 0 0 1 8 8v46a8 8 0 0 1-8 8H20a8 8 0 0 1-8-8z" fill="' + pal.front + '"/>';
-    if (tag) out += '<text x="21" y="' + (o.status ? 66 : 84) + '" font-family="' + MONO_FONT + '" font-size="15" font-weight="700" letter-spacing="-.3" fill="' + pal.ink + '">' + tag + '</text>';
-    if (o.status) {
-      out += '<text x="21" y="84" font-family="' + MONO_FONT + '" font-size="10" font-weight="600" fill="' + pal.ink2 + '">' + (STATUS[o.status] || STATUS.not_started).label + '</text>';
-      if (o.status === 'in_progress') out += '<circle cx="109" cy="80.5" r="3.6" fill="#F5C400"/>';
+    var c = pal[o.status] || pal.plain, t = o.status ? MONO_WORD[o.status] || '' : (o.num ? '.' + o.num : ''), out = '';
+    out += '<path d="M6 14a9 9 0 0 1 9-9h28c3.2 0 6.1 1.6 7.8 4.2l3.6 5.6c1.7 2.6 4.6 4.2 7.8 4.2H117a9 9 0 0 1 9 9v66a9 9 0 0 1-9 9H15a9 9 0 0 1-9-9z" fill="' + c[0] + '"/>';
+    out += '<path d="M6 34a8 8 0 0 1 8-8h104a8 8 0 0 1 8 8v56a9 9 0 0 1-9 9H15a9 9 0 0 1-9-9z" fill="' + c[1] + '"/>';
+    if (t) {
+      out += '<text x="14" y="90" font-family="' + MONO_FONT.replace(/'/g, '&apos;') + '" font-weight="800" font-size="' + monoSize().toFixed(2) + '" letter-spacing="-.03em" fill="' + c[2] + '">' + t + '</text>';
     }
     return out;
   }
@@ -138,10 +156,10 @@
   function folder(o) { return '<svg class="fd-art" viewBox="0 0 132 104" aria-hidden="true">' + art(variant(o)) + '</svg>'; }
 
   /* for File Explorer: the same drawing, square, 256 px */
-  /* File Explorer gets the light Mono folder when Mono is in use (it reads well on light and dark Explorer alike) */
   function explorerIcon(o) {
     if (typeof o === 'string') o = { status: o, count: 1 };
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><g transform="translate(0 27) scale(1.9394)">' + art(variant(o), look() === 'graphite' ? 'graphite' : 'mono-light') + '</g></svg>';
+    /* in File Explorer the folders follow Windows' own light or dark mode (see automations.js) */
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><g transform="translate(0 27) scale(1.9394)">' + art(variant(o), look() === 'graphite' ? 'graphite' : (window.__morfisExplorerDark ? 'mono-dark' : 'mono-light')) + '</g></svg>';
   }
 
   /* SVG text -> PNG data URL, drawn at size x size */
@@ -162,5 +180,5 @@
   window.MorfisArt = { STATUS: STATUS, ORDER: ORDER, statusOf: statusOf, statusDot: statusDot, statusTag: statusTag, glyph: glyph,
     kindOf: kindOf, fileIcon: fileIcon, folder: folder, variant: variant, kindsOf: kindsOf, explorerIcon: explorerIcon, toPng: toPng, look: look };
   /* a new version redraws the Explorer icons; it follows the look, so switching it redraws them too */
-  Object.defineProperty(window.MorfisArt, 'ICON_VERSION', { get: function () { return look() === 'graphite' ? 'v7' : 'v8m'; } });
+  Object.defineProperty(window.MorfisArt, 'ICON_VERSION', { get: function () { return look() === 'graphite' ? 'v7' : 'v9m-' + (window.__morfisExplorerDark ? 'd' : 'l'); } });
 })();

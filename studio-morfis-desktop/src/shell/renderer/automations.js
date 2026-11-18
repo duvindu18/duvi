@@ -216,6 +216,8 @@
     if (iconBusy) { iconAgain = true; return Promise.resolve(0); }
     iconBusy = true;
     var jobs = iconJobs(onlyPid), pngs = {}, changed = [];
+    /* Windows' light or dark mode decides the folder colours in Explorer; a change redraws them (ICON_VERSION) */
+    var theme = H.explorerDark ? H.explorerDark().then(function (d) { window.__morfisExplorerDark = !!d; }, function () {}) : Promise.resolve();
     return jobs.reduce(function (chain, j) {
       return chain.then(function () {
         var sig = j.v.key + '|' + A.ICON_VERSION + '|' + j.tip;
@@ -225,7 +227,7 @@
           if (r && r.ok) { ST.icons[j.dir] = sig; changed.push(j.dir); }
         }, function () {});
       });
-    }, Promise.resolve()).then(function () {
+    }, theme).then(function () {
       iconBusy = false;
       if (changed.length) { put('icons'); H.folderIconRefresh(changed).catch(function () {}); log('files', 'Updated ' + changed.length + ' folder icon' + (changed.length === 1 ? '' : 's') + ' in File Explorer.'); }
       if (iconAgain) { iconAgain = false; setTimeout(runFolderIcons, 50); }
