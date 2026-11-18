@@ -92,7 +92,7 @@
       not_started: ['#3A3A3A', '#2C2C2C', '#383838'], cancelled: ['#3A3A3A', '#2C2C2C', '#383838'], plain: ['#3A3A3A', '#2C2C2C', '#3B3B3B']
     }
   };
-  var MONO_WORD = { in_progress: '.ongoing', completed: '.completed', on_hold: '.on hold', not_started: '.new', cancelled: '.cancelled' };
+  var MONO_WORD = { in_progress: '.ongoing', completed: '.completed', on_hold: '.on hold', not_started: '.upcoming', cancelled: '.cancelled' };
   var MONO_FONT = "'Segoe UI Variable Display','Segoe UI',InterVar,Inter,Arial,sans-serif";
   /* one size and weight for every label: the size at which the longest word just spans the front, x 14 to x 118 */
   var measure = null, FS = 0;

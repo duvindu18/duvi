@@ -24,7 +24,7 @@ All data stays on the computer.
   - **Type:** heavy, tightly set headings with the second half in grey ("Studio **overview**").
   - **Shapes:** pill-shaped buttons, filters and tags. The main action is an ink pill with its icon in a paper circle.
   - **Colour:** the only colour is a small yellow dot, on the app name and on projects in progress; red and amber are kept for warnings.
-  - **Folders:** flat and grey, the same in Files, on the project cards and in File Explorer.
+  - **Folders:** flat, coloured by status (yellow in progress, ink when completed, white in the dark theme, mid grey on hold, light grey upcoming, cancelled and the numbered standard folders), with one bold label along the bottom-left: `.ongoing`, `.completed`, `.on hold`, `.upcoming`, `.cancelled`, or the folder's number. The same drawing appears in Files, on the project cards and in File Explorer, where it follows Windows' light or dark mode.
 - **Graphite:** the dark graphite look described below, with an accent colour of your choice.
 
 
