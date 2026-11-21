@@ -29,11 +29,11 @@ const DEFAULTS = {
   aiModel: 'qwen2.5:3b',
   reduceMotion: false,
   pattern: true,               // a dot grid behind the content
-  glow: true,
+  glow: false,                 // the accent wash at the top of the page
   followGlow: true,            // a soft accent light that follows the pointer
   style: 'mono',               // mono (light grey, ink black, heavy type) | graphite (the dark graphite look)
   monoIntro: false,            // set once by the move to Mono: the page then switches to the light theme
-  lookV: 3,
+  lookV: 4,
   roundCorners: true,
   backupKeep: 14,
   remoteOn: false,             // phone access over the local network
@@ -68,6 +68,8 @@ class Prefs {
       if (!(raw.lookV >= 2)) { this.data.pattern = true; this.data.followGlow = true; this.data.lookV = 2; }
       /* version 1.6 brought the Mono look: everyone moves to it once, in its light theme */
       if (!(raw.lookV >= 3)) { this.data.style = 'mono'; this.data.monoIntro = true; this.data.lookV = 3; }
+      /* version 1.8: no gradient wash at the top of the page */
+      if (!(raw.lookV >= 4)) { this.data.glow = false; this.data.lookV = 4; }
     } catch (e) { /* first start, or an unreadable file: defaults */ }
     this.clean();
   }

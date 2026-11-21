@@ -80,15 +80,15 @@
   }
   /* Mono: a flat folder, a lighter tab behind a darker front, and a label pressed into the front in a shade of the
      folder's own colour, set in heavy type along the bottom from the left edge to the right. The colour tells the
-     status: yellow while in progress, ink when completed (white in the dark theme), mid grey on hold, light grey
+     status: yellow while in progress, moss green when completed, mid grey on hold, light grey
      for not started and cancelled, and for the numbered standard folders, which carry their number. */
   var MONO = {
     'mono-light': {
-      in_progress: ['#F8D54E', '#F5C400', '#DDAE00'], completed: ['#3A3A3A', '#161616', '#383838'], on_hold: ['#C4C4C4', '#ABABAB', '#9B9B9B'],
+      in_progress: ['#F8D54E', '#F5C400', '#DDAE00'], completed: ['#9CAA73', '#7F8D56', '#717F4A'], on_hold: ['#C4C4C4', '#ABABAB', '#9B9B9B'],
       not_started: ['#E2E2E2', '#D3D3D3', '#BEBEBE'], cancelled: ['#E2E2E2', '#D3D3D3', '#BEBEBE'], plain: ['#DCDCDC', '#CBCBCB', '#B4B4B4']
     },
     'mono-dark': {
-      in_progress: ['#F8D54E', '#F5C400', '#DDAE00'], completed: ['#FFFFFF', '#E6E6E6', '#D2D2D2'], on_hold: ['#6A6A6A', '#555555', '#626262'],
+      in_progress: ['#F8D54E', '#F5C400', '#DDAE00'], completed: ['#8A9862', '#6F7D47', '#7E8C55'], on_hold: ['#6A6A6A', '#555555', '#626262'],
       not_started: ['#3A3A3A', '#2C2C2C', '#383838'], cancelled: ['#3A3A3A', '#2C2C2C', '#383838'], plain: ['#3A3A3A', '#2C2C2C', '#3B3B3B']
     }
   };
@@ -180,5 +180,5 @@
   window.MorfisArt = { STATUS: STATUS, ORDER: ORDER, statusOf: statusOf, statusDot: statusDot, statusTag: statusTag, glyph: glyph,
     kindOf: kindOf, fileIcon: fileIcon, folder: folder, variant: variant, kindsOf: kindsOf, explorerIcon: explorerIcon, toPng: toPng, look: look };
   /* a new version redraws the Explorer icons; it follows the look, so switching it redraws them too */
-  Object.defineProperty(window.MorfisArt, 'ICON_VERSION', { get: function () { return look() === 'graphite' ? 'v7' : 'v9m-' + (window.__morfisExplorerDark ? 'd' : 'l'); } });
+  Object.defineProperty(window.MorfisArt, 'ICON_VERSION', { get: function () { return look() === 'graphite' ? 'v7' : 'v10m-' + (window.__morfisExplorerDark ? 'd' : 'l'); } });
 })();

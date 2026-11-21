@@ -262,8 +262,30 @@ app.whenReady().then(async () => {
   await shot(w, '31-files-filter');
   console.log('v1.3 checks:', JSON.stringify(extra), JSON.stringify(own), filesEmpty);
 
+  /* freelance: a job with its brief, deliverables and folder; a studio project moved to Freelance */
+  await go('freelance', '50-freelance-empty');
+  const fl = JSON.parse(await js(w, '(async function(){var o={},wait=function(ms){return new Promise(function(r){setTimeout(r,ms)})};' +
+    'try{' +
+    'var j=MorfisFreelance.newJob({title:"Living room renders",client:"Anna K.",platform:"Fiverr",fee:45000,brief:"Model the living room from the plan, 4 renders, day light."});await wait(600);' +
+    'o.page=!!document.querySelector("#dkView .fl-h1");' +
+    'document.querySelector("#dkView [data-fl-add=drawing]").click();await wait(200);' +
+    'var cb=document.querySelector("#dkView .fl-del [data-fl-d=done]");cb.checked=true;cb.dispatchEvent(new Event("change",{bubbles:true}));await wait(200);' +
+    'var p=document.querySelector("#dkView [data-fl-f=paid]");p.value="20000";p.dispatchEvent(new Event("change",{bubbles:true}));await wait(200);' +
+    'document.querySelector("#dkView [data-fl-act=mkdir]").click();await wait(1200);' +
+    'var jj=MorfisFreelance.all().find(function(x){return x.id===j.id});o.dels=jj.deliverables.length;o.done=jj.deliverables.filter(function(x){return x.done}).length;o.paid=jj.paid;o.folder=jj.folder;o.made=!!jj.folderMade;' +
+    'await wait(600);o.saved=(await window.morfisDesktop.kvGet("freelance:jobs")).length;' +
+    'window.confirm=function(){return true};var pg=window.__morfisPage,before=Object.keys(pg.S.projects).length,pid=Object.keys(pg.S.projects)[0];' +
+    'var m=MorfisFreelance.fromProject(pid);await wait(800);o.moved=!!m&&!pg.P(pid)&&Object.keys(pg.S.projects).length===before-1;o.jobs=MorfisFreelance.all().length;' +
+    'document.querySelector("#dkView [data-fl-act=back]").click();await wait(500);o.cards=document.querySelectorAll("#dkView .fl-card").length;' +
+    '}catch(e){o.err=String(e&&e.stack||e)}return JSON.stringify(o)})()'));
+  await shot(w, '51-freelance-list');
+  await js(w, "document.querySelector('#dkView [data-fl-open]').click()"); await wait(600); await shot(w, '52-freelance-job');
+  fl.onDisk = !!fl.folder && fs.existsSync(path.join(fl.folder, '03_Drawings'));
+  console.log('freelance:', JSON.stringify(fl));
+
   /* phone access: pair, open the phone page, and check that changes travel both ways */
   const phone = {};
+  const nProjects = await js(w, 'Object.keys(window.__morfisPage.S.projects).length');
   {
   const pst = JSON.parse(await js(w, "window.morfisDesktop.remoteSet(true).then(function(r){return JSON.stringify(r)})"));
   phone.on = pst.on; phone.err = pst.error;
@@ -288,7 +310,7 @@ app.whenReady().then(async () => {
   const st2 = JSON.parse(await js(w, "window.morfisDesktop.remoteStatus().then(function(r){return JSON.stringify(r)})"));
   const ap = JSON.parse((await req('POST', '/pair', JSON.stringify({ pin: st2.pin, name: 'App phone' }), AO)).body);
   phone.appKey = /^[a-f0-9]{64}$/.test(ap.key || '') && !!ap.id;
-  phone.appCall = Object.keys(JSON.parse((await req('POST', '/api/storeLoad', '{"args":[]}', Object.assign({ 'x-morfis-key': ap.key || '' }, AO))).body).v.projects).length === 4;
+  phone.appCall = Object.keys(JSON.parse((await req('POST', '/api/storeLoad', '{"args":[]}', Object.assign({ 'x-morfis-key': ap.key || '' }, AO))).body).v.projects).length === nProjects;
   phone.appTree = JSON.parse((await req('POST', '/api/syncTree', JSON.stringify({ args: [os.tmpdir()] }), { 'x-morfis-key': ap.key || '' })).body).v.exists === true;
   phone.pingId = JSON.parse((await req('GET', '/ping')).body).id === ap.id;
   phone.blocked = /Not available/.test((await req('POST', '/api/saveFile', '{"args":["a.txt",[1]]}', { cookie: cookie })).body);
@@ -387,13 +409,14 @@ app.whenReady().then(async () => {
   expect(extra.overlayTop >= 40 && extra.remBtn && extra.remClosed && extra.remView === 'settings' && extra.remCard, 'Reminder settings opens Settings, and panels open below the window bar: ' + JSON.stringify(extra));
   expect(extra.picker && extra.accent === '#2E9E6A' && (extra.mono ? extra.accentVar.toUpperCase() !== '#2E9E6A' : extra.accentVar.toUpperCase() === '#2E9E6A'), 'custom accent colour picker (saved; Mono keeps ink): ' + JSON.stringify(extra));
   expect(own.editor && own.cards === 1 && own.added === 1 && own.text.indexOf(own.pname) !== -1, 'custom automation: status Completed adds the close-out reminder: ' + JSON.stringify(own));
-  expect(phone.on && phone.ping === 'studio-morfis' && phone.unpaired === 401 && phone.pairPage && phone.wrongPin === false && phone.paired && phone.projects === 4 && phone.blocked, 'phone access: pairing and the API: ' + JSON.stringify(phone));
+  expect(phone.on && phone.ping === 'studio-morfis' && phone.unpaired === 401 && phone.pairPage && phone.wrongPin === false && phone.paired && phone.projects === nProjects && phone.blocked, 'phone access: pairing and the API: ' + JSON.stringify(phone));
   expect(phone.cors && phone.appKey && phone.appCall && phone.appTree && phone.pingId, 'phone access from the Android app (fixed page address, key header): ' + JSON.stringify(phone));
   expect(phone.remotePage && phone.drawer && phone.drawerClosed && phone.back && phone.backHome, 'phone page: drawer and Back: ' + JSON.stringify(phone));
   const po = phone.offline || {};
   expect(po.folders > 0 && po.offline && po.made && po.listed && po.renamed && po.waiting >= 3 && po.notOnPcYet, 'phone offline: folders and changes kept on the phone: ' + JSON.stringify(po));
   expect(po.sent && po.onDisk && po.added === 1 && po.fileSent && po.pcStatus === 'on_hold' && po.pcClient === 'Phone client' && po.pcLocation === 'Changed on the PC' && po.phoneLocation === 'Changed on the PC', 'phone offline: changes reach the computer and merge: ' + JSON.stringify(po));
   expect(phone.toComputer === 'on_hold' && phone.toPhone === 'in_progress', 'phone and computer stay in step: ' + JSON.stringify(phone));
+  expect(fl.page && fl.dels === 3 && fl.done === 1 && fl.paid === 20000 && fl.made && fl.onDisk && fl.saved >= 1 && fl.moved && fl.jobs === 2 && fl.cards >= 1, 'freelance jobs: ' + JSON.stringify(fl));
   console.log(fails.length ? 'SMOKE FAILED: ' + fails.join('; ') : 'SMOKE PASSED');
   app.exit(fails.length ? 1 : 0);
 });

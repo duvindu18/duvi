@@ -115,8 +115,8 @@ html:not(.no-glow) .window{background-image:radial-gradient(700px 260px at 30% -
 .dk-bg-hi{inset:auto;left:0;top:0;--grid-line:color-mix(in srgb,var(--accent-fill) 70%,transparent);-webkit-mask-image:none;mask-image:none;will-change:transform}
 .dk-bg.lit .dk-bg-glow,.dk-bg.lit .dk-bg-spot{opacity:1}
 @keyframes dkHue{from{filter:hue-rotate(-22deg)}to{filter:hue-rotate(22deg)}}
-:root{--grid-line:rgba(255,255,255,.07)}
-:root[data-theme="light"]{--grid-line:rgba(23,23,28,.12)}
+:root{--grid-line:rgba(255,255,255,.035)}
+:root[data-theme="light"]{--grid-line:rgba(23,23,28,.05)}
 html.no-pattern .dk-bg>.dk-bg-grid,html.no-follow .dk-bg-glow,html.no-follow .dk-bg-spot,html.no-pattern .dk-bg-spot{display:none}
 html.no-glow .gcard::before,html.no-glow .gcard::after{display:none}
 html.square{--r-md:6px;--r-lg:8px;--r-sm:5px}

@@ -9,7 +9,7 @@
   var H = M.H, esc = M.esc, ic = M.ic, pg = M.page;
   var KV = { settings: 'auto:settings', log: 'auto:log', drafted: 'auto:drafted', outbox: 'auto:outbox', followed: 'auto:followed', digest: 'auto:digest', icons: 'auto:icons',
     custom: 'auto:custom', fired: 'auto:fired', seen: 'auto:seen', notes: 'auto:notes' };
-  var DEF_SETTINGS = { draftInvoices: true, followUps: true, digest: true, quoteExpiry: true, lateTasks: true, holdNudge: true, freshFolders: true };
+  var DEF_SETTINGS = { draftInvoices: true, followUps: true, digest: true, quoteExpiry: true, lateTasks: true, holdNudge: true, freshFolders: true, freelanceDue: true };
   var ST = { settings: Object.assign({}, DEF_SETTINGS), log: [], drafted: {}, outbox: [], followed: {}, digest: null, icons: {}, custom: [], fired: {}, seen: null, notes: [] };
   var AI = { status: null, checking: false, pull: null };
   var ready = false;
@@ -21,6 +21,7 @@
     { key: 'quoteExpiry', kind: 'Rule', icon: 'documents', title: 'Quotations about to expire', text: 'Three days before a sent quotation runs out, and again when it has expired, you get a notification and a note to follow it up with the client.' },
     { key: 'lateTasks', kind: 'Rule', icon: 'bell', title: 'Morning task check', text: 'Once a day, a notification lists the tasks that are past due or due today, so nothing slips while you are on other projects.' },
     { key: 'holdNudge', kind: 'Rule', icon: 'refresh', title: 'Projects on hold for a month', text: 'When a project has been On hold for 30 days, a note asks whether to restart, keep waiting or close it. Again every 30 days.' },
+    { key: 'freelanceDue', kind: 'Rule', icon: 'briefcase', title: 'Freelance deadlines', text: 'Two days before a freelance job is due, and on the day, a notification says what is still to deliver.' },
     { key: 'freshFolders', kind: 'Rule', icon: 'files', title: 'Keep folder counts up to date', text: 'Every 15 minutes the folders of active projects are read again, so Files, the folder icons and the counts match what is on the disk.' },
     { key: 'folderIcons', kind: 'Rule', icon: 'files', title: 'Same folder icons in File Explorer', text: 'Project folders and their six standard folders get the icons you see in Files: the status badge, the folder number and the main file type. They follow every change within seconds.', pref: true },
     { key: 'aiSort', kind: 'AI', icon: 'sort', title: 'Sort files the rules cannot place', text: 'In Files, “Sort with AI” reads the names of loose files and suggests one of the six standard folders. You check before anything moves, and it can be undone.', manual: 'Files' },
@@ -207,6 +208,8 @@
       var st = A.statusOf(p, today);
       jobs.push({ dir: pg().projDir(p), v: A.variant({ status: st, count: total, kinds: A.kindsOf(all) }), tip: A.STATUS[st].label + ' · ' + p.code + ' · Stage ' + p.currentStage + ' ' + pg().STAGES[Math.min(7, p.currentStage) - 1].short });
     });
+    /* freelance jobs' folders too */
+    if (window.MorfisFreelance && !onlyPid) jobs = jobs.concat(window.MorfisFreelance.iconJobs());
     return jobs;
   }
   var iconBusy = false, iconAgain = false;
@@ -395,6 +398,25 @@
     if (n) { put('fired'); log('refresh', n + ' project' + (n === 1 ? ' has' : 's have') + ' been on hold for a month.'); M.redrawSide(); }
     return n;
   }
+  /* ===== rule: freelance deadlines ===== */
+  function runFreelanceDue() {
+    if (!ST.settings.freelanceDue || !window.MorfisFreelance) return 0;
+    var today = pg().today(), n = 0;
+    window.MorfisFreelance.all().forEach(function (j) {
+      var st = A.STATUS[j.status] ? j.status : 'in_progress';
+      if (st === 'completed' || st === 'cancelled' || !j.due) return;
+      var when = j.due === today ? 'today' : j.due === M.addDays(today, 2) ? 'soon' : j.due < today ? 'late' : '';
+      if (!when || !onceFor('fl|' + j.id + '|' + when + '|' + (when === 'late' ? today : j.due))) return;
+      var left = (j.deliverables || []).filter(function (x) { return !x.done; }).map(function (x) { return x.label; });
+      var t = (j.title || j.code) + (when === 'today' ? ' is due today' : when === 'soon' ? ' is due in two days' : ' is late');
+      H.notify(t, left.length ? 'Still to deliver: ' + left.slice(0, 4).join(', ') + '.' : 'Everything is ticked: deliver it and mark it completed.');
+      note('briefcase', t, (j.client || '') + (j.platform ? ' · ' + j.platform : ''), null);
+      n++;
+    });
+    if (n) { put('fired'); M.redrawSide(); }
+    return n;
+  }
+
   /* ===== rule: read the active project folders again ===== */
   var freshAt = 0;
   function runFreshFolders(force) {
@@ -684,6 +706,7 @@
     else if (key === 'quoteExpiry') { var q = runQuoteExpiry(); M.toast(q ? q + ' quotation' + (q === 1 ? ' needs' : 's need') + ' a follow-up.' : 'No sent quotations are about to expire.'); redraw(); }
     else if (key === 'lateTasks') { var lt = runLateTasks(true); M.toast(lt ? 'Sent the task check: ' + lt + ' task' + (lt === 1 ? '' : 's') + '.' : 'No tasks are late or due today.'); }
     else if (key === 'holdNudge') { var h = runHoldNudge(); M.toast(h ? h + ' project' + (h === 1 ? ' has' : 's have') + ' been on hold for a month.' : 'No project has been on hold for 30 days.'); redraw(); }
+    else if (key === 'freelanceDue') { var fd = runFreelanceDue(); M.toast(fd ? fd + ' freelance deadline' + (fd === 1 ? '' : 's') + ' coming up.' : 'No freelance job is due in the next two days.'); redraw(); }
     else if (key === 'freshFolders') { M.toast('Reading the project folders…'); runFreshFolders(true).then(function (n) { M.toast(n ? 'Updated ' + n + ' project folder' + (n === 1 ? '' : 's') + '.' : 'The folders are up to date.'); }); }
     else if (key === 'folderIcons') { ST.icons = {}; runFolderIcons().then(function (n) { M.toast(n ? 'Updated ' + n + ' folder icon' + (n === 1 ? '' : 's') + ' in File Explorer.' : 'No project folders to update (Windows only).'); redraw(); }); }
   }
@@ -742,7 +765,7 @@
   var PHONE = !!window.MORFIS_REMOTE;
   function tick() {
     if (PHONE || !ready || !pg() || !pg().S.ready) return;
-    runDraftInvoices(); runQuoteExpiry(); runLateTasks(); runHoldNudge(); pruneFired();
+    runDraftInvoices(); runQuoteExpiry(); runLateTasks(); runHoldNudge(); runFreelanceDue(); pruneFired();
     checkAi().then(function () { runFollowUps().then(function () { runDigest(false); }).then(function () { return runCustom(); }); });
     runFreshFolders().then(function () { runFolderIcons(); });
   }

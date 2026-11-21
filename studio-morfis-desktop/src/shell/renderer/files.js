@@ -341,6 +341,7 @@
       if ((p.looseCount || 0) && disk) items.push({ label: 'Sort ' + p.looseCount + ' loose file' + (p.looseCount === 1 ? '' : 's') + '…', icon: 'sort', fn: function () { pageAct('arrangeProject', { pid: p.id }); } });
       items.push({ sep: true }, { label: 'Project folder setup…', icon: 'settings', fn: function () { ACT.setup(); } },
         { label: 'Project page', icon: 'projects', fn: function () { M.go('project', { id: p.id }); } });
+      if (window.MorfisFreelance) items.push({ label: 'Move to Freelance…', icon: 'briefcase', fn: function () { window.MorfisFreelance.fromProject(p.id); } });
       if (disk) items.push({ sep: true }, { label: 'Delete the project folder…', icon: 'trash', danger: true, fn: function () { window.MorfisFolders.deleteProjectFolder(p.id); } });
     } else if (kind === 'f') {
       var t = tmpl(parts[1]), fdir = pg().subDir(p, t.id), exists = fstat(p, t.id).exists;

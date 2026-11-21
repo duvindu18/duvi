@@ -81,7 +81,9 @@ The folders you see in Files are the icons the real folders get in File Explorer
 - **The six standard folders:** their number tab (01 to 06).
 - **Folders with files:** paper sheets marked with the main file type (PDF, DWG…).
 
-The tooltip shows the status, project code and stage, or the folder name and file count. Icons follow every change within a few seconds. Explorer is told straight away, so open windows refresh without pressing F5. Turning the automation off removes the icons again. Folders that already had their own `desktop.ini` icon are left alone.
+The tooltip shows the status, project code and stage, or the folder name and file count. Icons follow every change within a few seconds. Explorer is told straight away, so open windows refresh without pressing F5. Turning the automation off removes the icons again. Folders that already had their own `desktop.ini` (the old blue icons, for example) get the new icon too; their old `desktop.ini` is kept as a hidden `desktop.ini.morfis.bak` and put back when the automation is turned off.
+
+Completed folders are moss green. Explorer icons follow Windows' light or dark mode.
 
 ## Built-in preview
 
@@ -107,6 +109,18 @@ The grid layout of a folder shows the same thumbnails File Explorer does. Files 
 - **Quotations:** *Mark as sent*, then *Accepted*, then *Make the invoice* copies the lines into a new invoice. A sent quotation shows as Expired once its valid-until date passes.
 - **Invoices:** *Issue invoice* on a milestone invoice adds it to Payments, so receipts and overdue tracking keep working. The Payments preview has an *Edit invoice* button that opens the same invoice here.
 - **Output:** *Export PDF* (A4, Inter embedded) and *Print*. Both use the same page you edit.
+
+## Freelance jobs
+
+Online jobs (Fiverr, Upwork, a direct client) run differently from studio projects: a client's brief comes in and 3D models, drawings and renderings go out, with no stages, task timeline or six-folder structure. **Studio > Freelance** keeps them apart:
+
+- **Job:** code `FL I 26 I 001`, title, client, contact, platform, the client's brief, received and due dates, status, fee, currency and what has been paid.
+- **Deliverables:** a checklist of 3D models, drawings, renderings or anything else, each with a quantity. The card shows how many are delivered.
+- **Revisions:** how many are included and how many have been used.
+- **Folder:** `Projects/Freelance/<code I title>` with 01_Brief_and_References, 02_3D_Models, 03_Drawings, 04_Renders and 05_Delivered. It gets the status folder icon like project folders.
+- **Invoice:** *Make the invoice* opens a new invoice with the client and fee filled in.
+- **Reminders:** the *Freelance deadlines* automation warns two days before a job is due, on the day, and when it is late.
+- **Moving a project:** a project card's menu has *Move to Freelance…*, which turns a dashboard project into a job.
 
 ## Automations and the AI assistant
 
