@@ -110,6 +110,26 @@ The grid layout of a folder shows the same thumbnails File Explorer does. Files 
 - **Invoices:** *Issue invoice* on a milestone invoice adds it to Payments, so receipts and overdue tracking keep working. The Payments preview has an *Edit invoice* button that opens the same invoice here.
 - **Output:** *Export PDF* (A4, Inter embedded) and *Print*. Both use the same page you edit.
 
+## Morfis, the voice assistant
+
+Press the microphone at the top (or **Ctrl+Space**) and speak naturally. Morfis listens, answers and speaks back. It runs on this computer: no internet, no account, no cost.
+
+- **Listening:** Whisper (base, 8-bit), run by transformers.js in a background worker. It stops by itself when you stop talking.
+- **Speaking:** Kokoro-82M (8-bit), a natural neural voice, run by ONNX Runtime. Pick the voice and speed in *Settings > Desktop app > Voice assistant*. Windows' own voice is the fallback.
+- **Understanding:** requests are read from the studio's own records:
+  - *Open Files*, *show me the Timeline*, *open Galle Fort*, *open the folder of Kitchen renders*
+  - *What's due this week / today / tomorrow?*, *any overdue invoices?*, *how much have I received?*, *how many freelance jobs are open?*
+  - *Mark Wijesinghe Residence as on hold*, *Kitchen renders is done*
+  - *New freelance job for Anna called kitchen renders*, *new project*
+  - *Remind me to call the client tomorrow at 10 am*, *what are my reminders?*
+  - *Search for site plan*, *dark mode*, *what time is it?*
+
+  It forgives small mishearings of names, and asks "which one?" when two match. Anything else goes to the local AI model (Ollama) when one is installed.
+- **Typing:** you can also type to it in the same panel.
+- **Privacy:** the microphone is used only while the orb is listening, and only by the app's own window. The models are part of the app (about 190 MB).
+
+`npm run voice-test` checks the engine end to end: Kokoro says a sentence, Whisper must hear it back, and no request may leave the computer.
+
 ## Direct and freelance, everywhere
 
 - **New project** asks first: a *Direct project* (stages, tasks, milestone invoices, six folders) or a *Freelance job* (brief, deliverables, fee, revisions).

@@ -1,7 +1,7 @@
 {
   "name": "studio-morfis-desktop",
   "productName": "Studio Morfis",
-  "version": "1.10.1",
+  "version": "1.11.0",
   "description": "Studio Morfis practice dashboard as a Windows desktop app: projects, stages, tasks, invoices, payments and real project folders on disk.",
   "main": "src/shell/main.js",
   "author": "Studio Morfis",
@@ -12,12 +12,19 @@
     "check": "node scripts/check.js",
     "dist": "electron-builder --win nsis --x64",
     "dist:portable": "electron-builder --win portable --x64",
-    "pack": "electron-builder --win dir --x64"
+    "pack": "electron-builder --win dir --x64",
+    "voice-test": "electron scripts/voice-test.js"
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.2.8",
+    "@huggingface/transformers": "3.8.1",
+    "kokoro-js": "1.2.1",
+    "kokoro-q8-shards": "1.0.0",
     "leaflet": "1.9.4",
-    "mammoth": "1.13.0"
+    "mammoth": "1.13.0",
+    "onnxruntime-web": "1.22.0-dev.20250409-89f8206ba4",
+    "phonemizer": "1.2.1",
+    "sts-whisper-base": "1.0.0"
   },
   "devDependencies": {
     "electron": "42.11.18",
@@ -38,6 +45,26 @@
       "node_modules/leaflet/dist/**/*",
       "node_modules/@fontsource-variable/inter/files/**/*",
       "node_modules/mammoth/mammoth.browser.min.js",
+      "node_modules/onnxruntime-web/dist/ort.webgpu.min.mjs",
+      "node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.mjs",
+      "node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.jsep.wasm",
+      "node_modules/onnxruntime-web/package.json",
+      "node_modules/@huggingface/transformers/dist/transformers.min.js",
+      "node_modules/@huggingface/transformers/package.json",
+      "node_modules/phonemizer/dist/phonemizer.js",
+      "node_modules/phonemizer/package.json",
+      "node_modules/sts-whisper-base/models/**/*",
+      "node_modules/sts-whisper-base/package.json",
+      "node_modules/kokoro-q8-shards/*.bin",
+      "node_modules/kokoro-q8-shards/package.json",
+      "node_modules/kokoro-js/package.json",
+      "node_modules/kokoro-js/voices/af_heart.bin",
+      "node_modules/kokoro-js/voices/af_bella.bin",
+      "node_modules/kokoro-js/voices/af_nicole.bin",
+      "node_modules/kokoro-js/voices/am_michael.bin",
+      "node_modules/kokoro-js/voices/am_fenrir.bin",
+      "node_modules/kokoro-js/voices/bf_emma.bin",
+      "node_modules/kokoro-js/voices/bm_george.bin",
       "package.json"
     ],
     "win": {
@@ -61,6 +88,12 @@
     },
     "portable": {
       "artifactName": "Studio-Morfis-Portable-${version}.${ext}"
-    }
+    },
+    "npmRebuild": false,
+    "asarUnpack": [
+      "node_modules/sts-whisper-base/**/*",
+      "node_modules/kokoro-q8-shards/**/*",
+      "node_modules/onnxruntime-web/dist/*.wasm"
+    ]
   }
 }

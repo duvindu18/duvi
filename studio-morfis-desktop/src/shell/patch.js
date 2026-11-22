@@ -125,7 +125,7 @@ function build(html, o) {
 }
 
 const STYLES = ['vendor/leaflet/leaflet.css', 'theme.css', 'desktop.css', 'views.css', 'mono.css'];
-const SCRIPTS = ['vendor/leaflet/leaflet.js', 'folder-art.js', 'desktop.js', 'preview.js', 'files.js', 'folder-log.js', 'folder-setup.js', 'docs.js', 'browser.js', 'freelance.js', 'direct.js', 'reorganise.js', 'automations.js'];
+const SCRIPTS = ['vendor/leaflet/leaflet.js', 'folder-art.js', 'desktop.js', 'preview.js', 'files.js', 'folder-log.js', 'folder-setup.js', 'docs.js', 'browser.js', 'freelance.js', 'direct.js', 'reorganise.js', 'automations.js', 'voice.js'];
 /* the phone page adds its own layout and controls after the desktop ones */
 const REMOTE_STYLES = ['remote.css'], REMOTE_SCRIPTS = ['remote.js'];
 function tail(base, remote) {

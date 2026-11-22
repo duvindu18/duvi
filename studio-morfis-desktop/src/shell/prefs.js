@@ -36,6 +36,11 @@ const DEFAULTS = {
   lookV: 4,
   roundCorners: true,
   backupKeep: 14,
+  voiceOn: true,               // the voice assistant (Whisper to listen, Kokoro to speak, all on this computer)
+  voiceName: 'af_heart',       // the Kokoro voice that answers
+  voiceSpeed: 1,
+  voiceReply: true,            // say the answers aloud, not only show them
+  voiceFollowUp: true,         // keep listening after a question back
   remoteOn: false,             // phone access over the local network
   remotePort: 47820,
   devTools: false,
@@ -50,7 +55,9 @@ const CHOICES = {
   density: ['comfortable', 'compact'],
   titleBar: ['name', 'none'],
   font: ['inter', 'segoe', 'technical', 'system', 'studio'],
-  backupKeep: [3, 7, 14, 30, 90]
+  backupKeep: [3, 7, 14, 30, 90],
+  voiceName: ['af_heart', 'af_bella', 'af_nicole', 'am_michael', 'am_fenrir', 'bf_emma', 'bm_george'],
+  voiceSpeed: [0.85, 1, 1.15]
 };
 
 class Prefs {

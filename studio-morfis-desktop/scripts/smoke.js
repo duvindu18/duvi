@@ -53,6 +53,9 @@ fake.listen(11434, '127.0.0.1');
 process.on('unhandledRejection', (e) => { console.error('SMOKE FAILED (error): ' + ((e && e.stack) || e)); app.exit(1); });
 setTimeout(() => { console.error('SMOKE FAILED: timed out after 6 minutes'); app.exit(2); }, 6 * 60 * 1000).unref();
 
+/* a fake microphone (a tone) and no permission prompt, for the voice assistant */
+app.commandLine.appendSwitch('use-fake-device-for-media-stream');
+app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
 require('../src/shell/main.js');
 app.whenReady().then(async () => {
   await wait(300);
@@ -495,6 +498,33 @@ app.whenReady().then(async () => {
   await js(w, 'document.querySelector("#dkSide [data-go=timeline]").click()'); await wait(800); await shot(w, '66-timeline-freelance');
   console.log('v1.10:', JSON.stringify(v10));
 
+  /* the voice assistant: requests understood (typed), then a spoken question end to end (Kokoro says it, Whisper
+     hears it, the answer is spoken), and the microphone opens */
+  const vo = JSON.parse(await js(w, '(async function(){var o={},V=window.MorfisVoice,pg=window.__morfisPage,wait=function(ms){return new Promise(function(r){setTimeout(r,ms)})};try{' +
+    'o.btn=!!document.getElementById("vxBtn");' +
+    'o.help=!!V.brain("what can you do").items;' +
+    'o.due=V.brain("whats due this week").say;' +
+    'o.owe=V.brain("any overdue invoices").say;' +
+    'o.money=V.brain("how much have I received").say;' +
+    'var n0=(pg.S.settings.reminders||[]).length;o.rem=V.brain("remind me to call Anna tomorrow at 10 am").say;var rl=pg.S.settings.reminders;o.remOk=rl.length===n0+1&&rl[rl.length-1].title==="Call Anna"&&rl[rl.length-1].time==="10:00";' +
+    'var p=Object.values(pg.S.projects).find(function(x){return x.name==="Wijesinghe Residence"});o.st=V.brain("mark wijesinghe residence as on hold").say;o.stOk=p&&p.workStatus==="on_hold";' +
+    'var j0=MorfisFreelance.all().length;o.job=V.brain("new freelance job for Anna called kitchen renders").say;await wait(500);o.jobOk=MorfisFreelance.all().length===j0+1&&MorfisFreelance.all().some(function(j){return /kitchen renders/i.test(j.title)&&/anna/i.test(j.client)});' +
+    'V.brain("open files");await wait(500);o.openFiles=Morfis.current()==="files";' +
+    'o.mis=V.brain("open the wijesinghy residence").say;' +
+    'o.count=V.brain("how many freelance jobs are open").say;' +
+    'o.unknown=V.brain("what is the meaning of life")===null;' +
+    '}catch(e){o.err=String(e&&e.stack||e)}return JSON.stringify(o)})()'));
+  Object.assign(vo, JSON.parse(await js(w, '(async function(){var o={},V=window.MorfisVoice,wait=function(ms){return new Promise(function(r){setTimeout(r,ms)})};try{' +
+    'var t0=performance.now();var pcm=await V.synth("What is due this week?");o.synthMs=Math.round(performance.now()-t0);o.sec=+(pcm.length/24000).toFixed(2);' +
+    'var len=Math.floor(pcm.length*2/3),x=new Float32Array(len);for(var i=0;i<len;i++){var q=i*1.5,k=Math.floor(q),f=q-k;x[i]=pcm[k]*(1-f)+(pcm[k+1]||0)*f;}' +
+    't0=performance.now();o.heard=await V.hear(x);o.turnMs=Math.round(performance.now()-t0);o.reply=V.last().reply&&V.last().reply.say;o.panel=!!document.querySelector(".vx.vx-open");o.engine=V.engine();' +
+    '}catch(e){o.err2=String(e&&e.stack||e)}return JSON.stringify(o)})()')));
+  await shot(w, '67-voice-answer');
+  Object.assign(vo, JSON.parse(await js(w, '(async function(){var o={},V=window.MorfisVoice,wait=function(ms){return new Promise(function(r){setTimeout(r,ms)})};try{' +
+    'V.close();await wait(300);V.listen();await wait(2500);o.micState=V.state();o.level=V.level();o.frames=V.frames();await wait(300);V.close();' +
+    '}catch(e){o.err3=String(e&&e.stack||e)}return JSON.stringify(o)})()')));
+  console.log('voice:', JSON.stringify(vo));
+
   console.log('page errors:', errors.length ? errors : 'none');
   const pdir = path.join(profile, 'data', 'projects');
   console.log('saved files:', fs.existsSync(pdir) ? fs.readdirSync(pdir).length : 0, 'projects,', fs.existsSync(path.join(profile, 'data', 'settings.json')) ? 'settings ok' : 'no settings');
@@ -536,6 +566,9 @@ app.whenReady().then(async () => {
   expect(!v10.err && !v10.err2 && !v10.err3 && !v10.err4 && !v10.err5 && v10.chooser && v10.directForm && v10.newJob, 'New project: choose Direct or Freelance: ' + JSON.stringify(v10));
   expect(v10.br && v10.brDirs >= 5 && v10.inside && v10.dd && v10.status === 'completed' && v10.briefH === 300, 'freelance job: folders browsed in place, status from the dropdown, brief height kept: ' + JSON.stringify(v10));
   expect(v10.dCards >= 2 && v10.dBr && v10.dBrDirs >= 5 && v10.toDirect && v10.tlJobs >= 1 && v10.homeJobs >= 1 && v10.theme && v10.themeBack, 'Direct projects page, freelance to direct, Home shows jobs, theme switch: ' + JSON.stringify(v10));
+  expect(!vo.err && vo.btn && vo.help && /due/.test(vo.due || '') && /invoice|owes/.test(vo.owe || '') && /received/.test(vo.money || '') && vo.remOk && vo.stOk && vo.jobOk && vo.openFiles && /Wijesinghe/.test(vo.mis || '') && /freelance/.test(vo.count || '') && vo.unknown, 'voice assistant understands requests: ' + JSON.stringify(vo));
+  expect(!vo.err2 && /\b(due|do)\b/i.test(vo.heard || '') && /week/i.test(vo.heard || '') && /due/.test(vo.reply || '') && vo.panel, 'voice assistant: a spoken question heard, understood and answered: ' + JSON.stringify(vo));
+  expect(!vo.err3 && (vo.micState === 'listening' || vo.micState === 'loading') && vo.frames > 0, 'voice assistant: the microphone opens and hears sound: ' + JSON.stringify(vo));
   console.log(fails.length ? 'SMOKE FAILED: ' + fails.join('; ') : 'SMOKE PASSED');
   app.exit(fails.length ? 1 : 0);
 });

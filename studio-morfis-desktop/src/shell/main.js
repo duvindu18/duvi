@@ -22,6 +22,29 @@ const DEFAULT_ICON = path.join(ROOT, 'build', 'icon.png');
 const LEAFLET = path.dirname(require.resolve('leaflet/dist/leaflet.js'));
 const MAMMOTH = path.dirname(require.resolve('mammoth/mammoth.browser.min.js'));
 const INTER = path.join(path.dirname(require.resolve('@fontsource-variable/inter/package.json')), 'files');
+/* the voice assistant, all on this computer: the speech engine (ONNX Runtime, WebAssembly), Whisper to listen,
+   Kokoro to speak, and espeak-ng (through phonemizer) to turn words into sounds for Kokoro */
+/* a package's folder (some packages do not let their package.json be resolved by name: find it from the entry file) */
+const pkgDir = (name) => {
+  try { return path.dirname(require.resolve(name + '/package.json')); } catch (e) { /* try the entry file */ }
+  try {
+    let d = path.dirname(require.resolve(name));
+    for (let i = 0; i < 6 && d !== path.dirname(d); i++, d = path.dirname(d)) {
+      const pj = path.join(d, 'package.json');
+      if (fs.existsSync(pj) && JSON.parse(fs.readFileSync(pj, 'utf8')).name === name) return d;
+    }
+  } catch (e) { /* not installed */ }
+  const guess = path.join(__dirname, '..', '..', 'node_modules', name);
+  return fs.existsSync(guess) ? guess : '';
+};
+const VOICE = {
+  ort: path.join(pkgDir('onnxruntime-web'), 'dist'),
+  transformers: path.join(pkgDir('@huggingface/transformers'), 'dist'),
+  phonemizer: path.join(pkgDir('phonemizer'), 'dist'),
+  whisper: path.join(pkgDir('sts-whisper-base'), 'models'),
+  kokoroShards: pkgDir('kokoro-q8-shards'),
+  kokoroVoices: path.join(pkgDir('kokoro-js'), 'voices')
+};
 const UA = 'StudioMorfisDesktop/' + app.getVersion() + ' (Windows desktop app; architecture practice dashboard)';
 const HOTKEY = 'CommandOrControl+Alt+M';
 
@@ -48,7 +71,7 @@ const winState = () => (win && !win.isDestroyed() ? { focus: win.isFocused(), ma
 const sendWin = () => { if (win && !win.isDestroyed()) win.webContents.send('win:state', winState()); };
 
 /* ----- the page, served from morfis://app/ ----- */
-const MIME = { '.woff2': 'font/woff2', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
+const MIME = { '.wasm': 'application/wasm', '.mjs': 'text/javascript; charset=utf-8', '.onnx': 'application/octet-stream', '.bin': 'application/octet-stream', '.woff2': 'font/woff2', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
 function pageHtml(remote) {
   const r = patch.build(fs.readFileSync(DASHBOARD, 'utf8'), { htmlClass: patch.htmlClass(prefs.public()) + (remote ? ' remote' : ''), tail: patch.tail('', remote) });
   if (r.missing.length) console.warn('[morfis] dashboard patch anchors missing:', r.missing);
@@ -75,9 +98,9 @@ function serveFile(req, file) {
   const m = /bytes=(\d*)-(\d*)/.exec(req.headers.get('range') || '');
   if (m && st.size) {
     const start = m[1] ? Math.min(+m[1], st.size - 1) : Math.max(0, st.size - (+m[2] || 0)), end = m[1] && m[2] ? Math.min(+m[2], st.size - 1) : st.size - 1;
-    return new Response(Readable.toWeb(fs.createReadStream(file, { start: start, end: end })), { status: 206, headers: { 'content-type': mime, 'content-range': 'bytes ' + start + '-' + end + '/' + st.size, 'accept-ranges': 'bytes', 'content-length': String(end - start + 1) } });
+    return new Response(Readable.toWeb(fs.createReadStream(file, { start: start, end: end })), { status: 206, headers: Object.assign({ 'content-type': mime, 'content-range': 'bytes ' + start + '-' + end + '/' + st.size, 'accept-ranges': 'bytes', 'content-length': String(end - start + 1) }, ISOLATE) });
   }
-  return new Response(Readable.toWeb(fs.createReadStream(file)), { headers: { 'content-type': mime, 'content-length': String(st.size), 'accept-ranges': 'bytes', 'cache-control': 'no-store' } });
+  return new Response(Readable.toWeb(fs.createReadStream(file)), { headers: Object.assign({ 'content-type': mime, 'content-length': String(st.size), 'accept-ranges': 'bytes', 'cache-control': 'no-store' }, ISOLATE) });
 }
 /* the scripts, styles, fonts and icon the page loads; shared by the window and the phone page */
 function asset(pathname) {
@@ -91,13 +114,41 @@ function asset(pathname) {
   if (!okRoot || !fs.existsSync(file) || !fs.statSync(file).isFile()) return null;
   return { body: fs.readFileSync(file), type: MIME[path.extname(file).toLowerCase()] || 'application/octet-stream' };
 }
+/* the voice files are large: streamed from disk, never read whole; Kokoro's weights come in six pieces, joined here */
+const VOICE_ROUTES = [['/vendor/ort/', 'ort'], ['/vendor/transformers/', 'transformers'], ['/vendor/phonemizer/', 'phonemizer'], ['/voice/models/', 'whisper'], ['/voice/kokoro/voices/', 'kokoroVoices']];
+function voiceFile(pathname) {
+  for (const [pre, key] of VOICE_ROUTES) {
+    if (pathname.indexOf(pre) !== 0 || !VOICE[key]) continue;
+    const root = path.resolve(VOICE[key]), file = path.resolve(root, decodeURIComponent(pathname.slice(pre.length)));
+    if (!file.startsWith(root + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return null;
+    return file;
+  }
+  return null;
+}
+const ISOLATE = { 'cross-origin-opener-policy': 'same-origin', 'cross-origin-embedder-policy': 'credentialless', 'cross-origin-resource-policy': 'same-origin' };
+function serveVoice(pathname) {
+  const { Readable } = require('stream');
+  const head = (type, size) => Object.assign({ 'content-type': type, 'cache-control': 'max-age=31536000, immutable' }, size != null ? { 'content-length': String(size) } : {}, ISOLATE);
+  if (pathname === '/voice/kokoro/model_quantized.onnx') {
+    const parts = [0, 1, 2, 3, 4, 5].map((i) => path.join(VOICE.kokoroShards, 'kokoro-q8.part' + i + '.bin'));
+    if (!VOICE.kokoroShards || !parts.every((f) => fs.existsSync(f))) return new Response('Not found', { status: 404 });
+    const size = parts.reduce((a, f) => a + fs.statSync(f).size, 0);
+    const joined = (async function* () { for (const f of parts) for await (const c of fs.createReadStream(f)) yield c; })();
+    return new Response(Readable.toWeb(Readable.from(joined)), { headers: head('application/octet-stream', size) });
+  }
+  const file = voiceFile(pathname);
+  if (!file) return null;
+  return new Response(Readable.toWeb(fs.createReadStream(file)), { headers: head(MIME[path.extname(file).toLowerCase()] || 'application/octet-stream', fs.statSync(file).size) });
+}
 function serve(req) {
   const u = new URL(req.url);
+  if (u.pathname.indexOf('/vendor/ort/') === 0 || u.pathname.indexOf('/vendor/transformers/') === 0 || u.pathname.indexOf('/vendor/phonemizer/') === 0 || u.pathname.indexOf('/voice/') === 0) return serveVoice(u.pathname) || new Response('Not found', { status: 404 });
   if (u.pathname.indexOf('/__file/') === 0) { const tok = u.pathname.split('/')[2], f = PREVIEW.get(tok); return f ? serveFile(req, f) : new Response('Not found', { status: 404 }); }
-  if (u.pathname === '/' || u.pathname === '/index.html') return new Response(pageHtml(), { headers: { 'content-type': MIME['.html'], 'cache-control': 'no-store' } });
+  /* cross-origin isolated, so the speech engine can use several CPU threads (map tiles still load: credentialless) */
+  if (u.pathname === '/' || u.pathname === '/index.html') return new Response(pageHtml(), { headers: Object.assign({ 'content-type': MIME['.html'], 'cache-control': 'no-store' }, ISOLATE) });
   const a = asset(u.pathname);
   if (!a) return new Response('Not found', { status: 404 });
-  return new Response(a.body, { headers: { 'content-type': a.type, 'cache-control': u.pathname === '/app-icon.png' ? 'no-store' : 'no-cache' } });
+  return new Response(a.body, { headers: Object.assign({ 'content-type': a.type, 'cache-control': u.pathname === '/app-icon.png' ? 'no-store' : 'no-cache' }, ISOLATE) });
 }
 
 /* ----- splash: a quick animated card while the dashboard loads ----- */
@@ -471,7 +522,12 @@ app.on('second-instance', showWindow);
 app.whenReady().then(() => {
   protocol.handle('morfis', serve);
   nativeTheme.themeSource = prefs.get('theme') === 'light' ? 'light' : 'dark';
-  session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(perm === 'notifications' || perm === 'clipboard-sanitized-write'));
+  /* the microphone only for the app's own window, and only sound (the voice assistant); nothing else asks */
+  session.defaultSession.setPermissionRequestHandler((wc, perm, cb, details) => {
+    if (perm === 'media') return cb(!!win && wc === win.webContents && prefs.get('voiceOn') !== false && (details.mediaTypes || []).every((t) => t === 'audio'));
+    cb(perm === 'notifications' || perm === 'clipboard-sanitized-write');
+  });
+  session.defaultSession.setPermissionCheckHandler((wc, perm) => perm !== 'media' || (!!win && wc === win.webContents));
   session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['https://tile.openstreetmap.org/*', 'https://server.arcgisonline.com/*'] }, (d, cb) => { d.requestHeaders['User-Agent'] = UA; cb({ requestHeaders: d.requestHeaders }); });
   session.defaultSession.setSpellCheckerEnabled(prefs.get('spellcheck'));
   Menu.setApplicationMenu(null);

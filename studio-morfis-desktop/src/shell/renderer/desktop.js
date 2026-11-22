@@ -48,6 +48,7 @@
     cpu: '<rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9.5 3v3M14.5 3v3M9.5 18v3M14.5 18v3M3 9.5h3M3 14.5h3M18 9.5h3M18 14.5h3"/>',
     play: '<path d="M8 5.5v13l10.5-6.5z"/>',
     sort: '<path d="M7 4.5v15M4 16.5l3 3 3-3M17 19.5v-15M14 7.5l3-3 3 3"/>',
+    mic: '<rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5M8.5 20.5h7"/>',
     layers: '<path d="M12 3.5l8.5 4.5-8.5 4.5L3.5 8z"/><path d="M3.5 12l8.5 4.5 8.5-4.5M3.5 16l8.5 4.5 8.5-4.5"/>',
     briefcase: '<rect x="3.5" y="7.5" width="17" height="12" rx="2"/><path d="M9 7.5V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v1.5M3.5 12.5h17"/>'
   };
@@ -339,12 +340,26 @@
         field('Keep', seg('backupKeep', P.choices.backupKeep.map(function (x) { return [x, x + ' days']; }))) +
         '<div class="toolbar"><button type="button" class="btn sm" data-dk-act="backupNow">Back up now</button><button type="button" class="btn sm" data-dk-act="openBackups">Open backups folder</button></div>' +
       '</div>' +
+      voiceSec() +
       phoneSec() +
       '<div class="dk-sec"><h3>Program</h3>' +
         '<p class="small muted">' + esc(P.name) + ' ' + esc(P.version) + (P.packaged ? '' : ' (development)') + '. Keys: Ctrl+K search, Ctrl+B sidebar, F11 full screen, Ctrl + and Ctrl − to zoom.</p>' +
         '<div class="toolbar"><button type="button" class="btn sm" data-dk-act="refreshShortcuts">Refresh Start menu and shortcuts</button><button type="button" class="btn sm" data-dk-act="relaunch">Restart</button><button type="button" class="btn sm danger ghost" data-dk-act="resetPrefs">Reset these settings</button></div>' +
       '</div>' +
       '</div></section>';
+  }
+  /* ----- the voice assistant: Whisper listens and Kokoro speaks, both on this computer ----- */
+  function voiceSec() {
+    if (!window.MorfisVoice) return '';
+    var V = window.MorfisVoice.voices, names = (P.choices && P.choices.voiceName) || Object.keys(V);
+    return '<div class="dk-sec" id="dkVoice"><h3>Voice assistant</h3>' +
+      '<p class="small muted">Press the microphone at the top (or Ctrl+Space) and speak. It listens, answers and speaks back, all on this computer: no internet, no account, free.</p>' +
+      sw('voiceOn', 'Voice assistant', 'The microphone button and Ctrl+Space') +
+      field('Voice', '<div class="toolbar"><select class="in" data-dk-sel="voiceName" aria-label="Voice">' + names.map(function (k) { return '<option value="' + esc(k) + '"' + (P.voiceName === k ? ' selected' : '') + '>' + esc(V[k] || k) + '</option>'; }).join('') + '</select><button type="button" class="btn sm" data-dk-act="voiceSample">Hear it</button></div>') +
+      field('Speed', seg('voiceSpeed', [[0.85, 'Slower'], [1, 'Normal'], [1.15, 'Faster']])) +
+      sw('voiceReply', 'Say the answers aloud', 'Off: answers are only shown') +
+      sw('voiceFollowUp', 'Keep listening after a question', 'When it asks “which one?”, answer without pressing again') +
+      '</div>';
   }
   /* ----- Phone access: the Android app (or a phone browser) on the same network ----- */
   var RS = null;
@@ -396,6 +411,7 @@
     }, function (e) { P[key] = prev; if (CLASS_PREFS[key]) CLASS_PREFS[key](prev); redrawCard(); toast('Could not change that: ' + (e && e.message ? e.message : 'unknown error')); });
   }
   var ACTS = {
+    voiceSample: function () { if (window.MorfisVoice) { toast('Getting the voice ready…'); window.MorfisVoice.sample().catch(function (e) { toast('The voice could not start: ' + e.message); }); } },
     newPin: function () { H.remoteNewPin().then(function (r) { RS = r; redrawCard(); }); },
     backupNow: function () { H.backupNow().then(function (f) { toast(f ? 'Backup saved.' : 'There is nothing to back up yet.'); }, function () { toast('Could not save the backup.'); }); },
     openBackups: function () { H.openBackups().catch(function () { toast('Could not open the backups folder.'); }); },
@@ -425,8 +441,10 @@
       H.remotePort(+t.value).then(function (r) { RS = r; P.remotePort = +t.value; redrawCard(); toast('Phone access now uses port ' + t.value + '.'); }, function (x) { toast(x.message); t.value = P.remotePort; });
       return;
     }
+    if (t && t.matches && t.matches('#dkCard [data-dk-sel]')) { setPref(t.dataset.dkSel, t.value); return; }
     if (!t || !t.matches || !t.matches('#dkCard [data-dk-bool]')) return;
     setPref(t.dataset.dkBool, t.checked);
+    if (t.dataset.dkBool === 'voiceOn') window.dispatchEvent(new CustomEvent('morfis:render'));
   });
 
   /* ===== shared helpers for the desktop views ===== */
