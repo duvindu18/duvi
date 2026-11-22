@@ -253,18 +253,21 @@
     var S = pg().S, st = S.settings, main = st.mainRoot;
     if (!main) return Promise.resolve(null);
     var old = { direct: st.root, free: M.jn(main, ((st.groupNames || {}).free) || 'Freelance Projects') };
-    var want = { direct: M.jn(main, dName), free: M.jn(main, fName) }, ids = [];
+    var want = { direct: M.jn(main, dName), free: M.jn(main, fName) }, ids = [], seen = { direct: [old.direct], free: [old.free] };
+    /* the folder as Windows names it (with its drive) is matched too: settings and records may spell the same
+       folder differently ("/Studio Morfis/…" and "D:\Studio Morfis\…") */
     var one = function (k, label) {
       if (same(old[k], want[k])) return Promise.resolve(want[k]);
       return H.isDir(old[k]).then(function (there) {
         if (!there) return H.mkdirs([want[k]]).then(function () { return want[k]; });
-        return H.movePath(old[k], want[k], label).then(function (r) { if (r.id) ids.push(r.id); return r.to; });
+        return H.movePath(old[k], want[k], label).then(function (r) { if (r.id) ids.push(r.id); if (r.from) seen[k].push(r.from); return r.to; });
       });
     };
+    var moveAll = function (p, k, to) { return seen[k].reduce(function (x, f) { return x === p ? rebase(p, f, to) : x; }, p); };
     return FL().ready().then(function () { return one('direct', 'Rename ' + base(old.direct)); }).then(function (dTo) {
       return one('free', 'Rename ' + base(old.free)).then(function (fTo) {
-        Object.values(S.projects).forEach(function (p) { var n = rebase(p.folderPath, old.direct, dTo); if (n !== p.folderPath) { p.folderPath = n; pg().queueWrite('p', p.id, p); } });
-        FL().all().forEach(function (j) { j.folder = rebase(j.folder, old.free, fTo); });
+        Object.values(S.projects).forEach(function (p) { var n = moveAll(p.folderPath, 'direct', dTo); if (n !== p.folderPath) { p.folderPath = n; pg().queueWrite('p', p.id, p); } });
+        FL().all().forEach(function (j) { j.folder = moveAll(j.folder, 'free', fTo); });
         st.root = dTo; st.groupNames = { direct: base(dTo), free: base(fTo) }; st.groupV = 2;
         pg().commitSettings(true); FL().save();
         if (LOG && !LOG.undone && ids.length) { LOG.journals = LOG.journals.concat(ids); H.kvSet(KEY, LOG).catch(function () {}); }

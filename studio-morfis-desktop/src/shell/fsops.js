@@ -259,14 +259,14 @@ function makeOps(J) {
       const bad = nameProblem(path.basename(to));
       if (bad) throw new Error(bad);
       if (!fs.existsSync(from)) throw new Error(path.basename(from) + ' is not there any more.');
-      if (from === to) return { same: true, to: to, id: '' };
+      if (from === to) return { same: true, from: from, to: to, id: '' };
       if ((to + path.sep).toLowerCase().startsWith((from + path.sep).toLowerCase())) throw new Error('A folder cannot go inside itself.');
       const caseOnly = from.toLowerCase() === to.toLowerCase();
       const dest = caseOnly ? to : freeName(to);
       if (caseOnly) { const tmp = from + '.' + Date.now() + '.rn'; await fsp.rename(from, tmp); await fsp.rename(tmp, dest); }
       else await moveOne(from, dest).catch((e) => { throw new Error(e.code ? niceError(e) : e.message); });
       const id = J.write(label || ('Move ' + path.basename(from)), [{ kind: 'move', from: from, to: dest }]);
-      return { same: false, to: dest, id: id };
+      return { same: false, from: from, to: dest, id: id };
     },
     async makeDir(base, rel, name) {
       const bad = nameProblem(name);
