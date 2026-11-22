@@ -48,6 +48,7 @@
     cpu: '<rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9.5 3v3M14.5 3v3M9.5 18v3M14.5 18v3M3 9.5h3M3 14.5h3M18 9.5h3M18 14.5h3"/>',
     play: '<path d="M8 5.5v13l10.5-6.5z"/>',
     sort: '<path d="M7 4.5v15M4 16.5l3 3 3-3M17 19.5v-15M14 7.5l3-3 3 3"/>',
+    layers: '<path d="M12 3.5l8.5 4.5-8.5 4.5L3.5 8z"/><path d="M3.5 12l8.5 4.5 8.5-4.5M3.5 16l8.5 4.5 8.5-4.5"/>',
     briefcase: '<rect x="3.5" y="7.5" width="17" height="12" rx="2"/><path d="M9 7.5V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v1.5M3.5 12.5h17"/>'
   };
   function ic(n, s) { return '<svg class="ic" width="' + (s || 16) + '" height="' + (s || 16) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (PATHS[n] || '') + '</svg>'; }
@@ -92,7 +93,9 @@
   function renderDk(opts) {
     var v = VIEWS[R.cur], el = $('#dkView');
     if (!v || !el) return;
+    /* the entrance plays once; left on, every redraw of the view would play it again */
     el.classList.remove('dk-enter'); void el.offsetWidth; el.classList.add('dk-enter');
+    clearTimeout(renderDk.t); renderDk.t = setTimeout(function () { el.classList.remove('dk-enter'); }, 180);
     v.render(el, opts || {});
   }
   function refreshDk() { if (R.cur && VIEWS[R.cur] && VIEWS[R.cur].refresh) VIEWS[R.cur].refresh($('#dkView')); }
@@ -171,6 +174,16 @@
     return '<img src="' + esc(icon || 'app-icon.png') + '" alt="">';
   }
   var sideSig = '';
+  /* freelance jobs under way are active projects too: listed under the direct ones, with a briefcase */
+  function flSide() {
+    var FL = window.MorfisFreelance, A = window.MorfisArt; if (!FL) return '';
+    var open = FL.all().filter(function (j) { var s = FL.statusOf(j); return s !== 'completed' && s !== 'cancelled'; }).slice(0, SHUT.allProjects ? 99 : 5);
+    return open.map(function (j) {
+      var st = FL.statusOf(j);
+      return '<button type="button" class="dk-it" data-go="freelance" data-id="' + esc(j.id) + '" data-tip="' + esc(j.title || j.code) + '" title="' + esc(j.code + ' · Freelance · ' + A.STATUS[st].label + (FL.dueText(j) ? ' · ' + FL.dueText(j) : '')) + '">' +
+        '<span class="dk-sq dk-sq-fl" style="--st:' + A.STATUS[st].color + '">' + ic('briefcase', 12) + '</span><span>' + esc(j.title || j.code) + '</span></button>';
+    }).join('');
+  }
   function drawSide() {
     var el = $('#dkSide'), pg = page();
     if (!el || !pg || !pg.S) return;
@@ -187,13 +200,13 @@
       if (on) SIDE_PROJECT_SHOWN = true;
       return '<button type="button" class="dk-it' + (on ? ' on' : '') + '" data-go="project" data-id="' + esc(p.id) + '" data-tip="' + esc(p.name) + '" title="' + esc(p.code + ' · ' + A.STATUS[st].label + ' · Stage ' + p.currentStage) + '">' +
         '<span class="dk-sq" style="--st:' + A.STATUS[st].color + '">' + p.currentStage + '</span><span>' + esc(p.name) + '</span></button>';
-    }).join('') + (list.length > 7 ? '<button type="button" class="dk-it dk-more" data-side-act="allProjects"><span>' + (SHUT.allProjects ? 'Show fewer' : 'Show all ' + list.length) + '</span></button>' : '') +
-      (list.length ? '' : '<div class="dk-it dk-more"><span>No active projects</span></div>');
+    }).join('') + flSide() + (list.length > 7 ? '<button type="button" class="dk-it dk-more" data-side-act="allProjects"><span>' + (SHUT.allProjects ? 'Show fewer' : 'Show all ' + list.length) + '</span></button>' : '') +
+      (list.length || flSide() ? '' : '<div class="dk-it dk-more"><span>No active projects</span></div>');
     var n = function (v, cls) { return v ? '<span class="dk-n' + (cls ? ' ' + cls : '') + '">' + v + '</span>' : ''; };
     var html =
       '<div class="dk-scroll">' +
       grp('ws', 'Workspace', item('home', 'Home', 'home') + item('projects', 'Projects', 'projects') + item('timeline', 'Timeline', 'timeline') + item('payments', 'Payments', 'payments', n(od, 'bad'), 'Payments' + (od ? ', ' + od + ' overdue' : ''))) +
-      grp('studio', 'Studio', item('files', 'Files', 'files') + item('freelance', 'Freelance', 'briefcase', n(window.MorfisFreelance ? window.MorfisFreelance.attention() : 0)) + item('documents', 'Invoices & quotes', 'documents', n(drafts)) + item('automations', 'Automations', 'automations', n(auto))) +
+      grp('studio', 'Studio', item('files', 'Files', 'files') + item('direct', 'Direct projects', 'layers', n(window.MorfisDirect ? window.MorfisDirect.attention() : 0)) + item('freelance', 'Freelance', 'briefcase', n(window.MorfisFreelance ? window.MorfisFreelance.attention() : 0)) + item('documents', 'Invoices & quotes', 'documents', n(drafts)) + item('automations', 'Automations', 'automations', n(auto))) +
       '<div class="dk-grp-p">' + grp('proj', 'Active projects', projItems, 'newProject') + '</div>' +
       '</div>' +
       '<div class="dk-foot">' +
@@ -215,7 +228,7 @@
     if (b.dataset.go) { go(b.dataset.go, { id: b.dataset.id }); return; }
     var a = b.dataset.sideAct;
     if (a === 'collapse') toggleCollapse();
-    else if (a === 'newProject' && pg) pg.newProject();
+    else if (a === 'newProject' && pg) { if (window.Morfis.newProject) window.Morfis.newProject(); else pg.newProject(); }
     else if (a === 'reminders' && pg) pg.openReminders();
     else if (a === 'help') { var h = $('#side [data-act=openHelp]'); if (h) h.click(); }
     else if (a === 'allProjects') { SHUT.allProjects = !SHUT.allProjects; saveSide(); sideSig = ''; drawSide(); }
@@ -445,6 +458,18 @@
 
   /* ===== background: a dot grid, and a soft accent light that eases after the pointer =====
      Only transforms change while the pointer moves, so it costs the compositor, not a repaint. */
+  /* switching light and dark: one 160 ms cross-fade of the whole window (the page's own colour easing on every
+     element is turned off in desktop.css, which is what made it lag) */
+  var themeBusy = false;
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-act="toggleTheme"]');
+    if (!b || themeBusy || !document.startViewTransition || root.classList.contains('reduce-motion')) return;
+    e.stopImmediatePropagation(); e.preventDefault();
+    themeBusy = true;
+    var t = document.startViewTransition(function () { b.click(); });
+    t.finished.then(function () { themeBusy = false; }, function () { themeBusy = false; });
+  }, true);
+
   function background() {
     var w = win(); if (!w || w.querySelector('.dk-bg')) return;
     w.insertAdjacentHTML('afterbegin', '<div class="dk-bg" aria-hidden="true"><i class="dk-bg-grid"></i><i class="dk-bg-glow"></i><span class="dk-bg-spot"><i class="dk-bg-grid dk-bg-hi"></i></span></div>');
@@ -460,6 +485,8 @@
     }
     w.addEventListener('pointermove', function (e) {
       if (root.classList.contains('no-follow') || root.classList.contains('reduce-motion')) return;
+      /* in Files the light shows only over the All projects page, not the tree or a folder being browsed */
+      if (R.cur === 'files' && !(e.target.closest && e.target.closest('.fx-main.fx-rootv'))) { if (on) { on = false; bg.classList.remove('lit'); } return; }
       if (!box) box = w.getBoundingClientRect();
       tx = e.clientX - box.left; ty = e.clientY - box.top;
       if (!on) { on = true; x = tx; y = ty; bg.classList.add('lit'); }

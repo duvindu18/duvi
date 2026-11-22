@@ -2,8 +2,11 @@
 
 /* ===== shared ===== */
 .dk-view{position:relative}
-.dk-view.dk-enter>*{animation:dkIn .2s var(--ease) both}
-@keyframes dkIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.dk-view.dk-enter>*{animation:dkIn .14s ease-out both}
+@keyframes dkIn{from{opacity:0}to{opacity:1}}
+/* moving between folders: a quick fade of what changed, nothing slides */
+.fx-swap{animation:fxSwap .13s ease-out both}
+@keyframes fxSwap{from{opacity:.25;filter:blur(1.5px)}to{opacity:1;filter:none}}
 .dk-view.dk-fill{padding:0;gap:0;overflow:hidden}
 .grow{flex:1}
 .bad-t{color:var(--bad)}
@@ -81,7 +84,6 @@ i.fx-tw{display:none}
 .fx-card.drop-on{background:var(--accent-soft);border-color:var(--accent-fill)}
 .fx-art{height:104px;display:grid;place-items:center;margin-bottom:8px}
 .fx-art .fd-art{height:100%;width:auto;max-width:100%;transition:transform .18s var(--ease)}
-.fx-card:hover .fd-art{transform:translateY(-2px)}
 .fd-art g{transition:transform .2s var(--ease)}
 .fx-name{font-weight:600;font-size:13.5px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fx-meta{font-size:12px;color:var(--ink-3);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -447,3 +449,28 @@ html.has-wbar .pv{top:40px}
 .np-row{padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface)}
 .np-row .mono{overflow-wrap:anywhere}
 .np-tag{font-style:normal;font-size:11px;margin-left:8px;padding:1px 7px;border-radius:999px;background:var(--surface-3);color:var(--ink-2)}
+
+/* ----- new project chooser, freelance jobs on Home and Projects, direct project page, inline browser ----- */
+.np-pick{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px}
+.np-opt{display:flex;flex-direction:column;align-items:flex-start;gap:8px;text-align:left;padding:18px;border-radius:var(--r-md);border:1px solid var(--line-2);background:var(--surface);color:var(--ink);cursor:pointer;transition:border-color .12s,background-color .12s}
+.np-opt:hover,.np-opt:focus-visible{border-color:var(--ink-3);background:var(--surface-2)}
+.np-opt b{font-size:15px}
+@media (max-width:640px){.np-pick{grid-template-columns:1fr}}
+.fl-over{margin:6px 0 22px}
+.fl-over .sec-head{display:flex;align-items:center;gap:10px}
+.dp-prog{height:6px}
+.dp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px}
+.dp-kv{display:flex;flex-direction:column;gap:3px;min-width:0}
+.dp-kv b{font-weight:600;font-size:13.5px;overflow-wrap:anywhere}
+.br{display:flex;flex-direction:column;gap:12px}
+.br-crumbs{margin:0}
+.br-tools{flex-wrap:wrap}
+.br-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.fl-c-foot{flex-wrap:wrap;row-gap:4px}
+.fl-c-foot>span{white-space:nowrap}
+.fl-c-foot .mono{white-space:nowrap}
+.dk-sq-fl{display:grid;place-items:center}
+.dk-sq-fl .ic{width:12px;height:12px}
+/* freelance rows on the Timeline: one rounded bar, received to due, apart from the seven-stage projects */
+.tl-row.tl-fl .tl-seg{border-radius:999px}
+.tl-row.tl-fl .tl-st{font-style:italic}

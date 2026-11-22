@@ -12,7 +12,10 @@
   var H = M.H, esc = M.esc, pg = M.page;
   var KEY = 'reorg:last', LOG = null;
   var FL = function () { return window.MorfisFreelance; };
-  var DIRECT = 'Direct Projects', FREE = 'Freelance Projects';
+  /* the two main folders start with "!" so File Explorer lists them first when sorting by name */
+  var DEF_NAMES = { direct: '! Direct Projects', free: '! Freelance Projects' };
+  var names = function () { var g = (pg().S.settings.groupNames) || {}; return { direct: g.direct || DEF_NAMES.direct, free: g.free || DEF_NAMES.free }; };
+  var DIRECT = DEF_NAMES.direct, FREE = DEF_NAMES.free;
   var clone = function (o) { return JSON.parse(JSON.stringify(o)); };
   /* a project record without its file lists (reading the folder again fills them), to keep the saved copies small */
   var lite = function (p) { var c = clone(p); Object.keys(c.folders || {}).forEach(function (k) { if (c.folders[k]) c.folders[k].files = []; }); c.loose = []; return c; };
@@ -31,6 +34,7 @@
   }
   function flCode(code) { return /^[A-Za-z]+(\s*I\s*\d{2}\s*I\s*\d+)/.test(code || '') ? String(code).replace(/^[A-Za-z]+/, 'FL') : code; }
   function plan(o) {
+    DIRECT = names().direct; FREE = names().free;
     var S = pg().S, today = pg().today(), main = S.settings.root || '';
     var direct = [], free = [], jobs = (FL() ? FL().all() : []).filter(function (j) { return j.folderMade && j.folder; });
     var L = window.MorfisLog, skipped = [];
@@ -196,6 +200,7 @@
     }).then(function () {
       S.settings.mainRoot = P.main;
       S.settings.root = P.directRoot;
+      S.settings.groupNames = { direct: DIRECT, free: FREE }; S.settings.groupV = 2;
       pg().commitSettings(true);
       FL().save();
       LOG = log;
@@ -220,7 +225,7 @@
       return c.then(function () { return H.undo(id).then(function (r) { failed += (r.failed || []).length; }, function () { failed++; }); });
     }, Promise.resolve()).then(function () {
       S.settings.root = log.root;
-      delete S.settings.mainRoot;
+      delete S.settings.mainRoot; delete S.settings.groupNames; delete S.settings.groupV;
       pg().commitSettings(true);
       Object.keys(log.projects).forEach(function (pid) { S.projects[pid] = log.projects[pid]; pg().queueWrite('p', pid, log.projects[pid]); });
       FL().replaceAll(log.jobsBefore || []);
@@ -236,7 +241,71 @@
     });
   }
 
+  /* ----- renaming the two main folders ----- */
+  function rebase(p, from, to) {
+    if (!p) return p;
+    var a = String(p), f = String(from);
+    if (same(a, f)) return to;
+    var na = a.replace(/\\/g, '/').toLowerCase(), nf = f.replace(/[\\/]+$/, '').replace(/\\/g, '/').toLowerCase();
+    return na.indexOf(nf + '/') === 0 ? to + a.slice(f.replace(/[\\/]+$/, '').length) : p;
+  }
+  function renameGroups(dName, fName, quiet) {
+    var S = pg().S, st = S.settings, main = st.mainRoot;
+    if (!main) return Promise.resolve(null);
+    var old = { direct: st.root, free: M.jn(main, ((st.groupNames || {}).free) || 'Freelance Projects') };
+    var want = { direct: M.jn(main, dName), free: M.jn(main, fName) }, ids = [];
+    var one = function (k, label) {
+      if (same(old[k], want[k])) return Promise.resolve(want[k]);
+      return H.isDir(old[k]).then(function (there) {
+        if (!there) return H.mkdirs([want[k]]).then(function () { return want[k]; });
+        return H.movePath(old[k], want[k], label).then(function (r) { if (r.id) ids.push(r.id); return r.to; });
+      });
+    };
+    return FL().ready().then(function () { return one('direct', 'Rename ' + base(old.direct)); }).then(function (dTo) {
+      return one('free', 'Rename ' + base(old.free)).then(function (fTo) {
+        Object.values(S.projects).forEach(function (p) { var n = rebase(p.folderPath, old.direct, dTo); if (n !== p.folderPath) { p.folderPath = n; pg().queueWrite('p', p.id, p); } });
+        FL().all().forEach(function (j) { j.folder = rebase(j.folder, old.free, fTo); });
+        st.root = dTo; st.groupNames = { direct: base(dTo), free: base(fTo) }; st.groupV = 2;
+        pg().commitSettings(true); FL().save();
+        if (LOG && !LOG.undone && ids.length) { LOG.journals = LOG.journals.concat(ids); H.kvSet(KEY, LOG).catch(function () {}); }
+        redraw(); pg().renderAll();
+        if (!quiet) M.toast('The main folders are now ' + base(dTo) + ' and ' + base(fTo) + '.');
+        return { direct: dTo, free: fTo, ids: ids };
+      });
+    });
+  }
+  function namesDialog() {
+    var n = names();
+    M.modal('Main folder names',
+      '<p class="muted small">The two folders inside <span class="mono">' + esc(pg().S.settings.mainRoot || '') + '</span>. Starting a name with <b>!</b> keeps it at the top of File Explorer when sorting by name. Renaming moves nothing else; the change is in the Change log.</p>' +
+      '<div class="field"><label for="gnD">Direct projects folder</label><input class="in mono" id="gnD" value="' + esc(n.direct) + '" maxlength="80" spellcheck="false"></div>' +
+      '<div class="field"><label for="gnF">Freelance projects folder</label><input class="in mono" id="gnF" value="' + esc(n.free) + '" maxlength="80" spellcheck="false"></div>' +
+      '<p class="err" id="gnErr"></p><div class="dlg-foot"><button type="button" class="btn" data-act="close">Cancel</button><button type="button" class="btn primary" id="gnOk">Rename</button></div>');
+    document.getElementById('gnOk').addEventListener('click', function () {
+      var d = document.getElementById('gnD').value.trim(), f = document.getElementById('gnF').value.trim(), err = document.getElementById('gnErr');
+      var bad = function (x) { return !x || /[<>:"\/\\|?*]/.test(x) || /[. ]$/.test(x); };
+      if (bad(d) || bad(f)) { err.textContent = 'A folder name cannot be empty, contain \\ / : * ? " < > |, or end with a dot or a space.'; return; }
+      if (d.toLowerCase() === f.toLowerCase()) { err.textContent = 'The two folders need different names.'; return; }
+      this.disabled = true;
+      renameGroups(d, f).then(function () { pg().closeModal(); }, function (e) { err.textContent = (e && e.message) || 'Could not rename them.'; });
+    });
+  }
+  /* folders split before this version: give them the "!" names once, so they sort first */
+  var migrated = false;
+  window.addEventListener('morfis:render', function () {
+    if (migrated || window.MORFIS_REMOTE) return;
+    var S = pg() && pg().S; if (!S || !S.ready) return;
+    migrated = true;
+    if (!S.settings.mainRoot || S.settings.groupV === 2) return;
+    setTimeout(function () {
+      renameGroups(DEF_NAMES.direct, DEF_NAMES.free, true).then(function (r) {
+        if (r && r.ids.length) M.toast('Direct Projects and Freelance Projects now start with “!”, so File Explorer lists them first.', { label: 'Undo', fn: function () { renameGroups('Direct Projects', 'Freelance Projects'); } });
+      }, function () {});
+    }, 1500);
+  });
+
   window.MorfisReorg = {
+    renameGroups: renameGroups, namesDialog: namesDialog, names: names,
     needed: function () { var s = pg() && pg().S.settings; return !window.MORFIS_REMOTE && !!(s && s.root && !s.mainRoot) && !!FL(); },
     canUndo: function () { return !window.MORFIS_REMOTE && !!(LOG && !LOG.undone && LOG.at && Date.now() - new Date(LOG.at).getTime() < 60 * 864e5); },
     open: open, undo: undo, plan: plan, run: run, sortInside: sortInside, fileCat: fileCat, dirCat: dirCat, titleOf: titleOf

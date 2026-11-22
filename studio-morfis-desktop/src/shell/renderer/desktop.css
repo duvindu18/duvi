@@ -110,9 +110,9 @@ html:not(.no-glow) .window{background-image:radial-gradient(700px 260px at 30% -
 .window.col-main{position:relative;isolation:isolate}
 .dk-bg{position:absolute;inset:0;z-index:-1;overflow:hidden;border-radius:inherit;pointer-events:none;contain:strict}
 .dk-bg-grid{position:absolute;inset:0;background-image:radial-gradient(circle at 1px 1px,var(--grid-line) 1px,transparent 0);background-size:22px 22px;-webkit-mask-image:linear-gradient(180deg,#000 0,rgba(0,0,0,.55) 70%,rgba(0,0,0,.3));mask-image:linear-gradient(180deg,#000 0,rgba(0,0,0,.55) 70%,rgba(0,0,0,.3))}
-.dk-bg-glow{position:absolute;left:-300px;top:-300px;width:600px;height:600px;border-radius:50%;background:radial-gradient(closest-side,color-mix(in srgb,var(--accent-fill) 13%,transparent),color-mix(in srgb,var(--accent-fill) 4%,transparent) 55%,transparent);opacity:0;transition:opacity .45s var(--ease);will-change:transform;animation:dkHue 14s ease-in-out infinite alternate}
+.dk-bg-glow{position:absolute;left:-300px;top:-300px;width:600px;height:600px;border-radius:50%;background:radial-gradient(closest-side,color-mix(in srgb,var(--accent-fill) 6%,transparent),color-mix(in srgb,var(--accent-fill) 2%,transparent) 55%,transparent);opacity:0;transition:opacity .45s var(--ease);will-change:transform;animation:dkHue 14s ease-in-out infinite alternate}
 .dk-bg-spot{position:absolute;left:0;top:0;width:520px;height:520px;overflow:hidden;opacity:0;transition:opacity .45s var(--ease);will-change:transform;-webkit-mask-image:radial-gradient(closest-side,#000,rgba(0,0,0,.4) 50%,transparent);mask-image:radial-gradient(closest-side,#000,rgba(0,0,0,.4) 50%,transparent)}
-.dk-bg-hi{inset:auto;left:0;top:0;--grid-line:color-mix(in srgb,var(--accent-fill) 70%,transparent);-webkit-mask-image:none;mask-image:none;will-change:transform}
+.dk-bg-hi{inset:auto;left:0;top:0;--grid-line:color-mix(in srgb,var(--accent-fill) 30%,transparent);-webkit-mask-image:none;mask-image:none;will-change:transform}
 .dk-bg.lit .dk-bg-glow,.dk-bg.lit .dk-bg-spot{opacity:1}
 @keyframes dkHue{from{filter:hue-rotate(-22deg)}to{filter:hue-rotate(22deg)}}
 :root{--grid-line:rgba(255,255,255,.035)}
@@ -186,3 +186,7 @@ html[data-dk-view]:not([data-dk-view="home"]):not([data-dk-view="projects"]) .to
 .wbrand.has-logo .wbrand-logo{display:block}
 .wbrand.has-logo .wbrand-ic,.wbrand.has-logo .wbrand-name{display:none}
 html.style-mono .wbrand-logo::after{content:"";position:absolute;right:0;bottom:0;width:6.8%;height:20.8%;border-radius:50%;background:var(--mono-dot)}
+
+/* light and dark switch: one quick cross-fade; the page's own per-element colour easing is what lagged */
+html.theming,html.theming *,html.theming *::before,html.theming *::after{transition:none!important}
+::view-transition-old(root),::view-transition-new(root){animation-duration:.16s;animation-timing-function:ease-out}

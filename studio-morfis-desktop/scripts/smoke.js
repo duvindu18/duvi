@@ -443,11 +443,57 @@ app.whenReady().then(async () => {
   await shot(w, '57-files-freelance-root');
   await js(w, 'MorfisFiles.open("")'); await wait(600);
   ro.delItem = await js(w, '(function(){var b=document.querySelector("#dkView [data-card-menu=\\"p:' + ro.noDiskId + '\\"]");if(!b)return "no card";b.click();var t=Array.from(document.querySelectorAll(".dk-menu button")).map(function(x){return x.textContent}).join("|");document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape"}));return t})()');
+  Object.assign(ro, JSON.parse(await js(w, '(async function(){var o={},pg=window.__morfisPage,H=window.morfisDesktop;try{' +
+    'await MorfisReorg.renameGroups("Direct Projects","Freelance Projects",true);o.rn1=pg.S.settings.root;var dp=pg.P(' + JSON.stringify(ro.dpId) + ');o.rnDp=await H.isDir(dp.folderPath);var jj=MorfisFreelance.get(' + JSON.stringify(ro.jobId) + ');o.rnJob=await H.isDir(jj.folder);' +
+    'await MorfisReorg.renameGroups("! Direct Projects","! Freelance Projects",true);o.rn2=pg.S.settings.root;o.rnDp2=await H.isDir(pg.P(' + JSON.stringify(ro.dpId) + ').folderPath);o.rnJob2=await H.isDir(MorfisFreelance.get(' + JSON.stringify(ro.jobId) + ').folder);' +
+    '}catch(e){o.errRn=String(e&&e.stack||e)}return JSON.stringify(o)})()')));
   Object.assign(ro, JSON.parse(await js(w, '(async function(){var o={},pg=window.__morfisPage,wait=function(ms){return new Promise(function(r){setTimeout(r,ms)})};try{window.confirm=function(){return true};' +
     'await MorfisReorg.undo();await wait(500);o.root2=pg.S.settings.root;o.mainRoot2=pg.S.settings.mainRoot||"";o.cpBack=!!pg.P(' + JSON.stringify(ro.cpId) + ');o.jobs2=MorfisFreelance.all().length;o.dpBack=pg.projDir(pg.P(' + JSON.stringify(ro.dpId) + '));' +
     '}catch(e){o.err2=String(e&&e.stack||e)}return JSON.stringify(o)})()')));
   ro.undoDisk = fs.existsSync(path.join(ro.cp02, 'scene.max')) && fs.existsSync(path.join(ro.cpOld, 'view1.jpg')) && fs.existsSync(ro.dpOld) && !fs.existsSync(ro.dpNew) && !!fl.folder && fs.existsSync(path.join(fl.folder, '03_Drawings'));
   console.log('reorganise:', JSON.stringify(ro));
+
+  /* 1.10: the New project chooser, Direct projects, folders browsed in place, dropdown status, brief height, Home */
+  const v10 = JSON.parse(await js(w, '(async function(){var o={},pg=window.__morfisPage,wait=function(ms){return new Promise(function(r){setTimeout(r,ms)})};try{window.confirm=function(){return true};' +
+    'document.querySelector("#dkSide [data-go=projects]").click();await wait(500);' +
+    'document.querySelector(".top [data-act=newProject]").click();await wait(400);o.chooser=!!document.querySelector("#overlay .np-pick");' +
+    '}catch(e){o.err=String(e&&e.stack||e)}return JSON.stringify(o)})()'));
+  await shot(w, '61-new-project-chooser');
+  Object.assign(v10, JSON.parse(await js(w, '(async function(){var o={},pg=window.__morfisPage,wait=function(ms){return new Promise(function(r){setTimeout(r,ms)})};try{' +
+    'document.querySelector("#overlay [data-np-kind=direct]").click();await wait(500);o.directForm=!!document.querySelector("#overlay form");pg.closeModal();await wait(200);' +
+    'var n0=MorfisFreelance.all().length;document.querySelector(".top [data-act=newProject]").click();await wait(300);document.querySelector("#overlay [data-np-kind=freelance]").click();await wait(700);' +
+    'o.newJob=MorfisFreelance.all().length===n0+1&&Morfis.current()==="freelance";' +
+    '}catch(e){o.err2=String(e&&e.stack||e)}return JSON.stringify(o)})()')));
+  /* the job with a folder: browse it in place, set the status through the styled dropdown, keep the brief height */
+  Object.assign(v10, JSON.parse(await js(w, '(async function(){var o={},wait=function(ms){return new Promise(function(r){setTimeout(r,ms)})};try{' +
+    'var j=MorfisFreelance.all().find(function(x){return x.title==="Living room renders"});MorfisFreelance.open(j.id);await wait(900);' +
+    'o.br=!!document.querySelector("#dkView .br");o.brDirs=document.querySelectorAll("#dkView .br [data-br-go].fx-card").length;' +
+    'var c=document.querySelector("#dkView .br .fx-card[data-br-go=\'03_Drawings\']");if(c){c.click();await wait(700);}o.inside=Morfis.current()==="freelance"&&!!document.querySelector("#dkView .br-crumbs [data-br-go=\'03_Drawings\']");' +
+    'var sel=document.querySelector("#dkView select[data-fl-f=status]"),btn=sel&&sel.parentElement.querySelector(".dd-btn");o.dd=!!btn;' +
+    'if(btn){btn.click();await wait(250);document.querySelector("#dkView .fl-h1")&&document.querySelector("#dkView .fl-h1").blur();await wait(250);var opt=Array.from(document.querySelectorAll(".dd-opt")).find(function(x){return /Completed/.test(x.textContent)});if(opt)opt.click();await wait(600);}' +
+    'o.status=MorfisFreelance.get(j.id).status;' +
+    'var ta=document.querySelector("#dkView textarea[data-fl-f=brief]");ta.style.height="300px";ta.dispatchEvent(new MouseEvent("mouseup",{bubbles:true}));MorfisFreelance.reload();await wait(600);' +
+    'o.briefH=Math.round(document.querySelector("#dkView textarea[data-fl-f=brief]").offsetHeight);o.jid=j.id;' +
+    '}catch(e){o.err3=String(e&&e.stack||e)}return JSON.stringify(o)})()')));
+  await shot(w, '62-freelance-browse-inline');
+  /* Direct projects page */
+  await go('direct', '63-direct-list');
+  Object.assign(v10, JSON.parse(await js(w, '(async function(){var o={},wait=function(ms){return new Promise(function(r){setTimeout(r,ms)})};try{' +
+    'o.dCards=document.querySelectorAll("#dkView [data-dp-open]").length;var withDir=Object.values(window.__morfisPage.S.projects).find(function(p){return p.foldersCreated&&!p.dirMissing});' +
+    'document.querySelector("#dkView [data-dp-open=\'"+withDir.id+"\']").click();await wait(900);o.dBr=!!document.querySelector("#dkView .br");o.dBrDirs=document.querySelectorAll("#dkView .br .fx-card").length;' +
+    '}catch(e){o.err4=String(e&&e.stack||e)}return JSON.stringify(o)})()')));
+  await shot(w, '64-direct-project');
+  /* a freelance job back to Direct, Home shows the jobs under way, the theme switch */
+  Object.assign(v10, JSON.parse(await js(w, '(async function(){var o={},pg=window.__morfisPage,wait=function(ms){return new Promise(function(r){setTimeout(r,ms)})};try{window.confirm=function(){return true};' +
+    'var n0=Object.keys(pg.S.projects).length,j=MorfisFreelance.all().find(function(x){return x.title==="Living room renders"});var p=await MorfisFreelance.toDirect(j.id);await wait(500);' +
+    'o.toDirect=!!p&&Object.keys(pg.S.projects).length===n0+1&&!MorfisFreelance.get(j.id)&&!!p.folderPath;' +
+    'document.querySelector("#dkSide [data-go=timeline]").click();await wait(700);o.tlJobs=document.querySelectorAll("#view .tl-row.tl-fl").length;o.tlRows=document.querySelectorAll("#view .tl-row").length;' +
+    'document.querySelector("#dkSide [data-go=home]").click();await wait(700);o.homeJobs=document.querySelectorAll("#view .fl-over .fl-card").length;' +
+    'var t0=document.documentElement.dataset.theme;document.querySelector("[data-act=toggleTheme]").click();await wait(500);o.theme=document.documentElement.dataset.theme!==t0;document.querySelector("[data-act=toggleTheme]").click();await wait(500);o.themeBack=document.documentElement.dataset.theme===t0;' +
+    '}catch(e){o.err5=String(e&&e.stack||e)}return JSON.stringify(o)})()')));
+  await shot(w, '65-home-freelance');
+  await js(w, 'document.querySelector("#dkSide [data-go=timeline]").click()'); await wait(800); await shot(w, '66-timeline-freelance');
+  console.log('v1.10:', JSON.stringify(v10));
 
   console.log('page errors:', errors.length ? errors : 'none');
   const pdir = path.join(profile, 'data', 'projects');
@@ -484,8 +530,12 @@ app.whenReady().then(async () => {
   expect(fl.page && fl.dels === 3 && fl.done === 1 && fl.paid === 20000 && fl.made && fl.onDisk && fl.saved >= 1 && fl.moved && fl.jobs === 2 && fl.cards >= 1, 'freelance jobs: ' + JSON.stringify(fl));
   expect(!ro.err && !ro.err2 && ro.needed && ro.planFree === 1 && ro.mainRoot === ro.root0 && /Direct Projects$/.test(ro.root1) && ro.cpGone && /^FL I/.test(ro.jobCode || '') && ro.renders && ro.models && ro.five && ro.oldSubGone && ro.cpOldGone && ro.dpMoved && ro.oldJobMoved && ro.canUndo && !(ro.failed || []).length, 'reorganise into Direct Projects and Freelance Projects: ' + JSON.stringify(ro));
   expect(ro.groups === 2 && ro.jobCards >= 2 && ro.browse >= 1 && ro.jobRootDirs === 5 && /Delete the project/.test(ro.delItem || ''), 'Files: freelance jobs browsed like projects, Delete the project for a project with no folder: ' + JSON.stringify(ro));
+  expect(!ro.errRn && /Direct Projects( \(\d+\))?$/.test(ro.rn1) && ro.rnDp && ro.rnJob && /! Direct Projects$/.test(ro.rn2) && ro.rnDp2 && ro.rnJob2, 'renaming the main folders: ' + JSON.stringify(ro));
   expect(ro.root2 === ro.root0 && !ro.mainRoot2 && ro.cpBack && ro.jobs2 === ro.jobs0 && ro.undoDisk && ro.dpBack === ro.dpOld, 'undoing the reorganisation: ' + JSON.stringify(ro));
   expect(!np.err && !np.err2 && np.sorted === 1 && np.suspect && np.logged >= 2 && np.note && np.gone && np.marked && np.undone >= 2 && !(np.failed || []).length && np.fileBack && np.left === 'HDRI,a.jpg' && np.importRows === 0, 'a folder that is not a project put back as it was: ' + JSON.stringify(np));
+  expect(!v10.err && !v10.err2 && !v10.err3 && !v10.err4 && !v10.err5 && v10.chooser && v10.directForm && v10.newJob, 'New project: choose Direct or Freelance: ' + JSON.stringify(v10));
+  expect(v10.br && v10.brDirs >= 5 && v10.inside && v10.dd && v10.status === 'completed' && v10.briefH === 300, 'freelance job: folders browsed in place, status from the dropdown, brief height kept: ' + JSON.stringify(v10));
+  expect(v10.dCards >= 2 && v10.dBr && v10.dBrDirs >= 5 && v10.toDirect && v10.tlJobs >= 1 && v10.homeJobs >= 1 && v10.theme && v10.themeBack, 'Direct projects page, freelance to direct, Home shows jobs, theme switch: ' + JSON.stringify(v10));
   console.log(fails.length ? 'SMOKE FAILED: ' + fails.join('; ') : 'SMOKE PASSED');
   app.exit(fails.length ? 1 : 0);
 });

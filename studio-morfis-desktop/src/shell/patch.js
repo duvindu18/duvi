@@ -32,7 +32,7 @@ const HOOK = [
   '  renderAll: function () { renderAll(); }, today: function () { return TODAY; },',
   '  money: money, fd: fd, esc: esc, icon: icon, member: member, invoiceInfo: invoiceInfo, invoiceModel: invoiceModel, invoiceNo: invoiceNo,',
   '  milestoneAmount: milestoneAmount, projectFinance: projectFinance, stageProgress: stageProgress, overdueCount: overdueCount, normProject: normProject,',
-  '  brandName: brandName, brandIcon: brandIcon, rescanProject: rescanProject, projDir: projDir, subDir: subDir, dirNameOf: dirNameOf, planArrangement: planArrangement,',
+  '  brandName: brandName, brandIcon: brandIcon, rescanProject: rescanProject, projDir: projDir, subDir: subDir, dirNameOf: dirNameOf, planArrangement: planArrangement, makeProject: makeProject, nextProjectCode: nextProjectCode, projectProgress: projectProgress,',
   '  STAGES: STAGES, FOLDER_TEMPLATES: FOLDER_TEMPLATES, openReminders: function () { A.openReminders(); }, newProject: function () { A.newProject(); }',
   '};',
   '(function () {',
@@ -96,6 +96,13 @@ function rules(o) {
     ["return icon ? '<img src=\"' + esc(icon) + '\" alt=\"\" width=\"' + size + '\" height=\"' + size + '\" draggable=\"false\">' : esc(brandName().charAt(0).toUpperCase() || 'M');",
       "return '<img src=\"' + esc(icon || 'app-icon.png') + '\" alt=\"\" width=\"' + size + '\" height=\"' + size + '\" draggable=\"false\">';", true],
     ["'<div class=\"brand-row\"><span class=\"brand-prev' + (has ? ' has-img' : '') + '\" aria-hidden=\"true\">'", "'<div class=\"brand-row\"><span class=\"brand-prev has-img\" aria-hidden=\"true\">'", true],
+    /* Timeline: freelance jobs get a row too, a bar from the day the brief came in to the due date */
+    ["function viewTimeline() {\n  if (!Object.keys(S.projects).length) return emptyAll();\n  const list = tlList();\n  if (!list.length) return tlHead(list, 'Nothing to show for this filter.') + noMatch();\n  let s0 = TODAY, s1 = TODAY;\n  list.forEach((p) => { if (p.stages[0].start < s0) s0 = p.stages[0].start; if (p.stages[6].end > s1) s1 = p.stages[6].end; });",
+     "function viewTimeline() {\n  const FLJ = (window.MorfisFreelance && window.MorfisFreelance.timeline) ? window.MorfisFreelance.timeline(S.ui.status) : [];\n  if (!Object.keys(S.projects).length && !FLJ.length) return emptyAll();\n  const list = tlList();\n  if (!list.length && !FLJ.length) return tlHead(list, 'Nothing to show for this filter.') + noMatch();\n  let s0 = TODAY, s1 = TODAY;\n  list.forEach((p) => { if (p.stages[0].start < s0) s0 = p.stages[0].start; if (p.stages[6].end > s1) s1 = p.stages[6].end; });\n  FLJ.forEach((j) => { if (j.start < s0) s0 = j.start; if (j.end > s1) s1 = j.end; });", true],
+    ["  }).join('');\n  const guides = ticks.map((t) => '<i class=\"tl-g\"",
+     "  }).join('') + FLJ.map((j) => {\n    const left = X(j.start), w = Math.max(6, (diffDays(j.start, j.end) + 1) * ppd - 2);\n    return '<div class=\"tl-row tl-fl\" role=\"button\" tabindex=\"0\" data-fl-tl=\"' + esc(j.id) + '\" aria-label=\"Open ' + esc(j.title) + '\">' +\n      '<div class=\"tl-label\"><b title=\"' + esc(j.title) + '\">' + esc(j.title) + '</b><span class=\"mono\">' + esc(j.code) + '</span><span class=\"tl-st\">Freelance</span></div>' +\n      '<div class=\"tl-track\"><i class=\"tl-seg ' + j.state + '\" style=\"left:' + left.toFixed(1) + 'px;width:' + w.toFixed(1) + 'px\" title=\"' + esc(j.title + ': ' + fd(j.start) + ' to ' + fd(j.end) + ', ' + j.done + ' of ' + j.of + ' delivered') + '\">' + (j.state === 'cur' ? '<em style=\"width:' + j.pct + '%\"></em>' : '') + (w >= 104 ? '<span>' + esc(j.label) + '</span>' : '') + '</i></div></div>';\n  }).join('');\n  const guides = ticks.map((t) => '<i class=\"tl-g\"", true],
+    ["  return tlHead(list, list.length + ' project' + (list.length === 1 ? '' : 's') + ', ' + fd(first) + ' to ' + fd(last) + '. Click a row to open it.') +",
+     "  return tlHead(list, list.length + ' project' + (list.length === 1 ? '' : 's') + (FLJ.length ? ' and ' + FLJ.length + ' freelance job' + (FLJ.length === 1 ? '' : 's') : '') + ', ' + fd(s0 < first ? s0 : first) + ' to ' + fd(last) + '. Click a row to open it.') +", true],
     ['/* ----- start ----- */\n(function boot() {', '/* ----- start ----- */\n' + HOOK + '(function boot() {', true],
     ["(HOST ? ' The installed program file and its desktop shortcut keep the original icon.' : '')",
       "(HOST ? ' The Start menu entry, desktop and taskbar shortcuts and the Apps list follow it too.' : '')", false],
@@ -118,7 +125,7 @@ function build(html, o) {
 }
 
 const STYLES = ['vendor/leaflet/leaflet.css', 'theme.css', 'desktop.css', 'views.css', 'mono.css'];
-const SCRIPTS = ['vendor/leaflet/leaflet.js', 'folder-art.js', 'desktop.js', 'preview.js', 'files.js', 'folder-log.js', 'folder-setup.js', 'docs.js', 'freelance.js', 'reorganise.js', 'automations.js'];
+const SCRIPTS = ['vendor/leaflet/leaflet.js', 'folder-art.js', 'desktop.js', 'preview.js', 'files.js', 'folder-log.js', 'folder-setup.js', 'docs.js', 'browser.js', 'freelance.js', 'direct.js', 'reorganise.js', 'automations.js'];
 /* the phone page adds its own layout and controls after the desktop ones */
 const REMOTE_STYLES = ['remote.css'], REMOTE_SCRIPTS = ['remote.js'];
 function tail(base, remote) {

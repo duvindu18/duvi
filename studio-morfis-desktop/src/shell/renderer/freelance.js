@@ -24,7 +24,7 @@
   ];
 
   /* ----- records ----- */
-  function load() { return H.kvGet(KEY).then(function (v) { JOBS = Array.isArray(v) ? v : []; loaded = true; M.redrawSide(); return JOBS; }, function () { loaded = true; return JOBS; }); }
+  function load() { return H.kvGet(KEY).then(function (v) { JOBS = Array.isArray(v) ? v : []; var first = !loaded; loaded = true; M.redrawSide(); if (first && pg() && pg().S.ready && pg().S.ui.view === 'timeline') pg().renderAll(); return JOBS; }, function () { loaded = true; return JOBS; }); }
   var saveT = 0;
   function save(now) { clearTimeout(saveT); var go = function () { H.kvSet(KEY, JOBS).catch(function () { M.toast('Could not save the freelance jobs.'); }); M.redrawSide(); }; if (now) go(); else saveT = setTimeout(go, 400); }
   var byId = function (id) { return JOBS.find(function (j) { return j.id === id; }); };
@@ -32,7 +32,7 @@
   var statusOf = function (j) { return A.STATUS[j.status] ? j.status : 'in_progress'; };
   var isOpen = function (j) { var s = statusOf(j); return s !== 'completed' && s !== 'cancelled'; };
   /* after the main folder is split (Files > Reorganise), jobs live in <main>/Freelance Projects; before, in <projects>/Freelance */
-  var root = function () { var st = pg().S.settings, m = st.mainRoot || ''; if (m) return M.jn(m, 'Freelance Projects'); var r = st.root || ''; return r ? M.jn(r, 'Freelance') : ''; };
+  var root = function () { var st = pg().S.settings, m = st.mainRoot || ''; if (m) return M.jn(m, (st.groupNames && st.groupNames.free) || 'Freelance Projects'); var r = st.root || ''; return r ? M.jn(r, 'Freelance') : ''; };
   var safeName = function (s) { return String(s || '').replace(/[<>:"\/\\|?*\u0000-\u001F]/g, ' ').replace(/\s+/g, ' ').replace(/[. ]+$/, '').trim(); };
   var folderName = function (j) { return safeName(j.code + ' I ' + (j.title || 'Untitled job')); };
   var dirOf = function (j) { return j.folder || (root() ? M.jn(root(), folderName(j)) : ''); };
@@ -118,9 +118,9 @@
       '<div class="fx-head"><div class="fx-ptitle"><div class="fx-ptitle-art">' + A.folder({ status: st, count: d.of }) + '</div><div style="min-width:0;flex:1">' +
       '<input class="fl-h1" data-fl-f="title" value="' + esc(j.title) + '" placeholder="Name of the job">' +
       '<div class="fx-pmeta"><span class="mono">' + esc(j.code) + '</span>' + A.statusTag(st) + '<span class="' + (late(j) ? 'fl-late' : 'muted') + '">' + esc(dueText(j)) + '</span><span class="muted">' + d.n + ' of ' + d.of + ' delivered</span></div></div></div>' +
-      '<div class="toolbar"><button type="button" class="btn" data-fl-act="invoice">' + ic('documents', 15) + 'Make the invoice</button><button type="button" class="btn danger ghost" data-fl-act="delete">Delete</button></div></div>' +
+      '<div class="toolbar"><button type="button" class="btn" data-fl-act="invoice">' + ic('documents', 15) + 'Make the invoice</button><button type="button" class="btn" data-fl-act="toDirect">' + ic('layers', 15) + 'Move to Direct projects</button><button type="button" class="btn danger ghost" data-fl-act="delete">Delete</button></div></div>' +
       '<div class="fl-cols"><div class="fl-main">' +
-        '<section class="card stack"><div class="fx-sec-h" style="margin:0"><h2>Client’s brief</h2></div><textarea class="in" data-fl-f="brief" rows="7" placeholder="Paste the client’s requirements: what to model, drawings needed, render views, sizes, styles, references, file formats.">' + esc(j.brief) + '</textarea></section>' +
+        '<section class="card stack"><div class="fx-sec-h" style="margin:0"><h2>Client’s brief</h2></div><textarea class="in" data-fl-f="brief" rows="7"' + (briefH() ? ' style="height:' + briefH() + 'px"' : '') + ' placeholder="Paste the client’s requirements: what to model, drawings needed, render views, sizes, styles, references, file formats.">' + esc(j.brief) + '</textarea></section>' +
         '<section class="card stack"><div class="fx-sec-h" style="margin:0"><h2>Deliverables</h2><span class="count">' + d.n + ' / ' + d.of + '</span></div>' +
           '<div class="fl-dels">' + (j.deliverables || []).map(deliverable).join('') + '</div>' +
           '<div class="au-presets" style="justify-content:flex-start">' + Object.keys(KINDS).map(function (k) { return '<button type="button" class="chip-btn" data-fl-add="' + k + '">' + ic('plus', 12) + esc(KINDS[k]) + '</button>'; }).join('') + '</div></section>' +
@@ -138,14 +138,22 @@
         (st === 'completed' ? fld('Delivered on', inp('delivered', j.delivered, 'date')) : '') +
       '</aside></div>';
   }
+  var briefH = function () { try { return +localStorage.getItem('morfis:fl:briefH') || 0; } catch (e) { return 0; } };
   var COUNTS = {};
+  /* the job's folder, browsed right here */
+  var BR = null, brFor = '';
+  function browser(j) {
+    if (!BR || brFor !== j.id) {
+      brFor = j.id;
+      BR = window.MorfisBrowser ? window.MorfisBrowser.make({ dir: function () { var x = byId(brFor); return x && x.folderMade ? dirOf(x) : ''; }, label: function () { var x = byId(brFor); return x ? x.code : 'Folder'; }, onChange: function () { lastHtml = ''; draw(); } }) : null;
+    }
+    return BR;
+  }
   function folderBox(j, dir) {
     if (!dir) return '<p class="muted small">Choose the projects folder in Settings first.</p>';
-    var made = !!j.folderMade;
-    if (made && !COUNTS[j.id]) countFiles(j, dir);
+    var made = !!j.folderMade, b = made && browser(j);
     return '<div class="fx-path mono" title="' + esc(dir) + '">' + esc(dir) + '</div>' +
-      (made ? '<div class="fl-folders">' + TEMPLATES.map(function (t) { var n = (COUNTS[j.id] || {})[t.id]; return '<button type="button" class="fl-fold" data-fl-dir="' + esc(t.name) + '" title="Open ' + esc(t.label) + '">' + A.folder({ num: t.id, count: n || 0 }) + '<b>' + esc(t.label) + '</b><span class="muted small">' + (n == null ? '…' : n + ' file' + (n === 1 ? '' : 's')) + '</span></button>'; }).join('') + '</div>' +
-        '<div class="toolbar"><button type="button" class="btn sm" data-fl-act="browse">' + ic('files', 14) + 'Browse the files</button><button type="button" class="btn sm" data-fl-act="openDir">' + ic('ext', 14) + 'Open in File Explorer</button><button type="button" class="btn sm" data-fl-act="recount">' + ic('refresh', 14) + 'Read again</button></div>' :
+      (made ? (b ? b.html() : '<div class="toolbar"><button type="button" class="btn sm" data-fl-act="openDir">' + ic('ext', 14) + 'Open in File Explorer</button></div>') :
         '<p class="small muted">A folder for the job with five folders inside: ' + TEMPLATES.map(function (t) { return esc(t.name); }).join(', ') + '.</p><div class="toolbar"><button type="button" class="btn sm primary" data-fl-act="mkdir">Create the folder' + ic('plus', 14) + '</button></div>');
   }
   function countFiles(j, dir) {
@@ -156,7 +164,7 @@
   }
 
   /* ----- drawing ----- */
-  var EL = null, lastHtml = '';
+  var EL = null, lastHtml = '', drawn = null;
   function draw() {
     if (!EL || M.current() !== 'freelance') return;
     if (!loaded) { EL.innerHTML = '<div class="fx-empty"><i class="spin"></i> Loading…</div>'; load().then(draw); return; }
@@ -165,12 +173,15 @@
     var html = j ? jobView(j) : listView();
     if (html === lastHtml) return;
     /* keep what is being typed: redraw only when the focus is not in a field of this view */
-    var a = document.activeElement;
-    if (a && EL.contains(a) && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && /^(text|number|search|email)$/.test(a.type)))) return;
+    /* (only while staying on the same page: moving to another job or the list always draws) */
+    var a = document.activeElement, place = F.open || '';
+    if (place === drawn && a && EL.contains(a) && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && /^(text|number|search|email)$/.test(a.type)))) return;
+    drawn = place;
     lastHtml = html; var y = EL.scrollTop; EL.innerHTML = html; EL.scrollTop = y;
+    if (j && BR && brFor === j.id) BR.mount(EL);
     M.crumb();
   }
-  function touch(j, redraw) { j.updated = new Date().toISOString(); save(); if (redraw) { lastHtml = ''; draw(); } window.dispatchEvent(new CustomEvent('morfis:freelance', { detail: { id: j.id } })); }
+  function touch(j, redraw) { M.redrawSide(); j.updated = new Date().toISOString(); save(); if (redraw) { lastHtml = ''; draw(); } window.dispatchEvent(new CustomEvent('morfis:freelance', { detail: { id: j.id } })); }
 
   /* ----- actions ----- */
   function newJob(o) {
@@ -208,11 +219,46 @@
     var st = A.statusOf(p, today());
     var j = newJob({ code: p.code, title: p.name, client: (p.client && p.client.name) || '', contact: (p.client && p.client.contact) || '', platform: 'Direct client',
       brief: [p.type, p.location, p.notes].filter(Boolean).join(' · '), received: p.startDate || today(), due: (p.stages && p.stages.length ? p.stages[p.stages.length - 1].end : '') || M.addDays(today(), 7),
-      status: st, fee: +p.budget || 0, folder: pg().projDir(p), folderMade: !!p.foldersCreated, delivered: st === 'completed' ? today() : '', project: JSON.parse(JSON.stringify(p)) });
+      status: st, fee: +p.budget || 0, folder: pg().projDir(p), folderMade: !!(p.foldersCreated && !p.dirMissing), delivered: st === 'completed' ? today() : '', project: JSON.parse(JSON.stringify(p)) });
     delete pg().S.projects[pid];
     H.storeSet('p', pid, null).then(function () { pg().renderAll(); }, function () { M.toast('Could not remove the project record.'); });
-    M.toast(p.name + ' is now a freelance job.');
+    /* once the main folder is split, its folder goes to Freelance Projects and is sorted into the freelance folders */
+    if (j.folderMade && pg().S.settings.mainRoot) {
+      H.movePath(j.folder, M.jn(root(), folderName(j)), 'Move ' + j.code + ' to Freelance Projects').then(function (r) {
+        j.folder = r.to; touch(j, true);
+        return window.MorfisReorg ? window.MorfisReorg.sortInside(r.to, 'Sort ' + j.code) : null;
+      }).then(function () { if (BR) BR.reload(); M.toast(p.name + ' is now a freelance job, in Freelance Projects.'); }, function (e) { M.toast('It is a freelance job, but its folder could not be moved: ' + ((e && e.message) || 'error')); });
+    } else M.toast(p.name + ' is now a freelance job.');
     return j;
+  }
+  /* back the other way: a freelance job that turned into a full project */
+  function toDirect(id) {
+    var j = byId(id); if (!j) return;
+    if (!window.confirm('Move ' + (j.title || j.code) + ' to Direct projects? It becomes a project with stages, tasks and milestone invoices' + (j.folderMade && pg().S.settings.mainRoot ? ', and its folder moves to Direct Projects' : '') + '. The files inside stay as they are.')) return;
+    var S = pg().S, p;
+    if (j.project && j.project.id && j.project.stages) p = JSON.parse(JSON.stringify(j.project));
+    else {
+      var codes = Object.values(S.projects).map(function (x) { return x.code; });
+      p = pg().makeProject({ code: pg().nextProjectCode(codes, +today().slice(0, 4), S.settings.codeFormat), name: j.title || j.code, clientName: j.client, clientContact: j.contact,
+        location: '', budget: +j.fee || 0, retainPct: S.settings.retainPct, startDate: j.received || today(), team: [] }, S.settings.team);
+    }
+    p.name = j.title || p.name; p.client = p.client || {}; p.client.name = j.client || p.client.name || ''; p.budget = +j.fee || p.budget || 0;
+    if (S.projects[p.id]) p.id = M.uid('p');
+    p.workStatus = statusOf(j);
+    p.status = statusOf(j) === 'completed' || statusOf(j) === 'cancelled' ? 'closed' : 'active';
+    var move = Promise.resolve();
+    if (j.folderMade && j.folder) {
+      if (S.settings.mainRoot) move = H.movePath(j.folder, M.jn(S.settings.root, pg().dirNameOf(p)), 'Move ' + p.code + ' to Direct Projects').then(function (r) { p.folderPath = r.to; });
+      else p.folderPath = j.folder;
+      move = move.then(function () { p.foldersCreated = p.foldersCreated || today(); p.dirMissing = false; return H.mkdirs(pg().FOLDER_TEMPLATES.map(function (t) { return M.jn(p.folderPath, t.name); }), 'Standard folders for ' + p.code); });
+    } else { p.folderPath = ''; p.foldersCreated = ''; }
+    return move.then(function () {
+      S.projects[p.id] = p; pg().commit(p);
+      JOBS = JOBS.filter(function (x) { return x !== j; }); F.open = null; save(true); lastHtml = ''; draw();
+      M.toast((j.title || j.code) + ' is now a direct project.', { label: 'Open', fn: function () { if (window.MorfisDirect) window.MorfisDirect.open(p.id); else M.go('project', { id: p.id }); } });
+      pg().rescanProject(p, { force: true, quiet: true }).then(function () { pg().renderAll(); });
+      return p;
+    }, function (e) { M.toast('Could not move the folder: ' + ((e && e.message) || 'error') + '. Nothing was changed.'); });
   }
 
   function bind(el) {
@@ -221,6 +267,7 @@
     el.addEventListener('click', function (e) {
       if (M.current() !== 'freelance') return;
       var t = e.target, b, j = F.open && byId(F.open);
+      if (j && BR && brFor === j.id && BR.handle(e)) return;
       if ((b = t.closest('[data-fl-open]'))) { F.open = b.dataset.flOpen; lastHtml = ''; draw(); EL.scrollTop = 0; M.crumb(); return; }
       if ((b = t.closest('[data-fl-filter]'))) { F.filter = b.dataset.flFilter; draw(); return; }
       if ((b = t.closest('[data-fl-add]')) && j) { j.deliverables = (j.deliverables || []).concat([{ id: M.uid('d'), kind: b.dataset.flAdd, label: KINDS[b.dataset.flAdd], qty: 1, done: false }]); touch(j, true); return; }
@@ -238,6 +285,7 @@
       else if (a === 'openDir' && j) H.openPath(dirOf(j)).catch(function () { M.toast('The folder is not there.'); });
       else if (a === 'recount' && j) { delete COUNTS[j.id]; lastHtml = ''; draw(); }
       else if (a === 'invoice' && j) invoice(j);
+      else if (a === 'toDirect' && j) toDirect(j.id);
       else if (a === 'delete' && j) { if (!window.confirm('Delete the job ' + (j.title || j.code) + '? Its folder on the computer stays.')) return; JOBS = JOBS.filter(function (x) { return x !== j; }); F.open = null; save(true); lastHtml = ''; draw(); }
     });
     var field = function (e, final) {
@@ -259,8 +307,25 @@
     };
     el.addEventListener('input', function (e) { if (M.current() === 'freelance' && e.target.type !== 'checkbox' && e.target.tagName !== 'SELECT') field(e, false); });
     el.addEventListener('change', function (e) { if (M.current() === 'freelance') field(e, true); });
-    el.addEventListener('focusout', function () { setTimeout(function () { if (!EL.contains(document.activeElement) || !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) { lastHtml = ''; draw(); } }, 0); });
-    el.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-fl-open]')) { e.preventDefault(); e.target.click(); } });
+    /* leaving a text field applies it; but a dropdown being opened must not be redrawn under the pointer (its list
+       would then belong to a select that is no longer on the page, and the choice would be lost) */
+    el.addEventListener('focusout', function (e) {
+      if (!/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+      setTimeout(function () {
+        var a = document.activeElement;
+        if (document.querySelector('.dd-pop') || (a && a.closest && a.closest('.sel,.dd-btn,.dd-pop'))) return;
+        if (!EL.contains(a) || !/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) { lastHtml = ''; draw(); }
+      }, 0);
+    });
+    /* the brief keeps the height it is dragged to */
+    el.addEventListener('mouseup', function (e) {
+      var t = e.target; if (!t.matches || !t.matches('textarea[data-fl-f="brief"]')) return;
+      var h = Math.round(t.offsetHeight); if (Math.abs(h - briefH()) < 2) return;
+      try { localStorage.setItem('morfis:fl:briefH', String(h)); } catch (x) { /* ignore */ }
+    });
+    el.addEventListener('dblclick', function (e) { if (M.current() === 'freelance' && BR) BR.dbl(e); });
+    el.addEventListener('keydown', function (e) {
+      if (M.current() === 'freelance' && BR && BR.key2(e)) return; if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-fl-open]')) { e.preventDefault(); e.target.click(); } });
   }
 
   M.register('freelance', {
@@ -276,7 +341,14 @@
     all: function () { return JOBS; },
     open: function (id) { M.go('freelance', { id: id }); },
     newJob: newJob,
-    fromProject: fromProject,
+    fromProject: fromProject, toDirect: toDirect,
+    /* rows for the Timeline: the dashboard's Active / Closed / All filter applies */
+    timeline: function (filter) {
+      return JOBS.filter(function (j) { return filter === 'all' || (filter === 'closed' ? !isOpen(j) : isOpen(j)); }).filter(function (j) { return j.received || j.due; }).map(function (j) {
+        var d = done(j), st = statusOf(j), start = j.received || j.due, end = j.due && j.due >= start ? j.due : start;
+        return { id: j.id, title: j.title || 'Untitled job', code: j.code, start: start, end: end, state: st === 'completed' || st === 'cancelled' ? 'done' : start > today() ? 'next' : 'cur', pct: d.of ? Math.round(d.n * 100 / d.of) : 0, done: d.n, of: d.of, label: dueText(j) || 'Freelance' };
+      }).sort(function (a, b) { return a.start.localeCompare(b.start); });
+    },
     get: byId, dirOf: dirOf, root: root, folderName: folderName, statusOf: statusOf, done: done, dueText: dueText, templates: TEMPLATES, platforms: PLATFORMS,
     makeFolder: function (j) { makeFolder(j); },
     /* a job record from another part of the app (the reorganisation): added without opening it */
@@ -298,6 +370,52 @@
       return out;
     }
   };
+  /* Home and Projects show the dashboard's projects; the freelance jobs under way are shown there too */
+  function overview() {
+    var pgx = pg(); if (!pgx || !pgx.S.ready || !loaded) return;
+    var v = pgx.S.ui.view, view = document.getElementById('view');
+    if (!view || (v !== 'home' && v !== 'projects' && v !== undefined && v !== '' && v !== 'dashboard')) return;
+    if (view.querySelector('.fl-over')) return;
+    var open = JOBS.filter(isOpen).sort(function (a, b) { return String(a.due || '9').localeCompare(String(b.due || '9')); });
+    if (!open.length) return;
+    var html = '<section class="fl-over"><div class="sec-head"><h2>Freelance jobs under way</h2><span class="count">' + open.length + '</span><button type="button" class="btn sm" data-fl-over="all" style="margin-left:auto">All freelance jobs</button></div>' +
+      '<div class="fl-grid" style="margin-top:16px">' + open.slice(0, 8).map(card).join('') + '</div></section>';
+    var empty = view.querySelector(':scope > .empty');
+    if (empty) { empty.insertAdjacentHTML('beforebegin', html); empty.classList.add('fl-empty-small'); return; }
+    /* Projects: below the project cards; Home: after the cash flow and the week ahead */
+    var after = v === 'projects' ? view.lastElementChild : (view.querySelector(':scope > .split') || view.querySelector(':scope > .hero'));
+    if (after) after.insertAdjacentHTML('afterend', html); else view.insertAdjacentHTML('beforeend', html);
+  }
+  window.addEventListener('morfis:render', function () { setTimeout(overview, 0); });
+  document.addEventListener('click', function (e) { var r = e.target.closest && e.target.closest('#view [data-fl-tl]'); if (r) M.go('freelance', { id: r.dataset.flTl }); });
+  document.addEventListener('keydown', function (e) { var r = e.target.closest && e.target.closest('#view [data-fl-tl]'); if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); M.go('freelance', { id: r.dataset.flTl }); } });
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('#view .fl-over [data-fl-open], #view [data-fl-over]');
+    if (!b) return;
+    if (b.dataset.flOpen) M.go('freelance', { id: b.dataset.flOpen }); else M.go('freelance');
+  });
+
+  /* New project: a direct project (stages, tasks, invoices) or a freelance job (brief, deliverables, fee) */
+  var CHOOSING = false;
+  function choose(kind) {
+    if (kind === 'freelance') { newJob(); return; }
+    if (kind === 'direct') { CHOOSING = true; try { pg().newProject(); } finally { CHOOSING = false; } return; }
+    M.modal('New project',
+      '<div class="np-pick">' +
+      '<button type="button" class="np-opt" data-np-kind="direct">' + ic('layers', 22) + '<b>Direct project</b><span class="muted small">The studio’s own project: seven stages, the task checklist, milestone invoices and the six folders, in Direct Projects.</span></button>' +
+      '<button type="button" class="np-opt" data-np-kind="freelance">' + ic('briefcase', 22) + '<b>Freelance job</b><span class="muted small">An online job from a client’s brief: deliverables (3D, drawings, renders), deadline, fee and revisions, in Freelance Projects.</span></button>' +
+      '</div>');
+    document.querySelectorAll('#overlay [data-np-kind]').forEach(function (b) { b.addEventListener('click', function () { var k = b.dataset.npKind; pg().closeModal(); setTimeout(function () { choose(k); }, 30); }); });
+  }
+  M.newProject = choose;
+  document.addEventListener('click', function (e) {
+    if (CHOOSING) return;
+    var b = e.target.closest && e.target.closest('[data-act="newProject"]');
+    if (!b || window.MORFIS_REMOTE && !pg()) return;
+    e.stopImmediatePropagation(); e.preventDefault();
+    choose();
+  }, true);
+
   /* records changed on the phone (or, on the phone, on the computer) */
   if (H.onStore) H.onStore(function (ev) { if (ev && ev.t === 'kv' && ev.key === KEY) window.MorfisFreelance.reload(); });
   load();

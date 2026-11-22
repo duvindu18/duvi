@@ -233,9 +233,8 @@
     });
     var jl = jobs(), R = window.MorfisReorg;
     return '<div class="fx-head"><div><h1>Files</h1><p class="muted">Project folders in <span class="mono">' + esc(mainRoot()) + '</span>. Drop files onto a folder to copy them in.</p></div>' +
-      '<div class="toolbar">' + viewToggle() + '<button type="button" class="btn" data-fx-act="setup">' + ic('settings', 15) + 'Folder setup</button><button type="button" class="btn" data-fx-act="import">' + ic('upload', 15) + 'Import folders</button><button type="button" class="btn" data-fx-act="openRoot">' + ic('ext', 15) + 'Open in Explorer</button>' +
-      (window.MorfisLog ? '<button type="button" class="btn" data-fx-act="log">' + ic('list', 15) + 'Change log</button>' : '') +
-      (R && R.canUndo() ? '<button type="button" class="btn" data-fx-act="reorgUndo">' + ic('refresh', 15) + 'Undo the reorganisation</button>' : '') + '</div></div>' + reorgNote() +
+      '<div class="toolbar">' + viewToggle() + '<button type="button" class="btn" data-fx-act="import">' + ic('upload', 15) + 'Import folders</button><button type="button" class="btn" data-fx-act="openRoot">' + ic('ext', 15) + 'Open in Explorer</button>' +
+      '<button type="button" class="btn" data-fx-act="more" aria-label="More">' + ic('dots', 15) + 'More</button></div></div>' + reorgNote() +
       '<section><div class="fx-sec-h"><h2>Direct projects</h2><span class="count">' + list.length + '</span></div>' +
       (list.length ? (F.view === 'grid' ? '<div class="fx-grid">' + list.map(projectCard).join('') + '</div>' : projectTable(list)) : emptyRoot()) + '</section>' +
       (FL() ? '<section><div class="fx-sec-h"><h2>Freelance projects</h2><span class="count">' + jl.length + '</span></div>' +
@@ -351,13 +350,14 @@
     var p = F.pid && pg().P(F.pid), j = F.job && FL() && FL().get(F.job);
     if (F.pid && !p) { F.pid = null; F.fid = null; F.sub = ''; }
     if (F.job && !j) { F.job = null; F.jrel = ''; }
-    var html = '<div class="fx">' + tree() + '<div class="fx-main">' + crumbs() + (j ? jobView(j) : p ? (F.fid ? folderView(p) : projectView(p)) : rootView()) + '</div></div>';
+    var html = '<div class="fx">' + tree() + '<div class="fx-main' + (!j && !p ? ' fx-rootv' : '') + '">' + crumbs() + (j ? jobView(j) : p ? (F.fid ? folderView(p) : projectView(p)) : rootView()) + '</div></div>';
     /* the page redraws often (every save); when nothing here changed, leave the DOM, its scroll and its thumbnails alone */
     if (html === lastHtml && EL.querySelector('.fx')) { M.crumb(); return; }
     lastHtml = html;
     var y = EL.querySelector('.fx-main') ? EL.querySelector('.fx-main').scrollTop : 0, ty = EL.querySelector('.fx-nodes') ? EL.querySelector('.fx-nodes').scrollTop : 0;
     EL.innerHTML = html;
     var m = EL.querySelector('.fx-main'); if (m) m.scrollTop = y;
+    if (F.swap && m) { F.swap = false; m.classList.add('fx-swap'); setTimeout(function () { m.classList.remove('fx-swap'); }, 160); }
     var n = EL.querySelector('.fx-nodes'); if (n) n.scrollTop = ty;
     loadThumbs(EL);
     M.crumb();
@@ -368,7 +368,7 @@
       var cut = node.indexOf('|'), id = cut === -1 ? node.slice(3) : node.slice(3, cut), rel = cut === -1 ? '' : node.slice(cut + 1);
       var same = F.job === id && F.jrel === rel;
       F.pid = null; F.fid = null; F.sub = ''; F.job = id; F.jrel = rel; F.open['fl:' + id] = true;
-      if (!same) { F.listKey = ''; var mm = EL && EL.querySelector('.fx-main'); if (mm) mm.scrollTop = 0; }
+      if (!same) { F.swap = true; F.listKey = ''; var mm = EL && EL.querySelector('.fx-main'); if (mm) mm.scrollTop = 0; }
       draw(); return;
     }
     F.job = null; F.jrel = '';
@@ -376,7 +376,7 @@
     var samePlace = F.pid === (parts[0] || null) && F.fid === (parts[1] || null) && F.sub === (parts[2] || '');
     F.pid = parts[0] || null; F.fid = parts[1] || null; F.sub = parts[2] || '';
     if (F.pid) F.open[F.pid] = true;
-    if (!samePlace) { F.listKey = ''; var m = EL && EL.querySelector('.fx-main'); if (m) m.scrollTop = 0; }
+    if (!samePlace) { F.swap = true; F.listKey = ''; var m = EL && EL.querySelector('.fx-main'); if (m) m.scrollTop = 0; }
     var p = F.pid && pg().P(F.pid);
     if (p && !F.fid) pg().rescanProject(p, { quiet: true }).then(function (changed) { if (changed) draw(); });
     draw();
@@ -485,6 +485,7 @@
     if (kind === 'j') {
       items = [{ head: j.code + ' · ' + (j.title || '') }, { label: 'Open', icon: 'files', fn: function () { open('fl:' + j.id + '|'); } },
         { label: 'Job page', icon: 'briefcase', fn: function () { FL().open(j.id); } }];
+      items.push({ label: 'Move to Direct projects…', icon: 'layers', fn: function () { FL().toDirect(j.id); } });
       if (j.folderMade) items.push({ label: 'Open in File Explorer', icon: 'ext', fn: function () { openDir(dir); } }, { label: 'Copy folder path', icon: 'copy', fn: function () { copyPath(dir); } });
       else items.push({ label: 'Create the folder', icon: 'plus', fn: function () { FL().makeFolder(j); setTimeout(afterChange, 600); } });
     } else {
@@ -513,8 +514,19 @@
   var ACT = {
     setup: function () { if (window.MorfisFolders) window.MorfisFolders.openSetup().then(function (r) { if (r) draw(); }); },
     import: function () { var b = document.createElement('button'); b.dataset.act = 'openImport'; b.hidden = true; document.body.appendChild(b); b.click(); b.remove(); },
-    newProject: function () { var pgx = pg(); if (pgx) pgx.newProject(); },
+    newProject: function () { if (M.newProject) M.newProject(); else { var pgx = pg(); if (pgx) pgx.newProject(); } },
+    /* the less used tools of the main folder, in one menu */
+    more: function () {
+      var R = window.MorfisReorg, L = window.MorfisLog, btn = EL.querySelector('[data-fx-act="more"]'), items = [];
+      items.push({ label: 'Project folder setup…', icon: 'settings', fn: function () { ACT.setup(); } });
+      if (L) items.push({ label: 'Change log', icon: 'list', fn: function () { L.open(); } }, { label: 'Folders that are not projects…', icon: 'refresh', fn: function () { L.notProjects(); } });
+      if (R && pg().S.settings.mainRoot) items.push({ label: 'Main folder names…', icon: 'documents', fn: function () { R.namesDialog(); } });
+      if (R && R.needed()) items.push({ label: 'Reorganise into Direct and Freelance…', icon: 'layers', fn: function () { R.open(); } });
+      if (R && R.canUndo()) items.push({ sep: true }, { label: 'Undo the reorganisation…', icon: 'refresh', danger: true, fn: function () { R.undo(); } });
+      menu(btn, items);
+    },
     log: function () { window.MorfisLog.open(); },
+    groupNames: function () { window.MorfisReorg.namesDialog(); },
     notProjects: function () { window.MorfisLog.notProjects(); },
     reorg: function () { if (window.MorfisReorg) window.MorfisReorg.open(); },
     reorgUndo: function () { if (window.MorfisReorg) window.MorfisReorg.undo(); },

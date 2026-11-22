@@ -110,6 +110,15 @@ The grid layout of a folder shows the same thumbnails File Explorer does. Files 
 - **Invoices:** *Issue invoice* on a milestone invoice adds it to Payments, so receipts and overdue tracking keep working. The Payments preview has an *Edit invoice* button that opens the same invoice here.
 - **Output:** *Export PDF* (A4, Inter embedded) and *Print*. Both use the same page you edit.
 
+## Direct and freelance, everywhere
+
+- **New project** asks first: a *Direct project* (stages, tasks, milestone invoices, six folders) or a *Freelance job* (brief, deliverables, fee, revisions).
+- **Studio > Direct projects** lists the studio's own projects the way Freelance lists jobs, and each has a page with its progress, money and folder.
+- **Folders in place:** a freelance job's folder and a direct project's folder are browsed on their own page. You can open folders, preview files, add files, make, rename and delete folders, without going to Files.
+- **Moving between them:** *Move to Direct projects* on a job, *Move to Freelance* on a project. The folder moves to the right main folder, and every move is in the Change log.
+- **Home, Projects and Timeline** show freelance jobs under way, and the sidebar's Active projects lists them with a briefcase.
+- **Main folders** are named `! Direct Projects` and `! Freelance Projects`, so File Explorer lists them first when sorting by name. *Files > More > Main folder names* changes them.
+
 ## Direct Projects and Freelance Projects
 
 **Files > Reorganise…** splits the main projects folder once:
