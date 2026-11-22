@@ -110,6 +110,30 @@ The grid layout of a folder shows the same thumbnails File Explorer does. Files 
 - **Invoices:** *Issue invoice* on a milestone invoice adds it to Payments, so receipts and overdue tracking keep working. The Payments preview has an *Edit invoice* button that opens the same invoice here.
 - **Output:** *Export PDF* (A4, Inter embedded) and *Print*. Both use the same page you edit.
 
+## Direct Projects and Freelance Projects
+
+**Files > Reorganise…** splits the main projects folder once:
+
+- **Direct Projects:** every project that is not completed moves here, renamed to the project naming. New projects are made here.
+- **Freelance Projects:** every completed project becomes a freelance job (its project record is kept inside the job). Its folder moves here as `FL I 26 I 046 I Title` (or keeps its code), and what is inside is sorted into 01_Brief_and_References, 02_3D_Models, 03_Drawings, 04_Renders and 05_Delivered. Freelance jobs made before move here too.
+- **Left alone:** folders not named like a project (LIBRARY, Documentation…) are never moved or sorted.
+- **Undo the reorganisation** in Files puts the folders, projects, jobs and settings back.
+
+Files shows both groups in its tree and grid, and freelance job folders are browsed the same way as project folders.
+
+## Change log, and folders that are not projects
+
+Every change the app makes to real folders is logged first: folders made, files copied, sorted, moved or renamed, and items recycled. **Files > Change log** lists the last 90 days, newest first, each with Undo. A folder's card menu has *Change log for this folder*.
+
+**Folders that are not projects** (from the note in Files, the Change log, or *This is not a project…* on a card) takes back what the app did to a folder brought in by Import that is not a project:
+
+- Its folder icons come off, and its own icon returns.
+- Every logged change inside it is undone, newest first: sorted files go back and a rename is reversed.
+- The empty standard folders are removed.
+- It leaves Projects. Nothing of yours is deleted, and Import and Reorganise leave it alone afterwards.
+
+A project with no folder (a draft) can be removed with *Delete the project…* on its card.
+
 ## Freelance jobs
 
 Online jobs (Fiverr, Upwork, a direct client) run differently from studio projects: a client's brief comes in and 3D models, drawings and renderings go out, with no stages, task timeline or six-folder structure. **Studio > Freelance** keeps them apart:

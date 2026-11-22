@@ -313,11 +313,14 @@ const API = {
   scanDir: (d) => fsops.scanDir(d),
   listTree: (d, o) => fsops.listTree(d, o),
   listDir: (b, r) => fsops.listDir(b, r),
-  mkdirs: (d) => ops.mkdirs(d),
+  mkdirs: (d, l) => ops.mkdirs(d, l),
+  journalList: (o) => ops.journalList(o),
+  removeIfEmpty: (d, l) => ops.removeIfEmpty(d, l),
   copyInto: (d, p) => ops.copyInto(d, p),
   applyOps: (b, o, m, l) => ops.applyOps(b, o, m, l),
   undo: (id) => ops.undo(id),
   renameItem: (p, r, n) => ops.renameItem(p, r, n),
+  movePath: (f, t, l) => ops.movePath(f, t, l),
   makeDir: (b, r, n) => ops.makeDir(b, r, n),
   moveItems: (b, r, d, l) => ops.moveItems(b, r, d, l),
   trashItems: (b, r) => ops.trashItems(b, r),
@@ -424,6 +427,7 @@ const API = {
   },
   folderIcon: (o) => folderIcons.apply(o || {}),
   folderIconClear: (dir) => folderIcons.clear(dir),
+  folderIconClearTree: (dir, depth) => folderIcons.clearTree(dir, depth),
   folderIconRefresh: (dirs) => folderIcons.refresh(dirs)
 };
 

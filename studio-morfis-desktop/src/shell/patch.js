@@ -32,7 +32,7 @@ const HOOK = [
   '  renderAll: function () { renderAll(); }, today: function () { return TODAY; },',
   '  money: money, fd: fd, esc: esc, icon: icon, member: member, invoiceInfo: invoiceInfo, invoiceModel: invoiceModel, invoiceNo: invoiceNo,',
   '  milestoneAmount: milestoneAmount, projectFinance: projectFinance, stageProgress: stageProgress, overdueCount: overdueCount, normProject: normProject,',
-  '  brandName: brandName, brandIcon: brandIcon, rescanProject: rescanProject, projDir: projDir, subDir: subDir, planArrangement: planArrangement,',
+  '  brandName: brandName, brandIcon: brandIcon, rescanProject: rescanProject, projDir: projDir, subDir: subDir, dirNameOf: dirNameOf, planArrangement: planArrangement,',
   '  STAGES: STAGES, FOLDER_TEMPLATES: FOLDER_TEMPLATES, openReminders: function () { A.openReminders(); }, newProject: function () { A.newProject(); }',
   '};',
   '(function () {',
@@ -118,7 +118,7 @@ function build(html, o) {
 }
 
 const STYLES = ['vendor/leaflet/leaflet.css', 'theme.css', 'desktop.css', 'views.css', 'mono.css'];
-const SCRIPTS = ['vendor/leaflet/leaflet.js', 'folder-art.js', 'desktop.js', 'preview.js', 'files.js', 'folder-setup.js', 'docs.js', 'freelance.js', 'automations.js'];
+const SCRIPTS = ['vendor/leaflet/leaflet.js', 'folder-art.js', 'desktop.js', 'preview.js', 'files.js', 'folder-log.js', 'folder-setup.js', 'docs.js', 'freelance.js', 'reorganise.js', 'automations.js'];
 /* the phone page adds its own layout and controls after the desktop ones */
 const REMOTE_STYLES = ['remote.css'], REMOTE_SCRIPTS = ['remote.js'];
 function tail(base, remote) {

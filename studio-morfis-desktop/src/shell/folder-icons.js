@@ -72,6 +72,22 @@ class FolderIcons {
     await run('attrib', ['-r', dir]);
     return { ok: true };
   }
+  /* take the app's icons off a folder and every folder inside it (a few levels down); folders' own icons come back */
+  async clearTree(dir, depth) {
+    if (process.platform !== 'win32') return { ok: false, cleared: 0 };
+    let cleared = 0, seen = 0;
+    const visit = async (d, left) => {
+      if (seen++ > 4000) return;
+      const ini = path.join(d, 'desktop.ini');
+      if (fs.existsSync(ini)) { try { if (readIni(ini).indexOf(this.dir) !== -1) { await this.clear(d); cleared++; } } catch (e) { /* leave it */ } }
+      if (left <= 0) return;
+      let list = [];
+      try { list = fs.readdirSync(d, { withFileTypes: true }); } catch (e) { return; }
+      for (const x of list) if (x.isDirectory() && !x.isSymbolicLink()) await visit(path.join(d, x.name), left - 1);
+    };
+    await visit(path.resolve(dir), depth == null ? 4 : depth);
+    return { ok: true, cleared: cleared };
+  }
   /* tell File Explorer these folders changed, so open windows show the new icons without pressing F5 */
   async refresh(dirs) {
     if (process.platform !== 'win32' || !dirs || !dirs.length) return { ok: false };

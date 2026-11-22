@@ -31,8 +31,11 @@
   var today = function () { return pg().today(); };
   var statusOf = function (j) { return A.STATUS[j.status] ? j.status : 'in_progress'; };
   var isOpen = function (j) { var s = statusOf(j); return s !== 'completed' && s !== 'cancelled'; };
-  var root = function () { var r = pg().S.settings.root || ''; return r ? M.jn(r, 'Freelance') : ''; };
-  var dirOf = function (j) { return j.folder || (root() ? M.jn(root(), String(j.code + ' I ' + j.title).replace(/[<>:"\/\\|?*\u0000-\u001F]/g, ' ').replace(/[. ]+$/, '').trim()) : ''); };
+  /* after the main folder is split (Files > Reorganise), jobs live in <main>/Freelance Projects; before, in <projects>/Freelance */
+  var root = function () { var st = pg().S.settings, m = st.mainRoot || ''; if (m) return M.jn(m, 'Freelance Projects'); var r = st.root || ''; return r ? M.jn(r, 'Freelance') : ''; };
+  var safeName = function (s) { return String(s || '').replace(/[<>:"\/\\|?*\u0000-\u001F]/g, ' ').replace(/\s+/g, ' ').replace(/[. ]+$/, '').trim(); };
+  var folderName = function (j) { return safeName(j.code + ' I ' + (j.title || 'Untitled job')); };
+  var dirOf = function (j) { return j.folder || (root() ? M.jn(root(), folderName(j)) : ''); };
   function nextCode() {
     var yy = String(new Date().getFullYear()).slice(2), n = 0;
     JOBS.forEach(function (j) { var m = /^FL I (\d\d) I (\d+)/.exec(j.code || ''); if (m && m[1] === yy) n = Math.max(n, +m[2]); });
@@ -85,11 +88,17 @@
     var rows = list();
     return '<div class="fx-head"><div><h1>Freelance <span class="mono-g">jobs</span></h1><p class="muted">Online jobs from a client’s brief to 3D models, drawings and renderings: the deliverables, the deadline and the fee. No stages or task timelines.</p></div>' +
       '<div class="toolbar"><button type="button" class="btn" data-fl-act="root">' + ic('ext', 15) + 'Open the Freelance folder</button><button type="button" class="btn primary" data-fl-act="new">New job' + ic('plus', 15) + '</button></div></div>' +
-      '<div class="fl-kpis"><div class="kpi"><span class="lbl">Open jobs</span><span class="val">' + open.length + '</span></div><div class="kpi"><span class="lbl">Due in the next 7 days</span><span class="val">' + week + '</span><span class="small ' + (open.some(late) ? 'bad-t' : 'muted') + '">' + (open.filter(late).length ? open.filter(late).length + ' late' : 'None late') + '</span></div>' +
+      reorgNote() + '<div class="fl-kpis"><div class="kpi"><span class="lbl">Open jobs</span><span class="val">' + open.length + '</span></div><div class="kpi"><span class="lbl">Due in the next 7 days</span><span class="val">' + week + '</span><span class="small ' + (open.some(late) ? 'bad-t' : 'muted') + '">' + (open.filter(late).length ? open.filter(late).length + ' late' : 'None late') + '</span></div>' +
       '<div class="kpi"><span class="lbl">Still to be paid</span><span class="val">' + (Object.keys(unpaid).length ? Object.keys(unpaid).map(function (c) { return esc(money(unpaid[c], c)); }).join('<br>') : '0') + '</span></div></div>' +
       '<div class="fx-sec-h"><div class="seg-ctl" role="group">' + seg.map(function (s) { return '<button type="button" class="' + (F.filter === s[0] ? 'on' : '') + '" data-fl-filter="' + s[0] + '">' + s[1] + '</button>'; }).join('') + '</div><span class="count">' + rows.length + '</span></div>' +
       (rows.length ? '<div class="fl-grid">' + rows.map(card).join('') + '</div>' :
         '<div class="fx-empty fx-empty-col"><b>' + (JOBS.length ? 'No jobs in this list' : 'No freelance jobs yet') + '</b><span>Add a job when a client’s brief comes in. A studio project that is really a freelance job can be moved here from its folder’s menu in Files.</span><span class="toolbar"><button type="button" class="btn primary" data-fl-act="new">New job' + ic('plus', 15) + '</button></span></div>');
+  }
+
+  /* until the main folder is split, offer it: completed projects so far are freelance work */
+  function reorgNote() {
+    if (!window.MorfisReorg || !window.MorfisReorg.needed()) return '';
+    return '<div class="fl-note card"><div><b>Split the projects folder</b><span class="muted small">Put direct projects in <span class="mono">Direct Projects</span> and freelance jobs in <span class="mono">Freelance Projects</span>. Completed projects become freelance jobs with the freelance folders. You can undo it.</span></div><button type="button" class="btn sm primary" data-fl-reorg>Reorganise…</button></div>';
   }
 
   /* ----- one job ----- */
@@ -135,8 +144,8 @@
     var made = !!j.folderMade;
     if (made && !COUNTS[j.id]) countFiles(j, dir);
     return '<div class="fx-path mono" title="' + esc(dir) + '">' + esc(dir) + '</div>' +
-      (made ? '<div class="fl-folders">' + TEMPLATES.map(function (t) { var n = (COUNTS[j.id] || {})[t.id]; return '<button type="button" class="fl-fold" data-fl-dir="' + esc(t.name) + '" title="Open in File Explorer">' + A.folder({ num: t.id, count: n || 0 }) + '<b>' + esc(t.label) + '</b><span class="muted small">' + (n == null ? '…' : n + ' file' + (n === 1 ? '' : 's')) + '</span></button>'; }).join('') + '</div>' +
-        '<div class="toolbar"><button type="button" class="btn sm" data-fl-act="openDir">' + ic('ext', 14) + 'Open in File Explorer</button><button type="button" class="btn sm" data-fl-act="recount">' + ic('refresh', 14) + 'Read again</button></div>' :
+      (made ? '<div class="fl-folders">' + TEMPLATES.map(function (t) { var n = (COUNTS[j.id] || {})[t.id]; return '<button type="button" class="fl-fold" data-fl-dir="' + esc(t.name) + '" title="Open ' + esc(t.label) + '">' + A.folder({ num: t.id, count: n || 0 }) + '<b>' + esc(t.label) + '</b><span class="muted small">' + (n == null ? '…' : n + ' file' + (n === 1 ? '' : 's')) + '</span></button>'; }).join('') + '</div>' +
+        '<div class="toolbar"><button type="button" class="btn sm" data-fl-act="browse">' + ic('files', 14) + 'Browse the files</button><button type="button" class="btn sm" data-fl-act="openDir">' + ic('ext', 14) + 'Open in File Explorer</button><button type="button" class="btn sm" data-fl-act="recount">' + ic('refresh', 14) + 'Read again</button></div>' :
         '<p class="small muted">A folder for the job with five folders inside: ' + TEMPLATES.map(function (t) { return esc(t.name); }).join(', ') + '.</p><div class="toolbar"><button type="button" class="btn sm primary" data-fl-act="mkdir">Create the folder' + ic('plus', 14) + '</button></div>');
   }
   function countFiles(j, dir) {
@@ -199,7 +208,7 @@
     var st = A.statusOf(p, today());
     var j = newJob({ code: p.code, title: p.name, client: (p.client && p.client.name) || '', contact: (p.client && p.client.contact) || '', platform: 'Direct client',
       brief: [p.type, p.location, p.notes].filter(Boolean).join(' · '), received: p.startDate || today(), due: (p.stages && p.stages.length ? p.stages[p.stages.length - 1].end : '') || M.addDays(today(), 7),
-      status: st, fee: +p.budget || 0, folder: pg().projDir(p), folderMade: !!p.foldersCreated, delivered: st === 'completed' ? today() : '' });
+      status: st, fee: +p.budget || 0, folder: pg().projDir(p), folderMade: !!p.foldersCreated, delivered: st === 'completed' ? today() : '', project: JSON.parse(JSON.stringify(p)) });
     delete pg().S.projects[pid];
     H.storeSet('p', pid, null).then(function () { pg().renderAll(); }, function () { M.toast('Could not remove the project record.'); });
     M.toast(p.name + ' is now a freelance job.');
@@ -217,13 +226,15 @@
       if ((b = t.closest('[data-fl-add]')) && j) { j.deliverables = (j.deliverables || []).concat([{ id: M.uid('d'), kind: b.dataset.flAdd, label: KINDS[b.dataset.flAdd], qty: 1, done: false }]); touch(j, true); return; }
       if ((b = t.closest('[data-fl-d-x]')) && j) { var id = b.closest('[data-fl-del]').dataset.flDel; j.deliverables = j.deliverables.filter(function (x) { return x.id !== id; }); touch(j, true); return; }
       if ((b = t.closest('[data-fl-rev]')) && j) { j.revisions = j.revisions || { included: 0, used: 0 }; j.revisions.used = Math.max(0, (j.revisions.used || 0) + (+b.dataset.flRev)); touch(j, true); return; }
-      if ((b = t.closest('[data-fl-dir]')) && j) { H.openPath(M.jn(dirOf(j), b.dataset.flDir)).catch(function () { M.toast('That folder is not there.'); }); return; }
+      if ((b = t.closest('[data-fl-dir]')) && j) { if (window.MorfisFiles && window.MorfisFiles.openJob) window.MorfisFiles.openJob(j.id, b.dataset.flDir); else H.openPath(M.jn(dirOf(j), b.dataset.flDir)).catch(function () { M.toast('That folder is not there.'); }); return; }
+      if ((b = t.closest('[data-fl-reorg]'))) { if (window.MorfisReorg) window.MorfisReorg.open(); return; }
       if (!(b = t.closest('[data-fl-act]'))) return;
       var a = b.dataset.flAct;
       if (a === 'new') newJob();
       else if (a === 'back') { F.open = null; lastHtml = ''; draw(); M.crumb(); }
       else if (a === 'root') { var r = root(); if (!r) { M.toast('Choose the projects folder in Settings first.'); return; } H.mkdirs([r]).then(function () { return H.openPath(r); }).catch(function () { M.toast('Could not open the Freelance folder.'); }); }
       else if (a === 'mkdir' && j) makeFolder(j);
+      else if (a === 'browse' && j) { if (window.MorfisFiles) window.MorfisFiles.openJob(j.id, ''); }
       else if (a === 'openDir' && j) H.openPath(dirOf(j)).catch(function () { M.toast('The folder is not there.'); });
       else if (a === 'recount' && j) { delete COUNTS[j.id]; lastHtml = ''; draw(); }
       else if (a === 'invoice' && j) invoice(j);
@@ -266,6 +277,13 @@
     open: function (id) { M.go('freelance', { id: id }); },
     newJob: newJob,
     fromProject: fromProject,
+    get: byId, dirOf: dirOf, root: root, folderName: folderName, statusOf: statusOf, done: done, dueText: dueText, templates: TEMPLATES, platforms: PLATFORMS,
+    makeFolder: function (j) { makeFolder(j); },
+    /* a job record from another part of the app (the reorganisation): added without opening it */
+    add: function (o) { var j = blankJob(o); JOBS.push(j); return j; },
+    replaceAll: function (list) { JOBS = Array.isArray(list) ? list : []; save(true); lastHtml = ''; draw(); },
+    save: function () { save(true); lastHtml = ''; draw(); },
+    ready: function () { return loaded ? Promise.resolve(JOBS) : load(); },
     attention: function () { return JOBS.filter(function (j) { return isOpen(j) && j.due && j.due <= M.addDays(today(), 2); }).length; },
     reload: function () { return load().then(function () { lastHtml = ''; draw(); }); },
     /* the folders that get icons in File Explorer: the job's folder (status) and its five folders (number) */

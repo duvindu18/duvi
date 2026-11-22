@@ -140,6 +140,25 @@ class Journals {
     return id;
   }
   read(id) { return JSON.parse(fs.readFileSync(this.file(id), 'utf8')); }
+  /* every change, newest first; with under, only those that touched that folder (or renamed it) */
+  list(o) {
+    o = o || {};
+    const under = o.under ? path.resolve(o.under).toLowerCase() : '';
+    const inside = (p) => { const x = path.resolve(String(p || '')).toLowerCase(); return x === under || x.startsWith(under + path.sep); };
+    let names = [];
+    try { names = fs.readdirSync(this.dir).filter((n) => /\.json$/.test(n)); } catch (e) { names = []; }
+    const out = [];
+    for (const n of names) {
+      let j;
+      try { j = JSON.parse(fs.readFileSync(path.join(this.dir, n), 'utf8')); } catch (e) { continue; }
+      if (!j || !Array.isArray(j.ops)) continue;
+      if (under && !j.ops.some((x) => inside(x.from) || inside(x.to))) continue;
+      out.push({ id: j.id, label: j.label, at: j.at, undone: !!j.undone, n: j.ops.length,
+        kinds: Array.from(new Set(j.ops.map((x) => x.kind))), sample: j.ops.slice(0, 6).map((x) => ({ kind: x.kind, from: x.from || '', to: x.to || '' })) });
+    }
+    out.sort((a, b) => b.at - a.at);
+    return out.slice(0, o.limit || 300);
+  }
   mark(j) { writeJsonAtomic(this.file(j.id), j); }
   /* keep 90 days of history */
   prune() {
@@ -149,6 +168,10 @@ class Journals {
     } catch (e) { /* ignore */ }
   }
 }
+
+/* a folder counts as empty when only Windows' own files are left in it */
+const EMPTYISH = /^(desktop\.ini|desktop\.ini\.morfis\.bak|thumbs\.db|\.ds_store)$/i;
+async function isEmptyDir(d) { try { return (await fsp.readdir(d)).every((n) => EMPTYISH.test(n)); } catch (e) { return false; } }
 
 async function moveOne(from, to) {
   await fsp.mkdir(path.dirname(to), { recursive: true });
@@ -166,7 +189,7 @@ async function pruneEmpty(dirs, stopAt) {
   for (let d of sorted) {
     while (d && path.resolve(d).toLowerCase() !== stop && path.resolve(d).toLowerCase().startsWith(stop)) {
       let left;
-      try { left = (await fsp.readdir(d)).filter((n) => !/^(desktop\.ini|thumbs\.db|\.ds_store)$/i.test(n)); } catch (e) { break; }
+      try { left = (await fsp.readdir(d)).filter((n) => !/^(desktop\.ini|desktop\.ini\.morfis\.bak|thumbs\.db|\.ds_store)$/i.test(n)); } catch (e) { break; }
       if (left.length) break;
       try { await fsp.rm(d, { recursive: true, force: true }); } catch (e) { break; }
       d = path.dirname(d);
@@ -176,26 +199,29 @@ async function pruneEmpty(dirs, stopAt) {
 
 function makeOps(J) {
   return {
-    async mkdirs(dirs) {
-      const out = [];
+    async mkdirs(dirs, label) {
+      const out = [], made = [];
       for (const d of dirs || []) {
         const existed = fs.existsSync(d);
-        try { await fsp.mkdir(d, { recursive: true }); out.push({ path: d, ok: true, existed: existed }); }
+        try { await fsp.mkdir(d, { recursive: true }); out.push({ path: d, ok: true, existed: existed }); if (!existed) made.push({ kind: 'mkdir', from: '', to: path.resolve(d) }); }
         catch (e) { out.push({ path: d, ok: false, existed: existed, error: niceError(e) }); }
       }
+      /* every folder the app makes is in the log, so it can be taken away again */
+      if (made.length) J.write(label || ('Create ' + (made.length === 1 ? path.basename(made[0].to) : made.length + ' folders')), made);
       return out;
     },
     async copyInto(dir, paths) {
       await fsp.mkdir(dir, { recursive: true });
       let copied = 0;
-      const failed = [];
+      const failed = [], done = [];
       for (const p of paths || []) {
         try {
           const to = freeName(path.join(dir, path.basename(p)));
           await fsp.cp(p, to, { recursive: true, errorOnExist: true, force: false, preserveTimestamps: true });
-          copied++;
+          copied++; done.push({ kind: 'copy', from: p, to: to });
         } catch (e) { failed.push({ path: p, error: niceError(e) }); }
       }
+      J.write('Copy ' + (done.length === 1 ? path.basename(done[0].to) : done.length + ' files') + ' into ' + path.basename(dir), done);
       return { copied: copied, failed: failed };
     },
     async applyOps(base, ops, mode, label) {
@@ -211,7 +237,7 @@ function makeOps(J) {
       }
       if (mode !== 'copy') await pruneEmpty(left, base);
       const id = J.write(label, done);
-      return { moved: done.length, failed: failed, id: id };
+      return { moved: done.length, failed: failed, id: id, done: done.map((d) => d.to) };
     },
     async renameItem(parent, rel, name) {
       const bad = nameProblem(name);
@@ -226,12 +252,29 @@ function makeOps(J) {
       const id = J.write('Rename ' + path.basename(from), [{ kind: 'move', from: from, to: to }]);
       return { same: false, rel: toRel(parent, to), id: id };
     },
+    /* move one folder or file to a full path anywhere (another drive too); a free name is used when the target is
+       taken. Used to move whole project folders between Direct Projects and Freelance Projects. */
+    async movePath(from, to, label) {
+      from = path.resolve(String(from || '')); to = path.resolve(String(to || ''));
+      const bad = nameProblem(path.basename(to));
+      if (bad) throw new Error(bad);
+      if (!fs.existsSync(from)) throw new Error(path.basename(from) + ' is not there any more.');
+      if (from === to) return { same: true, to: to, id: '' };
+      if ((to + path.sep).toLowerCase().startsWith((from + path.sep).toLowerCase())) throw new Error('A folder cannot go inside itself.');
+      const caseOnly = from.toLowerCase() === to.toLowerCase();
+      const dest = caseOnly ? to : freeName(to);
+      if (caseOnly) { const tmp = from + '.' + Date.now() + '.rn'; await fsp.rename(from, tmp); await fsp.rename(tmp, dest); }
+      else await moveOne(from, dest).catch((e) => { throw new Error(e.code ? niceError(e) : e.message); });
+      const id = J.write(label || ('Move ' + path.basename(from)), [{ kind: 'move', from: from, to: dest }]);
+      return { same: false, to: dest, id: id };
+    },
     async makeDir(base, rel, name) {
       const bad = nameProblem(name);
       if (bad) throw new Error(bad);
       const d = path.join(under(base, rel), name);
       if (fs.existsSync(d)) throw new Error('A folder called ' + name + ' is already there.');
       await fsp.mkdir(d, { recursive: true });
+      J.write('New folder ' + name, [{ kind: 'mkdir', from: '', to: d }]);
       return { path: d };
     },
     async moveItems(base, rels, destRel, label) {
@@ -252,11 +295,25 @@ function makeOps(J) {
     },
     async trashItems(base, rels) {
       let trashed = 0;
-      const failed = [];
+      const failed = [], gone = [];
       for (const r of rels || []) {
-        try { await shell.trashItem(under(base, r)); trashed++; } catch (e) { failed.push({ path: r, error: niceError(e) }); }
+        try { const f = under(base, r); await shell.trashItem(f); trashed++; gone.push({ kind: 'trash', from: f, to: '' }); } catch (e) { failed.push({ path: r, error: niceError(e) }); }
       }
+      J.write('Recycle ' + (gone.length === 1 ? path.basename(gone[0].from) : gone.length + ' items'), gone);
       return { trashed: trashed, failed: failed };
+    },
+    journalList: (o) => J.list(o),
+    /* folders removed only when empty (Windows' own desktop.ini and thumbs.db aside) */
+    async removeIfEmpty(dirs, label) {
+      const done = [], kept = [];
+      for (const d of dirs || []) {
+        const x = path.resolve(String(d || ''));
+        if (!fs.existsSync(x)) continue;
+        if (!(await isEmptyDir(x))) { kept.push(x); continue; }
+        try { await fsp.rm(x, { recursive: true, force: true }); done.push({ kind: 'rmdir', from: x, to: '' }); } catch (e) { kept.push(x); }
+      }
+      J.write(label || 'Remove empty folders', done);
+      return { removed: done.length, kept: kept };
     },
     async undo(id) {
       let j;
@@ -267,6 +324,14 @@ function makeOps(J) {
       for (const o of j.ops.slice().reverse()) {
         try {
           if (o.kind === 'copy') { if (fs.existsSync(o.to)) await shell.trashItem(o.to); restored++; continue; }
+          /* a folder the app made goes again, but only while nothing of yours is in it */
+          if (o.kind === 'mkdir') {
+            if (!fs.existsSync(o.to)) { restored++; continue; }
+            if (!(await isEmptyDir(o.to))) throw new Error(path.basename(o.to) + ' has files in it now, so it stays.');
+            await fsp.rm(o.to, { recursive: true, force: true }); restored++; continue;
+          }
+          if (o.kind === 'rmdir') { await fsp.mkdir(o.from, { recursive: true }); restored++; continue; }
+          if (o.kind === 'trash') throw new Error(path.basename(o.from) + ' is in the Recycle Bin: restore it from there.');
           if (!fs.existsSync(o.to)) throw new Error(path.basename(o.to) + ' is not where it was put.');
           const back = fs.existsSync(o.from) && o.from.toLowerCase() !== o.to.toLowerCase() ? freeName(o.from) : o.from;
           if (o.from.toLowerCase() === o.to.toLowerCase() && o.from !== o.to) { const tmp = o.to + '.' + Date.now() + '.rn'; await fsp.rename(o.to, tmp); await fsp.rename(tmp, back); }

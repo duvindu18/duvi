@@ -384,6 +384,71 @@ app.whenReady().then(async () => {
   console.log('phone access:', JSON.stringify(phone));
   console.log('window title after phone:', w.getTitle(), '|', await js(w, 'document.title'));
 
+  /* a folder that is not a project, brought in by Import (standard folders made, a loose file sorted, an icon):
+     "Not a project" takes it all back, and Import no longer offers it */
+  const libRoot = path.join(out, 'lib-root'), libDir = path.join(libRoot, 'LIBRARY');
+  fs.mkdirSync(path.join(libDir, 'HDRI'), { recursive: true }); fs.writeFileSync(path.join(libDir, 'a.jpg'), 'jpg'); fs.writeFileSync(path.join(libDir, 'HDRI', 'sky.hdr'), 'hdr');
+  const np = JSON.parse(await js(w, '(async function(){var o={},pg=window.__morfisPage,H=window.morfisDesktop,wait=function(ms){return new Promise(function(r){setTimeout(r,ms)})};try{' +
+    'var dir=' + JSON.stringify(libDir) + ';var src=pg.P(Object.keys(pg.S.projects)[0]);var p=JSON.parse(JSON.stringify(src));p.id="np-lib";p.name="LIBRARY";p.code="MRF I 26 I 099";p.folderPath=dir;p.foldersCreated=pg.today();p.folders={};pg.S.projects[p.id]=p;pg.commit(p);' +
+    'await H.mkdirs(pg.FOLDER_TEMPLATES.map(function(t){return Morfis.jn(dir,t.name)}));' +
+    'var ap=await H.applyOps(dir,[{from:"a.jpg",to:pg.FOLDER_TEMPLATES[1].name+"/a.jpg"}],"move","Import MRF I 26 I 099");o.sorted=ap.moved;' +
+    'o.suspect=MorfisLog.suspects().some(function(x){return x.id==="np-lib"});o.logged=(await H.journalList({under:dir})).length;' +
+    'MorfisFiles.open("");await wait(400);o.note=!!document.querySelector("#dkView [data-fx-act=notProjects]");' +
+    '}catch(e){o.err=String(e&&e.stack||e)}return JSON.stringify(o)})()'));
+  await shot(w, '58-files-not-projects-note');
+  await js(w, 'MorfisLog.notProjects()'); await wait(800); await shot(w, '59-not-projects-dialog'); await js(w, 'window.__morfisPage.closeModal()'); await wait(300);
+  await js(w, 'MorfisLog.open()'); await wait(1000); await shot(w, '60-change-log'); await js(w, 'window.__morfisPage.closeModal()'); await wait(300);
+  Object.assign(np, JSON.parse(await js(w, '(async function(){var o={},pg=window.__morfisPage,H=window.morfisDesktop;try{' +
+    'var r=await MorfisLog.revert(pg.P("np-lib"));pg.commitSettings(true);o.undone=r.undone;o.failed=r.failed;o.removed=r.removed;o.gone=!pg.P("np-lib");o.marked=MorfisLog.isNot(' + JSON.stringify(libDir) + ');' +
+    'var sc=await H.scanRoot(' + JSON.stringify(libRoot) + ');o.importRows=sc.rows.length;' +
+    '}catch(e){o.err2=String(e&&e.stack||e)}return JSON.stringify(o)})()')));
+  np.fileBack = fs.existsSync(path.join(libDir, 'a.jpg')) && fs.existsSync(path.join(libDir, 'HDRI', 'sky.hdr'));
+  np.left = fs.readdirSync(libDir).sort().join(',');
+  console.log('not a project:', JSON.stringify(np));
+
+  /* the split into Direct Projects and Freelance Projects: a completed project becomes a freelance job with the
+     freelance folders, a direct project moves, the earlier job moves, and Undo puts everything back */
+  const srcDir = path.join(out, 'src-files'); fs.mkdirSync(srcDir, { recursive: true });
+  fs.writeFileSync(path.join(srcDir, 'view1.jpg'), 'jpg'); fs.writeFileSync(path.join(srcDir, 'scene.max'), 'max');
+  const ro = JSON.parse(await js(w, '(async function(){var o={},pg=window.__morfisPage,H=window.morfisDesktop,wait=function(ms){return new Promise(function(r){setTimeout(r,ms)})};try{' +
+    'window.confirm=function(){return true};var ids=Object.keys(pg.S.projects);var cp=pg.P(ids[0]),dp=pg.P(ids[1]);o.cpId=cp.id;o.dpId=dp.id;o.noDiskId=ids[2];' +
+    'for(var p of [cp,dp]){var b=pg.projDir(p);await H.mkdirs([b].concat(pg.FOLDER_TEMPLATES.map(function(t){return Morfis.jn(b,t.name)})));p.folderPath=b;p.foldersCreated=pg.today();pg.commit(p);}' +
+    'await H.copyInto(pg.projDir(cp),[' + JSON.stringify(path.join(srcDir, 'view1.jpg')) + ']);await H.copyInto(pg.subDir(cp,"02"),[' + JSON.stringify(path.join(srcDir, 'scene.max')) + ']);' +
+    'Morfis.setWorkStatus(cp.id,"completed");await wait(300);o.cpOld=pg.projDir(cp);o.cp02=pg.subDir(cp,"02");o.dpOld=pg.projDir(dp);o.root0=pg.S.settings.root;o.jobs0=MorfisFreelance.all().length;o.needed=MorfisReorg.needed();' +
+    'var pl=MorfisReorg.plan({});o.planFree=pl.free.length;o.planDirect=pl.direct.length;' +
+    '}catch(e){o.err=String(e&&e.stack||e)}return JSON.stringify(o)})()'));
+  await go('files', '53-files-split-offer');
+  await js(w, 'MorfisReorg.open()'); await wait(900); await shot(w, '54-reorganise-dialog');
+  await js(w, 'window.__morfisPage.closeModal()'); await wait(300);
+  Object.assign(ro, JSON.parse(await js(w, '(async function(){var o={},pg=window.__morfisPage;try{' +
+    'var r=await MorfisReorg.run({sort:true},function(){});o.failed=r.failed;o.mainRoot=pg.S.settings.mainRoot;o.root1=pg.S.settings.root;' +
+    'var j=MorfisFreelance.all().find(function(x){return x.project&&x.project.id===' + JSON.stringify(ro.cpId) + '});o.jobId=j&&j.id;o.jobCode=j&&j.code;o.jobFolder=j&&j.folder;o.cpGone=!pg.P(' + JSON.stringify(ro.cpId) + ');' +
+    'o.dpNew=pg.P(' + JSON.stringify(ro.dpId) + ').folderPath;var old=MorfisFreelance.all().find(function(x){return x.title==="Living room renders"});o.oldJob=old&&old.folder;o.jobs1=MorfisFreelance.all().length;o.canUndo=MorfisReorg.canUndo();' +
+    '}catch(e){o.err=String(e&&e.stack||e)}return JSON.stringify(o)})()')));
+  ro.renders = !!ro.jobFolder && fs.existsSync(path.join(ro.jobFolder, '04_Renders', 'view1.jpg'));
+  ro.models = !!ro.jobFolder && fs.existsSync(path.join(ro.jobFolder, '02_3D_Models', 'scene.max'));
+  ro.oldSubGone = !!ro.jobFolder && fs.existsSync(ro.jobFolder) && !fs.readdirSync(ro.jobFolder).some((n) => /^02_Schematics|^01_Brief_and_Site/.test(n));
+  ro.five = !!ro.jobFolder && ['01_Brief_and_References', '02_3D_Models', '03_Drawings', '04_Renders', '05_Delivered'].every((n) => fs.existsSync(path.join(ro.jobFolder, n)));
+  ro.cpOldGone = !fs.existsSync(ro.cpOld);
+  ro.dpMoved = !!ro.dpNew && /Direct Projects/.test(ro.dpNew) && fs.existsSync(ro.dpNew) && !fs.existsSync(ro.dpOld);
+  ro.oldJobMoved = !!ro.oldJob && /Freelance Projects/.test(ro.oldJob) && fs.existsSync(path.join(ro.oldJob, '03_Drawings'));
+  await go('files', '55a'); await js(w, 'MorfisFiles.open(""); (function(){var b=document.querySelector("#dkView [data-filter=all]");if(b)b.click()})()'); await wait(700); await shot(w, '55-files-direct-freelance');
+  ro.groups = await js(w, 'document.querySelectorAll("#dkView .fx-group").length');
+  ro.jobCards = await js(w, 'document.querySelectorAll("#dkView [data-card-menu^=\\"j:\\"]").length');
+  await js(w, 'MorfisFiles.openJob(' + JSON.stringify(ro.jobId) + ', "04_Renders")'); await wait(1200);
+  ro.browse = await js(w, 'document.querySelectorAll("#dkView .fx-fcard, #dkView .fx-table [data-file]").length');
+  await shot(w, '56-files-freelance-job');
+  await js(w, 'MorfisFiles.openJob(' + JSON.stringify(ro.jobId) + ', "")'); await wait(1000);
+  ro.jobRootDirs = await js(w, 'document.querySelectorAll("#dkView [data-card-menu^=\\"k:\\"]").length');
+  await shot(w, '57-files-freelance-root');
+  await js(w, 'MorfisFiles.open("")'); await wait(600);
+  ro.delItem = await js(w, '(function(){var b=document.querySelector("#dkView [data-card-menu=\\"p:' + ro.noDiskId + '\\"]");if(!b)return "no card";b.click();var t=Array.from(document.querySelectorAll(".dk-menu button")).map(function(x){return x.textContent}).join("|");document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape"}));return t})()');
+  Object.assign(ro, JSON.parse(await js(w, '(async function(){var o={},pg=window.__morfisPage,wait=function(ms){return new Promise(function(r){setTimeout(r,ms)})};try{window.confirm=function(){return true};' +
+    'await MorfisReorg.undo();await wait(500);o.root2=pg.S.settings.root;o.mainRoot2=pg.S.settings.mainRoot||"";o.cpBack=!!pg.P(' + JSON.stringify(ro.cpId) + ');o.jobs2=MorfisFreelance.all().length;o.dpBack=pg.projDir(pg.P(' + JSON.stringify(ro.dpId) + '));' +
+    '}catch(e){o.err2=String(e&&e.stack||e)}return JSON.stringify(o)})()')));
+  ro.undoDisk = fs.existsSync(path.join(ro.cp02, 'scene.max')) && fs.existsSync(path.join(ro.cpOld, 'view1.jpg')) && fs.existsSync(ro.dpOld) && !fs.existsSync(ro.dpNew) && !!fl.folder && fs.existsSync(path.join(fl.folder, '03_Drawings'));
+  console.log('reorganise:', JSON.stringify(ro));
+
   console.log('page errors:', errors.length ? errors : 'none');
   const pdir = path.join(profile, 'data', 'projects');
   console.log('saved files:', fs.existsSync(pdir) ? fs.readdirSync(pdir).length : 0, 'projects,', fs.existsSync(path.join(profile, 'data', 'settings.json')) ? 'settings ok' : 'no settings');
@@ -417,6 +482,10 @@ app.whenReady().then(async () => {
   expect(po.sent && po.onDisk && po.added === 1 && po.fileSent && po.pcStatus === 'on_hold' && po.pcClient === 'Phone client' && po.pcLocation === 'Changed on the PC' && po.phoneLocation === 'Changed on the PC', 'phone offline: changes reach the computer and merge: ' + JSON.stringify(po));
   expect(phone.toComputer === 'on_hold' && phone.toPhone === 'in_progress', 'phone and computer stay in step: ' + JSON.stringify(phone));
   expect(fl.page && fl.dels === 3 && fl.done === 1 && fl.paid === 20000 && fl.made && fl.onDisk && fl.saved >= 1 && fl.moved && fl.jobs === 2 && fl.cards >= 1, 'freelance jobs: ' + JSON.stringify(fl));
+  expect(!ro.err && !ro.err2 && ro.needed && ro.planFree === 1 && ro.mainRoot === ro.root0 && /Direct Projects$/.test(ro.root1) && ro.cpGone && /^FL I/.test(ro.jobCode || '') && ro.renders && ro.models && ro.five && ro.oldSubGone && ro.cpOldGone && ro.dpMoved && ro.oldJobMoved && ro.canUndo && !(ro.failed || []).length, 'reorganise into Direct Projects and Freelance Projects: ' + JSON.stringify(ro));
+  expect(ro.groups === 2 && ro.jobCards >= 2 && ro.browse >= 1 && ro.jobRootDirs === 5 && /Delete the project/.test(ro.delItem || ''), 'Files: freelance jobs browsed like projects, Delete the project for a project with no folder: ' + JSON.stringify(ro));
+  expect(ro.root2 === ro.root0 && !ro.mainRoot2 && ro.cpBack && ro.jobs2 === ro.jobs0 && ro.undoDisk && ro.dpBack === ro.dpOld, 'undoing the reorganisation: ' + JSON.stringify(ro));
+  expect(!np.err && !np.err2 && np.sorted === 1 && np.suspect && np.logged >= 2 && np.note && np.gone && np.marked && np.undone >= 2 && !(np.failed || []).length && np.fileBack && np.left === 'HDRI,a.jpg' && np.importRows === 0, 'a folder that is not a project put back as it was: ' + JSON.stringify(np));
   console.log(fails.length ? 'SMOKE FAILED: ' + fails.join('; ') : 'SMOKE PASSED');
   app.exit(fails.length ? 1 : 0);
 });
