@@ -341,7 +341,7 @@
     all: function () { return JOBS; },
     open: function (id) { M.go('freelance', { id: id }); },
     newJob: newJob,
-    fromProject: fromProject, toDirect: toDirect,
+    fromProject: fromProject, toDirect: toDirect, invoice: function (id) { var j = byId(id); if (j) invoice(j); },
     /* rows for the Timeline: the dashboard's Active / Closed / All filter applies */
     timeline: function (filter) {
       return JOBS.filter(function (j) { return filter === 'all' || (filter === 'closed' ? !isOpen(j) : isOpen(j)); }).filter(function (j) { return j.received || j.due; }).map(function (j) {

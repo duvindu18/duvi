@@ -227,7 +227,14 @@
     var raw = String(said || '').trim(), s = norm(raw);
     if (!s) return { say: 'I didn’t catch that.' };
     if (CTX.pending) { var p0 = CTX.pending; CTX.pending = null; var r0 = p0(s, raw); if (r0) return r0; }
-    var m;
+    var m, AG = window.MorfisAgent;
+    /* something waiting for your OK: yes does it, no drops it */
+    if (AG && AG.pending()) {
+      if (/^(yes|yeah|yep|yup|sure|ok|okay|go ahead|do it|confirm|please do|proceed|correct|right|thats right)\b/.test(s)) return agentReply(AG.confirm());
+      if (/^(no|nope|cancel|stop|dont|do not|never ?mind|leave it|not now)\b/.test(s)) { AG.cancel(); return { say: 'Okay, I left it as it was.' }; }
+    }
+    if (AG && /^(undo|undo that|take that back|revert( that)?)\b/.test(s)) return AG.undo();
+    if (AG) { var acted = actions(s, raw); if (acted) return acted; }
     if (/^(stop|cancel|never ?mind|nothing|thats all|that is all|bye|goodbye|close)\b/.test(s)) return { say: 'Okay.', close: true };
     if (/^(thanks|thank you|cheers|great|perfect|nice)\b/.test(s)) return { say: 'You’re welcome.', close: true };
     if (/\b(what can you do|what can i say|help me|how do i use you|commands)\b/.test(s) || s === 'help') return { say: 'I can open any page or project, tell you what’s due, who owes you money, change a project’s status, start a freelance job, add a reminder and search your files. Just ask.',
@@ -298,11 +305,7 @@
       if (stWant) {
         var hits = find(m[1]);
         if (!hits.length) return { say: 'I couldn’t find a project called ' + m[1] + '.' };
-        var setIt = function (t) {
-          if (t.kind === 'p') M.setWorkStatus(t.id, stWant);
-          else { var j = window.MorfisFreelance.get(t.id); j.status = stWant; if (stWant === 'completed' && !j.delivered) j.delivered = today(); window.MorfisFreelance.save(); }
-          return { say: t.name + ' is now ' + A.STATUS[stWant].label.toLowerCase() + '.' };
-        };
+        var setIt = function (t) { return agentReply(window.MorfisAgent.execute([{ tool: 'set_status', args: { name: t.id, status: stWant } }])); };
         if (hits.length > 1 && hits[0].score - hits[1].score < 0.2) return askWhich(hits, setIt);
         return setIt(hits[0].t);
       }
@@ -316,9 +319,14 @@
         var job = window.MorfisFreelance.newJob({ title: name ? name.replace(/[.?!]+$/, '') : '', client: client ? client.replace(/[.?!]+$/, '') : '' });
         return { say: 'I’ve started a freelance job' + (client ? ' for ' + job.client : '') + (name ? ', ' + job.title : '') + '. Add the brief and the deliverables when you’re ready.' };
       }
+      if (name && window.MorfisAgent) {
+        var bud = /\b(?:budget|fee|worth|of)\s+(?:of\s+)?((?:rs\.?\s*|lkr\s*)?[\d.,]+\s*(?:k|thousand|m|million|lakhs?)?)/i.exec(rest), dd0 = dateIn(rest);
+        name = name.replace(/\s+(?:with\s+a\s+|with\s+)?(?:budget|fee)\b.*$/i, '').replace(/\s+(?:starting|from|on)\s+.*$/i, '').replace(/[.?!]+$/, '');
+        client = client.replace(/\s+(?:with\s+a\s+|with\s+)?(?:budget|fee)\b.*$/i, '').replace(/\s+(?:starting|from|on)\s+.*$/i, '').replace(/[.?!]+$/, '');
+        return agentReply(window.MorfisAgent.execute([{ tool: 'create_project', args: { name: name, client: client, budget: bud ? bud[1] : 0, start: dd0 ? dd0.d : '' } }]));
+      }
       if (M.newProject) M.newProject('direct'); else pg().newProject();
-      setTimeout(function () { var f = document.querySelector('#overlay form [name="name"]'); if (f && name) { f.value = name; f.dispatchEvent(new Event('input', { bubbles: true })); } }, 200);
-      return { say: 'Here’s a new direct project. Fill in the details and save it.', close: true };
+      return { say: 'Here’s a new direct project. Tell me its name next time and I’ll set it up for you, or fill in the details and save it.', close: true };
     }
     /* search */
     if ((m = /^(?:please )?(?:search|find|look)\s+(?:for\s+)?(?:files?\s+(?:called|named)\s+)?(.+?)(?:\s+in\s+(?:the\s+)?files)?$/.exec(s)) && !/\b(project|job)\b/.test(m[1])) {
@@ -355,6 +363,85 @@
     if (direct.length && direct[0].score >= 1.2) return describe(direct[0].t);
     return null;
   }
+  /* a request to do something, read without the AI model: the common ones, in everyday words */
+  var WORDNUM = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+  var num = function (x) { return WORDNUM[x] || +x || 0; };
+  /* "X to/for/in Y": the split where Y names a project best */
+  function splitOn(text, kind) {
+    var words = text.split(' '), bestSplit = null;
+    for (var i = words.length - 1; i > 0; i--) {
+      if (!/^(to|for|in|on|of|from)$/.test(words[i])) continue;
+      var left = words.slice(0, i).join(' '), right = words.slice(i + 1).join(' ');
+      var hit = kind === 'j' ? window.MorfisAgent.jobOf(right) : kind === 'p' ? window.MorfisAgent.projectOf(right) : window.MorfisAgent.find(right);
+      if (hit.x && left) { bestSplit = { left: left, right: right, x: hit.x }; break; }
+    }
+    return bestSplit;
+  }
+  function actions(s, raw) {
+    var AG = window.MorfisAgent, m, sp, dd;
+    var go = function (list) { return agentReply(AG.execute(list)); };
+    /* tasks */
+    if ((m = /^(?:please )?(?:add|create|put|new)\s+(?:a\s+)?(?:new\s+)?task\s+(?:called\s+|to\s+)?(.+)$/.exec(s))) {
+      dd = dateIn(m[1]); var body = dd ? norm(m[1].replace(dd.re, ' ')) : m[1]; body = body.replace(/\s+due\s*$/, '');
+      if ((sp = splitOn(body, 'p'))) return go([{ tool: 'add_task', args: { project: sp.x.id, title: sp.left.replace(/^(to )/, '').replace(/\s+due$/, ''), due: dd ? dd.d : '' } }]);
+      return { say: 'Which project should I add it to?' };
+    }
+    if ((m = /^(?:please )?(?:mark|tick off|tick|check off|complete|finish|close)\s+(?:the\s+)?(?:task\s+)?(.+?)(?:\s+as\s+(?:done|complete|completed|finished))?$/.exec(s)) && (sp = splitOn(m[1].replace(/\s+as\s+(done|complete|completed|finished)\b/, ''), 'p'))) {
+      var tk = (sp.x.tasks || []).some(function (t) { return t.status !== 'done'; });
+      if (tk) return go([{ tool: 'set_task_status', args: { project: sp.x.id, task: sp.left.replace(/\s+(done|complete|completed|finished)$/, ''), status: 'done' } }]);
+    }
+    if ((m = /^(?:please )?(?:delete|remove)\s+(?:the\s+)?task\s+(.+)$/.exec(s)) && (sp = splitOn(m[1], 'p'))) return go([{ tool: 'delete_task', args: { project: sp.x.id, task: sp.left } }]);
+    if ((m = /^(?:please )?(?:move|change|set)\s+(?:the\s+)?(?:task\s+)?(.+?)\s+(?:due date\s+)?to\s+(.+)$/.exec(s)) && (dd = dateIn(m[2])) && (sp = splitOn(m[1], 'p'))) return go([{ tool: 'set_task_due', args: { project: sp.x.id, task: sp.left, due: dd.d } }]);
+    /* stages and timelines */
+    if ((m = /^(?:please )?(?:move|advance|push|take|bring)\s+(.+?)\s+(?:on\s+)?to\s+(?:the\s+)?next stage$/.exec(s)) || (m = /^(?:please )?(?:advance|next stage for)\s+(.+)$/.exec(s))) return go([{ tool: 'set_stage', args: { project: m[1], stage: 'next' } }]);
+    if ((m = /^(?:please )?(?:move|set|put|change)\s+(.+?)\s+(?:to|into)\s+stage\s+(\d|one|two|three|four|five|six|seven)$/.exec(s))) return go([{ tool: 'set_stage', args: { project: m[1], stage: num(m[2]) } }]);
+    if ((m = /^(?:please )?(?:push|delay|move|shift|postpone|bring)\s+(?:the\s+)?(?:timeline of\s+|schedule of\s+)?(.+?)\s+(back|later|forward|earlier|ahead)?\s*by\s+(\d+|a|an|one|two|three|four|five|six)\s+(days?|weeks?|months?)\s*(back|later|forward|earlier|ahead)?$/.exec(s))) {
+      var n = num(m[3]) * (/week/.test(m[4]) ? 7 : /month/.test(m[4]) ? 30 : 1), dir = m[2] || m[5] || 'later';
+      return go([{ tool: 'reschedule', args: { project: m[1], days: /forward|earlier|ahead/.test(dir) && !/push/.test(s.split(' ')[0]) ? -n : n } }]);
+    }
+    if ((m = /^(?:please )?(?:reschedule|move)\s+(.+?)\s+to\s+start\s+(.+)$/.exec(s)) && (dd = dateIn(m[2]))) return go([{ tool: 'reschedule', args: { project: m[1], start: dd.d } }]);
+    /* money */
+    if ((m = /^(?:please )?(?:record|log|add|enter)\s+(?:a\s+)?payment\s+(?:of\s+)?(.+?)\s+(?:from|for|on|against)\s+(.+)$/.exec(s))) {
+      var tj = AG.find(m[2]);
+      if (tj.kind === 'j') return go([{ tool: 'set_job_money', args: { job: tj.x.id, paid: (+tj.x.paid || 0) + AG.amount(m[1]) } }]);
+      return go([{ tool: 'record_payment', args: { project: m[2], amount: m[1] } }]);
+    }
+    if ((m = /^(?:please )?(?:issue|send|raise|create|make|prepare)\s+(?:the\s+|an\s+)?(?:next\s+)?invoice\s+(?:for|to)\s+(.+)$/.exec(s))) {
+      var ti = AG.find(m[1]);
+      if (ti.kind === 'j') { if (window.MorfisFreelance.invoice) window.MorfisFreelance.invoice(ti.x.id); else window.MorfisFreelance.open(ti.x.id); return { say: 'Here’s the invoice for ' + (ti.x.title || ti.x.code) + ', ready for you to check.', close: true }; }
+      return go([{ tool: 'issue_invoice', args: { project: m[1] } }]);
+    }
+    if ((m = /^(?:please )?(?:set|change|make)\s+the\s+(?:fee|budget|price)\s+(?:of|for|on)\s+(.+?)\s+(?:to|at)\s+(.+)$/.exec(s))) {
+      var tf = AG.find(m[1]);
+      if (tf.kind === 'j') return go([{ tool: 'set_job_money', args: { job: tf.x.id, fee: m[2] } }]);
+      return go([{ tool: 'update_project', args: { project: m[1], budget: m[2] } }]);
+    }
+    /* deleting */
+    if ((m = /^(?:please )?(?:delete|remove)\s+(?:the\s+)?(freelance job|job|direct project|project)\s+(.+)$/.exec(s))) return go([{ tool: /job/.test(m[1]) ? 'delete_job' : 'delete_project', args: /job/.test(m[1]) ? { job: m[2] } : { project: m[2] } }]);
+    /* freelance deliverables */
+    if ((m = /^(?:please )?add\s+(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)?\s*(renders?|renderings?|drawings?|3d models?|models?|views?)\s+(?:to|for)\s+(.+)$/.exec(s))) return go([{ tool: 'add_deliverable', args: { job: m[3], kind: m[2], qty: num(m[1] || 'one') } }]);
+    if ((m = /^(?:please )?(?:mark|tick off|tick)\s+(?:the\s+)?(.+?)\s+(?:of|for|on|in)\s+(.+?)\s+as delivered$/.exec(s))) return go([{ tool: 'deliver', args: { job: m[2], item: m[1] } }]);
+    if ((m = /^(?:please )?(?:mark|tick)\s+(?:everything|all deliverables)\s+(?:of|for|on)\s+(.+?)\s+(?:as\s+)?delivered$/.exec(s)) || (m = /^(?:i(?:ve| have)?\s+)?delivered everything (?:for|to|on)\s+(.+)$/.exec(s))) return go([{ tool: 'deliver', args: { job: m[1], item: 'all' } }]);
+    /* folders, automations, moving between direct and freelance */
+    if ((m = /^(?:please )?(?:create|make|set up)\s+(?:the\s+)?folders?\s+(?:for|of)\s+(.+)$/.exec(s))) return go([{ tool: 'make_folders', args: { name: m[1] } }]);
+    if ((m = /^(?:please )?(?:move|convert|turn)\s+(.+?)\s+(?:to|into)\s+(?:a\s+)?(freelance|direct)(?:\s+(?:project|projects|job))?$/.exec(s))) return go([{ tool: 'move_to', args: { name: m[1], to: m[2] } }]);
+    if ((m = /^(?:please )?run\s+(?:the\s+)?(.+?)(?:\s+automation)?(?:\s+now)?$/.exec(s)) && window.MorfisAuto) {
+      var hasRule = window.MorfisAuto.rules().some(function (r) { return near(norm(r.title).split(' ')[0], m[1].split(' ')[0]) || norm(r.title).indexOf(m[1]) !== -1; });
+      if (hasRule) return go([{ tool: 'run_automation', args: { rule: m[1] } }]);
+    }
+    return null;
+  }
+  /* what the agent did, said in one breath; what needs your OK becomes a question with Yes and Cancel */
+  function agentReply(r) {
+    var AG = window.MorfisAgent, say = AG.summary(r), items = [];
+    r.done.forEach(function (d) { if (d.ref && d.ref.kind !== 'doc') items.push({ label: 'Open', sub: d.say.split('.')[0], go: { kind: d.ref.kind, id: d.ref.id } }); });
+    if (r.wait.length) {
+      items = [{ label: 'Yes, go ahead', confirm: true }, { label: 'Cancel', cancel: true }].concat(r.wait.map(function (w) { return { label: w.text, sub: 'needs your OK', info: true }; }));
+      return { say: say, ask: true, items: items, confirmBox: true };
+    }
+    if (r.done.some(function (d) { return d.undo; }) && AG) setTimeout(function () { M.toast(r.done[r.done.length - 1].say.split('. ')[0].replace(/\.$/, '') + '.', { label: 'Undo', fn: function () { show(AG.undo()); } }); }, 0);
+    return { say: say || 'Done.', items: items };
+  }
   function goView(v) {
     var dk = { files: 1, direct: 1, freelance: 1, documents: 1, automations: 1 };
     if (dk[v]) M.go(v); else { var b = document.querySelector('#dkSide [data-go="' + v + '"]'); if (b) b.click(); else pg().setView(v); }
@@ -387,7 +474,7 @@
 
   /* ===== the panel ===== */
   var FRAMES = 0, STATE = 'idle', LEVEL = 0, EL = null, LAST = { said: '', reply: null };
-  function setState(s) { STATE = s; if (EL) { EL.dataset.state = s; var st = EL.querySelector('.vx-state'); if (st) st.textContent = { idle: 'Ask me anything', listening: 'Listening…', hearing: 'Getting that…', thinking: 'Thinking…', speaking: 'Speaking', loading: 'Getting ready… (the first time takes a few seconds)' }[s] || ''; } var b = document.getElementById('vxBtn'); if (b) b.classList.toggle('on', s !== 'idle' || !!(EL && !EL.hidden)); }
+  function setState(s) { STATE = s; document.documentElement.dataset.vx = EL && !EL.hidden ? s : ''; if (EL) { EL.dataset.state = s; var st = EL.querySelector('.vx-state'); if (st) st.textContent = { idle: 'Ask me anything', listening: 'Listening…', hearing: 'Getting that…', thinking: 'Thinking…', speaking: 'Speaking', loading: 'Getting ready… (the first time takes a few seconds)' }[s] || ''; } var b = document.getElementById('vxBtn'); if (b) b.classList.toggle('on', s !== 'idle' || !!(EL && !EL.hidden)); }
   function panel() {
     if (EL) return EL;
     EL = document.createElement('div');
@@ -401,20 +488,28 @@
       '<form class="vx-type" data-vx-form><input class="in" name="q" placeholder="Or type here, then Enter" autocomplete="off" spellcheck="true" aria-label="Type to the assistant"><button type="button" class="icon-btn" data-vx="settings" title="Voice settings">' + ic('settings', 16) + '</button></form>' +
       '</div>';
     document.body.appendChild(EL);
+    /* the glow around the whole window while Morfis listens, thinks and speaks */
+    var edge = document.createElement('div'); edge.className = 'vx-edge'; edge.setAttribute('aria-hidden', 'true'); document.body.appendChild(edge);
     EL.addEventListener('click', function (e) {
       var b = e.target.closest('[data-vx]'); if (b) { var a = b.dataset.vx; if (a === 'mic') toggle(); else if (a === 'close') close(); else if (a === 'settings') { close(); pg().setView('settings'); setTimeout(function () { var c = document.getElementById('dkVoice'); if (c) c.scrollIntoView({ block: 'center' }); }, 300); } return; }
-      var it = e.target.closest('[data-vx-item]'); if (it) { var x = (LAST.reply && LAST.reply.items || [])[+it.dataset.vxItem]; if (!x) return; if (x.ask) handle(x.ask); else if (x.pick && LAST.reply.pickThen) { CTX.pending = null; show(LAST.reply.pickThen(x.pick)); } else if (x.go) { openThing(x.go); close(); } }
+      var it = e.target.closest('[data-vx-item]'); if (it) { var x = (LAST.reply && LAST.reply.items || [])[+it.dataset.vxItem]; if (!x) return; if (x.info) return; if (x.confirm) { handle('yes'); return; } if (x.cancel) { handle('no'); return; } if (x.ask) handle(x.ask); else if (x.pick && LAST.reply.pickThen) { CTX.pending = null; show(LAST.reply.pickThen(x.pick)); } else if (x.go) { openThing(x.go); close(); } }
     });
     EL.querySelector('[data-vx-form]').addEventListener('submit', function (e) { e.preventDefault(); var i = e.target.q, v = i.value.trim(); if (!v) return; i.value = ''; handle(v); });
     return EL;
   }
   function open() { panel().hidden = false; requestAnimationFrame(function () { EL.classList.add('vx-open'); }); setState(STATE); loop(); }
-  function close() { stopSpeaking(); if (LISTEN) LISTEN.cancel(); if (EL) { EL.classList.remove('vx-open'); EL.hidden = true; } CTX.pending = null; setState('idle'); setTimeout(closeMic, 400); }
+  function close() {
+    stopSpeaking(); if (LISTEN) LISTEN.cancel(); CTX.pending = null; setState('idle');
+    if (EL) { EL.classList.remove('vx-open'); document.documentElement.dataset.vx = ''; var el = EL; setTimeout(function () { if (!el.classList.contains('vx-open')) el.hidden = true; }, 260); }
+    setTimeout(closeMic, 400);
+  }
   function show(r) {
     LAST.reply = r || null;
     if (!EL) return;
-    EL.querySelector('.vx-reply').textContent = r ? r.text || r.say || '' : '';
-    EL.querySelector('.vx-items').innerHTML = r && r.items && r.items.length ? r.items.map(function (x, i) { return '<button type="button" class="vx-it" data-vx-item="' + i + '"><b>' + esc(x.label) + '</b>' + (x.sub ? '<span>' + esc(x.sub) + '</span>' : '') + '</button>'; }).join('') : '';
+    /* the answer arrives word by word */
+    var words = String(r ? r.text || r.say || '' : '').split(/(\s+)/), wi = 0;
+    EL.querySelector('.vx-reply').innerHTML = words.map(function (w) { return /^\s+$/.test(w) || !w ? w : '<span class="vx-w" style="animation-delay:' + Math.min(900, (wi++) * 32) + 'ms">' + esc(w) + '</span>'; }).join('');
+    EL.querySelector('.vx-items').innerHTML = r && r.items && r.items.length ? r.items.map(function (x, i) { return '<button type="button" class="vx-it' + (x.confirm ? ' vx-yes' : x.cancel ? ' vx-no' : x.info ? ' vx-info' : '') + '" data-vx-item="' + i + '"><b>' + esc(x.label) + '</b>' + (x.sub ? '<span>' + esc(x.sub) + '</span>' : '') + '</button>'; }).join('') : '';
   }
   function showSaid(t) { if (EL) EL.querySelector('.vx-said').textContent = t ? '“' + t + '”' : ''; }
   /* the orb follows the voice: the microphone while listening, the answer while speaking */
@@ -427,7 +522,8 @@
       if (STATE === 'listening') lv = LEVEL;
       else if (STATE === 'speaking' && OUT && OUT.an) { var d = new Uint8Array(OUT.an.frequencyBinCount); OUT.an.getByteTimeDomainData(d); var mx = 0; for (var i = 0; i < d.length; i++) mx = Math.max(mx, Math.abs(d[i] - 128)); lv = Math.min(1, mx / 60); }
       else if (STATE === 'thinking' || STATE === 'hearing' || STATE === 'loading') lv = 0.25 + 0.15 * Math.sin(performance.now() / 260);
-      EL.style.setProperty('--lv', (lv * 0.9 + (+EL.style.getPropertyValue('--lv') || 0) * 0.1).toFixed(3));
+      var v = (lv * 0.9 + (+EL.style.getPropertyValue('--lv') || 0) * 0.1).toFixed(3);
+      EL.style.setProperty('--lv', v); document.documentElement.style.setProperty('--vxlv', v);
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
@@ -440,14 +536,14 @@
     if (STATE !== 'idle') return;
     turn();
   }
-  function turn() {
-    open(); stopSpeaking(); show(null); showSaid('');
+  function turn(followUp) {
+    open(); stopSpeaking(); if (!followUp) { show(null); showSaid(''); }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { setState('idle'); show({ say: 'There is no microphone. You can type instead.' }); return; }
     setState(ENGINE.ready ? 'listening' : 'loading');
     var ready = warm().catch(function (e) { return { failed: e }; });
     record().then(function (rec) {
       if (rec.why === 'cancel') return;
-      if (!rec.spoke) { setState('idle'); show({ say: 'I didn’t hear anything. Press the orb and speak, or type below.' }); return; }
+      if (!rec.spoke) { setState('idle'); if (!followUp) show({ say: 'I didn’t hear anything. Press the orb and speak, or type below.' }); return; }
       setState('hearing');
       return ready.then(function (w) {
         if (w && w.failed) throw w.failed;
@@ -468,7 +564,12 @@
     open(); showSaid(text); LAST.said = text; setState('thinking');
     var r = null;
     try { r = brain(text); } catch (e) { r = { say: 'Something went wrong there: ' + e.message }; }
-    var p = r ? Promise.resolve(r) : thinkHarder(text);
+    var p = r ? Promise.resolve(r) : (window.MorfisAgent ? window.MorfisAgent.plan(text).then(function (pl) {
+      if (!pl.actions.length) return pl.say ? { say: pl.say } : thinkHarder(text);
+      var out = agentReply(window.MorfisAgent.execute(pl.actions));
+      if (pl.say && !out.ask) out.say = pl.say + ' ' + out.say;
+      return out;
+    }, function () { return thinkHarder(text); }) : thinkHarder(text));
     return p.then(function (reply) {
       if (reply.pending) CTX.pending = reply.pending;
       show(reply);
@@ -477,7 +578,7 @@
       return said.then(function () {
         setState('idle');
         if (reply.close) setTimeout(function () { if (STATE === 'idle') close(); }, 1400);
-        else if (reply.ask && PR().voiceFollowUp !== false && EL && !EL.hidden) setTimeout(function () { if (STATE === 'idle' && EL && !EL.hidden) turn(); }, 250);
+        else if (reply.ask && PR().voiceFollowUp !== false && EL && !EL.hidden) setTimeout(function () { if (STATE === 'idle' && EL && !EL.hidden) turn(true); }, 250);
       });
     });
   }

@@ -30,7 +30,7 @@ const rand = (n) => crypto.randomBytes(n).toString('hex');
 /* window, zoom, theme and the program's name and icon belong to the computer's own window; the computer applies a
    name or icon change itself when the studio settings reach it */
 const PHONE_ONLY_NOOP = { winAct: {}, winState: {}, setZoom: 1, setTheme: true, notify: false, setBranding: { changed: false } };
-const PHONE_BLOCKED = new Set(['saveFile', 'savePdf', 'pickFiles', 'pickFolder', 'printHtml', 'movePath', 'removeIfEmpty', 'folderIconClearTree']);
+const PHONE_BLOCKED = new Set(['saveFile', 'savePdf', 'pickFiles', 'pickFolder', 'printHtml', 'movePath', 'removeIfEmpty', 'folderIconClearTree', 'aiDelete']);
 
 class Remote {
   /* o: { dir, api, prefs, version, name(), page(), asset(pathname) -> { file, type } | null, previewFile(token) -> path, renderPdf(html), onChange(ev) } */

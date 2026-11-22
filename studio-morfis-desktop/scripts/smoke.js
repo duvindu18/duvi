@@ -36,6 +36,7 @@ const fake = require('http').createServer((req, res) => {
     res.setHeader('content-type', 'application/json');
     if (req.url === '/api/tags') return res.end(JSON.stringify({ models: [{ name: 'qwen2.5:3b', size: 1 }] }));
     if (req.url === '/api/version') return res.end(JSON.stringify({ version: 'smoke' }));
+    if (req.url === '/api/delete') { fake.deleted = (fake.deleted || []).concat([JSON.parse(body || '{}').model]); return res.end('{}'); }
     if (req.url === '/api/chat') {
       const j = JSON.parse(body || '{}');
       const content = j.format === 'json'
@@ -525,6 +526,33 @@ app.whenReady().then(async () => {
     '}catch(e){o.err3=String(e&&e.stack||e)}return JSON.stringify(o)})()')));
   console.log('voice:', JSON.stringify(vo));
 
+  /* the assistant acting: a project made by voice, its tasks, stages and timeline; risky changes wait for a yes */
+  await new Promise((r) => fake.listen(11434, '127.0.0.1', r));
+  const ag = JSON.parse(await js(w, '(async function(){var o={},V=window.MorfisVoice,pg=window.__morfisPage,wait=function(ms){return new Promise(function(r){setTimeout(r,ms)})};try{' +
+    'var b=function(t){var r=V.brain(t);return r&&r.say};' +
+    'o.c=b("create a project called Lake House for Perera family with a budget of 2 million starting next monday");var p=Object.values(pg.S.projects).find(function(x){return x.name==="Lake House"});' +
+    'o.made=!!p&&p.client.name==="Perera family"&&p.budget===2000000&&p.tasks.length>10&&p.startDate>pg.today();o.start0=p&&p.stages[0].start;' +
+    'o.t=b("add a task site survey to lake house due friday");o.task=!!p.tasks.find(function(t){return t.title==="site survey"});' +
+    'o.d=b("mark site survey as done for lake house");o.done=(p.tasks.find(function(t){return t.title==="site survey"})||{}).status==="done";' +
+    'o.st=b("move lake house to the next stage");o.stage=p.currentStage;' +
+    'o.r=b("push lake house back by 2 weeks");o.waits=!!MorfisAgent.pending()&&p.stages[0].start===o.start0;' +
+    'o.y=b("yes");o.moved=p.stages[0].start===Morfis.addDays(o.start0,14);' +
+    'o.del=b("delete the project lake house");o.delWaits=!!MorfisAgent.pending();o.n=b("no");o.kept=!!pg.P(p.id)&&!MorfisAgent.pending();' +
+    'o.u=b("undo");o.undone=p.stages[0].start===o.start0;' +
+    'o.dl=b("add 4 renders to kitchen renders");var kj=MorfisFreelance.all().find(function(j){return /kitchen renders/i.test(j.title)});o.renders=!!kj&&kj.deliverables.some(function(d){return d.kind==="render"&&d.qty===4});' +
+    'o.ra=b("run the morning task check");' +
+    'o.pay=b("record a payment of 100000 for lake house");' +
+    'o.closeAsk=b("mark lake house as completed");o.closeWaits=!!MorfisAgent.pending();MorfisAgent.cancel();' +
+    'o.delModel=await window.morfisDesktop.aiDelete("qwen2.5:3b").then(function(){return "ok"},function(e){return e.message});' +
+    '}catch(e){o.err=String(e&&e.stack||e)}return JSON.stringify(o)})()'));
+  ag.deletedOnServer = (fake.deleted || []).indexOf('qwen2.5:3b') !== -1;
+  await go('automations', '68-automations-models');
+  ag.modelRows = await js(w, 'document.querySelectorAll("#dkView .au-model").length');
+  await js(w, 'MorfisVoice.open(); MorfisVoice.ask("push lake house back by 1 week")'); await wait(1500); await shot(w, '69-assistant-asks');
+  await js(w, 'MorfisAgent.cancel(); MorfisVoice.close()'); await wait(300);
+  fake.close();
+  console.log('agent:', JSON.stringify(ag));
+
   console.log('page errors:', errors.length ? errors : 'none');
   const pdir = path.join(profile, 'data', 'projects');
   console.log('saved files:', fs.existsSync(pdir) ? fs.readdirSync(pdir).length : 0, 'projects,', fs.existsSync(path.join(profile, 'data', 'settings.json')) ? 'settings ok' : 'no settings');
@@ -569,6 +597,8 @@ app.whenReady().then(async () => {
   expect(!vo.err && vo.btn && vo.help && /due/.test(vo.due || '') && /invoice|owes/.test(vo.owe || '') && /received/.test(vo.money || '') && vo.remOk && vo.stOk && vo.jobOk && vo.openFiles && /Wijesinghe/.test(vo.mis || '') && /freelance/.test(vo.count || '') && vo.unknown, 'voice assistant understands requests: ' + JSON.stringify(vo));
   expect(!vo.err2 && /\b(due|do)\b/i.test(vo.heard || '') && /week/i.test(vo.heard || '') && /due/.test(vo.reply || '') && vo.panel, 'voice assistant: a spoken question heard, understood and answered: ' + JSON.stringify(vo));
   expect(!vo.err3 && (vo.micState === 'listening' || vo.micState === 'loading') && vo.frames > 0, 'voice assistant: the microphone opens and hears sound: ' + JSON.stringify(vo));
+  expect(!ag.err && ag.made && ag.task && ag.done && ag.stage === 2 && ag.waits && ag.moved && ag.delWaits && ag.kept && ag.undone && ag.renders && /Running/.test(ag.ra || '') && /no issued invoice|OK/.test(ag.pay || '') && ag.closeWaits, 'the assistant acts, and asks first for risky changes: ' + JSON.stringify(ag));
+  expect(ag.delModel === 'ok' && ag.deletedOnServer && ag.modelRows >= 1, 'downloaded AI models listed and deleted: ' + JSON.stringify(ag));
   console.log(fails.length ? 'SMOKE FAILED: ' + fails.join('; ') : 'SMOKE PASSED');
   app.exit(fails.length ? 1 : 0);
 });

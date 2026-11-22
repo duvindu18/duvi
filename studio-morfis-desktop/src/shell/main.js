@@ -424,6 +424,7 @@ const API = {
 
   /* automation agent on this computer (Ollama) */
   aiStatus: () => ai.status(prefs),
+  aiDelete: (name) => ai.remove(prefs, name),
   aiChat: (o) => ai.chat(prefs, o || {}),
   aiPull(name) {
     return ai.pull(prefs, name, (p) => { if (win && !win.isDestroyed()) win.webContents.send('ai:pull', p); remote.push({ t: 'ai:pull', p: p }); });

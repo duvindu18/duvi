@@ -11,10 +11,10 @@ const SUGGESTED = [
 
 const base = (prefs) => String(prefs.get('aiEndpoint')).replace(/\/+$/, '');
 
-async function call(prefs, pathName, body, timeoutMs) {
+async function call(prefs, pathName, body, timeoutMs, method) {
   const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), timeoutMs || 120000);
   try {
-    const r = await fetch(base(prefs) + pathName, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal } : { signal: ctl.signal });
+    const r = await fetch(base(prefs) + pathName, body ? { method: method || 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal } : { signal: ctl.signal });
     if (!r.ok) { const txt = await r.text().catch(() => ''); throw new Error(/not found/i.test(txt) ? 'The model is not downloaded yet.' : 'The AI engine answered ' + r.status + '.'); }
     return r;
   } catch (e) {
@@ -79,4 +79,12 @@ async function pull(prefs, name, onProgress) {
   return { ok: /success/i.test(last.status || '') };
 }
 
-module.exports = { status, chat, pull, SUGGESTED };
+/* remove a downloaded model from this computer (Ollama frees its disk space) */
+async function remove(prefs, name) {
+  const n = String(name || '').trim();
+  if (!n || !/^[\w.\-:/]+$/.test(n)) throw new Error('That is not a model name.');
+  await call(prefs, '/api/delete', { model: n }, 60000, 'DELETE');
+  return { removed: n };
+}
+
+module.exports = { status, chat, pull, remove, SUGGESTED };

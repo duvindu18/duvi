@@ -667,7 +667,18 @@
         '<button type="button" class="btn" data-au="recheck">' + ic('refresh', 15) + 'Check again</button>' + (aiUsable() ? '<button type="button" class="btn" data-au="test">' + ic('sparkle', 15) + 'Test</button>' : '') +
         '<label class="switch" style="margin-left:auto"><input type="checkbox" data-au-pref="aiEnabled"' + (P.aiEnabled ? ' checked' : '') + '>Use the assistant</label></div>' +
       (AI.pull ? '<div class="au-pull"><div class="au-bar"><i id="aiPullBar" style="width:' + (AI.pull.pct || 0) + '%"></i></div><span class="small muted" id="aiPullTxt">' + esc(AI.pull.status || '') + '</span></div>' : '') +
-      (!s || !s.running || !s.ready ? setupSteps(s) : '') + '</div></section>';
+      (!s || !s.running || !s.ready ? setupSteps(s) : '') + modelsList(s) + '</div></section>';
+  }
+  /* the models on this computer, with their size, each removable to free the disk */
+  function gb(n) { return n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : Math.round(n / 1e6) + ' MB'; }
+  function modelsList(s) {
+    if (!s || !s.running || !s.models.length || window.MORFIS_REMOTE) return '';
+    var P = M.prefs() || {}, total = s.models.reduce(function (a, m) { return a + (m.size || 0); }, 0);
+    return '<div class="au-models"><div class="fx-sec-h" style="margin:4px 0 6px"><h3>Downloaded models</h3><span class="count">' + s.models.length + '</span><span class="small muted" style="margin-left:auto">' + gb(total) + ' on this computer</span></div>' +
+      s.models.map(function (m) {
+        var inUse = m.name === P.aiModel || m.name === P.aiModel + ':latest';
+        return '<div class="au-model"><span class="mono">' + esc(m.name) + '</span><span class="muted small">' + gb(m.size || 0) + (inUse ? ' · in use' : '') + '</span><button type="button" class="btn sm danger ghost" data-au-del="' + esc(m.name) + '">' + ic('trash', 13) + 'Delete</button></div>';
+      }).join('') + '</div>';
   }
   function ruleCard(r) {
     var P = M.prefs() || {}, on = r.pref ? !!P[r.key] : r.manual ? null : !!ST.settings[r.key];
@@ -722,6 +733,13 @@
         else if (a === 'recheck') { AI.status = null; redraw(); checkAi(true); }
         else if (a === 'pull') pullModel(M.prefs().aiModel);
         else if (a === 'test') { b.disabled = true; ask('Answer in one short sentence.', 'Say hello to the studio and confirm you are ready.').then(function (r) { M.toast(r.text); b.disabled = false; }, function (x) { M.toast(x.message); b.disabled = false; }); }
+        return;
+      }
+      if ((b = t.closest('[data-au-del]'))) {
+        var name = b.dataset.auDel, P0 = M.prefs() || {}, used = name === P0.aiModel || name === P0.aiModel + ':latest';
+        if (!window.confirm('Delete the model ' + name + ' from this computer?' + (used ? ' It is the one the assistant uses: the AI answers stop until you download a model again.' : '') + ' You can download it again later.')) return;
+        b.disabled = true;
+        H.aiDelete(name).then(function () { M.toast(name + ' is deleted from this computer.'); log('trash', 'Deleted the model ' + name + '.'); AI.status = null; checkAi(true); }, function (x) { b.disabled = false; M.toast('Could not delete it: ' + x.message); });
         return;
       }
       if ((b = t.closest('[data-au-run]'))) { runRule(b.dataset.auRun); return; }
@@ -784,5 +802,11 @@
     var k = Object.keys(KV).find(function (x) { return KV[x] === key; }); if (!k) return;
     H.kvGet(key).then(function (v) { if (v != null) ST[k] = v; if (k === 'settings') ST.settings = Object.assign({}, DEF_SETTINGS, ST.settings); redraw(); M.redrawSide(); }, function () {});
   }
-  window.MorfisAuto = { reload: reloadKey, refreshIcons: refreshIcons, attention: attention, aiSort: aiSort, draftQuote: draftQuote, coverNote: coverNote, run: runRule, status: function () { return AI.status; } };
+  /* for the voice assistant: add a custom automation (the same shape the editor saves), write to the activity log */
+  function addCustom(d) {
+    var r = JSON.parse(JSON.stringify(d)); r.id = M.uid('ar'); r.on = r.on !== false; r.created = pg().today();
+    ST.custom.push(r); put('custom'); redraw(); return r;
+  }
+  function removeCustom(id) { var n = ST.custom.length; ST.custom = ST.custom.filter(function (x) { return x.id !== id; }); put('custom'); redraw(); return n !== ST.custom.length; }
+  window.MorfisAuto = { addCustom: addCustom, removeCustom: removeCustom, custom: function () { return ST.custom; }, rules: function () { return RULES.filter(function (r) { return !r.manual; }).map(function (r) { return { key: r.key, title: r.title }; }); }, log: function (icon, text) { log(icon, text); }, reload: reloadKey, refreshIcons: refreshIcons, attention: attention, aiSort: aiSort, draftQuote: draftQuote, coverNote: coverNote, run: runRule, status: function () { return AI.status; } };
 })();

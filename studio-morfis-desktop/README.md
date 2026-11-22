@@ -128,6 +128,26 @@ Press the microphone at the top (or **Ctrl+Space**) and speak naturally. Morfis 
 - **Typing:** you can also type to it in the same panel.
 - **Privacy:** the microphone is used only while the orb is listening, and only by the app's own window. The models are part of the app (about 190 MB).
 
+### What Morfis can do, and what it asks first
+
+Morfis works the app for you. It never deletes or changes anything important without your OK, and every action is logged in Automations > Activity with Undo ("undo that").
+
+| Does it straight away (with Undo) | Asks you first ("Shall I go ahead?": say yes, or press Yes) |
+|---|---|
+| Create a project: "create a project called Lake House for the Perera family with a budget of 2 million starting next Monday" (stages, 40 tasks, milestone invoices and folders) | Delete a project, job or task |
+| Add a task: "add a task site survey to Lake House due Friday" | Move a whole timeline: "push Lake House back by 2 weeks", "reschedule Lake House to start on 5 January" |
+| Tick a task off, change one task's date | Go back a stage |
+| Move a project on: "move Lake House to the next stage" | Close a project: completed or cancelled |
+| Status: in progress, on hold, upcoming | Money: issue an invoice, record a payment, change a fee or what was paid |
+| Freelance: start a job, "add 4 renders to Kitchen renders", tick deliverables, change the due date | Change a project's name, client or location |
+| Reminders, folders, run an automation, create a custom automation, draft a quotation | Move a project between Direct and Freelance (its folder moves) |
+
+Requests the built-in rules don't cover go to the local AI model (Ollama), which plans them with the same tools and the same rules.
+
+### Downloaded AI models
+
+*Automations > AI assistant > Downloaded models* lists the Ollama models on this computer and their sizes. Each has **Delete**, which frees the disk space; it can be downloaded again any time. The voice models (Whisper and Kokoro, about 190 MB) are part of the app and are removed when it is uninstalled.
+
 `npm run voice-test` checks the engine end to end: Kokoro says a sentence, Whisper must hear it back, and no request may leave the computer.
 
 ## Direct and freelance, everywhere

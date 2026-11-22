@@ -477,11 +477,31 @@ html.has-wbar .pv{top:40px}
 
 /* ===== voice assistant ===== */
 html .icon-btn.lg.vx-btn.on,html.style-mono .icon-btn.lg.vx-btn.on{background:var(--mono-pill,var(--accent-fill));color:var(--mono-on-pill,var(--on-accent));border-color:transparent}
-.vx{position:fixed;left:50%;bottom:22px;z-index:1800;width:min(620px,calc(100vw - 32px));transform:translate(-50%,16px) scale(.98);opacity:0;transition:transform .22s cubic-bezier(.2,.8,.2,1),opacity .18s ease-out;pointer-events:none;--lv:0;
-  --o1:#7C6CF0;--o2:#38BDF8;--o3:#F472B6}
-.vx.vx-open{transform:translate(-50%,0) scale(1);opacity:1;pointer-events:auto}
-html.style-mono .vx{--o1:#F5C400;--o2:#8E8E8E;--o3:#F2F2F2}
-html.style-mono[data-theme="light"] .vx{--o1:#F5C400;--o2:#7A7A7A;--o3:#0B0B0B}
+.vx{position:fixed;left:50%;bottom:22px;z-index:1800;width:min(620px,calc(100vw - 32px));transform:translate(-50%,28px) scale(.9);opacity:0;filter:blur(8px);transition:transform .46s cubic-bezier(.2,1.35,.35,1),opacity .22s ease-out,filter .3s ease-out;pointer-events:none;--lv:0;
+  --o1:#4285F4;--o2:#9B72CB;--o3:#D96570;--o4:#F4B400}
+.vx.vx-open{transform:translate(-50%,0) scale(1);opacity:1;filter:none;pointer-events:auto}
+/* Siri and Gemini: a living colour edge around the window, brighter as the voice gets louder */
+@property --vxa{syntax:'<angle>';inherits:false;initial-value:0deg}
+.vx-edge{position:fixed;inset:0;z-index:1790;pointer-events:none;opacity:0;transition:opacity .4s ease-out}
+.vx-edge::before,.vx-edge::after{content:"";position:absolute;inset:0;border-radius:10px;padding:calc(2px + var(--vxlv,0) * 7px);
+  background:conic-gradient(from var(--vxa),#4285F4,#9B72CB,#D96570,#F4B400,#34A853,#4285F4);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:vxRot 3.2s linear infinite}
+.vx-edge::after{filter:blur(22px);opacity:.85;padding:calc(10px + var(--vxlv,0) * 18px)}
+html[data-vx="listening"] .vx-edge,html[data-vx="speaking"] .vx-edge{opacity:1}
+html[data-vx="thinking"] .vx-edge,html[data-vx="hearing"] .vx-edge,html[data-vx="loading"] .vx-edge{opacity:.55}
+html[data-vx="thinking"] .vx-edge::before,html[data-vx="thinking"] .vx-edge::after,html[data-vx="hearing"] .vx-edge::before,html[data-vx="hearing"] .vx-edge::after{animation-duration:1.4s}
+@keyframes vxRot{to{--vxa:360deg}}
+.vx-card{position:relative}
+.vx-card::before{content:"";position:absolute;inset:-1px;border-radius:25px;padding:1px;background:conic-gradient(from var(--vxa),#4285F4,#9B72CB,#D96570,#F4B400,#4285F4);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:.0;transition:opacity .3s;animation:vxRot 4s linear infinite;pointer-events:none}
+.vx:not([data-state="idle"]) .vx-card::before{opacity:.9}
+.vx[data-state="thinking"] .vx-state,.vx[data-state="hearing"] .vx-state,.vx[data-state="loading"] .vx-state{background:linear-gradient(90deg,var(--ink-3) 0%,#4285F4 30%,#D96570 50%,var(--ink-3) 75%);background-size:220% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:vxShim 1.6s linear infinite}
+@keyframes vxShim{from{background-position:120% 0}to{background-position:-100% 0}}
+.vx-w{display:inline-block;animation:vxWord .32s cubic-bezier(.2,.9,.3,1) both}
+@keyframes vxWord{from{opacity:0;filter:blur(4px);transform:translateY(4px)}to{opacity:1;filter:none;transform:none}}
+.vx-yes{background:var(--ink)!important;color:var(--surface)!important;border-color:var(--ink)!important}
+.vx-yes span{color:inherit;opacity:.7}
+.vx-info{cursor:default;background:transparent!important}
+html.reduce-motion .vx-edge::before,html.reduce-motion .vx-edge::after,html.reduce-motion .vx-w,html.reduce-motion .vx-card::before{animation:none}
 .vx-card{display:flex;flex-direction:column;gap:12px;padding:16px 16px 12px;border-radius:24px;background:color-mix(in srgb,var(--surface) 86%,transparent);backdrop-filter:blur(22px) saturate(1.4);border:1px solid var(--line-2);box-shadow:0 24px 60px rgba(0,0,0,.35)}
 .vx-top{display:flex;align-items:center;gap:14px}
 .vx-orb{position:relative;flex:none;width:64px;height:64px;border-radius:50%;border:0;padding:0;background:none;cursor:pointer;isolation:isolate}
@@ -511,3 +531,9 @@ html[data-theme="light"] .vx-orb i{mix-blend-mode:multiply;opacity:.7}
 .vx-type .in{flex:1;border-radius:999px;height:38px}
 html.reduce-motion .vx-orb i{animation:none}
 .vx-items{max-height:min(300px,42vh);overflow:auto;padding-right:2px}
+.au-models{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.au-models h3{font-size:14px;margin:0}
+.au-model{display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid var(--line)}
+.au-model:last-child{border-bottom:0}
+.au-model .mono{font-weight:600}
+.au-model .btn{margin-left:auto}
