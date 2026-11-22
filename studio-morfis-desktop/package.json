@@ -65,7 +65,20 @@
       "node_modules/kokoro-js/voices/am_fenrir.bin",
       "node_modules/kokoro-js/voices/bf_emma.bin",
       "node_modules/kokoro-js/voices/bm_george.bin",
-      "package.json"
+      "package.json",
+      "!node_modules/onnxruntime-node{,/**/*}",
+      "!node_modules/sharp{,/**/*}",
+      "!node_modules/@img{,/**/*}",
+      "!node_modules/onnxruntime-common{,/**/*}",
+      "!node_modules/@huggingface/transformers/dist/!(transformers.min.js)",
+      "!node_modules/@huggingface/transformers/{src,types}{,/**/*}",
+      "!node_modules/onnxruntime-web/dist/!(ort.webgpu.min.mjs|ort-wasm-simd-threaded.jsep.mjs|ort-wasm-simd-threaded.jsep.wasm)",
+      "!node_modules/onnxruntime-web/{lib,types}{,/**/*}",
+      "!node_modules/kokoro-js/voices/!(af_heart|af_bella|af_nicole|am_michael|am_fenrir|bf_emma|bm_george).bin",
+      "!node_modules/kokoro-js/{dist,types}{,/**/*}",
+      "!node_modules/phonemizer/dist/phonemizer.cjs",
+      "!node_modules/phonemizer/types{,/**/*}",
+      "!node_modules/{protobufjs,@protobufjs,flatbuffers,long,guid-typescript,platform}{,/**/*}"
     ],
     "win": {
       "target": [
