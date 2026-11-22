@@ -488,8 +488,10 @@
       '<form class="vx-type" data-vx-form><input class="in" name="q" placeholder="Or type here, then Enter" autocomplete="off" spellcheck="true" aria-label="Type to the assistant"><button type="button" class="icon-btn" data-vx="settings" title="Voice settings">' + ic('settings', 16) + '</button></form>' +
       '</div>';
     document.body.appendChild(EL);
-    /* the glow around the whole window while Morfis listens, thinks and speaks */
-    var edge = document.createElement('div'); edge.className = 'vx-edge'; edge.setAttribute('aria-hidden', 'true'); document.body.appendChild(edge);
+    /* a soft light rising from the bottom of the window while Morfis listens, thinks and speaks (Gemini Live style) */
+    var edge = document.createElement('div'); edge.className = 'vx-aura'; edge.setAttribute('aria-hidden', 'true');
+    edge.innerHTML = '<div class="vx-aura-in"><i class="a1"></i><i class="a2"></i><i class="a3"></i><i class="a4"></i><i class="band"></i></div>';
+    document.body.appendChild(edge);
     EL.addEventListener('click', function (e) {
       var b = e.target.closest('[data-vx]'); if (b) { var a = b.dataset.vx; if (a === 'mic') toggle(); else if (a === 'close') close(); else if (a === 'settings') { close(); pg().setView('settings'); setTimeout(function () { var c = document.getElementById('dkVoice'); if (c) c.scrollIntoView({ block: 'center' }); }, 300); } return; }
       var it = e.target.closest('[data-vx-item]'); if (it) { var x = (LAST.reply && LAST.reply.items || [])[+it.dataset.vxItem]; if (!x) return; if (x.info) return; if (x.confirm) { handle('yes'); return; } if (x.cancel) { handle('no'); return; } if (x.ask) handle(x.ask); else if (x.pick && LAST.reply.pickThen) { CTX.pending = null; show(LAST.reply.pickThen(x.pick)); } else if (x.go) { openThing(x.go); close(); } }
