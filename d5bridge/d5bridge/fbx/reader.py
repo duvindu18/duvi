@@ -212,15 +212,7 @@ class _TextureResolver:
             if not out.exists():
                 out.write_bytes(content)
             return str(out)
-        # last resort: case-insensitive search in the fbx folder tree (2 levels)
-        if base:
-            low = base.lower()
-            for root, _dirs, files in os.walk(self.dir):
-                if root.count(os.sep) - str(self.dir).count(os.sep) > 2:
-                    continue
-                for f in files:
-                    if f.lower() == low:
-                        return str(Path(root) / f)
+        # not found next to the FBX: library.relink_scene() searches the whole library
         return filename or relname
 
 

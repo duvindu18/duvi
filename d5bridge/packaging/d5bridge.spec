@@ -4,13 +4,14 @@ import os
 
 root = os.path.abspath(os.path.join(SPECPATH, ".."))
 hidden = collect_submodules("OpenGL.platform") + collect_submodules("OpenGL.arrays") + [
-    "OpenGL.GL", "PIL.ImageQt", "winreg",
+    "OpenGL.GL", "PIL.ImageQt", "winreg", "PySide6.QtNetwork",
 ]
 
 a = Analysis(
     [os.path.join(root, "run_d5bridge.py")],
     pathex=[root],
-    datas=[(os.path.join(root, "max_plugin"), "max_plugin")],
+    datas=[(os.path.join(root, "max_plugin"), "max_plugin"),
+           (os.path.join(root, "d5bridge", "gui", "shaders", "*.qsb"), os.path.join("d5bridge", "gui", "shaders"))],
     hiddenimports=hidden,
     excludes=["tkinter", "matplotlib", "scipy", "PySide6.QtWebEngineCore", "PySide6.Qt3DCore"],
     noarchive=False,

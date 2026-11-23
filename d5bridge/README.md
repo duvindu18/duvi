@@ -81,10 +81,30 @@ d5bridge/
 Open a file once and the bundle is cached. Reopening it is instant until the
 `.max` changes.
 
-**Without 3ds Max:** FBX, OBJ and Megascans work fully. For `.max` files, use
-the **D5 Bridge toolbar button** on a machine that has 3ds Max. Or export to
-FBX there and open that FBX here: textures are matched by file name, and gloss
-maps are found from their names.
+**Without 3ds Max:** opening a `.max` still works for most commercial
+libraries. MaxTree, Evermotion and similar packs ship their own FBX/OBJ exports
+next to the scene (`FBX/`, `Mesh/`, `MT_PM_V16_Forest_Pack_Mesh_Corona/`...).
+D5 Bridge finds the export with the same name, or, for a collection scene,
+every model export of the library (one variant per file), and loads it. The
+file itself stays closed: no software other than 3ds Max can read the `.max`
+format reliably. To force this mode on a PC that has 3ds Max (it is faster),
+turn off *Settings > Use 3ds Max for .max files*.
+
+### Library-aware texture re-linking
+
+Texture paths stored in library files usually point at the author's PC
+(`D:\MaxTree\work\maps\leaf_01.tif`). On every open, D5 Bridge finds the
+library root (the folder that holds a `Maps` / `MT_PM_V16_Maps` / `textures`
+folder), indexes all of its images once (cached), and re-links each missing
+texture:
+
+1. same file name anywhere in the library (Maps folders preferred, previews and
+   thumbnails ignored)
+2. same name with another extension (`.tif` saved, `.jpg` shipped)
+3. same name ignoring resolution and separators (`Leaf_01_4K_diffuse` = `leaf01-diffuse`)
+4. materials with no maps at all get the texture set matching their name
+5. once a base colour is found, its opacity, normal, roughness/gloss and
+   translucency siblings in the same folder are added automatically
 
 **Renderer not installed:** if Corona or V-Ray is missing on the PC, 3ds Max
 loads their materials as *Missing* placeholders. D5 Bridge then matches the
@@ -254,6 +274,19 @@ D5BridgeCLI.exe --export model.fbx --out D:\D5 --single-file --mode visually_los
   foliage wind.
 - The preview loads textures at up to 2048 px for speed. Exports always use
   the full resolution.
+
+## Preview and speed
+
+- The preview renders with **Direct3D 11** on Windows (Qt RHI). OpenGL is a
+  fallback in *Settings > Preview* for unusual drivers.
+- Mesh buffers are built in the loader thread, so the model appears as soon as
+  it is loaded. Textures stream in from a thread pool with GPU mipmaps, a few
+  per frame, so orbiting stays smooth while a 4K set loads.
+- Picking is a CPU ray cast: instant, and identical on every graphics API.
+- FBX export compresses arrays on all CPU cores.
+- Only one D5 Bridge window runs. Opening another file (double-click,
+  right-click > Open in D5 Bridge, the 3ds Max button) sends it to the open
+  window.
 
 ## 8. Development
 

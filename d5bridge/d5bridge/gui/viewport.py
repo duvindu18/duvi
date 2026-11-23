@@ -174,29 +174,11 @@ class GpuMesh:
     """Indexed GPU buffers for one Mesh, with one draw range per material slot."""
 
     def __init__(self, mesh: Mesh) -> None:
-        tris, tri_face = mesh.triangulate()
-        cv = mesh.corner_verts.astype(np.int64)
-        ni = mesh.normals.index.astype(np.int64) if mesh.normals is not None else np.zeros_like(cv)
-        ui = mesh.uv_sets[0].attr.index.astype(np.int64) if mesh.uv_sets else np.zeros_like(cv)
-        key = np.stack([cv, ni, ui], axis=1)
-        uniq, inv = np.unique(key, axis=0, return_inverse=True)
-        inv = inv.ravel()
-        pos = mesh.positions[uniq[:, 0]].astype(np.float32)
-        nrm = (mesh.normals.data[uniq[:, 1]] if mesh.normals is not None
-               else np.tile([0, 0, 1.0], (len(uniq), 1))).astype(np.float32)
-        uv = (mesh.uv_sets[0].attr.data[uniq[:, 2]] if mesh.uv_sets
-              else np.zeros((len(uniq), 2))).astype(np.float32)
-        idx = inv[tris].astype(np.uint32) if len(tris) else np.zeros((0, 3), np.uint32)
-        fm = mesh.face_material if mesh.face_material is not None else np.zeros(mesh.num_faces, np.int32)
-        tri_mat = fm[tri_face] if len(tri_face) else np.zeros(0, np.int32)
-        order = np.argsort(tri_mat, kind="stable")
-        idx = idx[order]
-        tri_mat = tri_mat[order]
-        self.ranges: list[tuple[int, int, int]] = []   # (slot, first index, count)
-        if len(tri_mat):
-            slots, starts, counts = np.unique(tri_mat, return_index=True, return_counts=True)
-            self.ranges = [(int(s), int(st) * 3, int(c) * 3) for s, st, c in zip(slots, starts, counts)]
-        inter = np.hstack([pos, nrm, uv]).astype(np.float32)
+        from .view_common import draw_data
+        dd = draw_data(mesh)                 # prepared in the loader thread
+        inter = dd.vertices
+        flat_idx = dd.indices
+        self.ranges = dd.ranges
         self.vao = GL.glGenVertexArrays(1)
         GL.glBindVertexArray(self.vao)
         self.vbo = GL.glGenBuffers(1)
@@ -208,10 +190,10 @@ class GpuMesh:
             GL.glVertexAttribPointer(loc, size, GL.GL_FLOAT, GL.GL_FALSE, stride, ctypes.c_void_p(off))
         self.ebo = GL.glGenBuffers(1)
         GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self.ebo)
-        flat = np.ascontiguousarray(idx.ravel())
-        GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, flat.nbytes, flat, GL.GL_STATIC_DRAW)
+        GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, max(flat_idx.nbytes, 4),
+                        flat_idx if flat_idx.nbytes else np.zeros(1, np.uint32), GL.GL_STATIC_DRAW)
         GL.glBindVertexArray(0)
-        self.tri_count = len(idx)
+        self.tri_count = len(flat_idx) // 3
 
     def delete(self) -> None:
         GL.glDeleteBuffers(2, [self.vbo, self.ebo])
@@ -239,6 +221,7 @@ def _load_preview_image(path: str, extract: str = "") -> tuple[str, np.ndarray |
 
 # --------------------------------------------------------------------------- #
 class Viewport(QOpenGLWidget):
+    backend_name = "OpenGL"
     picked = Signal(object, bool)      # Node | None, additive
     status = Signal(str)
 

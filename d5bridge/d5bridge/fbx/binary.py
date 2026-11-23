@@ -268,31 +268,58 @@ def _encode_prop(v: Any, compress: bool) -> bytes:
     if isinstance(v, (bytes, bytearray)):
         return b"S" + struct.pack("<I", len(v)) + bytes(v)
     if isinstance(v, np.ndarray):
-        if v.dtype.kind == "f":
-            code = "f" if v.dtype == np.float32 else "d"
-        elif v.dtype.kind == "b":
-            code = "b"
-        elif v.dtype.itemsize == 8:
-            code = "l"
-        else:
-            code = "i"
-        return _encode_array(code, v, compress)
+        return _encode_array(_array_code(v), v, compress)
     raise TypeError(f"Cannot encode FBX property {type(v)}")
+
+
+_COMPRESSED: dict[int, bytes] = {}
 
 
 def _encode_array(code: str, arr: np.ndarray, compress: bool) -> bytes:
     data = np.ascontiguousarray(arr, dtype=_ARRAY_DTYPES[code]).tobytes()
     enc = 0
     if compress and len(data) > 128:
-        comp = zlib.compress(data, 9)
+        comp = _COMPRESSED.get(id(arr))
+        if comp is None:
+            comp = zlib.compress(data, 6)
         if len(comp) < len(data):
             data, enc = comp, 1
     return code.encode() + struct.pack("<III", len(arr), enc, len(data)) + data
 
 
+def _array_code(v: np.ndarray) -> str:
+    if v.dtype.kind == "f":
+        return "f" if v.dtype == np.float32 else "d"
+    if v.dtype.kind == "b":
+        return "b"
+    return "l" if v.dtype.itemsize == 8 else "i"
+
+
+def _precompress(root: "FBXNode") -> None:
+    """Deflate all big arrays in parallel (zlib releases the GIL)."""
+    from concurrent.futures import ThreadPoolExecutor
+    arrays: list[tuple[np.ndarray, str]] = []
+    stack = [root]
+    while stack:
+        n = stack.pop()
+        for p in n.props:
+            if isinstance(p, np.ndarray) and p.nbytes > 4096:
+                arrays.append((p, _array_code(p)))
+        stack.extend(n.children)
+
+    def job(item):
+        arr, code = item
+        return id(arr), zlib.compress(np.ascontiguousarray(arr, dtype=_ARRAY_DTYPES[code]).tobytes(), 6)
+    with ThreadPoolExecutor() as ex:
+        for k, v in ex.map(job, arrays):
+            _COMPRESSED[k] = v
+
+
 def write_fbx_tree(path: str | BinaryIO, root: FBXNode, version: int = 7400,
                    compress: bool = True) -> int:
     """Write the node tree as binary FBX. Returns the file size in bytes."""
+    if compress:
+        _precompress(root)
     out = bytearray()
     out += MAGIC + struct.pack("<I", version)
     wide = version >= 7500
@@ -326,6 +353,7 @@ def write_fbx_tree(path: str | BinaryIO, root: FBXNode, version: int = 7400,
     out += b"\0" * (pad or 16)
     out += struct.pack("<I", version) + b"\0" * 120 + FOOT_TAIL
 
+    _COMPRESSED.clear()
     if isinstance(path, (str, bytes)) or hasattr(path, "__fspath__"):
         with open(path, "wb") as f:
             f.write(out)

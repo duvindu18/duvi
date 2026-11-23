@@ -21,7 +21,19 @@ from ..pipeline import Cancelled, ExportOptions, export
 from ..scene import Material, Node, Scene, TextureRef, Variant
 from ..settings import load_settings, save_settings
 from .theme import DARK, LIGHT, Palette, qss
-from .viewport import Viewport
+from .view_common import prepare_scene
+
+
+def make_viewport(pref: str):
+    """'directx' (Qt RHI: Direct3D 11 on Windows) with OpenGL as the fallback."""
+    if pref != "opengl":
+        try:
+            from .viewport_rhi import RhiViewport
+            return RhiViewport()
+        except Exception:  # noqa: BLE001 - old Qt or missing shaders
+            pass
+    from .viewport import Viewport
+    return Viewport()
 from .widgets import Segmented, Toast, Toggle, badge, card, divider, label, make_icon
 
 CHANNEL_LABELS = [("base_color", "Base colour"), ("opacity", "Opacity"), ("normal", "Normal"),
@@ -57,7 +69,10 @@ class Job(QRunnable):
 
 
 def _load_job(path: str, job: Job, max_options: dict, lod: int) -> Scene:
-    return load_any(path, log=job.signals.log.emit, max_options=max_options, lod=lod)
+    scene = load_any(path, log=job.signals.log.emit, max_options=max_options, lod=lod)
+    # build GPU-ready buffers here, off the UI thread, so the preview appears at once
+    prepare_scene(scene, job.signals.log.emit)
+    return scene
 
 
 def _export_job(scene: Scene, variants, selected, opts: ExportOptions, job: Job):
@@ -517,9 +532,9 @@ class MainWindow(QMainWindow):
         vl.addLayout(hbox(self.view_mode, None, label("Wire", "Muted"), self.wire_t,
                           label("Side by side", "Muted"), self.spread_t,
                           label("Grid", "Muted"), self.grid_t, frame_b, spacing=10))
-        self.viewport = Viewport()
+        self.viewport = make_viewport(self.settings.get("renderer", "directx"))
         self.viewport.picked.connect(self.on_pick)
-        self.viewport.status.connect(lambda s: self.toast.show_message(s))
+        self.viewport.status.connect(self.on_view_status)
         vl.addWidget(self.viewport, 1)
         self.view_stats = label("", "Faint")
         vl.addWidget(label("Left drag orbit · Middle or Shift drag pan · Wheel zoom · Click select · "
@@ -704,7 +719,19 @@ class MainWindow(QMainWindow):
         l.addWidget(Row("Convert proxies", "Corona / V-Ray proxies are turned into real meshes.", self.proxy_t))
         self.cache_t = Toggle(self.settings.get("reuse_cache", True))
         l.addWidget(Row("Reuse previous 3ds Max export", "Reopening an unchanged .max file is instant.", self.cache_t))
+        self.usemax_t = Toggle(self.settings.get("use_3dsmax", True))
+        l.addWidget(Row("Use 3ds Max for .max files", "Off: open .max files from the FBX/OBJ exports in their "
+                        "library folder (no 3ds Max needed, faster).", self.usemax_t))
         lay.addWidget(c)
+        cr = card()
+        lr = QVBoxLayout(cr)
+        lr.setContentsMargins(18, 16, 18, 16)
+        lr.addWidget(label("Preview", "H3"))
+        self.renderer_seg = Segmented([("directx", "DirectX 11"), ("opengl", "OpenGL")],
+                                      self.settings.get("renderer", "directx"))
+        lr.addWidget(Row("Renderer", "DirectX 11 is the default on Windows. Switch to OpenGL if the "
+                         "preview stays empty on your graphics driver. Applies after restart.", self.renderer_seg))
+        lay.addWidget(cr)
         c2 = card()
         l2 = QVBoxLayout(c2)
         l2.setContentsMargins(18, 16, 18, 16)
@@ -842,7 +869,8 @@ class MainWindow(QMainWindow):
         if self.settings.get("max_batch"):
             os.environ["D5B_3DSMAXBATCH"] = self.settings["max_batch"]
         max_opts = {"bake_procedural": self.settings.get("bake_procedural", True),
-                    "convert_proxies": self.settings.get("convert_proxies", True)}
+                    "convert_proxies": self.settings.get("convert_proxies", True),
+                    "use_3dsmax": self.settings.get("use_3dsmax", True)}
         job = Job(_load_job, str(p), max_options=max_opts, lod=int(self.settings.get("lod", 0)))
         job.signals.log.connect(lambda s: self.toast.show_message(s, ms=8000))
         job.signals.done.connect(lambda sc: self.on_loaded(sc, p))
@@ -985,7 +1013,8 @@ class MainWindow(QMainWindow):
         nodes = self.checked_nodes()
         self.viewport.set_visible(nodes)
         tris = sum(n.mesh.num_triangles for n in nodes if n.mesh is not None)
-        self.view_stats.setText(f"{len(nodes)} objects · {tris:,} triangles shown")
+        api = getattr(self, "renderer_name", "") or getattr(self.viewport, "backend_name", "")
+        self.view_stats.setText(f"{len(nodes)} objects · {tris:,} triangles shown · {api}")
         self.update_selection_summary()
         self.nav_badges["model"].hide()
 
@@ -1160,6 +1189,12 @@ class MainWindow(QMainWindow):
             self.selected_material.normal_convention = conv
             self.viewport.update()
 
+    def on_view_status(self, msg: str) -> None:
+        if "fail" in msg.lower() or "error" in msg.lower() or "not available" in msg.lower():
+            self.toast.show_message(msg, ms=10000)
+        self.renderer_name = msg.replace("Preview: ", "")
+        self.sync_visible() if self.scene is not None else None
+
     def set_view_mode(self, mode: str) -> None:
         self.viewport.mode = mode
         self.viewport.update()
@@ -1310,6 +1345,8 @@ class MainWindow(QMainWindow):
         self.settings["reuse_cache"] = self.cache_t.isChecked()
         self.settings["lod"] = int(self.lod_seg.value() or 0)
         self.settings["megascans_normals"] = self.ms_normal.value()
+        self.settings["use_3dsmax"] = self.usemax_t.isChecked()
+        self.settings["renderer"] = self.renderer_seg.value()
         save_settings(self.settings)
         self.refresh_max_status()
         self.toast.show_message("Settings saved")
@@ -1392,8 +1429,11 @@ def run_app(path: str | None = None) -> int:
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("D5Bridge.App")
         except Exception:  # noqa: BLE001
             pass
+    from .viewport import Viewport
     Viewport.configure_default_format()
     app = QApplication.instance() or QApplication(sys.argv)
+    if _forward_to_running_instance(path):
+        return 0
     app.setStyle("Fusion")
     app.setApplicationName("D5 Bridge")
     f = QFont("Inter")
@@ -1403,6 +1443,58 @@ def run_app(path: str | None = None) -> int:
     app.setFont(f)
     w = MainWindow()
     w.show()
+    server = _listen_for_instances(w)
+    _ = server
     if path:
         QTimer.singleShot(150, lambda: w.load(path))
     return app.exec()
+
+
+def _instance_name() -> str:
+    import getpass
+    try:
+        user = getpass.getuser()
+    except Exception:  # noqa: BLE001
+        user = "user"
+    return f"D5Bridge-{user}"
+
+
+def _forward_to_running_instance(path: str | None) -> bool:
+    """If D5 Bridge is already open, hand it the file and quit this second copy."""
+    from PySide6.QtNetwork import QLocalSocket
+    sock = QLocalSocket()
+    sock.connectToServer(_instance_name())
+    if not sock.waitForConnected(400):
+        return False
+    sock.write((path or "").encode("utf-8") + b"\n")
+    sock.flush()
+    sock.waitForBytesWritten(1000)
+    sock.disconnectFromServer()
+    return True
+
+
+def _listen_for_instances(w: "MainWindow"):
+    from PySide6.QtNetwork import QLocalServer
+    server = QLocalServer(w)
+    name = _instance_name()
+    if not server.listen(name):
+        QLocalServer.removeServer(name)        # stale socket after a crash
+        server.listen(name)
+
+    def on_conn() -> None:
+        sock = server.nextPendingConnection()
+        if sock is None:
+            return
+
+        def read() -> None:
+            data = bytes(sock.readAll()).decode("utf-8", "replace").strip()
+            if w.isMinimized():
+                w.showNormal()
+            w.raise_()
+            w.activateWindow()
+            if data:
+                w.load(data)
+        sock.readyRead.connect(read)
+        sock.disconnected.connect(sock.deleteLater)
+    server.newConnection.connect(on_conn)
+    return server

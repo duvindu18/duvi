@@ -1,5 +1,5 @@
 ; Inno Setup script: iscc packaging\d5bridge.iss  (after PyInstaller)
-#define AppVersion "1.0.0"
+#define AppVersion "1.1.0"
 [Setup]
 AppId={{6E7B1D4C-5D2B-4E3A-9F55-D5B1D9E0A001}
 AppName=D5 Bridge

@@ -97,6 +97,15 @@ class Mesh:
     def copy(self) -> "Mesh":
         return copy.deepcopy(self)
 
+    def __deepcopy__(self, memo) -> "Mesh":
+        # never copy the viewport's cached GPU data (it would be stale and large)
+        new = Mesh.__new__(Mesh)
+        memo[id(self)] = new
+        for k, v in self.__dict__.items():
+            if k != "_draw":
+                setattr(new, k, copy.deepcopy(v, memo))
+        return new
+
     def content_hash(self) -> str:
         """Hash of the full geometry, used to find identical meshes (instancing)."""
         h = hashlib.blake2b(digest_size=16)
