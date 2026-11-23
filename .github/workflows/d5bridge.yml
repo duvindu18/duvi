@@ -1,0 +1,33 @@
+name: D5 Bridge (Windows build)
+
+on:
+  push:
+    paths: ["d5bridge/**", ".github/workflows/d5bridge.yml"]
+    tags: ["d5bridge-v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: d5bridge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+      - run: pyinstaller packaging/d5bridge.spec --noconfirm --distpath dist --workpath build
+      - name: Installer (Inno Setup is preinstalled on windows-latest)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (Test-Path $iscc) { & $iscc packaging\d5bridge.iss } else { Write-Host "Inno Setup not found, skipping installer" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: D5Bridge-windows
+          path: |
+            d5bridge/dist/D5Bridge/
+            d5bridge/dist/D5BridgeSetup-*.exe
