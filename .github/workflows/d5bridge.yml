@@ -15,8 +15,8 @@ jobs:
       run:
         working-directory: d5bridge
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - run: python -m pip install -r requirements-dev.txt
@@ -27,7 +27,7 @@ jobs:
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (Test-Path $iscc) { & $iscc packaging\d5bridge.iss } else { Write-Host "Inno Setup not found, skipping installer" }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: D5Bridge-windows
           path: |
