@@ -553,6 +553,22 @@ app.whenReady().then(async () => {
   fake.close();
   console.log('agent:', JSON.stringify(ag));
 
+  /* the Andromeda styles from Settings: painted dark backgrounds on Mono */
+  const paint = {};
+  paint.theme0 = await js(w, 'document.documentElement.dataset.theme');
+  for (const v of ['red', 'green']) {
+    await go('settings', 'tmp-settings');
+    await js(w, '(function(){var b=document.querySelector("#dkCard [data-dk=style][data-v=' + v + ']");if(b)b.click();return !!b})()'); await wait(1200);
+    paint[v] = JSON.parse(await js(w, 'JSON.stringify({cls:["style-mono","paint","paint-' + v + '"].every(function(c){return document.documentElement.classList.contains(c)}),dark:document.documentElement.dataset.theme==="dark",bg:getComputedStyle(document.querySelector(".window")).backgroundImage.indexOf("gradient")!==-1})'));
+    await js(w, 'document.querySelector("#dkSide [data-go=home]").click()'); await wait(1200); await shot(w, '70-andromeda-' + v);
+  }
+  await go('settings', 'tmp-settings');
+  await js(w, 'document.querySelector("#dkCard [data-dk=style][data-v=mono]").click()'); await wait(800);
+  if (paint.theme0 === 'light') { await js(w, 'document.querySelector("[data-act=toggleTheme]").click()'); await wait(800); }
+  paint.back = await js(w, '!document.documentElement.classList.contains("paint")&&document.documentElement.classList.contains("style-mono")');
+  try { fs.unlinkSync(path.join(out, 'tmp-settings.png')); } catch (e) { /* none */ }
+  console.log('paint styles:', JSON.stringify(paint));
+
   console.log('page errors:', errors.length ? errors : 'none');
   const pdir = path.join(profile, 'data', 'projects');
   console.log('saved files:', fs.existsSync(pdir) ? fs.readdirSync(pdir).length : 0, 'projects,', fs.existsSync(path.join(profile, 'data', 'settings.json')) ? 'settings ok' : 'no settings');
@@ -599,6 +615,7 @@ app.whenReady().then(async () => {
   expect(!vo.err3 && (vo.micState === 'listening' || vo.micState === 'loading') && vo.frames > 0, 'voice assistant: the microphone opens and hears sound: ' + JSON.stringify(vo));
   expect(!ag.err && ag.made && ag.task && ag.done && ag.stage === 2 && ag.waits && ag.moved && ag.delWaits && ag.kept && ag.undone && ag.renders && /Running/.test(ag.ra || '') && /no issued invoice|OK/.test(ag.pay || '') && ag.closeWaits, 'the assistant acts, and asks first for risky changes: ' + JSON.stringify(ag));
   expect(ag.delModel === 'ok' && ag.deletedOnServer && ag.modelRows >= 1, 'downloaded AI models listed and deleted: ' + JSON.stringify(ag));
+  expect(paint.red && paint.red.cls && paint.red.dark && paint.red.bg && paint.green && paint.green.cls && paint.green.dark && paint.green.bg && paint.back, 'Andromeda Red and Green styles: ' + JSON.stringify(paint));
   console.log(fails.length ? 'SMOKE FAILED: ' + fails.join('; ') : 'SMOKE PASSED');
   app.exit(fails.length ? 1 : 0);
 });

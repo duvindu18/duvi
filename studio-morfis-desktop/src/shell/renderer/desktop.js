@@ -265,7 +265,15 @@
   /* ===== look: classes on <html>, the same ones the main process sets before first paint ===== */
   var CLASS_PREFS = {
     controls: function (v) { ['windows', 'pill', 'mac'].forEach(function (k) { root.classList.toggle('wc-' + k, k === v); }); },
-    style: function (v) { ['mono', 'graphite'].forEach(function (k) { root.classList.toggle('style-' + k, k === (v || 'mono')); }); var pg = page(); if (pg && pg.renderAll) pg.renderAll(); },
+    style: function (v) {
+      v = v || 'mono';
+      var paint = v === 'red' || v === 'green';
+      root.classList.toggle('style-mono', v === 'mono' || paint); root.classList.toggle('style-graphite', v === 'graphite');
+      root.classList.toggle('paint', paint); root.classList.toggle('paint-red', v === 'red'); root.classList.toggle('paint-green', v === 'green');
+      /* the painted styles are dark: switch to dark when one is chosen */
+      if (paint && root.dataset.theme === 'light') { var tb = document.querySelector('[data-act="toggleTheme"]'); if (tb) tb.click(); }
+      var pg = page(); if (pg && pg.renderAll) pg.renderAll();
+    },
     font: function (v) { ['inter', 'segoe', 'technical', 'system', 'studio'].forEach(function (k) { root.classList.toggle('font-' + k, k === v); }); },
     density: function (v) { ['comfortable', 'compact'].forEach(function (k) { root.classList.toggle('density-' + k, k === v); }); },
     titleBar: function (v) { root.classList.toggle('no-wtitle', v === 'none'); },
@@ -313,7 +321,7 @@
         sw('rememberWindow', 'Reopen at the same size and place') +
       '</div>' +
       '<div class="dk-sec"><h3>Look</h3>' +
-        field('Style', seg('style', [['mono', 'Mono'], ['graphite', 'Graphite']])) +
+        field('Style', seg('style', [['mono', 'Mono'], ['graphite', 'Graphite'], ['red', 'Andromeda Red'], ['green', 'Andromeda Green']])) +
         field('Font', seg('font', [['inter', 'Inter'], ['segoe', 'Segoe UI'], ['technical', 'Technical'], ['system', 'System'], ['studio', 'Studio classic']])) +
         field('Spacing', seg('density', [['comfortable', 'Comfortable'], ['compact', 'Compact']])) +
         sw('pattern', 'Dot grid background', 'Fine dots behind the content') +

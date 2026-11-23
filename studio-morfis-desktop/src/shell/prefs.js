@@ -31,7 +31,7 @@ const DEFAULTS = {
   pattern: true,               // a dot grid behind the content
   glow: false,                 // the accent wash at the top of the page
   followGlow: true,            // a soft accent light that follows the pointer
-  style: 'mono',               // mono (light grey, ink black, heavy type) | graphite (the dark graphite look)
+  style: 'mono',               // mono (light grey, ink black, heavy type) | graphite (the dark graphite look) | red | green (Andromeda Red / Green: Mono on painted metallic backgrounds)
   monoIntro: false,            // set once by the move to Mono: the page then switches to the light theme
   lookV: 4,
   roundCorners: true,
@@ -51,7 +51,7 @@ const DEFAULTS = {
 
 const CHOICES = {
   controls: ['windows', 'pill', 'mac'],
-  style: ['mono', 'graphite'],
+  style: ['mono', 'graphite', 'red', 'green'],
   density: ['comfortable', 'compact'],
   titleBar: ['name', 'none'],
   font: ['inter', 'segoe', 'technical', 'system', 'studio'],

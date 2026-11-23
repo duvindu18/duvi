@@ -110,6 +110,15 @@ The grid layout of a folder shows the same thumbnails File Explorer does. Files 
 - **Invoices:** *Issue invoice* on a milestone invoice adds it to Payments, so receipts and overdue tracking keep working. The Payments preview has an *Edit invoice* button that opens the same invoice here.
 - **Output:** *Export PDF* (A4, Inter embedded) and *Print*. Both use the same page you edit.
 
+## Andromeda Red and Andromeda Green
+
+Two more styles in *Settings > Desktop app > Look > Style*, next to Mono and Graphite. They use Mono's type and pill controls on a painted background that shifts colour like metallic car paint, with tinted glass cards that let the paint show through.
+
+- **Andromeda Red:** deep red, with copper and gold where the light falls, purple in the shadows and a blue undertone. Warnings turn coral and amber so they stay clear against the red.
+- **Andromeda Green:** racing green, with champagne gold, teal and blue.
+
+Both are dark: choosing one switches to dark mode, and light mode shows Mono's light look.
+
 ## Morfis, the voice assistant
 
 Press the microphone at the top (or **Ctrl+Space**) and speak naturally. Morfis listens, answers and speaks back. It runs on this computer: no internet, no account, no cost.

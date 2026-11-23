@@ -124,7 +124,7 @@ function build(html, o) {
   return { html: html, missing: missing };
 }
 
-const STYLES = ['vendor/leaflet/leaflet.css', 'theme.css', 'desktop.css', 'views.css', 'mono.css'];
+const STYLES = ['vendor/leaflet/leaflet.css', 'theme.css', 'desktop.css', 'views.css', 'mono.css', 'paint.css'];
 const SCRIPTS = ['vendor/leaflet/leaflet.js', 'folder-art.js', 'desktop.js', 'preview.js', 'files.js', 'folder-log.js', 'folder-setup.js', 'docs.js', 'browser.js', 'freelance.js', 'direct.js', 'reorganise.js', 'automations.js', 'agent.js', 'voice.js'];
 /* the phone page adds its own layout and controls after the desktop ones */
 const REMOTE_STYLES = ['remote.css'], REMOTE_SCRIPTS = ['remote.js'];
@@ -135,7 +135,8 @@ function tail(base, remote) {
 
 /* html classes the desktop stylesheet reads, set before first paint so nothing jumps */
 function htmlClass(p) {
-  return ['style-' + (p.style || 'mono'), 'wc-' + p.controls, 'font-' + p.font, 'density-' + p.density, p.titleBar === 'none' ? 'no-wtitle' : '', p.reduceMotion ? 'reduce-motion' : '',
+  var paint = p.style === 'red' || p.style === 'green';
+  return [paint ? 'style-mono paint paint-' + p.style : 'style-' + (p.style || 'mono'), 'wc-' + p.controls, 'font-' + p.font, 'density-' + p.density, p.titleBar === 'none' ? 'no-wtitle' : '', p.reduceMotion ? 'reduce-motion' : '',
     p.pattern ? '' : 'no-pattern', p.glow ? '' : 'no-glow', p.followGlow ? '' : 'no-follow', p.roundCorners ? '' : 'square', p.sideCollapsed ? 'side-collapsed' : ''].filter(Boolean).join(' ');
 }
 
