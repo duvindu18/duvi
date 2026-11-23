@@ -163,6 +163,47 @@ QSplitter::handle {{ background: transparent; }}
 QFrame#Toast {{ background: {p.primary_bg}; border-radius: 17px; }}
 QFrame#Toast QLabel {{ color: {p.primary_fg}; font-weight: 500; }}
 QFrame#Toast QPushButton {{ border: 0; color: {p.accent}; font-weight: 700; padding: 0 4px; background: transparent; }}
+/* ---- app shell: rail, header, status bar ----------------------------- */
+QWidget#Rail {{ background: {p.sidebar}; border-right: 1px solid {p.border}; }}
+QToolButton#RailBtn {{ border: 0; border-radius: 10px; padding: 8px; background: transparent; }}
+QToolButton#RailBtn:hover {{ background: {p.surface2}; }}
+QToolButton#RailBtn:checked {{ background: {p.primary_bg}; }}
+QLabel#RailMark {{ background: {p.primary_bg}; color: {p.primary_fg}; border-radius: 9px;
+                  font-weight: 800; font-size: 13px; }}
+QWidget#Header {{ background: {p.bg}; border-bottom: 1px solid {p.border}; }}
+QLabel#Crumb1 {{ font-weight: 600; }}
+QLabel#Crumb2 {{ color: {p.text_faint}; }}
+QWidget#StatusBar {{ background: {p.bg}; border-top: 1px solid {p.border}; }}
+QWidget#StatusBar QLabel {{ color: {p.text_muted}; font-size: 12px; }}
+QLabel#Dot {{ font-size: 10px; }}
+
+/* ---- panes ------------------------------------------------------------ */
+QFrame#Pane {{ background: {p.surface}; border: 1px solid {p.border}; border-radius: 12px; }}
+QLabel#PaneTitle {{ font-weight: 600; font-size: 13px; }}
+QLabel#FormLabel {{ color: {p.text_muted}; }}
+QLabel#Section2 {{ color: {p.text_faint}; font-size: 11px; font-weight: 700; letter-spacing: 0.6px;
+                  padding-top: 6px; }}
+QLineEdit#Filter {{ background: {p.bg}; border-radius: 10px; padding: 5px 10px 5px 30px; }}
+QToolButton#Tool {{ border: 0; border-radius: 8px; padding: 5px; background: transparent; }}
+QToolButton#Tool:hover {{ background: {p.surface2}; }}
+QToolButton#Tool:checked {{ background: {p.surface2}; border: 1px solid {p.border_strong}; }}
+QToolButton#Disclosure {{ border: 0; padding: 4px 0; color: {p.text_muted}; font-weight: 600;
+                         background: transparent; text-align: left; }}
+QToolButton#Disclosure:hover {{ color: {p.text}; }}
+QTabBar {{ background: transparent; }}
+QTabBar::tab {{ background: transparent; color: {p.text_muted}; padding: 8px 2px; margin-right: 16px;
+               border: 0; border-bottom: 2px solid transparent; font-weight: 600; }}
+QTabBar::tab:selected {{ color: {p.text}; border-bottom: 2px solid {p.text}; }}
+QTabBar::tab:hover {{ color: {p.text}; }}
+QPushButton#PrimaryWide {{ background: {p.primary_bg}; color: {p.primary_fg}; border: 0;
+                          border-radius: 10px; padding: 10px 16px; font-weight: 700; }}
+QPushButton#PrimaryWide:hover {{ background: {p.text_muted}; }}
+QPushButton#PrimaryWide:disabled {{ background: {p.border_strong}; color: {p.text_faint}; }}
+QPushButton#Tile {{ border: 1px solid {p.border}; border-radius: 8px; padding: 0; margin: 0;
+                   min-height: 54px; max-height: 54px; min-width: 54px; max-width: 54px; background: {p.bg}; }}
+QPushButton#Tile:hover {{ border-color: {p.text_muted}; }}
+QPushButton#RecentRow {{ text-align: left; border: 0; border-radius: 10px; padding: 10px 12px; }}
+QPushButton#RecentRow:hover {{ background: {p.surface2}; }}
 QMenu {{ background: {p.surface}; border: 1px solid {p.border_strong}; border-radius: 10px; padding: 6px; }}
 QMenu::item {{ padding: 6px 14px; border-radius: 6px; }}
 QMenu::item:selected {{ background: {p.surface2}; }}

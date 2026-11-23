@@ -1,18 +1,26 @@
-"""D5 Bridge desktop app."""
+"""D5 Bridge desktop app.
+
+Layout (one workspace, like DCC / asset tools):
+
+    rail | header: file name ........................ [warnings] [Open] [Export]
+         | outliner | viewport (toolbar + view)        | Material / Export tabs
+         | status bar: progress / message ................... renderer · 3ds Max
+"""
 from __future__ import annotations
 
 import os
 import subprocess
 import sys
+import time
 import traceback
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QIcon, QKeySequence, QPixmap, QShortcut
-from PySide6.QtWidgets import (QApplication, QButtonGroup, QFileDialog, QFrame, QGridLayout,
-                               QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QPlainTextEdit,
-                               QProgressBar, QPushButton, QScrollArea, QSizePolicy, QSplitter,
-                               QStackedWidget, QTreeWidget, QTreeWidgetItem, QTreeWidgetItemIterator,
+from PySide6.QtGui import QColor, QFont, QIcon, QKeySequence, QPixmap, QShortcut
+from PySide6.QtWidgets import (QApplication, QButtonGroup, QDialog, QFileDialog, QFrame, QGridLayout,
+                               QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu,
+                               QPlainTextEdit, QProgressBar, QPushButton, QScrollArea, QSplitter,
+                               QStackedWidget, QTabBar, QToolButton, QTreeWidget, QTreeWidgetItem,
                                QVBoxLayout, QWidget)
 
 from .. import __version__
@@ -22,6 +30,12 @@ from ..scene import Material, Node, Scene, TextureRef, Variant
 from ..settings import load_settings, save_settings
 from .theme import DARK, LIGHT, Palette, qss
 from .view_common import prepare_scene
+from .widgets import Segmented, Toast, Toggle, badge, divider, label, make_icon
+
+CHANNELS = [("base_color", "Color"), ("opacity", "Opacity"), ("normal", "Normal"),
+            ("roughness", "Rough"), ("metallic", "Metal"), ("ao", "AO"),
+            ("translucency", "Transl."), ("bump", "Bump"), ("emissive", "Emit")]
+CORE_CHANNELS = {"base_color", "opacity", "normal", "roughness"}
 
 
 def make_viewport(pref: str):
@@ -34,11 +48,6 @@ def make_viewport(pref: str):
             pass
     from .viewport import Viewport
     return Viewport()
-from .widgets import Segmented, Toast, Toggle, badge, card, divider, label, make_icon
-
-CHANNEL_LABELS = [("base_color", "Base colour"), ("opacity", "Opacity"), ("normal", "Normal"),
-                  ("roughness", "Roughness"), ("metallic", "Metallic"), ("ao", "AO"),
-                  ("translucency", "Translucency"), ("bump", "Bump"), ("emissive", "Emissive")]
 
 
 # =========================================================================== #
@@ -60,8 +69,7 @@ class Job(QRunnable):
 
     def run(self) -> None:
         try:
-            res = self.fn(*self.args, job=self, **self.kw)
-            self.signals.done.emit(res)
+            self.signals.done.emit(self.fn(*self.args, job=self, **self.kw))
         except Cancelled:
             self.signals.failed.emit("Cancelled")
         except Exception as e:  # noqa: BLE001
@@ -70,8 +78,7 @@ class Job(QRunnable):
 
 def _load_job(path: str, job: Job, max_options: dict, lod: int) -> Scene:
     scene = load_any(path, log=job.signals.log.emit, max_options=max_options, lod=lod)
-    # build GPU-ready buffers here, off the UI thread, so the preview appears at once
-    prepare_scene(scene, job.signals.log.emit)
+    prepare_scene(scene, job.signals.log.emit)      # GPU-ready buffers, off the UI thread
     return scene
 
 
@@ -82,17 +89,17 @@ def _export_job(scene: Scene, variants, selected, opts: ExportOptions, job: Job)
 
 
 # =========================================================================== #
-# helpers
+# small helpers
 # =========================================================================== #
-def hbox(*widgets, spacing: int = 8, margins=(0, 0, 0, 0), stretch_at: int | None = None) -> QHBoxLayout:
+def hbox(*items, spacing: int = 8, margins=(0, 0, 0, 0)) -> QHBoxLayout:
     lay = QHBoxLayout()
     lay.setSpacing(spacing)
     lay.setContentsMargins(*margins)
-    for i, w in enumerate(widgets):
-        if i == stretch_at:
-            lay.addStretch(1)
+    for w in items:
         if w is None:
             lay.addStretch(1)
+        elif isinstance(w, int):
+            lay.addSpacing(w)
         elif isinstance(w, QWidget):
             lay.addWidget(w)
         else:
@@ -100,13 +107,15 @@ def hbox(*widgets, spacing: int = 8, margins=(0, 0, 0, 0), stretch_at: int | Non
     return lay
 
 
-def vbox(*widgets, spacing: int = 8, margins=(0, 0, 0, 0)) -> QVBoxLayout:
+def vbox(*items, spacing: int = 8, margins=(0, 0, 0, 0)) -> QVBoxLayout:
     lay = QVBoxLayout()
     lay.setSpacing(spacing)
     lay.setContentsMargins(*margins)
-    for w in widgets:
+    for w in items:
         if w is None:
             lay.addStretch(1)
+        elif isinstance(w, int):
+            lay.addSpacing(w)
         elif isinstance(w, QWidget):
             lay.addWidget(w)
         else:
@@ -114,7 +123,16 @@ def vbox(*widgets, spacing: int = 8, margins=(0, 0, 0, 0)) -> QVBoxLayout:
     return lay
 
 
-def fmt_bytes(n: int) -> str:
+def pane() -> tuple[QFrame, QVBoxLayout]:
+    f = QFrame()
+    f.setObjectName("Pane")
+    lay = QVBoxLayout(f)
+    lay.setContentsMargins(12, 12, 12, 12)
+    lay.setSpacing(8)
+    return f, lay
+
+
+def fmt_bytes(n: float) -> str:
     for unit in ("B", "KB", "MB", "GB"):
         if n < 1024 or unit == "GB":
             return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
@@ -122,33 +140,64 @@ def fmt_bytes(n: int) -> str:
     return f"{n:.1f} GB"
 
 
-def thumb(path: str, size: int = 44) -> QPixmap | None:
-    pm = QPixmap(path)
-    if pm.isNull():
-        try:
-            from PIL import Image
-            from PIL.ImageQt import ImageQt
-            im = Image.open(path)
-            im.thumbnail((size * 2, size * 2))
-            pm = QPixmap.fromImage(ImageQt(im.convert("RGBA")))
-        except Exception:  # noqa: BLE001
-            return None
-    return pm.scaled(size * 2, size * 2, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+_THUMBS: dict[tuple[str, int], QPixmap] = {}
 
 
-class Row(QFrame):
-    """Label/description on the left, control on the right."""
+def thumb(path: str, size: int) -> QPixmap | None:
+    """Small cached preview (decoded with PIL draft mode: fast even for 8K JPEGs)."""
+    key = (path, size)
+    if key in _THUMBS:
+        return _THUMBS[key]
+    try:
+        from PIL import Image
+        from PIL.ImageQt import ImageQt
+        im = Image.open(path)
+        im.draft("RGB", (size * 2, size * 2))
+        im.thumbnail((size * 2, size * 2))
+        pm = QPixmap.fromImage(ImageQt(im.convert("RGBA")))
+    except Exception:  # noqa: BLE001
+        return None
+    _THUMBS[key] = pm
+    return pm
 
-    def __init__(self, title: str, desc: str, control: QWidget) -> None:
+
+def form_row(text: str, control: QWidget, tip: str = "") -> QHBoxLayout:
+    lb = label(text, "FormLabel")
+    if tip:
+        lb.setToolTip(tip)
+        control.setToolTip(tip)
+    return hbox(lb, None, control)
+
+
+def tool(icon: str, tip: str, checkable: bool = False) -> QToolButton:
+    b = QToolButton()
+    b.setObjectName("Tool")
+    b.setToolTip(tip)
+    b.setCheckable(checkable)
+    b.setCursor(Qt.PointingHandCursor)
+    b.setIconSize(QSize(18, 18))
+    b.setProperty("icon_name", icon)
+    return b
+
+
+class Collapsible(QWidget):
+    def __init__(self, title: str, content: QWidget, open_: bool = False) -> None:
         super().__init__()
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(0, 8, 0, 8)
-        text = QWidget()
-        text.setLayout(vbox(label(title, "H3"), label(desc, "Muted", wrap=True), spacing=2))
-        text.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-        lay.addWidget(text, 1)
-        lay.addSpacing(12)
-        lay.addWidget(control, 0, Qt.AlignVCenter | Qt.AlignRight)
+        self.btn = QToolButton()
+        self.btn.setObjectName("Disclosure")
+        self.btn.setCheckable(True)
+        self.btn.setChecked(open_)
+        self.btn.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.btn.setCursor(Qt.PointingHandCursor)
+        self.title = title
+        self.content = content
+        self._toggle(open_)
+        self.btn.toggled.connect(self._toggle)
+        self.setLayout(vbox(self.btn, content, spacing=4))
+
+    def _toggle(self, on: bool) -> None:
+        self.content.setVisible(on)
+        self.btn.setText(("▾  " if on else "▸  ") + self.title)
 
 
 # =========================================================================== #
@@ -159,623 +208,519 @@ class MainWindow(QMainWindow):
         self.palette_ = DARK if self.settings.get("theme", "dark") == "dark" else LIGHT
         self.pool = QThreadPool.globalInstance()
         self.scene: Scene | None = None
+        self.source: Path | None = None
         self.node_items: dict[int, QTreeWidgetItem] = {}
         self.item_nodes: dict[int, Node] = {}
         self.current_job: Job | None = None
+        self.last_out = ""
+        self.last_report = ""
+        self.renderer_name = ""
+        self._t0 = time.time()
         self.export_opts = ExportOptions.from_json(self.settings.get("export", {}))
         if not self.export_opts.out_dir:
             self.export_opts.out_dir = str(Path.home() / "Documents" / "D5 Bridge")
-        self.selected_material: Material | None = None
 
         self.setWindowTitle("D5 Bridge")
         self.resize(1440, 900)
+        self.setMinimumSize(1100, 680)
         self.setAcceptDrops(True)
+
         root = QWidget()
         root.setObjectName("Root")
         self.setCentralWidget(root)
-        lay = QHBoxLayout(root)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(0)
-        lay.addWidget(self._build_sidebar())
-
+        outer = QHBoxLayout(root)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        outer.addWidget(self._build_rail())
         main = QWidget()
-        mlay = QVBoxLayout(main)
-        mlay.setContentsMargins(0, 0, 0, 0)
-        mlay.setSpacing(0)
-        mlay.addWidget(self._build_topbar())
+        ml = QVBoxLayout(main)
+        ml.setContentsMargins(0, 0, 0, 0)
+        ml.setSpacing(0)
+        ml.addWidget(self._build_header())
         self.stack = QStackedWidget()
-        mlay.addWidget(self.stack, 1)
-        lay.addWidget(main, 1)
+        ml.addWidget(self.stack, 1)
+        ml.addWidget(self._build_status())
+        outer.addWidget(main, 1)
 
         self.page_home = self._build_home()
-        self.page_model = self._build_model()
-        self.page_export = self._build_export()
+        self.page_work = self._build_workspace()
         self.page_settings = self._build_settings()
-        self.page_help = self._build_help()
-        for p in (self.page_home, self.page_model, self.page_export, self.page_settings, self.page_help):
+        for p in (self.page_home, self.page_work, self.page_settings):
             self.stack.addWidget(p)
         self.toast = Toast(root)
         self.apply_theme(self.palette_)
         self.go("home")
-        QShortcut(QKeySequence("/"), self, activated=lambda: self.search.setFocus())
+
         QShortcut(QKeySequence("Ctrl+O"), self, activated=self.open_file_dialog)
-        QShortcut(QKeySequence("Ctrl+E"), self, activated=lambda: self.go("export"))
+        QShortcut(QKeySequence("Ctrl+E"), self, activated=self.start_export)
+        QShortcut(QKeySequence("Ctrl+F"), self, activated=lambda: (self.go("work"), self.filter.setFocus()))
+        QShortcut(QKeySequence("H"), self, activated=self.hide_selected)
+        QShortcut(QKeySequence("Alt+H"), self, activated=lambda: self.check_all(True))
+        QShortcut(QKeySequence("F1"), self, activated=self.show_shortcuts)
         QTimer.singleShot(200, self.refresh_max_status)
 
     # ------------------------------------------------------------------ #
-    # chrome
+    # shell
     # ------------------------------------------------------------------ #
-    def _build_sidebar(self) -> QWidget:
-        sb = QWidget()
-        sb.setObjectName("Sidebar")
-        sb.setFixedWidth(248)
-        lay = QVBoxLayout(sb)
-        lay.setContentsMargins(10, 14, 10, 12)
-        lay.setSpacing(2)
-        brand = QHBoxLayout()
-        brand.setContentsMargins(10, 0, 0, 10)
-        brand.setSpacing(0)
-        brand.addWidget(label("D5 Bridge", "Brand"))
-        brand.addWidget(label(".", "BrandDot"))
-        brand.addStretch(1)
-        lay.addLayout(brand)
+    def _rail_button(self, icon: str, tip: str) -> QToolButton:
+        b = QToolButton()
+        b.setObjectName("RailBtn")
+        b.setToolTip(tip)
+        b.setIconSize(QSize(20, 20))
+        b.setFixedSize(40, 40)
+        b.setCursor(Qt.PointingHandCursor)
+        b.setProperty("icon_name", icon)
+        return b
 
-        self.nav_group = QButtonGroup(self)
-        self.nav: dict[str, QPushButton] = {}
-        self.nav_badges: dict[str, QLabel] = {}
-        self._icons_for_nav: dict[str, str] = {}
-
-        def section(text: str) -> None:
-            lay.addWidget(label(text, "Section"))
-
-        def item(key: str, text: str, icon: str, with_badge: bool = False) -> None:
-            b = QPushButton(f"  {text}")
-            b.setObjectName("NavItem")
+    def _build_rail(self) -> QWidget:
+        rail = QWidget()
+        rail.setObjectName("Rail")
+        rail.setFixedWidth(60)
+        lay = QVBoxLayout(rail)
+        lay.setContentsMargins(10, 12, 10, 12)
+        lay.setSpacing(6)
+        mark = QLabel("D5")
+        mark.setObjectName("RailMark")
+        mark.setAlignment(Qt.AlignCenter)
+        mark.setFixedSize(40, 32)
+        mark.setToolTip(f"D5 Bridge {__version__}")
+        lay.addWidget(mark)
+        lay.addSpacing(10)
+        self.rail_group = QButtonGroup(self)
+        self.rail: dict[str, QToolButton] = {}
+        for key, icon, tip in (("home", "home", "Home"), ("work", "tree", "Workspace"),
+                               ("settings", "settings", "Settings")):
+            b = self._rail_button(icon, tip)
             b.setCheckable(True)
-            b.setCursor(Qt.PointingHandCursor)
             b.clicked.connect(lambda _=False, k=key: self.go(k))
-            self.nav_group.addButton(b)
-            self.nav[key] = b
-            self._icons_for_nav[key] = icon
-            row = QHBoxLayout()
-            row.setContentsMargins(0, 0, 0, 0)
-            row.addWidget(b, 1)
-            if with_badge:
-                bd = badge("0")
-                bd.hide()
-                self.nav_badges[key] = bd
-                # overlay the badge inside the pill
-                bd.setParent(b)
-            lay.addLayout(row)
+            self.rail_group.addButton(b)
+            self.rail[key] = b
+            if key == "settings":
+                lay.addStretch(1)
+            lay.addWidget(b)
+        self.theme_btn = self._rail_button("sun", "Light / dark theme")
+        self.theme_btn.clicked.connect(self.toggle_theme)
+        self.help_btn = self._rail_button("help", "Keyboard shortcuts  (F1)")
+        self.help_btn.clicked.connect(self.show_shortcuts)
+        lay.addWidget(self.theme_btn)
+        lay.addWidget(self.help_btn)
+        return rail
 
-        section("Workspace")
-        item("home", "Open", "home")
-        item("model", "Model", "tree", True)
-        item("export", "Export", "export", True)
-        section("Variants")
-        self.variant_list = QVBoxLayout()
-        self.variant_list.setSpacing(2)
-        lay.addLayout(self.variant_list)
-        self.variant_empty = label("Open a model to see its variants", "Faint", wrap=True)
-        self.variant_empty.setContentsMargins(12, 2, 8, 2)
-        self.variant_list.addWidget(self.variant_empty)
-        lay.addStretch(1)
-        lay.addWidget(divider())
-        item("settings", "Settings", "settings")
-        item("help", "Help", "help")
-        st = QHBoxLayout()
-        st.setContentsMargins(12, 10, 0, 0)
-        self.status_dot = label("●", "StatusDot")
-        self.status_text = label("Checking for 3ds Max…", "StatusText")
-        st.addWidget(self.status_dot)
-        st.addWidget(self.status_text, 1)
-        lay.addLayout(st)
-        return sb
-
-    def _build_topbar(self) -> QWidget:
+    def _build_header(self) -> QWidget:
         bar = QWidget()
-        bar.setFixedHeight(64)
+        bar.setObjectName("Header")
+        bar.setFixedHeight(56)
         lay = QHBoxLayout(bar)
-        lay.setContentsMargins(20, 12, 20, 8)
-        self.search = QLineEdit()
-        self.search.setObjectName("Search")
-        self.search.setPlaceholderText("Search objects and materials")
-        self.search.setFixedWidth(440)
-        self.search.textChanged.connect(self.filter_tree)
-        self.search_icon = QLabel(self.search)
-        self.search_icon.move(12, 9)
-        slash = badge("/")
-        slash.setParent(self.search)
-        slash.move(404, 8)
-        lay.addWidget(self.search)
+        lay.setContentsMargins(20, 0, 16, 0)
+        lay.setSpacing(8)
+        self.crumb1 = label("D5 Bridge", "Crumb1")
+        self.crumb_sep = label("/", "Crumb2")
+        self.crumb2 = label("", "Crumb2")
+        self.crumb_sep.hide()
+        lay.addWidget(self.crumb1)
+        lay.addWidget(self.crumb_sep)
+        lay.addWidget(self.crumb2)
         lay.addStretch(1)
-        self.warn_btn = QPushButton()
-        self.warn_btn.setObjectName("Icon")
+        self.warn_btn = QToolButton()
+        self.warn_btn.setObjectName("Tool")
+        self.warn_btn.setIconSize(QSize(20, 20))
         self.warn_btn.setToolTip("Warnings")
         self.warn_btn.clicked.connect(self.show_warnings)
         self.warn_badge = badge("0", alert=True)
         self.warn_badge.setParent(self.warn_btn)
-        self.warn_badge.move(18, -2)
+        self.warn_badge.move(18, 0)
         self.warn_badge.hide()
-        self.theme_btn = QPushButton()
-        self.theme_btn.setObjectName("Icon")
-        self.theme_btn.setToolTip("Light / dark")
-        self.theme_btn.clicked.connect(self.toggle_theme)
         self.open_btn = QPushButton("Open")
-        self.open_btn.setObjectName("Primary")
+        self.open_btn.setToolTip("Open a file  (Ctrl+O)")
         self.open_btn.clicked.connect(self.open_file_dialog)
+        self.export_btn = QPushButton("Export")
+        self.export_btn.setObjectName("Primary")
+        self.export_btn.setToolTip("Export the ticked objects  (Ctrl+E)")
+        self.export_btn.clicked.connect(self.start_export)
+        self.export_btn.setEnabled(False)
         lay.addWidget(self.warn_btn)
-        lay.addWidget(self.theme_btn)
-        lay.addSpacing(6)
+        lay.addSpacing(4)
         lay.addWidget(self.open_btn)
-        line = QFrame()
-        line.setObjectName("Divider")
-        wrap = QWidget()
-        w = QVBoxLayout(wrap)
-        w.setContentsMargins(0, 0, 0, 0)
-        w.setSpacing(0)
-        w.addWidget(bar)
-        w.addWidget(line)
-        return wrap
+        lay.addWidget(self.export_btn)
+        return bar
 
-    def _scroll(self, inner: QWidget) -> QScrollArea:
-        sc = QScrollArea()
-        sc.setWidgetResizable(True)
-        sc.setFrameShape(QFrame.NoFrame)
-        sc.setWidget(inner)
-        return sc
-
-    def _page(self, title: str, subtitle: str) -> tuple[QWidget, QVBoxLayout]:
-        inner = QWidget()
-        lay = QVBoxLayout(inner)
-        lay.setContentsMargins(28, 24, 28, 28)
-        lay.setSpacing(14)
-        lay.addWidget(label(title, "H1"))
-        sub = label(subtitle, "Muted", wrap=True)
-        sub.setMaximumWidth(720)
-        lay.addWidget(sub)
-        lay.addSpacing(6)
-        return inner, lay
+    def _build_status(self) -> QWidget:
+        bar = QWidget()
+        bar.setObjectName("StatusBar")
+        bar.setFixedHeight(30)
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(16, 0, 16, 0)
+        lay.setSpacing(10)
+        self.status_msg = QLabel("Ready")
+        self.status_progress = QProgressBar()
+        self.status_progress.setRange(0, 1000)
+        self.status_progress.setTextVisible(False)
+        self.status_progress.setFixedWidth(160)
+        self.status_progress.hide()
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.setObjectName("Ghost")
+        self.cancel_btn.clicked.connect(self.cancel_job)
+        self.cancel_btn.hide()
+        self.status_stats = QLabel("")
+        self.status_api = QLabel("")
+        self.max_dot = label("●", "Dot")
+        self.max_text = QLabel("")
+        lay.addWidget(self.status_msg)
+        lay.addWidget(self.status_progress)
+        lay.addWidget(self.cancel_btn)
+        lay.addStretch(1)
+        lay.addWidget(self.status_stats)
+        lay.addSpacing(12)
+        lay.addWidget(self.status_api)
+        lay.addSpacing(12)
+        lay.addWidget(self.max_dot)
+        lay.addWidget(self.max_text)
+        return bar
 
     # ------------------------------------------------------------------ #
     # Home
     # ------------------------------------------------------------------ #
     def _build_home(self) -> QWidget:
-        inner, lay = self._page(
-            "Bring models into D5",
-            "Open a 3ds Max file (MaxTree, Evermotion, Corona or V-Ray), a Megascans or Fab download, "
-            "or any FBX / OBJ. Preview it with its textures, pick the variants and objects you need, "
-            "and export a lean FBX with full-resolution textures that D5 Render reads directly.")
-
-        self.drop = card("DropZone")
-        self.drop.setMinimumHeight(220)
+        page = QWidget()
+        outer = QVBoxLayout(page)
+        outer.setContentsMargins(0, 0, 0, 0)
+        col = QWidget()
+        col.setMaximumWidth(640)
+        col.setMinimumWidth(520)
+        lay = QVBoxLayout(col)
+        lay.setContentsMargins(24, 56, 24, 24)
+        lay.setSpacing(12)
+        self.drop = QFrame()
+        self.drop.setObjectName("DropZone")
         d = QVBoxLayout(self.drop)
-        d.setContentsMargins(24, 28, 24, 28)
+        d.setContentsMargins(32, 40, 32, 32)
         d.setSpacing(10)
         self.drop_icon = QLabel()
         self.drop_icon.setAlignment(Qt.AlignCenter)
-        d.addWidget(self.drop_icon)
-        t = label("Drop a .max, .fbx, .obj or Megascans folder here", "H2")
+        t = label("Open a model", "H1")
         t.setAlignment(Qt.AlignCenter)
-        d.addWidget(t)
-        s = label("Several tree variants in one file are detected automatically.", "Muted")
-        s.setAlignment(Qt.AlignCenter)
-        d.addWidget(s)
+        sub = label(".max  ·  .fbx  ·  .obj  ·  Megascans or library folder", "Muted")
+        sub.setAlignment(Qt.AlignCenter)
         b1 = QPushButton("Open file")
         b1.setObjectName("Primary")
         b1.clicked.connect(self.open_file_dialog)
-        b2 = QPushButton("Open Megascans folder")
+        b2 = QPushButton("Open folder")
         b2.clicked.connect(self.open_folder_dialog)
-        d.addSpacing(6)
+        hint = label("or drop it here", "Faint")
+        hint.setAlignment(Qt.AlignCenter)
+        d.addWidget(self.drop_icon)
+        d.addWidget(t)
+        d.addWidget(sub)
+        d.addSpacing(8)
         d.addLayout(hbox(None, b1, b2, None))
+        d.addWidget(hint)
         lay.addWidget(self.drop)
-
-        grid = QGridLayout()
-        grid.setSpacing(14)
-        # 3ds Max card
-        mc = card()
-        ml = QVBoxLayout(mc)
-        ml.setContentsMargins(18, 18, 18, 18)
-        ml.setSpacing(10)
-        tile = card("IconTile")
-        tile.setFixedSize(40, 40)
-        tl = QVBoxLayout(tile)
-        tl.setContentsMargins(0, 0, 0, 0)
-        self.max_tile_icon = QLabel()
-        self.max_tile_icon.setAlignment(Qt.AlignCenter)
-        tl.addWidget(self.max_tile_icon)
-        self.max_title = label("3ds Max", "H3")
-        self.max_desc = label("Looking for 3ds Max…", "Muted", wrap=True)
-        self.max_chip = badge("…")
-        self.max_chip.setMinimumWidth(64)
-        ml.addLayout(hbox(tile, vbox(self.max_title, self.max_desc, spacing=2), self.max_chip, spacing=12))
-        ml.addWidget(divider())
-        recheck = QPushButton("Check again")
-        recheck.clicked.connect(self.refresh_max_status)
-        plugin = QPushButton("3ds Max toolbar button")
-        plugin.clicked.connect(self.open_plugin_folder)
-        ml.addLayout(hbox(recheck, plugin, None))
-        ml.addWidget(label(".max files are opened by your own 3ds Max in the background, so Corona "
-                           "and V-Ray materials are read exactly. Without 3ds Max, export to FBX first.",
-                           "Faint", wrap=True))
-        grid.addWidget(mc, 0, 0)
-
-        # recent
-        rc = card()
-        self.recent_lay = QVBoxLayout(rc)
-        self.recent_lay.setContentsMargins(18, 18, 18, 18)
-        self.recent_lay.setSpacing(6)
-        grid.addWidget(rc, 0, 1)
-        grid.setColumnStretch(0, 1)
-        grid.setColumnStretch(1, 1)
-        lay.addLayout(grid)
-
-        # what happens on export
-        fc = card()
-        fl = QGridLayout(fc)
-        fl.setContentsMargins(18, 18, 18, 18)
-        fl.setHorizontalSpacing(24)
-        fl.setVerticalSpacing(8)
-        facts = [
-            ("Materials", "Corona Physical, Corona Legacy, V-Ray, V-Ray 2-Sided, Physical and Standard "
-                          "become PBR: base colour, opacity, normal, roughness, metallic, AO, translucency."),
-            ("Procedural maps", "Colour Correct, Mix, Falloff and tint maps are baked at the source "
-                                "resolution, so D5 shows what Corona rendered."),
-            ("Smaller files", "Duplicate textures, opaque alpha, grey maps stored as RGB and repeated "
-                              "geometry are removed. No decimation, no downscaling."),
-            ("Leaves", "Opacity is packed into the base colour alpha and written as its own map; leaf "
-                       "materials are flagged two-sided for D5's Foliage template."),
-        ]
-        for i, (h, t) in enumerate(facts):
-            fl.addWidget(self._fact(h, t), i // 2, i % 2)
-        lay.addWidget(fc)
+        lay.addSpacing(18)
+        self.recent_title = label("RECENT", "Section2")
+        lay.addWidget(self.recent_title)
+        self.recent_lay = QVBoxLayout()
+        self.recent_lay.setSpacing(2)
+        lay.addLayout(self.recent_lay)
         lay.addStretch(1)
+        outer.addLayout(hbox(None, col, None))
         self.refresh_recent()
-        return self._scroll(inner)
-
-    def _fact(self, h: str, t: str) -> QWidget:
-        w = QWidget()
-        w.setLayout(vbox(label(h, "H3"), label(t, "Muted", wrap=True), spacing=4))
-        return w
+        return page
 
     def refresh_recent(self) -> None:
-        while self.recent_lay.count():
-            it = self.recent_lay.takeAt(0)
-            if it.widget():
-                it.widget().deleteLater()
-            elif it.layout():
-                self._clear_layout(it.layout())
-        recent = [r for r in self.settings.get("recent", []) if os.path.exists(r)][:6]
-        self.recent_lay.addLayout(hbox(label("Recent", "H3"), badge(str(len(recent))), None))
-        if not recent:
-            self.recent_lay.addWidget(label("Files you open appear here.", "Muted"))
+        _clear(self.recent_lay)
+        recent = [r for r in self.settings.get("recent", []) if os.path.exists(r)][:8]
+        self.recent_title.setVisible(bool(recent))
         for r in recent:
-            name = label(Path(r).name, "H3")
-            where = label(str(Path(r).parent), "Faint")
-            where.setMaximumWidth(380)
-            b = QPushButton("Open")
-            b.clicked.connect(lambda _=False, p=r: self.load(p))
-            self.recent_lay.addLayout(hbox(vbox(name, where, spacing=0), None, b))
-        self.recent_lay.addStretch(1)
-
-    def _clear_layout(self, lay) -> None:
-        while lay.count():
-            it = lay.takeAt(0)
-            if it.widget():
-                it.widget().deleteLater()
-            elif it.layout():
-                self._clear_layout(it.layout())
+            p = Path(r)
+            b = QPushButton()
+            b.setObjectName("RecentRow")
+            b.setCursor(Qt.PointingHandCursor)
+            b.setToolTip(r)
+            b.clicked.connect(lambda _=False, x=r: self.load(x))
+            row = QHBoxLayout(b)
+            row.setContentsMargins(12, 8, 12, 8)
+            icon = QLabel()
+            icon.setPixmap(make_icon("folder" if p.is_dir() else "box", self.palette_.text_muted, 18)
+                           .pixmap(18, 18))
+            name = label(p.name, "H3")
+            where = label(_short(str(p.parent), 56), "Faint")
+            when = label(_ago(p), "Faint")
+            for w in (icon, name, where, when):
+                w.setAttribute(Qt.WA_TransparentForMouseEvents)
+            row.addWidget(icon)
+            row.addSpacing(6)
+            row.addWidget(name)
+            row.addSpacing(8)
+            row.addWidget(where, 1)
+            row.addWidget(when)
+            b.setMinimumHeight(44)
+            self.recent_lay.addWidget(b)
 
     # ------------------------------------------------------------------ #
-    # Model page
+    # Workspace
     # ------------------------------------------------------------------ #
-    def _build_model(self) -> QWidget:
+    def _build_workspace(self) -> QWidget:
         page = QWidget()
         lay = QVBoxLayout(page)
-        lay.setContentsMargins(20, 16, 20, 16)
-        lay.setSpacing(12)
-        self.model_title = label("No model", "H2")
-        self.model_sub = label("", "Muted")
-        to_export = QPushButton("Export selection")
-        to_export.setObjectName("Primary")
-        to_export.clicked.connect(lambda: self.go("export"))
-        lay.addLayout(hbox(vbox(self.model_title, self.model_sub, spacing=2), None, to_export))
-
+        lay.setContentsMargins(12, 12, 12, 12)
         split = QSplitter(Qt.Horizontal)
-        split.setHandleWidth(12)
+        split.setHandleWidth(10)
+        split.setChildrenCollapsible(False)
 
-        # outliner
-        oc = card()
-        ol = QVBoxLayout(oc)
-        ol.setContentsMargins(12, 12, 12, 12)
-        ol.setSpacing(8)
-        self.out_count = badge("0")
-        all_b = QPushButton("All")
-        all_b.setObjectName("Ghost")
+        # ---- outliner ------------------------------------------------- #
+        op, ol = pane()
+        self.obj_count = badge("0")
+        all_b = tool("eye", "Show all  (Alt+H)")
         all_b.clicked.connect(lambda: self.check_all(True))
-        none_b = QPushButton("None")
-        none_b.setObjectName("Ghost")
+        none_b = tool("check", "Untick all")
         none_b.clicked.connect(lambda: self.check_all(False))
-        ol.addLayout(hbox(label("Objects", "H3"), self.out_count, None, all_b, none_b))
+        self._outliner_tools = [all_b, none_b]
+        ol.addLayout(hbox(label("Objects", "PaneTitle"), self.obj_count, None, all_b, none_b, spacing=6))
+        self.filter = QLineEdit()
+        self.filter.setObjectName("Filter")
+        self.filter.setPlaceholderText("Filter  (Ctrl+F)")
+        self.filter.textChanged.connect(self.filter_tree)
+        self.filter_icon = QLabel(self.filter)
+        self.filter_icon.move(10, 9)
+        ol.addWidget(self.filter)
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabels(["Name", "Triangles"])
-        self.tree.setColumnWidth(0, 190)
+        self.tree.setHeaderLabels(["Name", "Tris"])
+        self.tree.setColumnWidth(0, 180)
         self.tree.header().setStretchLastSection(True)
         self.tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.tree.setUniformRowHeights(True)
         self.tree.setSelectionMode(QTreeWidget.ExtendedSelection)
-        self.tree.itemChanged.connect(self.on_item_changed)
+        self.tree.itemChanged.connect(lambda *_: self.sync_visible())
         self.tree.itemSelectionChanged.connect(self.on_tree_selection)
         self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self.tree_menu)
         ol.addWidget(self.tree, 1)
-        self.sel_summary = label("", "Faint", wrap=True)
-        ol.addWidget(self.sel_summary)
-        oc.setMinimumWidth(280)
-        split.addWidget(oc)
+        op.setMinimumWidth(240)
+        split.addWidget(op)
 
-        # viewport
-        vc = card("Viewport")
-        vl = QVBoxLayout(vc)
-        vl.setContentsMargins(10, 10, 10, 10)
-        vl.setSpacing(8)
-        self.view_mode = Segmented([("textured", "Textured"), ("clay", "Clay")], "textured")
-        self.view_mode.changed.connect(self.set_view_mode)
-        self.wire_t = Toggle(False)
-        self.wire_t.toggled.connect(self.set_wire)
-        self.spread_t = Toggle(False)
-        self.spread_t.toggled.connect(self.set_spread)
-        self.grid_t = Toggle(True)
-        self.grid_t.toggled.connect(self.set_grid)
-        frame_b = QPushButton("Frame")
-        frame_b.clicked.connect(lambda: self.viewport.frame())
-        vl.addLayout(hbox(self.view_mode, None, label("Wire", "Muted"), self.wire_t,
-                          label("Side by side", "Muted"), self.spread_t,
-                          label("Grid", "Muted"), self.grid_t, frame_b, spacing=10))
+        # ---- viewport -------------------------------------------------- #
+        vp, vl = pane()
+        vl.setContentsMargins(8, 8, 8, 8)
+        self.t_textured = tool("image", "Textured", True)
+        self.t_clay = tool("clay", "Clay", True)
+        shade = QButtonGroup(self)
+        shade.setExclusive(True)
+        shade.addButton(self.t_textured)
+        shade.addButton(self.t_clay)
+        self.t_textured.setChecked(True)
+        self.t_textured.clicked.connect(lambda: self.set_view_mode("textured"))
+        self.t_clay.clicked.connect(lambda: self.set_view_mode("clay"))
+        self.t_wire = tool("wire", "Wireframe", True)
+        self.t_wire.toggled.connect(self.set_wire)
+        self.t_grid = tool("grid", "Grid", True)
+        self.t_grid.setChecked(True)
+        self.t_grid.toggled.connect(self.set_grid)
+        self.t_spread = tool("layers", "Variants side by side", True)
+        self.t_spread.toggled.connect(lambda on: self.viewport.set_spread(on))
+        self.t_frame = tool("target", "Frame selection  (F)")
+        self.t_frame.clicked.connect(lambda: self.viewport.frame())
+        self._view_tools = [self.t_textured, self.t_clay, self.t_wire, self.t_grid, self.t_spread,
+                            self.t_frame]
+        vl.addLayout(hbox(self.t_textured, self.t_clay, 10, self.t_wire, self.t_grid, self.t_spread,
+                          None, self.t_frame, spacing=2))
         self.viewport = make_viewport(self.settings.get("renderer", "directx"))
         self.viewport.picked.connect(self.on_pick)
         self.viewport.status.connect(self.on_view_status)
+        self.viewport.setToolTip("Drag: orbit · Middle/Shift-drag: pan · Wheel: zoom · Click: select")
         vl.addWidget(self.viewport, 1)
-        self.view_stats = label("", "Faint")
-        vl.addWidget(label("Left drag orbit · Middle or Shift drag pan · Wheel zoom · Click select · "
-                           "F frame selection · A frame all", "Faint"))
-        vl.addWidget(self.view_stats)
-        split.addWidget(vc)
+        split.addWidget(vp)
 
-        # inspector
-        ic = card()
-        il = QVBoxLayout(ic)
-        il.setContentsMargins(14, 14, 14, 14)
-        il.setSpacing(10)
-        il.addWidget(label("Inspector", "H3"))
-        self.insp_obj = label("Click an object in the view or the list.", "Muted", wrap=True)
-        il.addWidget(self.insp_obj)
-        il.addWidget(divider())
-        self.mat_header = QHBoxLayout()
-        self.mat_title = label("Material", "H3")
-        self.mat_type = badge("")
-        self.mat_type.hide()
-        il.addLayout(hbox(self.mat_title, self.mat_type, None))
-        self.mat_list = QVBoxLayout()
-        self.mat_list.setSpacing(6)
-        mats_w = QWidget()
-        mats_w.setLayout(self.mat_list)
-        il.addWidget(mats_w)
-        self.foliage_t = Toggle(False)
-        self.foliage_t.toggled.connect(self.set_foliage)
-        self.normal_seg = Segmented([("directx", "DirectX"), ("opengl", "OpenGL")], "directx")
-        self.normal_seg.changed.connect(self.set_normal_conv)
-        il.addLayout(hbox(label("Leaf / two-sided", "Muted"), None, self.foliage_t))
-        il.addLayout(hbox(label("Normal map", "Muted"), None, self.normal_seg))
-        self.mat_notes = label("", "Faint", wrap=True)
-        il.addWidget(self.mat_notes)
-        il.addStretch(1)
-        insp_scroll = self._scroll(ic)
-        insp_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        insp_scroll.setMinimumWidth(340)
-        split.addWidget(insp_scroll)
+        # ---- right panel: Material | Export ---------------------------- #
+        rp, rl = pane()
+        rl.setContentsMargins(14, 6, 14, 14)
+        self.tabs = QTabBar()
+        self.tabs.addTab("Material")
+        self.tabs.addTab("Export")
+        self.tabs.setExpanding(False)
+        self.tabs.setDrawBase(False)
+        rl.addWidget(self.tabs)
+        self.right_stack = QStackedWidget()
+        self.right_stack.addWidget(self._build_material_tab())
+        self.right_stack.addWidget(self._build_export_tab())
+        self.tabs.currentChanged.connect(self.right_stack.setCurrentIndex)
+        rl.addWidget(self.right_stack, 1)
+        rp.setMinimumWidth(320)
+        split.addWidget(rp)
         split.setStretchFactor(0, 0)
         split.setStretchFactor(1, 1)
         split.setStretchFactor(2, 0)
-        split.setSizes([300, 780, 360])
+        split.setSizes([270, 800, 340])
         lay.addWidget(split, 1)
         return page
 
-    # ------------------------------------------------------------------ #
-    # Export page
-    # ------------------------------------------------------------------ #
-    def _build_export(self) -> QWidget:
-        inner, lay = self._page(
-            "Export for D5",
-            "Writes FBX files plus a textures folder. Geometry and textures stay full detail: the "
-            "savings come from removing duplicates and redundant data, not from quality.")
+    def _scroll(self, w: QWidget) -> QScrollArea:
+        sc = QScrollArea()
+        sc.setWidgetResizable(True)
+        sc.setFrameShape(QFrame.NoFrame)
+        sc.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        sc.setWidget(w)
+        return sc
+
+    def _build_material_tab(self) -> QWidget:
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(0, 10, 0, 0)
+        lay.setSpacing(10)
+        self.insp_name = label("Nothing selected", "H3")
+        self.insp_info = label("Click an object in the view", "Faint")
+        lay.addLayout(vbox(self.insp_name, self.insp_info, spacing=2))
+        self.mat_list = QVBoxLayout()
+        self.mat_list.setSpacing(12)
+        lay.addLayout(self.mat_list)
+        lay.addStretch(1)
+        return self._scroll(w)
+
+    def _build_export_tab(self) -> QWidget:
         o = self.export_opts
-        cols = QHBoxLayout()
-        cols.setSpacing(14)
-        left = QVBoxLayout()
-        left.setSpacing(14)
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(0, 12, 0, 0)
+        lay.setSpacing(12)
 
-        # output
-        c1 = card()
-        l1 = QVBoxLayout(c1)
-        l1.setContentsMargins(18, 16, 18, 16)
-        l1.addWidget(label("Output", "H3"))
-        self.out_edit = QLineEdit(o.out_dir)
-        browse = QPushButton("Browse")
-        browse.clicked.connect(self.pick_out_dir)
-        l1.addLayout(hbox(self.out_edit, browse))
-        self.asset_edit = QLineEdit(o.asset_name)
-        self.asset_edit.setPlaceholderText("Asset folder name (default: file name)")
-        l1.addWidget(self.asset_edit)
-        self.layout_seg = Segmented([("split", "One FBX per variant"), ("single", "One FBX")],
-                                    "split" if o.split_variants else "single")
-        l1.addWidget(Row("Files", "Separate FBX per tree variant share one textures folder.", self.layout_seg))
+        self.fmt_seg = Segmented([("fbx", "FBX"), ("obj", "OBJ")], o.format)
+        self.fmt_seg.changed.connect(self._fmt_changed)
+        lay.addLayout(form_row("Format", self.fmt_seg))
+        self.tex_seg = Segmented([("embed", "Embedded"), ("files", "Files")],
+                                 "embed" if o.embed_textures else "files")
+        self.tex_label = label("Textures", "FormLabel")
+        tip = ("Embedded: one .fbx with every texture inside, no folder.\n"
+               "Files: textures next to the model. OBJ always uses files.")
+        self.tex_label.setToolTip(tip)
+        self.tex_seg.setToolTip(tip)
+        lay.addLayout(hbox(self.tex_label, None, self.tex_seg))
+        self.split_seg = Segmented([("split", "Per variant"), ("single", "Single")],
+                                   "split" if o.split_variants else "single")
+        lay.addLayout(form_row("Files", self.split_seg, "One file per tree variant, or all in one file"))
+        self.quality_seg = Segmented([("lossless", "Lossless"), ("visually_lossless", "Smaller")],
+                                     o.textures.mode if o.textures.mode != "copy" else "lossless")
+        lay.addLayout(form_row("Quality", self.quality_seg,
+                               "Lossless: every pixel and full resolution kept.\n"
+                               "Smaller: colour maps as JPEG 95 (not bit-exact)."))
         self.center_t = Toggle(o.center_to_origin)
-        l1.addWidget(Row("Place at origin", "Each variant sits on the ground at 0,0,0 so it drops "
-                         "into D5 where you click.", self.center_t))
-        self.embed_t = Toggle(o.embed_textures)
-        l1.addWidget(Row("Embed textures", "Off keeps the FBX small; textures sit next to it.", self.embed_t))
-        left.addWidget(c1)
+        lay.addLayout(form_row("Place at origin", self.center_t, "Each variant on the ground at 0,0,0"))
 
-        # geometry
-        c2 = card()
-        l2 = QVBoxLayout(c2)
-        l2.setContentsMargins(18, 16, 18, 16)
-        l2.addWidget(label("Geometry", "H3"))
+        lay.addSpacing(4)
+        lay.addWidget(label("OUTPUT", "Section2"))
+        self.out_edit = QLineEdit(o.out_dir)
+        self.out_edit.setToolTip("Output folder")
+        browse = tool("folder", "Choose folder")
+        browse.clicked.connect(self.pick_out_dir)
+        self._export_tools = [browse]
+        lay.addLayout(hbox(self.out_edit, browse, spacing=4))
+        self.asset_edit = QLineEdit()
+        self.asset_edit.setPlaceholderText("File name")
+        self.asset_edit.setToolTip("File name")
+        lay.addWidget(self.asset_edit)
+
+        adv = QWidget()
+        al = QVBoxLayout(adv)
+        al.setContentsMargins(0, 4, 0, 0)
+        al.setSpacing(10)
         self.opt_mesh_t = Toggle(o.optimize_meshes)
-        l2.addWidget(Row("Lossless optimisation", "Welds identical points, stores each normal and UV "
-                         "once, removes zero-area faces and unused slots. Shape is unchanged.", self.opt_mesh_t))
+        al.addLayout(form_row("Optimise mesh", self.opt_mesh_t,
+                              "Lossless: welds identical points, stores normals/UVs once, "
+                              "removes zero-area faces"))
         self.inst_t = Toggle(o.instancing)
-        l2.addWidget(Row("Instancing", "Identical objects are written once and referenced.", self.inst_t))
+        al.addLayout(form_row("Instancing", self.inst_t, "Identical objects are stored once"))
         self.hidden_t = Toggle(o.include_hidden)
-        l2.addWidget(Row("Include hidden objects", "MaxTree often hides alternative variants.", self.hidden_t))
-        left.addWidget(c2)
-        left.addStretch(1)
-
-        right = QVBoxLayout()
-        right.setSpacing(14)
-        c3 = card()
-        l3 = QVBoxLayout(c3)
-        l3.setContentsMargins(18, 16, 18, 16)
-        l3.addWidget(label("Textures", "H3"))
-        self.tex_mode = Segmented([("lossless", "Lossless"), ("visually_lossless", "Visually lossless"),
-                                   ("copy", "Copy originals")], o.textures.mode)
-        l3.addWidget(self.tex_mode)
-        self.tex_mode_desc = label("", "Faint", wrap=True)
-        l3.addWidget(self.tex_mode_desc)
-        self.tex_mode.changed.connect(self._tex_mode_text)
-        self._tex_mode_text(o.textures.mode)
+        al.addLayout(form_row("Hidden objects", self.hidden_t, "Include objects hidden in 3ds Max"))
         self.pack_t = Toggle(o.textures.pack_opacity_in_base_alpha)
-        l3.addWidget(Row("Opacity in base colour alpha", "Lets D5 detect leaf cut-outs on import.", self.pack_t))
+        al.addLayout(form_row("Opacity in alpha", self.pack_t, "Leaf mask in the base colour alpha (D5 cut-outs)"))
         self.gloss_t = Toggle(o.textures.convert_gloss_to_roughness)
-        l3.addWidget(Row("Glossiness to roughness", "Corona / V-Ray gloss maps are inverted exactly "
-                         "(255 - value) because D5 uses roughness.", self.gloss_t))
+        al.addLayout(form_row("Gloss → roughness", self.gloss_t, "Invert Corona/V-Ray glossiness maps exactly"))
         self.const_t = Toggle(o.textures.collapse_constant)
-        l3.addWidget(Row("Single-colour maps to values", "A 4K map of one colour becomes a number.", self.const_t))
+        al.addLayout(form_row("Flat maps → values", self.const_t, "Single-colour textures become material values"))
         self.ntarget = Segmented([("directx", "DirectX"), ("opengl", "OpenGL")], o.textures.normal_target)
-        l3.addWidget(Row("Normal maps for", "D5 Render expects DirectX.", self.ntarget))
-        right.addWidget(c3)
+        al.addLayout(form_row("Normal maps", self.ntarget, "D5 Render expects DirectX"))
+        self.report_t = Toggle(o.write_reports)
+        al.addLayout(form_row("Report file", self.report_t, "Also write an export report next to the model"))
+        lay.addWidget(Collapsible("Advanced", adv))
+        lay.addStretch(1)
 
-        c4 = card()
-        l4 = QVBoxLayout(c4)
-        l4.setContentsMargins(18, 16, 18, 16)
-        self.exp_summary = label("Nothing selected", "Muted", wrap=True)
-        self.exp_btn = QPushButton("Export")
-        self.exp_btn.setObjectName("Primary")
-        self.exp_btn.clicked.connect(self.start_export)
-        self.cancel_btn = QPushButton("Cancel")
-        self.cancel_btn.clicked.connect(self.cancel_job)
-        self.cancel_btn.hide()
-        l4.addLayout(hbox(label("Selection", "H3"), None))
-        l4.addWidget(self.exp_summary)
-        self.exp_progress = QProgressBar()
-        self.exp_progress.setRange(0, 1000)
-        self.exp_progress.setTextVisible(False)
-        self.exp_progress.hide()
-        self.exp_status = label("", "Faint", wrap=True)
-        l4.addWidget(self.exp_progress)
-        l4.addWidget(self.exp_status)
-        open_out = QPushButton("Open folder")
-        open_out.clicked.connect(self.open_out_dir)
-        l4.addLayout(hbox(None, open_out, self.cancel_btn, self.exp_btn))
-        right.addWidget(c4)
-        self.report_box = QPlainTextEdit()
-        self.report_box.setReadOnly(True)
-        self.report_box.setMinimumHeight(260)
-        self.report_box.setPlaceholderText("The export report appears here.")
-        right.addWidget(self.report_box, 1)
-        cols.addLayout(left, 1)
-        cols.addLayout(right, 1)
-        lay.addLayout(cols, 1)
-        return self._scroll(inner)
+        self.exp_summary = label("", "Faint")
+        self.exp_go = QPushButton("Export")
+        self.exp_go.setObjectName("PrimaryWide")
+        self.exp_go.setToolTip("Ctrl+E")
+        self.exp_go.clicked.connect(self.start_export)
+        self.last_line = QPushButton("")
+        self.last_line.setObjectName("Link")
+        self.last_line.setCursor(Qt.PointingHandCursor)
+        self.last_line.clicked.connect(lambda: self.show_text("Export report", self.last_report))
+        self.last_line.hide()
+        lay.addWidget(self.exp_summary)
+        lay.addWidget(self.exp_go)
+        lay.addWidget(self.last_line, 0, Qt.AlignLeft)
+        self._fmt_changed(o.format)
+        return self._scroll(w)
 
-    def _tex_mode_text(self, mode: str) -> None:
-        self.tex_mode_desc.setText({
-            "lossless": "Every pixel and the full resolution are kept. PNG/TIFF/TGA are recompressed "
-                        "losslessly, JPEGs are copied byte for byte.",
-            "visually_lossless": "Colour maps without alpha are saved as JPEG quality 95 with full "
-                                 "chroma. Smallest files; not bit-exact. Data maps stay lossless.",
-            "copy": "Originals are copied as they are (only required conversions are applied).",
-        }.get(mode, ""))
+    def _fmt_changed(self, fmt: str) -> None:
+        self.tex_seg.setEnabled(fmt == "fbx")
+        self.tex_label.setEnabled(fmt == "fbx")
+        if fmt == "obj":
+            self.tex_seg.set_value("files")
 
     # ------------------------------------------------------------------ #
-    # Settings & help
+    # Settings
     # ------------------------------------------------------------------ #
     def _build_settings(self) -> QWidget:
-        inner, lay = self._page("Settings", "Defaults for opening files. Export options live on the Export page.")
-        c = card()
-        l = QVBoxLayout(c)
-        l.setContentsMargins(18, 16, 18, 16)
-        l.addWidget(label("3ds Max", "H3"))
+        w = QWidget()
+        col = QWidget()
+        col.setMaximumWidth(620)
+        col.setMinimumWidth(520)
+        lay = QVBoxLayout(col)
+        lay.setContentsMargins(24, 28, 24, 24)
+        lay.setSpacing(12)
+        lay.addWidget(label("Settings", "H1"))
+        lay.addSpacing(6)
+
+        lay.addWidget(label("3DS MAX", "Section2"))
         self.max_path = QLineEdit(self.settings.get("max_batch", ""))
-        self.max_path.setPlaceholderText(r"Auto-detect, or C:\Program Files\Autodesk\3ds Max 2025\3dsmaxbatch.exe")
-        pick = QPushButton("Browse")
+        self.max_path.setPlaceholderText("3dsmaxbatch.exe  (auto-detect)")
+        pick = tool("folder", "Choose 3dsmaxbatch.exe")
         pick.clicked.connect(self.pick_max_exe)
-        l.addLayout(hbox(self.max_path, pick))
-        self.bake_t = Toggle(self.settings.get("bake_procedural", True))
-        l.addWidget(Row("Bake procedural maps", "Colour Correct, Mix, Falloff and similar maps are "
-                        "rendered to images at full resolution.", self.bake_t))
-        self.proxy_t = Toggle(self.settings.get("convert_proxies", True))
-        l.addWidget(Row("Convert proxies", "Corona / V-Ray proxies are turned into real meshes.", self.proxy_t))
-        self.cache_t = Toggle(self.settings.get("reuse_cache", True))
-        l.addWidget(Row("Reuse previous 3ds Max export", "Reopening an unchanged .max file is instant.", self.cache_t))
+        self._settings_tools = [pick]
+        lay.addLayout(hbox(self.max_path, pick, spacing=4))
         self.usemax_t = Toggle(self.settings.get("use_3dsmax", True))
-        l.addWidget(Row("Use 3ds Max for .max files", "Off: open .max files from the FBX/OBJ exports in their "
-                        "library folder (no 3ds Max needed, faster).", self.usemax_t))
-        lay.addWidget(c)
-        cr = card()
-        lr = QVBoxLayout(cr)
-        lr.setContentsMargins(18, 16, 18, 16)
-        lr.addWidget(label("Preview", "H3"))
-        self.renderer_seg = Segmented([("directx", "DirectX 11"), ("opengl", "OpenGL")],
-                                      self.settings.get("renderer", "directx"))
-        lr.addWidget(Row("Renderer", "DirectX 11 is the default on Windows. Switch to OpenGL if the "
-                         "preview stays empty on your graphics driver. Applies after restart.", self.renderer_seg))
-        lay.addWidget(cr)
-        c2 = card()
-        l2 = QVBoxLayout(c2)
-        l2.setContentsMargins(18, 16, 18, 16)
-        l2.addWidget(label("Megascans", "H3"))
+        lay.addLayout(form_row("Use 3ds Max for .max files", self.usemax_t,
+                               "Off: open .max files from the FBX/OBJ exports in their library (faster)"))
+        self.bake_t = Toggle(self.settings.get("bake_procedural", True))
+        lay.addLayout(form_row("Bake procedural maps", self.bake_t,
+                               "Colour Correct, Mix, Falloff… rendered to images at full resolution"))
+        self.proxy_t = Toggle(self.settings.get("convert_proxies", True))
+        lay.addLayout(form_row("Convert proxies to mesh", self.proxy_t))
+        self.cache_t = Toggle(self.settings.get("reuse_cache", True))
+        lay.addLayout(form_row("Reuse previous conversion", self.cache_t,
+                               "Reopening an unchanged .max file is instant"))
+
+        lay.addSpacing(8)
+        lay.addWidget(label("MEGASCANS", "Section2"))
         self.lod_seg = Segmented([(str(i), f"LOD{i}") for i in range(4)], str(self.settings.get("lod", 0)))
-        l2.addWidget(Row("Level of detail", "LOD0 is the full-detail model.", self.lod_seg))
+        lay.addLayout(form_row("Level of detail", self.lod_seg))
         self.ms_normal = Segmented([("opengl", "OpenGL"), ("directx", "DirectX")],
                                    self.settings.get("megascans_normals", "opengl"))
-        l2.addWidget(Row("Source normal maps", "How the downloaded normal maps are encoded "
-                         "(Bridge default: OpenGL). They are converted for D5.", self.ms_normal))
-        lay.addWidget(c2)
+        lay.addLayout(form_row("Source normal maps", self.ms_normal))
+
+        lay.addSpacing(8)
+        lay.addWidget(label("PREVIEW", "Section2"))
+        self.renderer_seg = Segmented([("directx", "DirectX 11"), ("opengl", "OpenGL")],
+                                      self.settings.get("renderer", "directx"))
+        lay.addLayout(form_row("Renderer", self.renderer_seg, "Applies after restart"))
+        lay.addSpacing(12)
         save = QPushButton("Save")
         save.setObjectName("Primary")
         save.clicked.connect(self.save_prefs)
         lay.addLayout(hbox(None, save))
         lay.addStretch(1)
-        return self._scroll(inner)
-
-    def _build_help(self) -> QWidget:
-        inner, lay = self._page("Help", f"D5 Bridge {__version__}")
-        steps = [
-            ("1  Open", "Drop a .max file, a Megascans folder or an FBX/OBJ. For .max files your installed "
-                        "3ds Max (2021+) opens the file in the background; Corona or V-Ray must be installed "
-                        "for their materials to be read. You can also use the D5 Bridge toolbar button inside 3ds Max."),
-            ("2  Choose", "Each variant (tree version) is listed in the sidebar and the Objects panel. Untick "
-                          "what you don't need: a variant, or single parts such as a pot or ground plane. Click "
-                          "objects in the view to inspect their material and textures."),
-            ("3  Check materials", "The inspector shows every map D5 will receive. Click a map to replace it, "
-                                   "switch the normal-map convention if bumps look inverted, and mark leaves as "
-                                   "two-sided."),
-            ("4  Export", "One FBX per variant plus one shared textures folder. In D5: Import model, pick the "
-                          "FBX. For leaves choose the Foliage material template if D5 didn't. Extra maps "
-                          "(roughness, AO, translucency) are in textures/ with D5 suffixes."),
-        ]
-        for h, t in steps:
-            c = card()
-            l = QVBoxLayout(c)
-            l.setContentsMargins(18, 14, 18, 14)
-            l.addWidget(label(h, "H3"))
-            l.addWidget(label(t, "Muted", wrap=True))
-            lay.addWidget(c)
-        lay.addWidget(label("Command line: D5Bridge.exe --export file.max --out D:\\D5 --split-variants", "Mono"))
-        lay.addStretch(1)
-        return self._scroll(inner)
+        lay.addWidget(label(f"D5 Bridge {__version__}", "Faint"))
+        outer = QVBoxLayout(w)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addLayout(hbox(None, col, None))
+        return self._scroll(w)
 
     # ------------------------------------------------------------------ #
     # theme / navigation
@@ -783,22 +728,26 @@ class MainWindow(QMainWindow):
     def apply_theme(self, p: Palette) -> None:
         self.palette_ = p
         QApplication.instance().setStyleSheet(qss(p))
-        muted = p.text_muted
-        for key, b in self.nav.items():
-            b.setIcon(make_icon(self._icons_for_nav[key], p.primary_fg if b.isChecked() else muted))
-            b.setIconSize(QSize(18, 18))
-        self.theme_btn.setIcon(make_icon("sun" if p.name == "dark" else "moon", p.text, 20))
-        self.theme_btn.setIconSize(QSize(20, 20))
-        self.warn_btn.setIcon(make_icon("bell", p.text, 20))
-        self.warn_btn.setIconSize(QSize(20, 20))
-        self.search_icon.setPixmap(make_icon("search", p.text_faint, 16).pixmap(16, 16))
-        self.drop_icon.setPixmap(make_icon("tree", p.text_muted, 40).pixmap(40, 40))
-        self.max_tile_icon.setPixmap(make_icon("cpu", p.text, 20).pixmap(20, 20))
+        self._paint_icons()
         self.viewport.set_theme(p.viewport_top, p.viewport_bottom, p.accent, p.text_faint)
         for t in self.findChildren(Toggle):
             t.colors = (p.primary_bg, p.border_strong, p.primary_fg)
             t.update()
+        if self.scene is not None:
+            self.on_tree_selection()
         _dark_title_bar(self, p.name == "dark")
+
+    def _paint_icons(self) -> None:
+        p = self.palette_
+        for b in self.rail.values():
+            b.setIcon(make_icon(b.property("icon_name"), p.primary_fg if b.isChecked() else p.text_muted, 20))
+        self.theme_btn.setIcon(make_icon("sun" if p.name == "dark" else "moon", p.text_muted, 20))
+        self.help_btn.setIcon(make_icon("help", p.text_muted, 20))
+        self.warn_btn.setIcon(make_icon("bell", p.text, 20))
+        for b in self._view_tools + self._outliner_tools + self._export_tools + self._settings_tools:
+            b.setIcon(make_icon(b.property("icon_name"), p.text, 18))
+        self.filter_icon.setPixmap(make_icon("search", p.text_faint, 14).pixmap(14, 14))
+        self.drop_icon.setPixmap(make_icon("tree", p.text_muted, 44).pixmap(44, 44))
 
     def toggle_theme(self) -> None:
         self.apply_theme(LIGHT if self.palette_.name == "dark" else DARK)
@@ -806,35 +755,35 @@ class MainWindow(QMainWindow):
         save_settings(self.settings)
 
     def go(self, key: str) -> None:
-        pages = {"home": self.page_home, "model": self.page_model, "export": self.page_export,
-                 "settings": self.page_settings, "help": self.page_help}
-        if key in ("model", "export") and self.scene is None:
-            self.toast.show_message("Open a model first", "Open", self.open_file_dialog)
+        if key == "work" and self.scene is None:
             key = "home"
-        self.stack.setCurrentWidget(pages[key])
-        self.nav[key].setChecked(True)
-        for k, b in self.nav.items():
-            b.setIcon(make_icon(self._icons_for_nav[k], self.palette_.primary_fg if b.isChecked()
-                                else self.palette_.text_muted))
-        if key == "export":
-            self.update_export_summary()
+        page = {"home": self.page_home, "work": self.page_work, "settings": self.page_settings}[key]
+        self.stack.setCurrentWidget(page)
+        self.rail[key].setChecked(True)
+        self._paint_icons()
         if key == "home":
             self.refresh_recent()
+
+    def set_status(self, msg: str, progress: float | None = None) -> None:
+        self.status_msg.setText(msg)
+        if progress is None:
+            self.status_progress.hide()
+        else:
+            self.status_progress.show()
+            self.status_progress.setValue(int(progress * 1000))
 
     # ------------------------------------------------------------------ #
     # opening
     # ------------------------------------------------------------------ #
     def open_file_dialog(self) -> None:
         start = self.settings.get("last_dir", str(Path.home()))
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Open model", start,
-            "Models (*.max *.fbx *.obj manifest.json);;3ds Max (*.max);;FBX (*.fbx);;OBJ (*.obj)")
+        path, _ = QFileDialog.getOpenFileName(self, "Open model", start,
+                                              "Models (*.max *.fbx *.obj manifest.json)")
         if path:
             self.load(path)
 
     def open_folder_dialog(self) -> None:
-        start = self.settings.get("last_dir", str(Path.home()))
-        d = QFileDialog.getExistingDirectory(self, "Megascans / Fab asset folder", start)
+        d = QFileDialog.getExistingDirectory(self, "Open folder", self.settings.get("last_dir", str(Path.home())))
         if d:
             self.load(d)
 
@@ -856,15 +805,14 @@ class MainWindow(QMainWindow):
 
     def load(self, path: str) -> None:
         if self.current_job is not None:
-            self.toast.show_message("Still working on the previous file")
+            self.toast.show_message("Busy, try again in a moment")
             return
         p = Path(path)
         if p.is_file() and p.suffix.lower() not in SUPPORTED:
-            self.toast.show_message(f"{p.suffix} files are not supported")
+            self.toast.show_message(f"{p.suffix} is not supported")
             return
         self.settings["last_dir"] = str(p.parent if p.is_file() else p)
-        rec = [str(p)] + [r for r in self.settings.get("recent", []) if r != str(p)]
-        self.settings["recent"] = rec[:12]
+        self.settings["recent"] = ([str(p)] + [r for r in self.settings.get("recent", []) if r != str(p)])[:12]
         save_settings(self.settings)
         if self.settings.get("max_batch"):
             os.environ["D5B_3DSMAXBATCH"] = self.settings["max_batch"]
@@ -872,45 +820,48 @@ class MainWindow(QMainWindow):
                     "convert_proxies": self.settings.get("convert_proxies", True),
                     "use_3dsmax": self.settings.get("use_3dsmax", True)}
         job = Job(_load_job, str(p), max_options=max_opts, lod=int(self.settings.get("lod", 0)))
-        job.signals.log.connect(lambda s: self.toast.show_message(s, ms=8000))
+        job.signals.log.connect(lambda s: self.status_msg.setText(s))
         job.signals.done.connect(lambda sc: self.on_loaded(sc, p))
         job.signals.failed.connect(self.on_failed)
         self.current_job = job
+        self._t0 = time.time()
         self.open_btn.setEnabled(False)
-        self.toast.show_message(f"Opening {p.name}…" + (" (3ds Max runs in the background, this can take a "
-                                                        "minute)" if p.suffix.lower() == ".max" else ""), ms=60000)
+        self.status_progress.setRange(0, 0)          # indeterminate while loading
+        self.set_status(f"Opening {p.name}…", 0.0)
         self.pool.start(job)
 
     def on_failed(self, msg: str) -> None:
         self.current_job = None
         self.open_btn.setEnabled(True)
-        self.exp_btn.setEnabled(True)
         self.cancel_btn.hide()
-        self.exp_progress.hide()
+        self.status_progress.setRange(0, 1000)
         first = msg.strip().splitlines()[0] if msg.strip() else "Failed"
-        self.toast.show_message(first[:140], "Details", lambda: self.show_text("Error", msg), ms=10000)
-        self.exp_status.setText(first)
+        self.set_status(first[:120])
+        if self.scene is not None:
+            self.sync_visible()
+        if first != "Cancelled":
+            self.toast.show_message(first[:110], "Details", lambda: self.show_text("Error", msg), ms=10000)
 
     def on_loaded(self, scene: Scene, path: Path) -> None:
         self.current_job = None
         self.open_btn.setEnabled(True)
+        self.status_progress.setRange(0, 1000)
         if scene.source_kind == "megascans" and self.settings.get("megascans_normals", "opengl") == "directx":
             for m in scene.materials():
                 m.normal_convention = "directx"
         self.scene = scene
-        self.model_title.setText(path.stem if path.is_file() else path.name)
-        st = scene.stats()
-        self.model_sub.setText(f"{len(scene.variants)} variant(s) · {st['objects']} objects · "
-                               f"{st['triangles']:,} triangles · {st['materials']} materials · "
-                               f"{scene.up_axis}-up")
+        self.source = path
+        name = path.stem if path.is_file() else path.name
+        self.crumb2.setText(name)
+        self.crumb_sep.show()
+        self.asset_edit.setText(name)
         self.populate_tree()
-        self.populate_variant_nav()
         self.viewport.set_scene(scene)
         self.sync_visible()
         self.update_warnings()
-        self.asset_edit.setText(path.stem if path.is_file() else path.name)
-        self.go("model")
-        self.toast.show_message(f"Opened {path.name} · {len(scene.variants)} variant(s)")
+        self.show_inspector(None)
+        self.go("work")
+        self.set_status(f"Opened in {time.time() - self._t0:.1f} s")
 
     # ------------------------------------------------------------------ #
     # outliner
@@ -924,22 +875,21 @@ class MainWindow(QMainWindow):
         assert sc is not None
         for v in sc.variants:
             tris = sum(n.mesh.num_triangles for n in v.mesh_nodes() if n.mesh is not None)
-            vi = QTreeWidgetItem([v.name, f"{tris:,}"])
+            vi = QTreeWidgetItem([v.name, _k(tris)])
             vi.setFlags(vi.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsAutoTristate)
             vi.setCheckState(0, Qt.Checked)
             f = vi.font(0)
             f.setWeight(QFont.DemiBold)
             vi.setFont(0, f)
-            vi.setToolTip(0, f"Detected by: {v.reason.split('|')[0]}")
             vi.setData(0, Qt.UserRole, ("variant", v))
             self.tree.addTopLevelItem(vi)
             for n in v.mesh_nodes():
-                mats = ", ".join(dict.fromkeys(m.name for m in n.materials))
-                it = QTreeWidgetItem([n.name, f"{n.mesh.num_triangles:,}" if n.mesh else ""])
+                it = QTreeWidgetItem([n.name, _k(n.mesh.num_triangles) if n.mesh else ""])
                 it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
-                hidden = n.tags.get("hidden_in_max") == "1"
                 it.setCheckState(0, Qt.Checked)
-                it.setToolTip(0, f"{n.path()}\nMaterials: {mats}" + ("\nHidden in 3ds Max" if hidden else ""))
+                mats = ", ".join(dict.fromkeys(m.name for m in n.materials))
+                hidden = n.tags.get("hidden_in_max") == "1"
+                it.setToolTip(0, f"{n.path()}\n{mats}" + ("\nHidden in 3ds Max" if hidden else ""))
                 if hidden:
                     it.setForeground(0, QColor(self.palette_.text_muted))
                 it.setData(0, Qt.UserRole, ("node", n))
@@ -948,39 +898,8 @@ class MainWindow(QMainWindow):
                 self.item_nodes[id(it)] = n
             vi.setExpanded(len(sc.variants) <= 3)
         self.tree.blockSignals(False)
-        self.out_count.setText(str(len(self.node_items)))
-        self.update_selection_summary()
-
-    def populate_variant_nav(self) -> None:
-        self._clear_layout(self.variant_list)
-        sc = self.scene
-        if sc is None or not sc.variants:
-            self.variant_list.addWidget(label("No variants", "Faint"))
-            return
-        for i, v in enumerate(sc.variants[:14]):
-            b = QPushButton(f"  {v.name}")
-            b.setObjectName("NavItem")
-            b.setToolTip(f"Show only {v.name}")
-            b.setIcon(make_icon("tree", self.palette_.text_muted))
-            b.clicked.connect(lambda _=False, idx=i: self.solo_variant(idx))
-            n = badge(str(len(v.mesh_nodes())))
-            self.variant_list.addLayout(hbox(b, n, spacing=4))
-        if len(sc.variants) > 1:
-            allb = QPushButton("  Show all")
-            allb.setObjectName("NavItem")
-            allb.setIcon(make_icon("grid", self.palette_.text_muted))
-            allb.clicked.connect(lambda: self.check_all(True))
-            self.variant_list.addWidget(allb)
-
-    def solo_variant(self, idx: int) -> None:
-        self.tree.blockSignals(True)
-        for i in range(self.tree.topLevelItemCount()):
-            self.tree.topLevelItem(i).setCheckState(0, Qt.Checked if i == idx else Qt.Unchecked)
-        self.tree.blockSignals(False)
-        self.sync_visible()
-        self.viewport.frame(all_nodes=True)
-        if self.stack.currentWidget() is not self.page_model:
-            self.go("model")
+        self.obj_count.setText(str(len(self.node_items)))
+        self.t_spread.setEnabled(len(sc.variants) > 1)
 
     def check_all(self, state: bool) -> None:
         self.tree.blockSignals(True)
@@ -991,15 +910,25 @@ class MainWindow(QMainWindow):
         if state:
             self.viewport.frame(all_nodes=True)
 
-    def on_item_changed(self, _item, _col) -> None:
+    def solo_variant(self, idx: int) -> None:
+        self.tree.blockSignals(True)
+        for i in range(self.tree.topLevelItemCount()):
+            self.tree.topLevelItem(i).setCheckState(0, Qt.Checked if i == idx else Qt.Unchecked)
+        self.tree.blockSignals(False)
+        self.sync_visible()
+        self.viewport.frame(all_nodes=True)
+
+    def hide_selected(self) -> None:
+        if self.stack.currentWidget() is not self.page_work or self.filter.hasFocus():
+            return
+        self.tree.blockSignals(True)
+        for it in self.tree.selectedItems():
+            it.setCheckState(0, Qt.Unchecked)
+        self.tree.blockSignals(False)
         self.sync_visible()
 
     def checked_nodes(self) -> list[Node]:
-        out = []
-        for nid, it in self.node_items.items():
-            if it.checkState(0) == Qt.Checked:
-                out.append(self.item_nodes[id(it)])
-        return out
+        return [self.item_nodes[id(it)] for it in self.node_items.values() if it.checkState(0) == Qt.Checked]
 
     def checked_variants(self) -> list[Variant]:
         out = []
@@ -1013,18 +942,14 @@ class MainWindow(QMainWindow):
         nodes = self.checked_nodes()
         self.viewport.set_visible(nodes)
         tris = sum(n.mesh.num_triangles for n in nodes if n.mesh is not None)
-        api = getattr(self, "renderer_name", "") or getattr(self.viewport, "backend_name", "")
-        self.view_stats.setText(f"{len(nodes)} objects · {tris:,} triangles shown · {api}")
-        self.update_selection_summary()
-        self.nav_badges["model"].hide()
-
-    def update_selection_summary(self) -> None:
-        nodes = self.checked_nodes()
+        self.status_stats.setText(f"{len(nodes)} objects · {tris:,} tris")
         vs = self.checked_variants()
-        mats = {id(m): m for n in nodes for m in n.materials}
-        tex = {r.path for m in mats.values() for r in m.maps.values()}
-        self.sel_summary.setText(f"Export: {len(vs)} variant(s), {len(nodes)} objects, "
-                                 f"{len(mats)} materials, {len(tex)} textures")
+        mats = {id(m) for n in nodes for m in n.materials}
+        self.exp_summary.setText(f"{len(vs)} variant{'s' if len(vs) != 1 else ''} · {len(nodes)} objects · "
+                                 f"{len(mats)} materials")
+        ok = bool(nodes) and self.current_job is None
+        self.exp_go.setEnabled(ok)
+        self.export_btn.setEnabled(ok)
 
     def filter_tree(self, text: str) -> None:
         t = text.lower().strip()
@@ -1039,17 +964,14 @@ class MainWindow(QMainWindow):
                 c.setHidden(not ok)
                 any_child |= ok
             vi.setHidden(not (any_child or t in vi.text(0).lower()))
-        if t and self.stack.currentWidget() is self.page_home and self.scene is not None:
-            self.go("model")
+            if t:
+                vi.setExpanded(True)
 
     def on_tree_selection(self) -> None:
         nodes = []
         for it in self.tree.selectedItems():
             kind, obj = it.data(0, Qt.UserRole)
-            if kind == "node":
-                nodes.append(obj)
-            else:
-                nodes.extend(obj.mesh_nodes())
+            nodes.extend([obj] if kind == "node" else obj.mesh_nodes())
         self.viewport.set_selected({id(n) for n in nodes})
         self.show_inspector(nodes[0] if nodes else None)
 
@@ -1063,6 +985,8 @@ class MainWindow(QMainWindow):
             self.tree.scrollToItem(it)
         self.tree.blockSignals(False)
         self.on_tree_selection()
+        if node is not None:
+            self.tabs.setCurrentIndex(0)
 
     def tree_menu(self, pos) -> None:
         it = self.tree.itemAt(pos)
@@ -1072,102 +996,97 @@ class MainWindow(QMainWindow):
         kind, obj = it.data(0, Qt.UserRole)
         if kind == "variant":
             idx = self.tree.indexOfTopLevelItem(it)
-            m.addAction("Show only this variant", lambda: self.solo_variant(idx))
+            m.addAction("Show only this", lambda: self.solo_variant(idx))
             m.addAction("Rename…", lambda: self.rename_variant(it, obj))
         m.addAction("Frame", lambda: (self.on_tree_selection(), self.viewport.frame()))
+        m.addAction("Hide  (H)", self.hide_selected)
         m.exec(self.tree.viewport().mapToGlobal(pos))
 
     def rename_variant(self, it: QTreeWidgetItem, v: Variant) -> None:
-        from PySide6.QtWidgets import QInputDialog
-        name, ok = QInputDialog.getText(self, "Rename variant", "Name", text=v.name)
+        name, ok = QInputDialog.getText(self, "Rename", "Name", text=v.name)
         if ok and name.strip():
             v.name = name.strip()
             it.setText(0, v.name)
-            self.populate_variant_nav()
 
     # ------------------------------------------------------------------ #
-    # inspector
+    # material inspector
     # ------------------------------------------------------------------ #
     def show_inspector(self, node: Node | None) -> None:
-        self._clear_layout(self.mat_list)
-        if node is None:
-            self.insp_obj.setText("Click an object in the view or the list.")
-            self.selected_material = None
-            self.mat_type.hide()
-            self.mat_notes.setText("")
+        _clear(self.mat_list)
+        if node is None or node.mesh is None:
+            self.insp_name.setText("Nothing selected")
+            self.insp_info.setText("Click an object in the view")
             return
         m = node.mesh
-        self.insp_obj.setText(f"<b>{node.name}</b><br>{m.num_triangles:,} triangles · {m.num_vertices:,} points"
-                              f" · {len(m.uv_sets)} UV channel(s)<br><span style='color:{self.palette_.text_faint}'>"
-                              f"{node.path()}</span>" if m else node.name)
-        mats = list({id(m): m for m in node.materials}.values())
-        for mat in mats:
-            self._material_card(mat)
-        self.select_material(mats[0] if mats else None)
+        self.insp_name.setText(node.name)
+        self.insp_info.setText(f"{m.num_triangles:,} tris · {len(m.uv_sets)} UV")
+        self.insp_info.setToolTip(node.path())
+        for mat in {id(x): x for x in node.materials}.values():
+            self.mat_list.addWidget(self._material_block(mat))
 
-    def _material_card(self, mat: Material) -> None:
-        box = card("CardFlat")
-        bl = QVBoxLayout(box)
-        bl.setContentsMargins(10, 10, 10, 10)
-        bl.setSpacing(6)
-        head = QPushButton(mat.name)
-        head.setObjectName("Ghost")
-        head.setStyleSheet("text-align:left; font-weight:600;")
-        head.clicked.connect(lambda: self.select_material(mat))
-        bl.addWidget(head)
+    def _material_block(self, mat: Material) -> QWidget:
+        p = self.palette_
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(0, 8, 0, 0)
+        lay.setSpacing(8)
+        lay.addWidget(divider())
+        title = label(_short(mat.name, 30), "H3")
+        title.setToolTip(f"{mat.name}\n{mat.source_type}")
+        lay.addWidget(title)
         grid = QGridLayout()
-        grid.setSpacing(6)
-        col = 0
-        row = 0
-        for ch, text in CHANNEL_LABELS:
+        grid.setHorizontalSpacing(8)
+        grid.setVerticalSpacing(2)
+        col = row = 0
+        for ch, text in CHANNELS:
             ref = mat.maps.get(ch)
-            if ref is None and ch not in ("base_color", "opacity", "normal", "roughness"):
+            if ref is None and ch not in CORE_CHANNELS:
                 continue
             tile = QPushButton()
-            tile.setFixedSize(46, 46)
-            tile.setStyleSheet("border-radius: 10px; padding: 0;")
-            tile.setToolTip(f"{text}: {ref.path if ref else 'none'}\nClick to replace")
+            tile.setObjectName("Tile")
+            tile.setFixedSize(56, 56)
+            tile.setCursor(Qt.PointingHandCursor)
             if ref is not None:
                 pm = thumb(ref.path, 26)
                 if pm is not None:
                     tile.setIcon(QIcon(pm))
-                    tile.setIconSize(QSize(42, 42))
+                    tile.setIconSize(QSize(52, 52))
                 else:
-                    tile.setText("missing")
+                    tile.setText("!")
+                tile.setToolTip(f"{text}: {Path(ref.path).name}" + ("  (inverted)" if ref.invert else "")
+                                + "\nClick to replace · right-click to remove")
             else:
-                tile.setText("+")
+                tile.setIcon(make_icon("plus", p.text_faint, 16))
+                tile.setToolTip(f"Add {text.lower()} map")
             tile.clicked.connect(lambda _=False, c=ch, m=mat: self.replace_map(m, c))
-            cap = label(text + (" (inv)" if ref is not None and ref.invert else ""), "Faint")
+            tile.setContextMenuPolicy(Qt.CustomContextMenu)
+            tile.customContextMenuRequested.connect(lambda _p, c=ch, m=mat: self.remove_map(m, c))
+            cap = label(text, "Faint")
             cap.setAlignment(Qt.AlignCenter)
-            w = QWidget()
-            w.setLayout(vbox(tile, cap, spacing=2))
-            grid.addWidget(w, row, col)
+            grid.addWidget(tile, row * 2, col, Qt.AlignCenter)
+            grid.addWidget(cap, row * 2 + 1, col, Qt.AlignCenter)
             col += 1
             if col == 4:
                 col, row = 0, row + 1
-        bl.addLayout(grid)
-        r, g, b = (int(max(0, min(1, x)) * 255) for x in mat.base_color)
-        bl.addWidget(label(f"roughness {mat.roughness:.2f} · metallic {mat.metallic:.2f} · "
-                           f"colour <span style='color:rgb({r},{g},{b})'>■</span>", "Faint"))
-        self.mat_list.addWidget(box)
-
-    def select_material(self, mat: Material | None) -> None:
-        self.selected_material = mat
-        if mat is None:
-            return
-        self.mat_title.setText(mat.name)
-        self.mat_type.setText(mat.source_type or "material")
-        self.mat_type.setVisible(bool(mat.source_type))
-        self.foliage_t.blockSignals(True)
-        self.foliage_t.setChecked(mat.is_foliage or mat.two_sided)
-        self.foliage_t.blockSignals(False)
-        self.normal_seg.set_value(mat.normal_convention)
-        self.mat_notes.setText("\n".join(f"• {n}" for n in mat.notes))
+        lay.addLayout(grid)
+        leaf = Toggle(mat.is_foliage or mat.two_sided)
+        leaf.colors = (p.primary_bg, p.border_strong, p.primary_fg)
+        leaf.toggled.connect(lambda on, m=mat: self.set_foliage(m, on))
+        lay.addLayout(form_row("Two-sided leaf", leaf, "Foliage: two-sided with translucency in D5"))
+        if "normal" in mat.maps:
+            nseg = Segmented([("directx", "DirectX"), ("opengl", "OpenGL")], mat.normal_convention)
+            nseg.changed.connect(lambda v, m=mat: self.set_normal(m, v))
+            lay.addLayout(form_row("Normal map", nseg, "Switch if bumps look inverted"))
+        if mat.notes:
+            n = label("ⓘ  " + mat.notes[0], "Faint", wrap=True)
+            n.setToolTip("\n".join(mat.notes))
+            lay.addWidget(n)
+        return w
 
     def replace_map(self, mat: Material, ch: str) -> None:
         cur = mat.maps.get(ch)
         start = str(Path(cur.path).parent) if cur else self.settings.get("last_dir", "")
-        p, _ = QFileDialog.getOpenFileName(self, f"{ch} map for {mat.name}", start,
+        p, _ = QFileDialog.getOpenFileName(self, f"{ch.replace('_', ' ').title()} map", start,
                                            "Images (*.png *.jpg *.jpeg *.tif *.tiff *.tga *.bmp *.exr *.psd)")
         if not p:
             return
@@ -1178,22 +1097,28 @@ class MainWindow(QMainWindow):
         self.viewport.update()
         self.on_tree_selection()
 
-    def set_foliage(self, on: bool) -> None:
-        if self.selected_material is not None:
-            self.selected_material.is_foliage = on
-            self.selected_material.two_sided = on
+    def remove_map(self, mat: Material, ch: str) -> None:
+        if ch in mat.maps:
+            del mat.maps[ch]
             self.viewport.update()
+            self.on_tree_selection()
 
-    def set_normal_conv(self, conv: str) -> None:
-        if self.selected_material is not None:
-            self.selected_material.normal_convention = conv
-            self.viewport.update()
+    def set_foliage(self, mat: Material, on: bool) -> None:
+        mat.is_foliage = mat.two_sided = on
+        self.viewport.update()
 
+    def set_normal(self, mat: Material, conv: str) -> None:
+        mat.normal_convention = conv
+        self.viewport.update()
+
+    # ------------------------------------------------------------------ #
+    # viewport
+    # ------------------------------------------------------------------ #
     def on_view_status(self, msg: str) -> None:
-        if "fail" in msg.lower() or "error" in msg.lower() or "not available" in msg.lower():
+        if any(k in msg.lower() for k in ("fail", "error", "not available")):
             self.toast.show_message(msg, ms=10000)
         self.renderer_name = msg.replace("Preview: ", "")
-        self.sync_visible() if self.scene is not None else None
+        self.status_api.setText(self.renderer_name)
 
     def set_view_mode(self, mode: str) -> None:
         self.viewport.mode = mode
@@ -1202,9 +1127,6 @@ class MainWindow(QMainWindow):
     def set_wire(self, on: bool) -> None:
         self.viewport.wire = on
         self.viewport.update()
-
-    def set_spread(self, on: bool) -> None:
-        self.viewport.set_spread(on)
 
     def set_grid(self, on: bool) -> None:
         self.viewport.show_grid = on
@@ -1217,13 +1139,15 @@ class MainWindow(QMainWindow):
         o = self.export_opts
         o.out_dir = self.out_edit.text().strip()
         o.asset_name = self.asset_edit.text().strip()
-        o.split_variants = self.layout_seg.value() == "split"
+        o.format = self.fmt_seg.value() or "fbx"
+        o.embed_textures = self.tex_seg.value() == "embed" and o.format == "fbx"
+        o.split_variants = self.split_seg.value() == "split"
         o.center_to_origin = self.center_t.isChecked()
-        o.embed_textures = self.embed_t.isChecked()
         o.optimize_meshes = self.opt_mesh_t.isChecked()
         o.instancing = self.inst_t.isChecked()
         o.include_hidden = self.hidden_t.isChecked()
-        o.textures.mode = self.tex_mode.value()
+        o.write_reports = self.report_t.isChecked()
+        o.textures.mode = self.quality_seg.value() or "lossless"
         o.textures.pack_opacity_in_base_alpha = self.pack_t.isChecked()
         o.textures.convert_gloss_to_roughness = self.gloss_t.isChecked()
         o.textures.collapse_constant = self.const_t.isChecked()
@@ -1234,66 +1158,42 @@ class MainWindow(QMainWindow):
         save_settings(self.settings)
         return o
 
-    def update_export_summary(self) -> None:
-        if self.scene is None:
-            return
-        nodes = self.checked_nodes()
-        vs = self.checked_variants()
-        tris = sum(n.mesh.num_triangles for n in nodes if n.mesh is not None)
-        mats = {id(m): m for n in nodes for m in n.materials}
-        tex = {r.path for m in mats.values() for r in m.maps.values() if r.path}
-        size = sum(os.path.getsize(p) for p in tex if os.path.isfile(p))
-        self.exp_summary.setText(
-            f"{len(vs)} variant(s) · {len(nodes)} objects · {tris:,} triangles<br>"
-            f"{len(mats)} materials · {len(tex)} source textures ({fmt_bytes(size)})")
-
     def start_export(self) -> None:
         if self.scene is None or self.current_job is not None:
             return
         opts = self.collect_export_opts()
         if not opts.out_dir:
+            self.tabs.setCurrentIndex(1)
+            self.out_edit.setFocus()
             self.toast.show_message("Choose an output folder")
             return
         nodes = self.checked_nodes()
         if not nodes:
             self.toast.show_message("Tick at least one object")
             return
-        selected = {id(n) for n in nodes}
-        variants = self.checked_variants()
-        job = Job(_export_job, self.scene, variants, selected, opts)
-        job.signals.progress.connect(self.on_export_progress)
+        job = Job(_export_job, self.scene, self.checked_variants(), {id(n) for n in nodes}, opts)
+        job.signals.progress.connect(lambda m, f: self.set_status(m, f))
         job.signals.done.connect(self.on_exported)
         job.signals.failed.connect(self.on_failed)
         self.current_job = job
-        self.exp_btn.setEnabled(False)
+        self.exp_go.setEnabled(False)
+        self.export_btn.setEnabled(False)
         self.cancel_btn.show()
-        self.exp_progress.show()
-        self.exp_progress.setValue(0)
-        self.report_box.clear()
+        self.set_status("Exporting…", 0.0)
         self.pool.start(job)
-
-    def on_export_progress(self, msg: str, frac: float) -> None:
-        self.exp_progress.setValue(int(frac * 1000))
-        self.exp_status.setText(msg)
 
     def on_exported(self, res) -> None:
         self.current_job = None
-        self.exp_btn.setEnabled(True)
         self.cancel_btn.hide()
-        self.exp_progress.hide()
-        saved = res.bytes_source - res.bytes_output
-        self.exp_status.setText(f"{len(res.files)} FBX · {fmt_bytes(res.bytes_output)} "
-                                f"(source {fmt_bytes(res.bytes_source)}) · {res.seconds:.1f} s")
-        try:
-            self.report_box.setPlainText(Path(res.report_path).read_text(encoding="utf-8"))
-        except OSError:
-            pass
-        self._last_out = str(Path(res.files[0]).parent) if res.files else ""
-        msg = f"Exported {len(res.files)} FBX"
-        if saved > 0:
-            msg += f" · {fmt_bytes(saved)} smaller"
-        self.toast.show_message(msg, "Open folder", self.open_out_dir, ms=8000)
-        self.nav_badges["export"].hide()
+        self.sync_visible()
+        self.last_out = res.out_dir
+        self.last_report = res.report_text
+        n = len(res.files)
+        what = Path(res.files[0]).name if n == 1 else f"{n} files"
+        self.set_status(f"Exported {what} · {fmt_bytes(res.bytes_output)} · {res.seconds:.1f} s")
+        self.last_line.setText(f"Last export: {what}, {fmt_bytes(res.bytes_output)}  ›")
+        self.last_line.show()
+        self.toast.show_message(f"Exported {what}", "Show in folder", self.open_out_dir, ms=8000)
 
     def cancel_job(self) -> None:
         if self.current_job is not None:
@@ -1305,12 +1205,12 @@ class MainWindow(QMainWindow):
             self.out_edit.setText(d)
 
     def open_out_dir(self) -> None:
-        p = getattr(self, "_last_out", "") or self.out_edit.text()
+        p = self.last_out or self.out_edit.text()
         if p and os.path.isdir(p):
             _open_path(p)
 
     # ------------------------------------------------------------------ #
-    # 3ds Max status / settings
+    # settings / 3ds Max
     # ------------------------------------------------------------------ #
     def refresh_max_status(self) -> None:
         from ..max.bridge import find_max_installs
@@ -1318,19 +1218,13 @@ class MainWindow(QMainWindow):
             os.environ["D5B_3DSMAXBATCH"] = self.settings["max_batch"]
         installs = find_max_installs()
         if installs:
-            names = ", ".join(i.label for i in installs[:3])
-            self.max_title.setText(installs[0].label)
-            self.max_desc.setText(f"Ready to open .max files. Found: {names}.")
-            self.max_chip.setText("Ready")
-            self.status_dot.setStyleSheet(f"color:{self.palette_.success}")
-            self.status_text.setText(f"{installs[0].label} ready")
+            self.max_dot.setStyleSheet(f"color:{self.palette_.success}")
+            self.max_text.setText(installs[0].label)
+            self.max_text.setToolTip("Used to open .max files")
         else:
-            self.max_title.setText("3ds Max not found")
-            self.max_desc.setText("FBX, OBJ and Megascans work without it. For .max files install 3ds Max "
-                                  "2021+ or set its path in Settings.")
-            self.max_chip.setText("Not found")
-            self.status_dot.setStyleSheet(f"color:{self.palette_.text_faint}")
-            self.status_text.setText("FBX / OBJ / Megascans mode")
+            self.max_dot.setStyleSheet(f"color:{self.palette_.text_faint}")
+            self.max_text.setText("No 3ds Max")
+            self.max_text.setToolTip(".max files open from their library's FBX/OBJ exports")
 
     def pick_max_exe(self) -> None:
         p, _ = QFileDialog.getOpenFileName(self, "3dsmaxbatch.exe", r"C:\Program Files\Autodesk",
@@ -1339,32 +1233,26 @@ class MainWindow(QMainWindow):
             self.max_path.setText(p)
 
     def save_prefs(self) -> None:
-        self.settings["max_batch"] = self.max_path.text().strip()
-        self.settings["bake_procedural"] = self.bake_t.isChecked()
-        self.settings["convert_proxies"] = self.proxy_t.isChecked()
-        self.settings["reuse_cache"] = self.cache_t.isChecked()
-        self.settings["lod"] = int(self.lod_seg.value() or 0)
-        self.settings["megascans_normals"] = self.ms_normal.value()
-        self.settings["use_3dsmax"] = self.usemax_t.isChecked()
-        self.settings["renderer"] = self.renderer_seg.value()
-        save_settings(self.settings)
+        s = self.settings
+        s["max_batch"] = self.max_path.text().strip()
+        s["use_3dsmax"] = self.usemax_t.isChecked()
+        s["bake_procedural"] = self.bake_t.isChecked()
+        s["convert_proxies"] = self.proxy_t.isChecked()
+        s["reuse_cache"] = self.cache_t.isChecked()
+        s["lod"] = int(self.lod_seg.value() or 0)
+        s["megascans_normals"] = self.ms_normal.value()
+        s["renderer"] = self.renderer_seg.value()
+        save_settings(s)
         self.refresh_max_status()
-        self.toast.show_message("Settings saved")
+        self.toast.show_message("Saved")
 
-    def open_plugin_folder(self) -> None:
-        from ..max.bridge import plugin_dir
-        try:
-            d = plugin_dir()
-        except FileNotFoundError as e:
-            self.toast.show_message(str(e))
-            return
-        _open_path(str(d))
-        self.toast.show_message("Run install_max_plugin.bat, then add the D5 Bridge button in 3ds Max")
-
+    # ------------------------------------------------------------------ #
+    # dialogs
     # ------------------------------------------------------------------ #
     def update_warnings(self) -> None:
         n = len(self.scene.warnings) if self.scene else 0
         self.warn_badge.setText(str(n))
+        self.warn_badge.adjustSize()
         self.warn_badge.setVisible(n > 0)
 
     def show_warnings(self) -> None:
@@ -1373,12 +1261,19 @@ class MainWindow(QMainWindow):
             return
         self.show_text("Warnings", "\n\n".join(self.scene.warnings))
 
+    def show_shortcuts(self) -> None:
+        rows = [("Ctrl+O", "Open"), ("Ctrl+E", "Export"), ("Ctrl+F", "Filter objects"),
+                ("Click / Ctrl+click", "Select / add to selection"), ("H", "Hide selected"),
+                ("Alt+H", "Show all"), ("F", "Frame selection"), ("A", "Frame all"),
+                ("Left drag", "Orbit"), ("Middle or Shift drag", "Pan"), ("Wheel", "Zoom")]
+        self.show_text("Keyboard shortcuts", "\n".join(f"{k:<24}{v}" for k, v in rows))
+
     def show_text(self, title: str, text: str) -> None:
-        from PySide6.QtWidgets import QDialog
         dlg = QDialog(self)
         dlg.setWindowTitle(title)
-        dlg.resize(720, 460)
+        dlg.resize(640, 420)
         lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(16, 16, 16, 16)
         box = QPlainTextEdit(text)
         box.setReadOnly(True)
         lay.addWidget(box)
@@ -1392,13 +1287,37 @@ class MainWindow(QMainWindow):
         super().resizeEvent(e)
         if hasattr(self, "toast"):
             self.toast.reposition()
-        for key, bd in self.nav_badges.items():
-            b = self.nav[key]
-            bd.adjustSize()
-            bd.move(b.width() - bd.width() - 10, (b.height() - bd.height()) // 2)
 
 
 # =========================================================================== #
+def _clear(lay) -> None:
+    while lay.count():
+        it = lay.takeAt(0)
+        if it.widget():
+            it.widget().deleteLater()
+        elif it.layout():
+            _clear(it.layout())
+
+
+def _k(n: int) -> str:
+    return f"{n / 1e6:.1f}M" if n >= 1e6 else (f"{n / 1e3:.1f}k" if n >= 1e4 else str(n))
+
+
+def _short(s: str, n: int) -> str:
+    return s if len(s) <= n else "…" + s[-(n - 1):]
+
+
+def _ago(p: Path) -> str:
+    try:
+        d = time.time() - p.stat().st_mtime
+    except OSError:
+        return ""
+    for sec, unit in ((86400 * 30, "mo"), (86400, "d"), (3600, "h"), (60, "min")):
+        if d >= sec:
+            return f"{int(d // sec)} {unit}"
+    return "now"
+
+
 def _open_path(p: str) -> None:
     if sys.platform == "win32":
         os.startfile(p)  # type: ignore[attr-defined]
@@ -1443,8 +1362,7 @@ def run_app(path: str | None = None) -> int:
     app.setFont(f)
     w = MainWindow()
     w.show()
-    server = _listen_for_instances(w)
-    _ = server
+    w._instance_server = _listen_for_instances(w)
     if path:
         QTimer.singleShot(150, lambda: w.load(path))
     return app.exec()
@@ -1473,7 +1391,7 @@ def _forward_to_running_instance(path: str | None) -> bool:
     return True
 
 
-def _listen_for_instances(w: "MainWindow"):
+def _listen_for_instances(w: MainWindow):
     from PySide6.QtNetwork import QLocalServer
     server = QLocalServer(w)
     name = _instance_name()

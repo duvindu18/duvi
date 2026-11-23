@@ -21,13 +21,14 @@ from .scene import Material, Node, Scene, Variant, translation_matrix
 class ExportOptions:
     out_dir: str = ""
     asset_name: str = ""
-    split_variants: bool = True          # one FBX per variant
+    format: str = "fbx"                  # "fbx" | "obj"
+    split_variants: bool = True          # one file per variant
     center_to_origin: bool = True        # base of each variant at (0,0,0)
-    shared_textures: bool = True         # variants share one textures/ folder
     optimize_meshes: bool = True
     instancing: bool = True
-    embed_textures: bool = False         # D5 reads external textures fine
+    embed_textures: bool = True          # FBX: textures inside the file, no folder
     include_hidden: bool = True
+    write_reports: bool = False          # export_report.txt + d5_materials.json
     textures: TextureOptions = field(default_factory=TextureOptions)
 
     def to_json(self) -> dict:
@@ -57,6 +58,8 @@ class ExportResult:
     warnings: list[str] = field(default_factory=list)
     seconds: float = 0.0
     report_path: str = ""
+    report_text: str = ""
+    out_dir: str = ""
 
 
 class Cancelled(Exception):
@@ -221,9 +224,17 @@ def export(scene: Scene, variants: list[Variant], selected: set[int] | None,
         if cancel():
             raise Cancelled()
 
+    import shutil
+    import tempfile
     asset = safe_stem(opts.asset_name or Path(scene.source_path or "model").stem)
-    out_root = Path(opts.out_dir) / asset
+    fmt = (opts.format or "fbx").lower()
+    embed = fmt == "fbx" and opts.embed_textures
+    # Embedded FBX: just the .fbx file(s) in the output folder. OBJ (and FBX with
+    # external textures): one folder per asset, textures flat next to the model.
+    out_root = Path(opts.out_dir) if embed else Path(opts.out_dir) / asset
     out_root.mkdir(parents=True, exist_ok=True)
+    res.out_dir = str(out_root)
+    tmp_tex = Path(tempfile.mkdtemp(prefix="d5bridge_tex_")) if embed else None
 
     # ---- what to write ------------------------------------------------- #
     units: list[tuple[str, list[Node]]] = []
@@ -231,7 +242,9 @@ def export(scene: Scene, variants: list[Variant], selected: set[int] | None,
         for v in variants:
             roots = extract_selection(v.nodes, selected, opts.include_hidden)
             if roots:
-                units.append((safe_stem(v.name), roots))
+                vname = safe_stem(v.name)
+                name = vname if (not embed or vname.lower().startswith(asset.lower())) else f"{asset}_{vname}"
+                units.append((name, roots))
     else:
         roots = extract_selection([n for v in variants for n in v.nodes] or scene.root.children,
                                   selected, opts.include_hidden)
@@ -261,7 +274,7 @@ def export(scene: Scene, variants: list[Variant], selected: set[int] | None,
             _center(rs, scene.up_axis)
 
     # ---- textures ------------------------------------------------------ #
-    tex_dir = out_root / "textures"
+    tex_dir = tmp_tex if tmp_tex is not None else out_root
     jobs = build_texture_jobs(mats, opts.textures)
     flat = [j for mj in jobs.values() for j in mj.values()]
 
@@ -295,17 +308,25 @@ def export(scene: Scene, variants: list[Variant], selected: set[int] | None,
                     pass
         tex_paths[id(m)] = out
 
-    # ---- FBX ------------------------------------------------------------ #
-    fopts = FBXWriteOptions(embed_media=opts.embed_textures, instancing=opts.instancing)
-    for i, (name, rs) in enumerate(units):
-        report(f"Writing {name}.fbx", 0.86 + 0.12 * i / len(units))
-        fbx_path = out_root / f"{name}.fbx"
-        write_fbx(str(fbx_path), scene, rs, tex_paths, fopts, base_alpha)
-        res.files.append(str(fbx_path))
-        res.bytes_output += fbx_path.stat().st_size
-
-    written = {r.output for r in results if r.output and not r.shared_with}
-    res.bytes_output += sum(os.path.getsize(p) for p in written if os.path.isfile(p))
+    # ---- model files ----------------------------------------------------- #
+    fopts = FBXWriteOptions(embed_media=embed, instancing=opts.instancing)
+    try:
+        for i, (name, rs) in enumerate(units):
+            report(f"Writing {name}.{fmt}", 0.86 + 0.12 * i / len(units))
+            path = out_root / f"{name}.{fmt}"
+            if fmt == "obj":
+                from .io.obj_writer import write_obj
+                res.bytes_output += write_obj(str(path), rs, scene.up_axis, tex_paths, base_alpha)
+            else:
+                write_fbx(str(path), scene, rs, tex_paths, fopts, base_alpha)
+                res.bytes_output += path.stat().st_size
+            res.files.append(str(path))
+    finally:
+        if tmp_tex is not None:
+            shutil.rmtree(tmp_tex, ignore_errors=True)
+    if not embed:
+        written = {r.output for r in results if r.output and not r.shared_with}
+        res.bytes_output += sum(os.path.getsize(p) for p in written if os.path.isfile(p))
 
     # ---- sidecar for D5: what goes where -------------------------------- #
     side = {
@@ -318,15 +339,17 @@ def export(scene: Scene, variants: list[Variant], selected: set[int] | None,
             "two_sided": m.two_sided,
             "base_color": m.base_color, "roughness": m.roughness, "metallic": m.metallic,
             "opacity": m.opacity, "normal_strength": m.normal_strength,
-            "textures": {ch: os.path.relpath(p, out_root) for ch, p in tex_paths.get(id(m), {}).items()},
+            "textures": {ch: Path(p).name for ch, p in tex_paths.get(id(m), {}).items()},
             "notes": m.notes,
         } for m in mats],
     }
-    (out_root / "d5_materials.json").write_text(json.dumps(side, indent=1), encoding="utf-8")
     res.warnings.extend(scene.warnings)
     res.seconds = time.time() - t0
-    res.report_path = str(out_root / "export_report.txt")
-    Path(res.report_path).write_text(format_report(res, mats, tex_paths, out_root), encoding="utf-8")
+    res.report_text = format_report(res, mats, tex_paths, out_root)
+    if opts.write_reports:
+        (out_root / f"{asset}_d5_materials.json").write_text(json.dumps(side, indent=1), encoding="utf-8")
+        res.report_path = str(out_root / f"{asset}_export_report.txt")
+        Path(res.report_path).write_text(res.report_text, encoding="utf-8")
     report("Done", 1.0)
     return res
 
@@ -371,8 +394,6 @@ def format_report(res: ExportResult, mats: list[Material], tex_paths: dict, out_
             lines.append(f"      - {n}")
     if res.warnings:
         lines += ["", "Warnings"] + [f"  ! {w}" for w in res.warnings]
-    lines += ["", "In D5 Render", "  Import the .fbx. For leaf materials pick the Foliage template if",
-              "  D5 did not choose it: the opacity is in the base-colour alpha and in the",
-              "  *_Opacity map. Roughness / Metallic / AO / Translucency maps are in",
-              "  textures/ with D5 suffixes (see d5_materials.json) for manual slots.", ""]
+    lines += ["", "In D5 Render", "  Import the file. For leaf materials pick the Foliage template if D5",
+              "  did not choose it: the opacity is in the base-colour alpha.", ""]
     return "\n".join(lines)

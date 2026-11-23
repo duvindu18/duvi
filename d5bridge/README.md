@@ -242,24 +242,17 @@ D5BridgeCLI.exe --export model.fbx --out D:\D5 --single-file --mode visually_los
 
 ---
 
-## 6. Output layout
+## 6. Output
 
-```
-<out>/<asset>/
-  Acer_01.fbx               one per variant (or <asset>.fbx)
-  Acer_02.fbx
-  textures/
-    MT_leaf_BaseColor.png   RGBA: colour + leaf mask
-    MT_leaf_Opacity.png
-    MT_leaf_Normal.png      DirectX
-    MT_leaf_Roughness.png   gloss already inverted
-    MT_leaf_Translucency.png
-    MT_bark_BaseColor.jpg   copied unchanged
-  d5_materials.json         template hint, values and maps per material
-  export_report.txt         sizes before/after, every conversion, warnings
-```
+| Format | Textures | What you get |
+| --- | --- | --- |
+| **FBX, Embedded** (default) | inside the file | `<out>/<name>_<variant>.fbx` only, no folder. D5 (FBX SDK) unpacks the textures on import. |
+| FBX, Files | next to the file | `<out>/<name>/<variant>.fbx` + the images in the same folder |
+| OBJ | next to the file | `<out>/<name>/<variant>.obj` + `.mtl` + the images (OBJ cannot hold images) |
 
----
+An export report and `d5_materials.json` are written only when *Advanced > Report
+file* is on. The last report is always available from *Last export* in the
+Export panel.
 
 ## 7. Limits and notes
 

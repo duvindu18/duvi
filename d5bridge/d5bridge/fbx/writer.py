@@ -94,6 +94,9 @@ def _fbx_name(name: str, cls: str) -> str:
     return f"{name}\x00\x01{cls}"
 
 
+src_for_embed: dict[str, str] = {}     # embedded name -> real file (set per write)
+
+
 # --------------------------------------------------------------------------- #
 def _polygon_vertex_index(mesh: Mesh) -> np.ndarray:
     pvi = mesh.corner_verts.astype(np.int32).copy()
@@ -244,9 +247,9 @@ def _material_node(objects: FBXNode, mid: int, mat: Material, channels: dict[str
     _p_bool(pp, "TwoSided", mat.two_sided)
 
 
-def _texture_nodes(objects: FBXNode, tid: int, vid: int, name: str, path: str,
+def _texture_nodes(objects: FBXNode, tid: int, vid: int | None, name: str, path: str,
                    rel: str, embed: bool, uv_scale, uv_offset, uv_set: str,
-                   alpha_source: str) -> None:
+                   alpha_source: str, video_name: str = "") -> None:
     t = objects.add("Texture", Prop("L", tid), _fbx_name(name, "Texture"), "")
     t.add("Type", "TextureVideoClip")
     t.add("Version", Prop("I", 202))
@@ -259,15 +262,17 @@ def _texture_nodes(objects: FBXNode, tid: int, vid: int, name: str, path: str,
         _p_vec(pp, "Scaling", (uv_scale[0], uv_scale[1], 1.0), "Vector", "", "A")
     if tuple(uv_offset) != (0.0, 0.0):
         _p_vec(pp, "Translation", (uv_offset[0], uv_offset[1], 0.0), "Vector", "", "A")
-    t.add("Media", _fbx_name(name, "Video"))
+    t.add("Media", _fbx_name(video_name or name, "Video"))
     t.add("FileName", path)
     t.add("RelativeFilename", rel)
     t.add("ModelUVTranslation", 0.0, 0.0)
     t.add("ModelUVScaling", 1.0, 1.0)
     t.add("Texture_Alpha_Source", alpha_source)
     t.add("Cropping", Prop("I", 0), Prop("I", 0), Prop("I", 0), Prop("I", 0))
+    if vid is None:          # the image is already stored by another texture
+        return
 
-    v = objects.add("Video", Prop("L", vid), _fbx_name(name, "Video"), "Clip")
+    v = objects.add("Video", Prop("L", vid), _fbx_name(video_name or name, "Video"), "Clip")
     v.add("Type", "Clip")
     vp = v.add("Properties70")
     _p_str(vp, "Path", path, "KString", "XRefUrl")
@@ -275,8 +280,8 @@ def _texture_nodes(objects: FBXNode, tid: int, vid: int, name: str, path: str,
     v.add("UseMipMap", Prop("I", 0))
     v.add("Filename", path)
     v.add("RelativeFilename", rel)
-    if embed and os.path.isfile(path):
-        v.add("Content", Raw(Path(path).read_bytes()))
+    if embed and os.path.isfile(src_for_embed.get(path, path)):
+        v.add("Content", Raw(Path(src_for_embed.get(path, path)).read_bytes()))
     else:
         v.add("Content", Raw(b""))
 
@@ -309,6 +314,8 @@ def write_fbx(path: str, scene: Scene, roots: list[Node],
     geom_ids: dict[int, int] = {}
     mat_ids: dict[int, int] = {}
     tex_ids: dict[tuple[str, str], int] = {}
+    video_ids: dict[str, tuple[int, str]] = {}
+    src_for_embed.clear()
 
     def add_conn(kind: str, child: int, parent: int, prop: str | None = None) -> None:
         if prop is None:
@@ -333,22 +340,35 @@ def write_fbx(path: str, scene: Scene, roots: list[Node],
             slot = SLOT_FOR_CHANNEL[ch]
             tkey = (tex_path, ch)
             if tkey not in tex_ids:
-                tid, vid = next(ids), next(ids)
+                tid = next(ids)
                 tex_ids[tkey] = tid
-                abs_path = str(Path(tex_path).resolve())
-                try:
-                    rel = os.path.relpath(abs_path, rel_root)
-                except ValueError:       # different drive on Windows
-                    rel = abs_path
+                real = str(Path(tex_path).resolve())
+                if opts.embed_media:
+                    # stored inside the FBX; importers unpack it next to the file
+                    fname = Path(real).name
+                    abs_path = str(out_dir / fname)
+                    rel = fname
+                    src_for_embed[abs_path] = real
+                else:
+                    abs_path = real
+                    try:
+                        rel = os.path.relpath(abs_path, rel_root)
+                    except ValueError:       # different drive on Windows
+                        rel = abs_path
+                new_video = real not in video_ids
+                if new_video:
+                    video_ids[real] = (next(ids), Path(real).stem)
+                vid, vname = video_ids[real]
                 alpha = "Alpha_Black" if (ch == "base_color" and key in base_alpha) else "None"
-                _texture_nodes(objects, tid, vid, f"{mat.name}_{ch}", abs_path,
+                _texture_nodes(objects, tid, vid if new_video else None, f"{mat.name}_{ch}", abs_path,
                                rel.replace("/", "\\"), opts.embed_media,
                                ref.uv_scale if ref else (1.0, 1.0),
                                ref.uv_offset if ref else (0.0, 0.0),
-                               ref.uv_set if ref else "", alpha)
+                               ref.uv_set if ref else "", alpha, vname)
                 add_conn("OO", vid, tid)
                 counts["Texture"] += 1
-                counts["Video"] += 1
+                if new_video:
+                    counts["Video"] += 1
             add_conn("OP", tex_ids[tkey], mid, slot)
             if ch == "base_color" and key in base_alpha and "opacity" not in chans:
                 add_conn("OP", tex_ids[tkey], mid, "TransparentColor")

@@ -25,7 +25,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--split-variants", action="store_true", help="one FBX per variant")
     p.add_argument("--single-file", action="store_true", help="everything in one FBX")
     p.add_argument("--mode", choices=["lossless", "visually_lossless", "copy"], help="texture mode")
-    p.add_argument("--embed", action="store_true", help="embed textures in the FBX")
+    p.add_argument("--format", choices=["fbx", "obj"], help="output format (default fbx)")
+    p.add_argument("--external-textures", action="store_true",
+                   help="FBX: write textures next to the file instead of inside it")
+    p.add_argument("--report", action="store_true", help="also write export_report.txt")
     p.add_argument("--no-center", action="store_true", help="keep original positions")
     p.add_argument("--lod", type=int, default=0, help="Megascans LOD to use (default 0)")
     return p
@@ -60,8 +63,12 @@ def run_cli(argv: list[str]) -> int:
         opts.split_variants = False
     if args.mode:
         opts.textures.mode = args.mode
-    if args.embed:
-        opts.embed_textures = True
+    if args.format:
+        opts.format = args.format
+    if args.external_textures:
+        opts.embed_textures = False
+    if args.report:
+        opts.write_reports = True
     if args.no_center:
         opts.center_to_origin = False
     scene = load_any(args.export, lod=args.lod)
@@ -74,5 +81,5 @@ def run_cli(argv: list[str]) -> int:
                   file=sys.stderr)
             return 3
     res = export(scene, vs, None, opts, progress=lambda m, f: print(f"[{f * 100:5.1f}%] {m}"))
-    print(open(res.report_path, encoding="utf-8").read())
+    print(res.report_text)
     return 0

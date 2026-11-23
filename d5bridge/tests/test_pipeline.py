@@ -178,10 +178,12 @@ def test_jpeg_copied_byte_for_byte(tmp_path):
 # --------------------------------------------------------------------------- #
 def test_full_export(maxtree, tmp_path):
     scene = load_any(str(maxtree))
-    opts = ExportOptions(out_dir=str(tmp_path / "out"))
+    opts = ExportOptions(out_dir=str(tmp_path / "out"), embed_textures=False)
     res = export(scene, scene.variants, None, opts)
     assert [Path(f).name for f in res.files] == ["Acer_01.fbx", "Acer_02.fbx", "Acer_03.fbx"]
-    tex = sorted(p.name for p in (tmp_path / "out" / "maxtree_like" / "textures").iterdir())
+    folder = tmp_path / "out" / "maxtree_like"
+    assert not (folder / "textures").exists()          # textures sit next to the FBX
+    tex = sorted(p.name for p in folder.iterdir() if p.suffix != ".fbx")
     # bark .tif and its .png copy are one file; constant specular became a value
     assert len([t for t in tex if "BaseColor" in t]) == 2
     assert not any("Specular" in t for t in tex)
@@ -194,7 +196,7 @@ def test_full_export(maxtree, tmp_path):
         assert all(Path(r.path).is_file() for r in leaf.maps.values())
         assert set(leaf.maps) >= {"base_color", "opacity", "roughness"}
     # the base colour carries the leaf mask in alpha
-    bc = _pixels(tmp_path / "out" / "maxtree_like" / "textures" / "MT_leaf_BaseColor.png")
+    bc = _pixels(folder / "MT_leaf_BaseColor.png")
     assert bc.shape[2] == 4 and set(np.unique(bc[..., 3])) <= {0, 255}
 
 
@@ -210,11 +212,42 @@ def test_export_only_selected_objects(maxtree, tmp_path):
 @pytest.mark.skipif(shutil.which("assimp") is None, reason="assimp CLI not installed")
 def test_assimp_reads_export(maxtree, tmp_path):
     scene = load_any(str(maxtree))
-    res = export(scene, scene.variants, None, ExportOptions(out_dir=str(tmp_path)))
-    for f in res.files:
-        out = subprocess.run(["assimp", "info", f], capture_output=True, text=True)
-        assert out.returncode == 0, out.stdout + out.stderr
-        assert "Meshes:" in out.stdout and "MT_leaf_BaseColor.png" in out.stdout
+    for embed in (True, False):
+        res = export(scene, scene.variants, None, ExportOptions(out_dir=str(tmp_path / str(embed)),
+                                                                embed_textures=embed))
+        for f in res.files:
+            out = subprocess.run(["assimp", "info", f], capture_output=True, text=True)
+            assert out.returncode == 0, out.stdout + out.stderr
+            assert "Meshes:" in out.stdout and "MT_leaf_BaseColor.png" in out.stdout
+            if embed:
+                import re
+                n = int(re.search(r"Textures \(embed\.\):\s+(\d+)", out.stdout).group(1))
+                assert n >= 4, out.stdout          # every texture is inside the FBX
+
+
+def test_embedded_fbx_is_one_file(maxtree, tmp_path):
+    scene = load_any(str(maxtree))
+    out = tmp_path / "out"
+    res = export(scene, scene.variants, None, ExportOptions(out_dir=str(out), split_variants=False))
+    assert [p.name for p in out.iterdir()] == ["maxtree_like.fbx"]           # nothing else
+    s = read_fbx(res.files[0])                                                # textures come back out
+    leaf = [m for m in s.materials() if m.name == "MT_leaf"][0]
+    assert all(Path(r.path).is_file() for r in leaf.maps.values())
+    px = np.asarray(Image.open(leaf.maps["base_color"].path))
+    assert px.shape[2] == 4
+
+
+def test_obj_export(maxtree, tmp_path):
+    scene = load_any(str(maxtree))
+    res = export(scene, scene.variants[:1], None, ExportOptions(out_dir=str(tmp_path), format="obj"))
+    folder = Path(res.out_dir)
+    names = sorted(p.name for p in folder.iterdir())
+    assert "maxtree_like.obj" in names and "maxtree_like.mtl" in names and not any(p.is_dir() for p in folder.iterdir())
+    back = load_any(res.files[0])
+    assert back.stats()["triangles"] == scene.variants[0].mesh_nodes()[0].mesh.num_triangles + \
+        scene.variants[0].mesh_nodes()[1].mesh.num_triangles - 1        # degenerate face removed
+    leaf = [m for m in back.materials() if m.name == "MT_leaf"][0]
+    assert leaf.maps["base_color"].exists() and leaf.maps["opacity"].exists()
 
 
 # --------------------------------------------------------------------------- #
