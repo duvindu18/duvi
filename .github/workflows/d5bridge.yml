@@ -4,6 +4,8 @@ on:
   push:
     paths: ["d5bridge/**", ".github/workflows/d5bridge.yml"]
     tags: ["d5bridge-v*"]
+  pull_request:
+    paths: ["d5bridge/**", ".github/workflows/d5bridge.yml"]
   workflow_dispatch:
 
 jobs:
