@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>.SketchCorner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="dialog.css">
+</head>
+<body>
+
+<header class="brand">
+  <div class="brand-logo" title=".SketchCorner">
+    <!-- isometric block with its front-top edge rounded -->
+    <svg viewBox="0 0 32 32" fill="none" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+      <path d="M16.00 3.50 L23.48 7.58 L12.48 13.58 L5.00 9.50 Z" fill="#ffffff1f" stroke="#fff" stroke-width="1.6"/>
+      <path d="M5.00 9.50 L12.48 13.58 Q16.00 15.50 16.00 19.66 L16.00 28.50 L5.00 22.50 Z" stroke="#fff" stroke-width="1.6"/>
+      <path d="M16.00 19.66 L27.00 13.66 L27.00 22.50 L16.00 28.50 Z" stroke="#fff" stroke-width="1.6"/>
+      <path d="M12.48 13.58 L23.48 7.58 Q27.00 9.50 27.00 13.66 L16.00 19.66 Q16.00 15.50 12.48 13.58 Z" fill="#ffffff33" stroke="#fff" stroke-width="1.6"/>
+      <path d="M14.26 15.35 L25.26 9.35 M15.45 17.40 L26.45 11.40" stroke="#fff" stroke-width="0.96"/>
+    </svg>
+    <b>.SketchCorner</b>
+  </div>
+  <nav class="brand-mode" aria-label="Mode">
+    <button id="mode-create" aria-pressed="true" title="Round new edges">Create</button>
+    <button id="mode-edit" aria-pressed="false" title="Edit a stored fillet">Edit</button>
+  </nav>
+</header>
+
+<main>
+  <!-- edit mode: stored operation picker -->
+  <section class="frame" id="edit-panel" hidden>
+    <h2>Stored fillets</h2>
+    <label class="f"><span>Fillet</span><select class="sel" id="op"></select></label>
+    <p class="hint" id="edit-hint">Click a .SketchCorner group in the model to load its fillets.</p>
+  </section>
+
+  <section class="frame">
+    <h2>Profile</h2>
+    <div class="tiles" role="group" aria-label="Profile">
+      <button class="tile" data-profile="circular" aria-pressed="true">
+        <svg viewBox="0 0 34 34"><path d="M4 30 V18 A14 14 0 0 1 18 4 H30"/></svg><b>Circular</b></button>
+      <button class="tile" data-profile="conic" aria-pressed="false">
+        <svg viewBox="0 0 34 34"><path d="M4 30 V22 Q4 4 30 4"/></svg><b>Conic</b></button>
+      <button class="tile" data-profile="bevel" aria-pressed="false">
+        <svg viewBox="0 0 34 34"><path d="M4 30 V16 L18 4 H30"/></svg><b>Bevel</b></button>
+      <button class="tile" data-profile="cove" aria-pressed="false">
+        <svg viewBox="0 0 34 34"><path d="M4 30 V18 A14 14 0 0 0 18 4 H30"/></svg><b>Cove</b></button>
+      <button class="tile" data-profile="custom" aria-pressed="false">
+        <svg viewBox="0 0 34 34"><path d="M4 30 V20 L9 20 Q12 10 20 9 L20 4 H30"/></svg><b>Custom</b></button>
+    </div>
+
+    <div class="gap"></div>
+    <div class="pvc"><svg id="pv" viewBox="0 0 320 180" role="img" aria-label="Profile cross-section"></svg></div>
+
+    <div id="opt-conic" hidden>
+      <label class="rng"><div class="t"><span>Eccentricity ratio</span><b><output id="ratio-out">1.00</output></b></div>
+        <input type="range" id="ratio" min="0.25" max="4" step="0.05" value="1"></label>
+      <label class="rng"><div class="t"><span>Shape (rho)</span><b><output id="rho-out">0.41</output></b></div>
+        <input type="range" id="rho" min="0.05" max="0.95" step="0.01" value="0.41"></label>
+      <p class="hint">Ratio stretches the second face's offset. Rho below 0.5 is elliptical, 0.5 parabolic, above it hyperbolic.</p>
+    </div>
+
+    <div id="opt-bevel" hidden>
+      <p class="lab">Bevel type</p>
+      <div class="chips" data-key="bevel_mode">
+        <button class="chip" data-value="chamfer">Chamfer</button>
+        <button class="chip" data-value="stepped">Stepped</button>
+        <button class="chip" data-value="facet">Facets</button>
+      </div>
+      <div class="gap"></div>
+      <div class="row" id="steps-row"><span class="lab" style="margin:0">Steps</span>
+        <div class="step"><button data-step="steps" data-d="-1" aria-label="Fewer steps">-</button><output id="steps">3</output><button data-step="steps" data-d="1" aria-label="More steps">+</button></div></div>
+    </div>
+
+    <div id="opt-custom" hidden>
+      <button class="btn wide" id="pick-profile">Pick profile in model</button>
+      <p class="hint" id="custom-hint">Draw an open polyline or arc, then pick it. Hold Shift while picking to flip the bulge.</p>
+      <label class="opt">Soften profile edges<span class="sw"><input type="checkbox" id="custom_smooth"></span></label>
+    </div>
+  </section>
+
+  <section class="frame">
+    <h2>Size</h2>
+    <div class="pair">
+      <label class="f"><span id="r1-label">Radius</span><input class="fld" id="radius" spellcheck="false" autocomplete="off"></label>
+      <label class="f" id="r2-wrap"><span>End radius</span><input class="fld" id="radius_end" spellcheck="false" autocomplete="off"></label>
+    </div>
+    <label class="opt">Variable radius along the chain<span class="sw"><input type="checkbox" id="variable"></span></label>
+    <div id="interp-wrap">
+      <p class="lab">Interpolation</p>
+      <div class="chips" data-key="interp">
+        <button class="chip" data-value="linear">Linear</button>
+        <button class="chip" data-value="cubic">Cubic</button>
+      </div>
+      <div class="gap"></div>
+      <button class="btn small" id="reverse">Swap start and end</button>
+      <div class="gap"></div>
+    </div>
+    <p class="lab">Measure</p>
+    <div class="chips" data-key="measure">
+      <button class="chip" data-value="radius">Radius</button>
+      <button class="chip" data-value="setback">Setback</button>
+    </div>
+    <div class="gap"></div>
+    <div class="row" id="seg-row"><span class="lab" style="margin:0">Segments</span>
+      <div class="step"><button data-step="segments" data-d="-1" aria-label="Fewer segments">-</button><output id="segments">6</output><button data-step="segments" data-d="1" aria-label="More segments">+</button></div></div>
+  </section>
+
+  <section class="frame">
+    <h2>Corners</h2>
+    <div class="tabs" role="tablist" data-key="miter">
+      <button class="tab" role="tab" data-value="smooth">Smooth patch</button>
+      <button class="tab" role="tab" data-value="sharp">Sharp miter</button>
+      <button class="tab" role="tab" data-value="blend">Blended loop</button>
+    </div>
+    <p class="hint" id="miter-hint"></p>
+  </section>
+
+  <section class="frame">
+    <h2>Surface</h2>
+    <p class="lab">Material</p>
+    <div class="chips" data-key="material_mode">
+      <button class="chip" data-value="inherit">Inherit faces</button>
+      <button class="chip" data-value="assign">Assign</button>
+    </div>
+    <div class="gap"></div>
+    <label class="f" id="material-wrap"><span>Material</span><select class="sel" id="material"></select></label>
+    <label class="f"><span>Tag for new faces</span><input class="fld" id="tag" list="tags" placeholder="Keep the face's tag" spellcheck="false"><datalist id="tags"></datalist></label>
+    <label class="opt">Map textures across strips (UV)<span class="sw"><input type="checkbox" id="uv"></span></label>
+    <label class="opt">Soften boundary edges<span class="sw"><input type="checkbox" id="soften_boundary"></span></label>
+    <label class="opt">Clamp radius to fit faces<span class="sw"><input type="checkbox" id="clamp"></span></label>
+  </section>
+
+  <section class="frame">
+    <div class="stats">
+      <div><small>Edges</small><b id="st-edges">0</b></div>
+      <div><small>Chains</small><b id="st-chains">0</b></div>
+      <div><small>Corners</small><b id="st-junctions">0</b></div>
+      <div><small>Clamped</small><b id="st-clamped">0</b></div>
+    </div>
+    <div class="gap"></div>
+    <div class="actions">
+      <button class="btn primary" id="apply">Apply fillet</button>
+      <button class="btn" id="secondary">Clear selection</button>
+      <button class="btn ghost" id="tertiary" hidden>Bake history</button>
+    </div>
+    <div class="gap"></div>
+    <div class="status" id="status" role="status">Ready</div>
+  </section>
+</main>
+
+<footer>
+  <dl class="keys">
+    <dt><kbd>Click</kbd></dt><dd>Edge and its tangent chain</dd>
+    <dt><kbd>Shift</kbd></dt><dd>Toggle edges in the selection</dd>
+    <dt><kbd>Ctrl</kbd></dt><dd>Add to the selection</dd>
+    <dt><kbd>Alt</kbd></dt><dd>Single edge, no chaining</dd>
+    <dt><kbd>Double-click</kbd></dt><dd>Every edge of a face</dd>
+    <dt><kbd>Enter</kbd> / <kbd>Esc</kbd></dt><dd>Apply / clear</dd>
+  </dl>
+  Type in the Measurements box: "5mm" sets the radius, "5mm;12mm" a start and end radius, "8s" the segments.
+  <span id="version"></span>
+</footer>
+
+<script src="dialog.js"></script>
+</body>
+</html>
