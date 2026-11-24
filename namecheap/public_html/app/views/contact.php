@@ -2,7 +2,7 @@
 /** Contact page.
  * @var array $c
  */
-defined('MORFIS') || exit;
+defined('SEEDFORM') || exit;
 $site = $c['site'];
 $ct = $c['contact'];
 ?>

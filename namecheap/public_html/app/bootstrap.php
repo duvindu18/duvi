@@ -2,11 +2,11 @@
 /**
  * Shared start-up for the public site and the admin panel.
  */
-define('MORFIS', true);
+define('SEEDFORM', true);
 
 if (PHP_VERSION_ID < 80000) {
     http_response_code(500);
-    exit('Studio Morfis needs PHP 8.0 or newer. In cPanel open "Select PHP Version" and choose 8.1 or higher.');
+    exit('Seedform needs PHP 8.0 or newer. In cPanel open "Select PHP Version" and choose 8.1 or higher.');
 }
 
 define('APP_DIR', __DIR__);

@@ -2,7 +2,7 @@
 /**
  * Small helpers shared by the site and the admin panel.
  */
-defined('MORFIS') || exit;
+defined('SEEDFORM') || exit;
 
 function config(string $key, $default = null)
 {
@@ -188,7 +188,7 @@ function session_boot(bool $readOnly = false): void
     if (session_status() === PHP_SESSION_ACTIVE) {
         return;
     }
-    session_name('morfis_admin');
+    session_name('seedform_admin');
     session_set_cookie_params([
         'lifetime' => 0,
         'path'     => base_path() . '/',

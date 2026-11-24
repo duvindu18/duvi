@@ -1,4 +1,4 @@
-<?php defined('MORFIS') || exit; ?>
+<?php defined('SEEDFORM') || exit; ?>
 <div class="container notfound">
   <p class="label">404</p>
   <h1 class="display">This room <em>was never built.</em></h1>

@@ -1,4 +1,4 @@
-/* Studio Morfis — admin panel behaviour (vanilla JS) */
+/* Seedform — admin panel behaviour (vanilla JS) */
 (function () {
   "use strict";
 

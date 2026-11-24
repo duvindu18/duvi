@@ -1,17 +1,17 @@
 {
   "site": {
-    "name": "Studio Morfis",
-    "descriptor": "3D Visualization Studio",
-    "tagline": "Visualizing architecture since {founded}",
-    "description": "Studio Morfis is an independent 3D visualization studio based in Sri Lanka. Since 2020 we have handled local and international projects, from small houses to large infrastructure.",
+    "name": "Seedform",
+    "descriptor": "3D visualisation studio",
+    "tagline": "Visualising architecture since {founded}",
+    "description": "Seedform is an independent 3D visualisation studio based in Sri Lanka. Since 2020 we have handled local and international projects, from small houses to large infrastructure.",
     "founded": 2020,
     "based": "Sri Lanka",
-    "email": "hello@studiomorfis.com",
+    "email": "hello@seedform.lk",
     "phone": "+94 11 000 0000",
     "logo": {
-      "src": "images/logo.png",
-      "w": 1546,
-      "h": 503
+      "src": "images/seedform-lockup.svg",
+      "w": 300,
+      "h": 64
     },
     "social": [
       {
@@ -58,7 +58,7 @@
       "they exist."
     ],
     "paragraphs": [
-      "Studio Morfis was founded in {founded} and is based in Sri Lanka. In {experience} years we have handled local and international projects, from small private houses to large infrastructure, for architects, engineers, developers and public clients.",
+      "Seedform was founded in {founded} and is based in Sri Lanka. In {experience} years we have handled local and international projects, from small private houses to large infrastructure, for architects, engineers, developers and public clients.",
       "We make still images, films and interactive walkthroughs. The tools change; the questions stay the same: where the light comes from, how a material feels, and how a place will be used."
     ],
     "principles": [
@@ -80,10 +80,6 @@
       }
     ],
     "people": [
-      {
-        "name": "Astrid Morfis",
-        "role": "Founder, Creative Director"
-      },
       {
         "name": "Mads Sørensen",
         "role": "Partner, Lighting"
@@ -113,7 +109,7 @@
       },
       {
         "year": "2024",
-        "award": "Visualization Film Award — winner",
+        "award": "Visualisation Film Award — winner",
         "project": "Timber Pavilion"
       },
       {
@@ -129,7 +125,7 @@
       {
         "year": "2021",
         "award": "Emerging Studio of the Year",
-        "project": "Studio Morfis"
+        "project": "Seedform"
       }
     ],
     "figures": [
@@ -159,12 +155,12 @@
     "contacts": [
       {
         "label": "Press",
-        "email": "press@studiomorfis.com",
+        "email": "press@seedform.lk",
         "note": "Images, films and project texts for publication."
       },
       {
         "label": "Careers",
-        "email": "careers@studiomorfis.com",
+        "email": "careers@seedform.lk",
         "note": "Showreels and portfolios of up to 10 pages, as a single link or PDF."
       }
     ]
@@ -181,7 +177,7 @@
       "status": "Delivered",
       "area": "412 m²",
       "client": "Private",
-      "team": "A. Morfis, M. Sørensen, J. Pires",
+      "team": "M. Sørensen, J. Pires",
       "lead": "Stills and a short film for a concrete house above the Atlantic, built around a single cut of light.",
       "narrative": [
         "The architects needed images of an idea most clients find hard to picture: a house made almost entirely of one material, with a single opening on its entrance façade.",
@@ -238,7 +234,7 @@
       "status": "Delivered",
       "area": "260 m²",
       "client": "Vejle Fjord Foundation",
-      "team": "A. Morfis, L. Kragh, T. Ono",
+      "team": "L. Kragh, T. Ono",
       "lead": "Interior stills and a walkthrough film for a sixty-metre gallery of spruce fins beside a fjord.",
       "narrative": [
         "The pavilion is a single long room whose character comes from rhythm: two hundred and forty fins that open and close as you walk along it.",
@@ -295,7 +291,7 @@
       "status": "Delivered",
       "area": "188 m²",
       "client": "Private",
-      "team": "A. Morfis, J. Pires",
+      "team": "J. Pires",
       "lead": "A series of quiet interior images for a rammed-earth house on the Alentejo plain.",
       "narrative": [
         "Rammed earth is hard to render convincingly. Its layers, colour shifts and soft edges give away any shortcut.",
@@ -352,7 +348,7 @@
       "status": "In production",
       "area": "3,400 m²",
       "client": "City of Reykjavík",
-      "team": "A. Morfis, M. Sørensen, E. Gunnarsdóttir",
+      "team": "M. Sørensen, E. Gunnarsdóttir",
       "lead": "Competition and design-stage images for a public archive wrapped in a screen of basalt fins.",
       "narrative": [
         "The archive began as a competition entry. Our first image was made in nine days and helped the design team win.",
@@ -409,7 +405,7 @@
       "status": "Delivered",
       "area": "96 m²",
       "client": "Parish of Valle Maggia",
-      "team": "A. Morfis, R. Bianchi",
+      "team": "R. Bianchi",
       "lead": "Two images and a year-long light study for a small stone chapel lit only from above.",
       "narrative": [
         "The brief was modest: one exterior and one interior image for the parish's fundraising leaflet.",
@@ -465,7 +461,7 @@
       "status": "Delivered",
       "area": "2,150 m²",
       "client": "IBAVI Housing Institute",
-      "team": "A. Morfis, L. Kragh, C. Ferrer",
+      "team": "L. Kragh, C. Ferrer",
       "lead": "Aerial and courtyard views for eighteen social homes arranged around walled gardens.",
       "narrative": [
         "Housing images are often bright, busy and generic. The brief asked for the opposite: calm views that show what daily life in a shaded courtyard would feel like.",

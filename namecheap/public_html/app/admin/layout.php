@@ -2,7 +2,7 @@
 /**
  * Admin panel: page chrome and form helpers.
  */
-defined('MORFIS') || exit;
+defined('SEEDFORM') || exit;
 
 function admin_nav(): array
 {
@@ -39,7 +39,7 @@ function admin_head(string $title, string $active = '', bool $chrome = true): vo
 <body class="<?= $chrome ? 'adm' : 'adm adm--bare' ?>">
 <?php if ($chrome): ?>
 <header class="adm-top">
-  <a class="adm-brand" href="<?= e(url('admin/')) ?>"><img src="<?= e(url($site['logo']['src'])) ?>" alt="<?= e($site['name']) ?>"><span>Admin</span></a>
+  <a class="adm-brand" href="<?= e(url('admin/')) ?>" aria-label="<?= e($site['name']) ?> admin"><?= logo_img('') ?><span>Admin</span></a>
   <button class="adm-menu-btn" type="button" data-adm-menu aria-expanded="false" aria-controls="adm-nav">Menu</button>
   <nav class="adm-nav" id="adm-nav" aria-label="Admin">
     <?php foreach (admin_nav() as $key => [$label, $href]): ?>

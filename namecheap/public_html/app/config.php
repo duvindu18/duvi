@@ -1,9 +1,9 @@
 <?php
 /**
- * Studio Morfis — site configuration.
+ * Seedform — site configuration.
  * Most content is edited in the admin panel (/admin); only technical settings live here.
  */
-defined('MORFIS') || exit;
+defined('SEEDFORM') || exit;
 
 return [
     // Leave empty to detect automatically. Set it (e.g. "/site") only if the site

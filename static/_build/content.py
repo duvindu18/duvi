@@ -1,6 +1,6 @@
 """All site content in one place. Edit here, then run:  python3 _build/build.py
 
-Written for a 3D visualization studio. Client and material fields are kept in
+Seedform, a 3D visualisation studio (UK / Sri Lankan English spelling). Client and material fields are kept in
 the data (for a later architectural practice) but are not shown on the pages.
 Text in headlines may use *asterisks* to set a word in the light weight.
 Page texts may use {founded}, {year}, {yy}, {experience} and {experience_words}:
@@ -10,13 +10,13 @@ themselves up to date in the browser.
 """
 
 SITE = {
-    "name": "Studio Morfis",
-    "full_name": "Studio Morfis",
-    "descriptor": "3D Visualization Studio",
-    "tagline": "Visualizing architecture since {founded}",
+    "name": "Seedform",
+    "full_name": "Seedform",
+    "descriptor": "3D visualisation studio",
+    "tagline": "Visualising architecture since {founded}",
     "based": "Sri Lanka",
-    "description": "Studio Morfis is an independent 3D visualization studio based in Sri Lanka. Since 2020 we have handled local and international projects, from small houses to large infrastructure.",
-    "email": "hello@studiomorfis.com",
+    "description": "Seedform is an independent 3D visualisation studio based in Sri Lanka. Since 2020 we have handled local and international projects, from small houses to large infrastructure.",
+    "email": "hello@seedform.lk",  # placeholder address
     "phone": "+94 11 000 0000",  # placeholder: replace with the studio's number
     "founded": 2020,
     "year": 2026,
@@ -44,7 +44,7 @@ WORKS = {
 STUDIO = {
     "headline": ["We picture", "*places* before", "they exist."],
     "paragraphs": [
-        "Studio Morfis was founded in {founded} and is based in Sri Lanka. In {experience} years we have handled local and international projects, from small private houses to large infrastructure, for architects, engineers, developers and public clients.",
+        "Seedform was founded in {founded} and is based in Sri Lanka. In {experience} years we have handled local and international projects, from small private houses to large infrastructure, for architects, engineers, developers and public clients.",
         "We make still images, films and interactive walkthroughs. The tools change; the questions stay the same: where the light comes from, how a material feels, and how a place will be used.",
     ],
     "figures": [
@@ -64,7 +64,7 @@ PROJECTS = [
     {
         "slug": "the-monolithic-void", "index": "01", "title": "The Monolithic Void",
         "typology": "Private Residence", "city": "Sintra", "country": "Portugal", "year": 2024,
-        "status": "Delivered", "area": "412 m²", "client": "Private", "team": "A. Morfis, M. Sørensen, J. Pires",
+        "status": "Delivered", "area": "412 m²", "client": "Private", "team": "M. Sørensen, J. Pires",
         "lead": "Stills and a short film for a concrete house above the Atlantic, built around a single cut of light.",
         "narrative": [
             "The architects needed images of an idea most clients find hard to picture: a house made almost entirely of one material, with a single opening on its entrance façade.",
@@ -77,7 +77,7 @@ PROJECTS = [
     {
         "slug": "timber-pavilion", "index": "02", "title": "Timber Pavilion",
         "typology": "Cultural Pavilion", "city": "Vejle", "country": "Denmark", "year": 2023,
-        "status": "Delivered", "area": "260 m²", "client": "Vejle Fjord Foundation", "team": "A. Morfis, L. Kragh, T. Ono",
+        "status": "Delivered", "area": "260 m²", "client": "Vejle Fjord Foundation", "team": "L. Kragh, T. Ono",
         "lead": "Interior stills and a walkthrough film for a sixty-metre gallery of spruce fins beside a fjord.",
         "narrative": [
             "The pavilion is a single long room whose character comes from rhythm: two hundred and forty fins that open and close as you walk along it.",
@@ -90,7 +90,7 @@ PROJECTS = [
     {
         "slug": "house-of-clay", "index": "03", "title": "House of Clay",
         "typology": "Rural Retreat", "city": "Évora", "country": "Portugal", "year": 2022,
-        "status": "Delivered", "area": "188 m²", "client": "Private", "team": "A. Morfis, J. Pires",
+        "status": "Delivered", "area": "188 m²", "client": "Private", "team": "J. Pires",
         "lead": "A series of quiet interior images for a rammed-earth house on the Alentejo plain.",
         "narrative": [
             "Rammed earth is hard to render convincingly. Its layers, colour shifts and soft edges give away any shortcut.",
@@ -103,7 +103,7 @@ PROJECTS = [
     {
         "slug": "basalt-archive", "index": "04", "title": "Basalt Archive",
         "typology": "Library &amp; Archive", "city": "Reykjavík", "country": "Iceland", "year": 2025,
-        "status": "In production", "area": "3,400 m²", "client": "City of Reykjavík", "team": "A. Morfis, M. Sørensen, E. Gunnarsdóttir",
+        "status": "In production", "area": "3,400 m²", "client": "City of Reykjavík", "team": "M. Sørensen, E. Gunnarsdóttir",
         "lead": "Competition and design-stage images for a public archive wrapped in a screen of basalt fins.",
         "narrative": [
             "The archive began as a competition entry. Our first image was made in nine days and helped the design team win.",
@@ -116,7 +116,7 @@ PROJECTS = [
     {
         "slug": "chapel-of-still-light", "index": "05", "title": "Chapel of Still Light",
         "typology": "Sacred Space", "city": "Ticino", "country": "Switzerland", "year": 2021,
-        "status": "Delivered", "area": "96 m²", "client": "Parish of Valle Maggia", "team": "A. Morfis, R. Bianchi",
+        "status": "Delivered", "area": "96 m²", "client": "Parish of Valle Maggia", "team": "R. Bianchi",
         "lead": "Two images and a year-long light study for a small stone chapel lit only from above.",
         "narrative": [
             "The brief was modest: one exterior and one interior image for the parish's fundraising leaflet.",
@@ -128,7 +128,7 @@ PROJECTS = [
     {
         "slug": "courtyard-houses", "index": "06", "title": "Courtyard Houses",
         "typology": "Housing", "city": "Palma", "country": "Spain", "year": 2020,
-        "status": "Delivered", "area": "2,150 m²", "client": "IBAVI Housing Institute", "team": "A. Morfis, L. Kragh, C. Ferrer",
+        "status": "Delivered", "area": "2,150 m²", "client": "IBAVI Housing Institute", "team": "L. Kragh, C. Ferrer",
         "lead": "Aerial and courtyard views for eighteen social homes arranged around walled gardens.",
         "narrative": [
             "Housing images are often bright, busy and generic. The brief asked for the opposite: calm views that show what daily life in a shaded courtyard would feel like.",
@@ -147,21 +147,21 @@ PRINCIPLES = [
 ]
 
 PEOPLE = [
-    ("Astrid Morfis", "Founder, Creative Director"), ("Mads Sørensen", "Partner, Lighting"), ("Joana Pires", "Lead 3D Artist"),
+    ("Mads Sørensen", "Partner, Lighting"), ("Joana Pires", "Lead 3D Artist"),
     ("Lea Kragh", "Film &amp; Animation"), ("Takeshi Ono", "3D Artist"), ("Eva Gunnarsdóttir", "Technical Director"),
 ]
 
 # Placeholder recognition: replace with the studio's real awards and press.
 RECOGNITION = [
     ("2025", "Architectural Image of the Year — shortlist", "Basalt Archive"),
-    ("2024", "Visualization Film Award — winner", "Timber Pavilion"),
+    ("2024", "Visualisation Film Award — winner", "Timber Pavilion"),
     ("2023", "Interior Image Award — honourable mention", "House of Clay"),
     ("2022", "Competition Image Prize", "Basalt Archive"),
-    ("2021", "Emerging Studio of the Year", "Studio Morfis"),
+    ("2021", "Emerging Studio of the Year", "Seedform"),
 ]
 
 # Secondary contact columns on the Contact page: (label, email, note)
 CONTACTS = [
-    ("Press", "press@studiomorfis.com", "Images, films and project texts for publication."),
-    ("Careers", "careers@studiomorfis.com", "Showreels and portfolios of up to 10 pages, as a single link or PDF."),
+    ("Press", "press@seedform.lk", "Images, films and project texts for publication."),
+    ("Careers", "careers@seedform.lk", "Showreels and portfolios of up to 10 pages, as a single link or PDF."),
 ]

@@ -1,4 +1,4 @@
-# Studio Morfis website: Namecheap hosting package
+# Seedform website: Namecheap hosting package
 
 This folder is the complete website (set up for a 3D visualization studio) plus its admin panel, ready for Namecheap
 shared hosting (Stellar, Stellar Plus or Stellar Business). It needs **PHP 8.0
@@ -27,7 +27,7 @@ On the **Extensions** tab make sure these are ticked: `gd`, `fileinfo`, `mbstrin
 1. cPanel → **File Manager** → open `public_html`.
 2. Delete the placeholder files Namecheap put there (e.g. `default.html`).
    Leave `cgi-bin` and `.well-known` alone.
-3. Click **Upload** and upload `studio-morfis-namecheap.zip`.
+3. Click **Upload** and upload `seedform-namecheap.zip`.
 4. Right-click the zip → **Extract** → extract into `/public_html`.
    Then delete the zip.
 5. Check that the files sit directly in `public_html` (you should see `index.php`,
@@ -83,14 +83,15 @@ Submit `https://yourdomain.com/sitemap.xml` in Google Search Console. The sitema
 
 Tips:
 - **Drafts** are invisible to visitors. While you are signed in you can open a draft's
-  page to preview it; a small black bar marks it as a draft.
+  page to preview it; a small canopy-green bar marks it as a draft.
 - In headlines, wrap a word in `*asterisks*` to set it in the light weight, for example
   `by *mass,* light`.
 - Upload photos straight from the camera if you like: anything larger than 2400 px is
   scaled down automatically and phone photos are turned the right way up.
   JPG, PNG or WebP, up to 15 MB each.
-- The **logo** should be black artwork on a transparent background (PNG). The site turns it
-  white by itself in dark mode and on the dark loading bands.
+- The **logo** is the Seedform lockup, built in as SVG: it switches to its reversed colours in
+  dark mode and on the canopy loading bands by itself. Uploading a PNG under Site & home replaces
+  it everywhere; pick artwork that reads on both the limewash and the dark background.
 - Every save makes a backup of the previous version first, so mistakes can be undone
   under Account & backups. Restoring brings back text and project data; images are never
   deleted by a restore.

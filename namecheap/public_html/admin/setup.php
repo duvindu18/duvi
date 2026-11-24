@@ -44,7 +44,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
 admin_head('Set up', '', false); ?>
 <div class="auth">
-  <img class="auth__logo" src="<?= e(url(content()['site']['logo']['src'])) ?>" alt="<?= e(content()['site']['name']) ?>">
+  <div class="auth__logo"><?= logo_img() ?></div>
   <h1>Create the admin account</h1>
   <p class="hint">This page works only once. For security it asks for the setup code that was just written to
      <code>data/setup-code.txt</code> on your hosting. In cPanel open <b>File Manager → public_html → data</b>, open that file and copy the code.</p>

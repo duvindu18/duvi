@@ -4,7 +4,7 @@
  * @var int    $total number of published projects
  * @var ?array $next  next published project, or null
  */
-defined('MORFIS') || exit;
+defined('SEEDFORM') || exit;
 $words = preg_split('/\s+/u', trim($p['title'])) ?: [$p['title']];
 $titleLines = array_map(function ($chunk) { return implode(' ', $chunk); }, array_chunk($words, 2));
 $showClient = !empty($c['site']['show_client']);

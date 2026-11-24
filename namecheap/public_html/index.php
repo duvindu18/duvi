@@ -1,6 +1,6 @@
 <?php
 /**
- * Studio Morfis — public site router.
+ * Seedform — public site router.
  *
  *   /                    home
  *   /works               index of works

@@ -3,7 +3,7 @@
  * @var array $c
  * @var array $projects published projects
  */
-defined('MORFIS') || exit;
+defined('SEEDFORM') || exit;
 $typologies = array_values(array_unique(array_filter(array_column($projects, 'typology'), 'strlen')));
 $sorted = $projects;
 usort($sorted, function ($a, $b) { return (int) $b['year'] <=> (int) $a['year']; });

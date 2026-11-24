@@ -2,7 +2,7 @@
 /**
  * Content store: one JSON file (data/content.json) with automatic backups.
  */
-defined('MORFIS') || exit;
+defined('SEEDFORM') || exit;
 
 // Visualization statuses first; the architectural ones stay available for later.
 const PROJECT_STATUSES = ['Delivered', 'In production', 'Completed', 'In progress', 'Competition', 'Study'];
@@ -33,8 +33,8 @@ function normalize_content(array $c): array
 {
     $c += ['site' => [], 'home' => [], 'works' => [], 'studio' => [], 'contact' => [], 'projects' => []];
     $c['site'] += [
-        'name' => 'Studio Morfis', 'tagline' => '', 'description' => '', 'descriptor' => 'Architecture Office',
-        'founded' => '', 'based' => '', 'email' => '', 'phone' => '', 'logo' => ['src' => 'images/logo.png', 'w' => 1546, 'h' => 503],
+        'name' => 'Seedform', 'tagline' => '', 'description' => '', 'descriptor' => '3D visualisation studio',
+        'founded' => '', 'based' => '', 'email' => '', 'phone' => '', 'logo' => ['src' => 'images/seedform-lockup.svg', 'w' => 300, 'h' => 64],
         'social' => [],
         // Optional project facts. Off for a visualization studio; switch on in
         // Admin > Site & home for an architectural practice.

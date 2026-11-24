@@ -2,7 +2,7 @@
 /**
  * Admin account, sign-in, brute-force throttling and first-run setup.
  */
-defined('MORFIS') || exit;
+defined('SEEDFORM') || exit;
 
 function users_file(): string
 {
@@ -53,7 +53,7 @@ function password_problem(string $password, string $confirm): ?string
 function is_admin(): bool
 {
     if (session_status() !== PHP_SESSION_ACTIVE) {
-        if (empty($_COOKIE['morfis_admin'])) {
+        if (empty($_COOKIE['seedform_admin'])) {
             return false; // never start sessions for ordinary visitors
         }
         session_boot(true);

@@ -17,13 +17,27 @@ from datetime import date
 from content import CONTACT_PAGE, CONTACTS, HOME, PRINCIPLES, PROJECTS, SITE, STUDIO, WORKS
 
 OUT = Path(__file__).resolve().parent.parent
-FONTS = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=League+Spartan:wght@300;400;500;600;700;800;900&display=swap"
+FONTS = "https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Playfair+Display:ital,wght@0,400;1,400&family=Manrope:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap"
 
 
 # ---------------------------------------------------------------- helpers
-def wordmark(root="", alt="Studio Morfis."):
-    """The studio logo (black on transparent; inverted with CSS on dark grounds)."""
-    return f'<img class="logo" src="{root}images/logo.png" width="1546" height="503" alt="{alt}">'
+# Seedform master logo geometry (from the design system's SVG masters), inlined so
+# CSS can colour it for each theme: frame/line/wordmark use --logo-ink, the seed --logo-seed.
+_MARK = ('<rect class="lk-stroke" x="4.5" y="4.5" width="55" height="55" rx="2" stroke-width="5"/>'
+         '<rect class="lk-fill" x="29.5" y="6" width="5" height="31"/>'
+         '<circle class="lk-seed" cx="32" cy="44" r="8"/>')
+LOCKUP = ('<svg class="logo" viewBox="0 0 300 64" width="300" height="64" {a11y}>' + _MARK +
+          '<text class="lk-fill" x="82" y="45" font-family="Fraunces, Georgia, \'Times New Roman\', serif" '
+          'font-size="40" font-weight="500" letter-spacing="-0.4">seedform</text></svg>')
+STACKED = ('<svg class="logo" viewBox="0 0 200 128" width="200" height="128" {a11y}><g transform="translate(68 0)">' + _MARK +
+           '</g><text class="lk-fill" x="100" y="114" text-anchor="middle" font-family="Fraunces, Georgia, \'Times New Roman\', serif" '
+           'font-size="36" font-weight="500" letter-spacing="-0.36">seedform</text></svg>')
+
+
+def wordmark(root="", alt="Seedform", stacked=False):
+    """The Seedform lockup as inline SVG (alt="" marks a decorative copy)."""
+    a11y = f'role="img" aria-label="{alt}"' if alt else 'aria-hidden="true" focusable="false"'
+    return (STACKED if stacked else LOCKUP).replace("{a11y}", a11y)
 
 
 THIS_YEAR = date.today().year
@@ -117,7 +131,7 @@ def splash(root):
     <div class="counter" aria-hidden="true">{digits}<span class="counter-unit">%</span></div>
   </div>
   <div class="splash-resolved">
-    {wordmark(root)}
+    {wordmark(root, stacked=True)}
     <p class="label">{tok(SITE['tagline'])}<br>{SITE['based']}</p>
   </div>
   <div class="splash-meta"><span class="label">{SITE['full_name']}</span><span class="label">{SITE['descriptor']}</span></div>
@@ -139,7 +153,7 @@ def rail(root, current):
     return f"""
 <aside class="rail">
   <div class="rail__brand" data-animate>
-    <a href="{root}index.html" aria-label="{SITE['full_name']}, home">{wordmark(root)}</a>
+    <a href="{root}index.html" aria-label="{SITE['full_name']}, home">{wordmark(root, alt='')}</a>
     <p class="label">{SITE['descriptor']}</p>
   </div>
   <nav class="rail__nav" aria-label="Primary">
@@ -162,7 +176,7 @@ def mobile(root):
     )
     return f"""
 <header class="mobile-bar">
-  <a href="{root}index.html" aria-label="{SITE['full_name']}, home">{wordmark(root)}</a>
+  <a href="{root}index.html" aria-label="{SITE['full_name']}, home">{wordmark(root, alt='')}</a>
   <button class="menu-btn" type="button" aria-expanded="false" aria-controls="mobile-menu" data-menu-toggle>
     <span data-menu-label>Menu</span><span class="bars"><i></i><i></i></span>
   </button>
@@ -186,8 +200,8 @@ def page(filename, *, title, description, body, current="", root="", scripts=())
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{full_title}</title>
 <meta name="description" content="{description}">
-<meta name="theme-color" content="#FAFAFA" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0E0E0D" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F4F1EA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131814" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="{root}favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -195,9 +209,9 @@ def page(filename, *, title, description, body, current="", root="", scripts=())
 <link rel="stylesheet" href="{root}css/style.css">
 <script>
   /* Skip the splash for the rest of the session once seen (runs before paint). */
-  try {{ if (sessionStorage.getItem("morfis:splash")) document.documentElement.setAttribute("data-splash-seen", ""); }} catch (e) {{}}
+  try {{ if (sessionStorage.getItem("seedform:splash")) document.documentElement.setAttribute("data-splash-seen", ""); }} catch (e) {{}}
   /* Apply a saved light/dark choice before paint; otherwise the system setting applies. */
-  try {{ var t = localStorage.getItem("morfis:theme"); if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t); }} catch (e) {{}}
+  try {{ var t = localStorage.getItem("seedform:theme"); if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t); }} catch (e) {{}}
 </script>
 {js}
 </head>
@@ -374,7 +388,7 @@ def archive():
   </ul>
 </div>
 <div class="preview" aria-hidden="true" data-preview-box>{previews}<span class="tag" data-preview-tag></span></div>"""
-    page("archive.html", title="Index", description="Index of works by Studio Morfis.", body=body, current="archive", scripts=("archive.js",))
+    page("archive.html", title="Index", description=f"Index of works by {SITE['name']}.", body=body, current="archive", scripts=("archive.js",))
 
 
 def project(i, p):
@@ -385,7 +399,7 @@ def project(i, p):
     specs = [("Year", p["year"]), ("Location", f"{p['city']}, {p['country']}"), ("Typology", p["typology"]),
              ("Status", p["status"]), ("Area", p["area"])]
     spec_html = "".join(f'<div><dt class="label">{k}</dt><dd>{v}</dd></div>' for k, v in specs)
-    # Client and materials stay in content.py but are not shown (visualization studio).
+    # Client and materials stay in content.py but are not shown (visualisation studio).
     plates = ""
     for n, (f, w, h, cap) in enumerate(p["figures"]):
         plates += f"""
@@ -426,7 +440,7 @@ def project(i, p):
         <div class="spread__inset">{frame(root, inset[0], inset[1], inset[2], alt=inset[3])}</div>
         <hr>
         <div class="spread__text">{paras}</div>
-        <p class="spread__credit">{p['title']} by Studio Morfis — {p['team']}</p>
+        <p class="spread__credit">{p['title']} by {SITE['name']}{(' — ' + p['team']) if p['team'] else ''}</p>
       </div>
       <div class="spread__plate">{frame(root, plate[0], plate[1], plate[2], alt=plate[3])}</div>
     </div>
@@ -477,7 +491,7 @@ def studio():
     <figcaption><b>Fig. 02</b><span>{f2[3]}</span></figcaption>
   </figure>
 </div>"""
-    page("studio.html", title="Studio", description="About Studio Morfis.", body=body, current="studio")
+    page("studio.html", title="Studio", description=f"About {SITE['name']}.", body=body, current="studio")
 
 
 def contact():
@@ -507,7 +521,7 @@ def contact():
     </div>
   </div>
 </div>"""
-    page("contact.html", title="Contact", description="Contact Studio Morfis.", body=body, current="contact")
+    page("contact.html", title="Contact", description=f"Contact {SITE['name']}.", body=body, current="contact")
 
 
 def not_found():

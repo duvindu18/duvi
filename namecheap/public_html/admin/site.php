@@ -101,7 +101,7 @@ admin_head('Site & home', 'site'); ?>
       <h2>Studio</h2>
       <div class="row2">
         <?= f_text('name', 'Studio name', $site['name'], 'Used in page titles and link previews.', ['required' => true]) ?>
-        <?= f_text('descriptor', 'Descriptor', $site['descriptor'], 'Small line under the logo, e.g. Architecture Office.') ?>
+        <?= f_text('descriptor', 'Descriptor', $site['descriptor'], 'Small line under the logo, e.g. 3D visualisation studio.') ?>
       </div>
       <?= f_text('tagline', 'Tagline', $site['tagline'], 'Shown on the loading screen.') ?>
       <?= f_area('description', 'Short description', $site['description'], 'Shown on the home page and used by search engines.', 2) ?>
@@ -125,11 +125,11 @@ admin_head('Site & home', 'site'); ?>
     <section class="card">
       <h2>Logo</h2>
       <div class="logo-preview">
-        <div class="logo-preview__light"><img src="<?= e(url($site['logo']['src'])) ?>" alt="Current logo on light"></div>
-        <div class="logo-preview__dark"><img src="<?= e(url($site['logo']['src'])) ?>" alt="Current logo on dark"></div>
+        <div class="logo-preview__light"><?= logo_img('') ?></div>
+        <div class="logo-preview__dark"><?= logo_img('') ?></div>
       </div>
       <label class="drop"><input type="file" name="logo_new" accept="image/png,image/webp" data-file-preview>
-        <span><b>Replace logo</b> — a black logo on a transparent background (PNG). The site turns it white automatically in dark mode and on the dark loading bands.</span></label>
+        <span><b>Replace logo</b> — PNG or WebP with a transparent background. The built-in Seedform logo adapts to light and dark mode by itself; an uploaded logo is shown as it is, so choose artwork that reads on both the limewash and the dark background. To go back to the built-in logo, restore an earlier backup under Account &amp; backups.</span></label>
       <div class="drop-preview" data-preview></div>
     </section>
 

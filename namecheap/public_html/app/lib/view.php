@@ -3,7 +3,7 @@
  * Public-site templating: page shell (head, splash, rail, menus) and small
  * markup helpers shared by the views in app/views/.
  */
-defined('MORFIS') || exit;
+defined('SEEDFORM') || exit;
 
 const SOCIAL_ICONS = [
     'behance.net' => '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7.2 5.5c.7 0 1.3.1 1.9.2.6.1 1 .3 1.4.6.4.3.7.6.9 1.1.2.5.3 1 .3 1.7 0 .7-.2 1.3-.5 1.8-.3.5-.8.9-1.4 1.2.9.3 1.5.7 1.9 1.3.4.6.6 1.3.6 2.2 0 .7-.1 1.3-.4 1.8-.3.5-.6.9-1.1 1.2-.5.3-1 .6-1.6.7-.6.2-1.2.2-1.8.2H1V5.5h6.2zm-.4 5.3c.5 0 1-.1 1.3-.4.3-.3.5-.7.5-1.2 0-.3-.1-.6-.2-.8-.1-.2-.3-.4-.5-.5-.2-.1-.4-.2-.7-.2-.3-.1-.5-.1-.8-.1H3.8v3.2h3zm.2 5.5c.3 0 .6 0 .8-.1.3-.1.5-.2.7-.3.2-.1.4-.3.5-.5.1-.2.2-.5.2-.9 0-.7-.2-1.2-.6-1.5-.4-.3-.9-.4-1.6-.4H3.8v3.7H7zm9.6 0c.4.4 1 .6 1.7.6.5 0 1-.1 1.4-.4.4-.3.6-.6.7-.9h2.4c-.4 1.2-1 2-1.8 2.6-.8.5-1.8.8-2.9.8-.8 0-1.5-.1-2.1-.4-.6-.3-1.2-.6-1.6-1.1-.4-.5-.8-1-1-1.6-.2-.6-.4-1.3-.4-2.1 0-.7.1-1.4.4-2.1.2-.6.6-1.2 1-1.6.5-.5 1-.8 1.6-1.1.6-.3 1.3-.4 2-.4.8 0 1.6.2 2.2.5.6.3 1.1.8 1.5 1.3.4.6.7 1.2.9 1.9.2.7.2 1.4.2 2.2h-7.2c0 .8.3 1.5.7 1.8zm3.1-5.2c-.3-.3-.8-.5-1.5-.5-.4 0-.8.1-1 .2-.3.1-.5.3-.6.5-.2.2-.3.4-.3.6-.1.2-.1.4-.1.6h4.4c-.2-.6-.5-1.1-.9-1.4zm-4.3-4.7h5.6v1.4h-5.6V6.4z"/></svg>',
@@ -22,7 +22,7 @@ function social_icon(array $s): string
     return '<span class="label">' . e($s['short']) . '</span>';
 }
 
-const FONTS_URL = 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=League+Spartan:wght@300;400;500;600;700;800;900&display=swap';
+const FONTS_URL = 'https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Playfair+Display:ital,wght@0,400;1,400&family=Manrope:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap';
 
 /** Render app/views/<name>.php with variables and return the HTML. */
 function render(string $view, array $vars = []): string
@@ -47,13 +47,43 @@ function project_url(array $p): string
     return url('projects/' . rawurlencode($p['slug']));
 }
 
-/** The studio logo (black artwork; CSS inverts it on dark grounds). */
-function logo_img(?string $alt = null): string
+/** Path of the built-in Seedform lockup; while it is the logo, it is inlined as SVG. */
+const DEFAULT_LOGO = 'images/seedform-lockup.svg';
+
+/**
+ * The Seedform master logo geometry (frame, line and seed), inlined so CSS can
+ * colour it per theme: frame, line and wordmark take --logo-ink, the seed --logo-seed.
+ */
+const LOGO_MARK = '<rect class="lk-stroke" x="4.5" y="4.5" width="55" height="55" rx="2" stroke-width="5"/>'
+    . '<rect class="lk-fill" x="29.5" y="6" width="5" height="31"/>'
+    . '<circle class="lk-seed" cx="32" cy="44" r="8"/>';
+
+function logo_svg(string $alt = '', bool $stacked = false): string
+{
+    $a11y = $alt !== '' ? 'role="img" aria-label="' . e($alt) . '"' : 'aria-hidden="true" focusable="false"';
+    $font = 'font-family="Fraunces, Georgia, \'Times New Roman\', serif" font-weight="500"';
+    if ($stacked) {
+        return '<svg class="logo" viewBox="0 0 200 128" width="200" height="128" ' . $a11y . '><g transform="translate(68 0)">' . LOGO_MARK
+            . '</g><text class="lk-fill" x="100" y="114" text-anchor="middle" ' . $font . ' font-size="36" letter-spacing="-0.36">seedform</text></svg>';
+    }
+    return '<svg class="logo" viewBox="0 0 300 64" width="300" height="64" ' . $a11y . '>' . LOGO_MARK
+        . '<text class="lk-fill" x="82" y="45" ' . $font . ' font-size="40" letter-spacing="-0.4">seedform</text></svg>';
+}
+
+/**
+ * The studio logo. The built-in Seedform lockup is inlined (so it follows light and
+ * dark mode); an uploaded replacement is shown as an image. $alt = '' marks a
+ * decorative copy, e.g. inside a link that already has a label.
+ */
+function logo_img(?string $alt = null, bool $stacked = false): string
 {
     $site = content()['site'];
     $logo = $site['logo'];
     $alt = $alt ?? $site['name'];
-    return '<img class="logo" src="' . e(url($logo['src'])) . '" width="' . (int) $logo['w'] . '" height="' . (int) $logo['h'] . '" alt="' . e($alt) . '">';
+    if (($logo['src'] ?? '') === DEFAULT_LOGO) {
+        return logo_svg($alt, $stacked);
+    }
+    return '<img class="logo logo--image" src="' . e(url($logo['src'])) . '" width="' . (int) $logo['w'] . '" height="' . (int) $logo['h'] . '" alt="' . e($alt) . '">';
 }
 
 /** Masked line-by-line reveal. Lines are plain text; *word* becomes a light accent. */
@@ -116,8 +146,8 @@ function layout(string $body, array $meta): string
 <?php if (!empty($meta['noindex'])): ?>
 <meta name="robots" content="noindex">
 <?php endif; ?>
-<meta name="theme-color" content="#FAFAFA" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0E0E0D" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F4F1EA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131814" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="<?= e(asset('favicon.svg')) ?>" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -125,9 +155,9 @@ function layout(string $body, array $meta): string
 <link rel="stylesheet" href="<?= e(asset('css/style.css')) ?>">
 <script>
   /* Skip the splash for the rest of the session once seen (runs before paint). */
-  try { if (sessionStorage.getItem("morfis:splash")) document.documentElement.setAttribute("data-splash-seen", ""); } catch (e) {}
+  try { if (sessionStorage.getItem("seedform:splash")) document.documentElement.setAttribute("data-splash-seen", ""); } catch (e) {}
   /* Apply a saved light/dark choice before paint; otherwise the system setting applies. */
-  try { var t = localStorage.getItem("morfis:theme"); if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+  try { var t = localStorage.getItem("seedform:theme"); if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t); } catch (e) {}
 </script>
 <?php foreach ($scripts as $s): ?>
 <script src="<?= e(asset($s)) ?>" defer></script>
@@ -179,7 +209,7 @@ function splash_html(): string
     <div class="counter" aria-hidden="true">' . $digits . '<span class="counter-unit">%</span></div>
   </div>
   <div class="splash-resolved">
-    ' . logo_img() . '
+    ' . logo_img(null, true) . '
     <p class="label">' . txt($site['tagline']) . $place . '</p>
   </div>
   <div class="splash-meta"><span class="label">' . e($site['name']) . '</span><span class="label">' . e($site['descriptor']) . '</span></div>
@@ -207,7 +237,7 @@ function rail_html(string $current): string
     return '
 <aside class="rail">
   <div class="rail__brand" data-animate>
-    <a href="' . e(url()) . '" aria-label="' . e($site['name']) . ', home">' . logo_img() . '</a>
+    <a href="' . e(url()) . '" aria-label="' . e($site['name']) . ', home">' . logo_img('') . '</a>
     <p class="label">' . e($site['descriptor']) . '</p>
   </div>
   <nav class="rail__nav" aria-label="Primary">
@@ -235,7 +265,7 @@ function mobile_html(): string
     $mail = $site['email'] !== '' ? '<a href="mailto:' . e($site['email']) . '">' . e($site['email']) . '</a>' : '';
     return '
 <header class="mobile-bar">
-  <a href="' . e(url()) . '" aria-label="' . e($site['name']) . ', home">' . logo_img() . '</a>
+  <a href="' . e(url()) . '" aria-label="' . e($site['name']) . ', home">' . logo_img('') . '</a>
   <button class="menu-btn" type="button" aria-expanded="false" aria-controls="mobile-menu" data-menu-toggle>
     <span data-menu-label>Menu</span><span class="bars"><i></i><i></i></span>
   </button>

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Studio Morfis — shared behaviour for every page (vanilla JS, no dependencies)
+   Seedform — shared behaviour for every page (vanilla JS, no dependencies)
    - Splash screen (marquee bands + rolling counter, once per session)
    - Page curtain transitions between internal links
    - "Ready" lifecycle that gates entrance animations
@@ -13,15 +13,15 @@
   var root = document.documentElement;
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-  var SPLASH_KEY = "morfis:splash";
+  var SPLASH_KEY = "seedform:splash";
 
   /* ---------------------------------------------------------------------
-     Ready lifecycle: other scripts call Morfis.onReady(fn). It fires once the
+     Ready lifecycle: other scripts call Seedform.onReady(fn). It fires once the
      splash has lifted (or immediately if the splash was already seen).
      ------------------------------------------------------------------- */
   var ready = false;
   var readyQueue = [];
-  window.Morfis = {
+  window.Seedform = {
     onReady: function (fn) {
       if (ready) fn();
       else readyQueue.push(fn);
@@ -233,7 +233,7 @@
       btn.addEventListener("click", function () {
         var next = isDark() ? "light" : "dark";
         root.setAttribute("data-theme", next);
-        try { localStorage.setItem("morfis:theme", next); } catch (e) {}
+        try { localStorage.setItem("seedform:theme", next); } catch (e) {}
         sync();
       });
     });
@@ -303,7 +303,7 @@
     initParallax();
     runSplash();
     // Entrance animations wait until the splash is gone.
-    window.Morfis.onReady(initReveals);
+    window.Seedform.onReady(initReveals);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);

@@ -2,7 +2,7 @@
 /** Studio page.
  * @var array $c
  */
-defined('MORFIS') || exit;
+defined('SEEDFORM') || exit;
 $s = $c['studio'];
 $fig1 = $s['figures'][0] ?? null;
 $fig2 = $s['figures'][1] ?? null;

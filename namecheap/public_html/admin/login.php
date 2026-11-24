@@ -27,7 +27,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
 admin_head('Sign in', '', false); ?>
 <div class="auth">
-  <img class="auth__logo" src="<?= e(url(content()['site']['logo']['src'])) ?>" alt="<?= e(content()['site']['name']) ?>">
+  <div class="auth__logo"><?= logo_img() ?></div>
   <h1>Sign in</h1>
   <?php if ($error): ?><div class="adm-flash adm-flash--error" role="alert"><?= e($error) ?></div><?php endif; ?>
   <form method="post" class="stack">

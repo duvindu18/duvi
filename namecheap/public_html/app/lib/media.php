@@ -2,7 +2,7 @@
 /**
  * Image uploads: validation, safe file names, orientation fix and down-scaling.
  */
-defined('MORFIS') || exit;
+defined('SEEDFORM') || exit;
 
 const IMAGE_TYPES = [
     'image/jpeg' => 'jpg',

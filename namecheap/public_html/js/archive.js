@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Studio Morfis — Index page: filter, sort, hover-dim and floating image preview
+   Seedform — Index page: filter, sort, hover-dim and floating image preview
    ========================================================================== */
 (function () {
   "use strict";
@@ -61,7 +61,7 @@
     var box = document.querySelector("[data-preview-box]");
     var tag = document.querySelector("[data-preview-tag]");
     var imgs = box ? Array.prototype.slice.call(box.querySelectorAll("img")) : [];
-    var fine = window.Morfis && window.Morfis.finePointer;
+    var fine = window.Seedform && window.Seedform.finePointer;
 
     var x = 0, y = 0, px = 0, py = 0, raf = 0, placed = false;
     function loop() {

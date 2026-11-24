@@ -4,7 +4,7 @@
  * @var array $projects published projects
  * @var array $columns  three mosaic columns of [project, figure]
  */
-defined('MORFIS') || exit;
+defined('SEEDFORM') || exit;
 $site = $c['site'];
 $home = $c['home'];
 $run = $home['marquee'] !== '' ? str_repeat(rtrim(tokens($home['marquee'])) . ' ', 3) : '';
