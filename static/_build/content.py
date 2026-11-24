@@ -1,6 +1,6 @@
 """All site content in one place. Edit here, then run:  python3 _build/build.py
 
-Seedform, a 3D visualisation studio (UK / Sri Lankan English spelling). Client and material fields are kept in
+Seedform, a 3D visualization studio. Client and material fields are kept in
 the data (for a later architectural practice) but are not shown on the pages.
 Text in headlines may use *asterisks* to set a word in the light weight.
 Page texts may use {founded}, {year}, {yy}, {experience} and {experience_words}:
@@ -12,10 +12,10 @@ themselves up to date in the browser.
 SITE = {
     "name": "Seedform",
     "full_name": "Seedform",
-    "descriptor": "3D visualisation studio",
-    "tagline": "Visualising architecture since {founded}",
+    "descriptor": "3D Visualization",
+    "tagline": "Visualizing architecture since {founded}",
     "based": "Sri Lanka",
-    "description": "Seedform is an independent 3D visualisation studio based in Sri Lanka. Since 2020 we have handled local and international projects, from small houses to large infrastructure.",
+    "description": "Seedform is an independent 3D visualization studio based in Sri Lanka. Since 2020 we have handled local and international projects, from small houses to large infrastructure.",
     "email": "hello@seedform.lk",  # placeholder address
     "phone": "+94 11 000 0000",  # placeholder: replace with the studio's number
     "founded": 2020,
@@ -154,7 +154,7 @@ PEOPLE = [
 # Placeholder recognition: replace with the studio's real awards and press.
 RECOGNITION = [
     ("2025", "Architectural Image of the Year — shortlist", "Basalt Archive"),
-    ("2024", "Visualisation Film Award — winner", "Timber Pavilion"),
+    ("2024", "Visualization Film Award — winner", "Timber Pavilion"),
     ("2023", "Interior Image Award — honourable mention", "House of Clay"),
     ("2022", "Competition Image Prize", "Basalt Archive"),
     ("2021", "Emerging Studio of the Year", "Seedform"),

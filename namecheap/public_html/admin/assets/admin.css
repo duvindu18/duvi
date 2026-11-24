@@ -18,7 +18,7 @@
   --sans: "Manrope", "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
-  --logo-ink: #1f3b2d; --logo-seed: #5e8a4c;
+  --logo-ink: #1f3b2d; --logo-seed: #5e8a4c; /* dark grounds: #f4f1ea / #8dbb78 */
   color-scheme: light;
 }
 *, *::before, *::after { box-sizing: border-box; }
@@ -32,12 +32,12 @@ h1, h2 { font-family: var(--display); font-weight: 400; letter-spacing: -0.01em;
 h1 { font-size: clamp(30px, 4vw, 40px); }
 h2 { font-size: 20px; font-weight: 500; margin-bottom: 18px; }
 :focus-visible { outline: 2px solid var(--sprout); outline-offset: 2px; }
-/* Inline Seedform logo */
-.logo { display: block; width: auto; height: auto; overflow: visible; }
-.logo .lk-stroke { stroke: var(--logo-ink); fill: none; }
-.logo .lk-fill { fill: var(--logo-ink); }
-.logo .lk-seed { fill: var(--logo-seed); }
-.logo text { font-family: var(--display); }
+/* Seedform logo (live text: "seed" Inter SemiBold, "form" Archivo Black, seed dot) */
+.sf-logo { display: inline-flex; align-items: baseline; font-size: 22px; line-height: 1; letter-spacing: -0.02em; white-space: nowrap; color: var(--logo-ink); }
+.sf-logo__light { font-family: "Inter", system-ui, sans-serif; font-weight: 600; }
+.sf-logo__bold { font-family: "Archivo Black", "Arial Black", sans-serif; font-weight: 400; }
+.sf-logo__seed { display: inline-block; flex-shrink: 0; width: 0.3em; height: 0.3em; margin-left: 0.094em; border-radius: 999px; background: var(--logo-seed); }
+.logo--image { display: block; height: auto; max-width: 100%; }
 .mono { font-family: var(--mono); font-size: 12px; }
 .hint { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 .hint b { color: var(--ink); }
@@ -52,8 +52,9 @@ h2 { font-size: 20px; font-weight: 500; margin-bottom: 18px; }
   background: var(--panel); border-bottom: 1px solid var(--line);
 }
 .adm-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-.adm-brand .logo { width: 132px; }
-.adm-brand span { font: 500 10.5px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.adm-brand .sf-logo { font-size: 22px; }
+.adm-brand .logo--image { width: 132px; }
+.adm-brand > span:not(.sf-logo) { font: 500 10.5px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
 .adm-nav { display: flex; flex-wrap: wrap; gap: 4px; }
 .adm-nav a {
   padding: 8px 12px; border-radius: 2px; text-decoration: none;
@@ -188,7 +189,8 @@ fieldset > .hint { margin-bottom: 14px; }
 /* Logo preview */
 .logo-preview { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
 .logo-preview > div { display: grid; place-items: center; padding: 24px; border-radius: 2px; min-height: 110px; }
-.logo-preview .logo { max-height: 56px; width: auto; max-width: 100%; }
+.logo-preview .sf-logo { font-size: 40px; }
+.logo-preview .logo--image { max-height: 56px; width: auto; }
 .logo-preview__light { background: #f4f1ea; border: 1px solid var(--line); }
 .logo-preview__dark { background: #131814; --logo-ink: #f4f1ea; --logo-seed: #8dbb78; }
 
@@ -228,7 +230,8 @@ fieldset > .hint { margin-bottom: 14px; }
 .adm--bare .adm-main { min-height: 100svh; display: grid; place-items: center; }
 .auth { width: 100%; max-width: 420px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; padding: 32px; }
 .auth__logo { margin-bottom: 24px; }
-.auth__logo .logo { width: 168px; }
+.auth__logo .sf-logo { font-size: 34px; }
+.auth__logo .logo--image { width: 168px; }
 .auth h1 { font-size: 24px; margin-bottom: 12px; }
 .auth > .hint { margin-bottom: 20px; }
 .auth .stack { margin-top: 8px; gap: 0; }

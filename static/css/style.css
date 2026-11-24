@@ -40,6 +40,8 @@
   --font-hero: "Playfair Display", Georgia, serif;   /* display-xl: the one hero headline */
   --font-sans: "Manrope", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --font-logo: "Inter", system-ui, sans-serif;            /* logo: "seed" */
+  --font-logo-bold: "Archivo Black", "Arial Black", sans-serif; /* logo: "form" */
 
   /* Seedform spacing and shape */
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
@@ -150,15 +152,43 @@ address { font-style: normal; }
 .small { font-size: 14px; line-height: 20px; }
 .tiny { font-size: 14px; line-height: 20px; }
 
-/* The Seedform logo, inlined from the master SVG so it follows the theme.
-   Frame, line and wordmark take --logo-ink; the seed takes --logo-seed. */
-.logo { display: block; width: auto; max-width: none; height: auto; overflow: visible; }
-.logo .lk-stroke { stroke: var(--logo-ink); fill: none; }
-.logo .lk-fill { fill: var(--logo-ink); }
-.logo .lk-seed { fill: var(--logo-seed); }
-.logo text { font-family: var(--font-display); }
-/* Reversed logo, for canopy grounds (limewash ink, dark-theme sprout seed) */
-.logo--reversed { --logo-ink: #f4f1ea; --logo-seed: #8dbb78; }
+/* The Seedform responsive logo system, set as live text so it scales with
+   font-size and follows the theme. "seed" is Inter SemiBold, "form" Archivo
+   Black, and the seed dot (0.3em) sits on the baseline after the word.
+     .sf-logo--primary     stacked: small "seed" over a large "form"
+     .sf-logo--horizontal  seed·form on one line
+     .sf-logo--monogram    "sf" + seed
+     .sf-logo--seed        the dot alone
+   .sf-logo--responsive is a horizontal logo that collapses to the monogram
+   where space runs out (the letters after s and f are hidden). */
+.sf-logo {
+  display: inline-flex; align-items: baseline;
+  font-size: 28px; line-height: 1; letter-spacing: -0.02em; white-space: nowrap;
+  color: var(--logo-ink);
+}
+.sf-logo__light { font-family: var(--font-logo); font-weight: 600; }
+.sf-logo__bold { font-family: var(--font-logo-bold); font-weight: 400; }
+.sf-logo__seed {
+  display: inline-block; flex-shrink: 0;
+  width: 0.3em; height: 0.3em; margin-left: 0.094em;
+  border-radius: var(--radius-full); background: var(--logo-seed);
+}
+.sf-logo--monogram { line-height: 0.86; letter-spacing: -0.03em; }
+.sf-logo--monogram .sf-logo__seed { margin-left: 0.067em; }
+.sf-logo--primary { flex-direction: column; align-items: flex-start; line-height: 0.86; }
+.sf-logo--primary .sf-logo__light { font-size: 0.457em; line-height: 1; margin: 0 0 0.021em 0.021em; }
+.sf-logo--primary .sf-logo__row { display: flex; align-items: baseline; gap: 0.071em; }
+.sf-logo--primary .sf-logo__seed { margin-left: 0; }
+.sf-logo--seed .sf-logo__seed { width: 1em; height: 1em; margin: 0; }
+/* Reversed: for canopy grounds (limewash letters, dark-theme sprout seed) */
+.sf-logo--reversed { --logo-ink: #f4f1ea; --logo-seed: #8dbb78; }
+/* An uploaded replacement logo (an image) in the same places */
+.logo--image { display: block; height: auto; max-width: 100%; }
+.rail__brand .logo--image { width: 156px; }
+.mobile-bar .logo--image { width: 128px; }
+.band .logo--image { height: clamp(48px, 12vh, 132px); width: auto; max-width: none; }
+.splash-resolved .logo--image { width: clamp(200px, 30vw, 420px); opacity: 0; transform: translateY(20px); transition: all 1s var(--ease) 0.2s; }
+#splash.is-settle .splash-resolved .logo--image { opacity: 1; transform: none; }
 
 /* Links: laterite with an underline that redraws on hover */
 .hairline-link { position: relative; display: inline-block; }
@@ -283,11 +313,11 @@ html[data-splash-seen] #splash { display: none; }
   animation-delay: calc(var(--i) * 0.15s);
   transition: transform 0.9s var(--curtain);
 }
-.band:not(.band--light) .logo { --logo-ink: #f4f1ea; --logo-seed: #8dbb78; }
+.band:not(.band--light) .sf-logo { --logo-ink: #f4f1ea; --logo-seed: #8dbb78; }
 .band--light { background: var(--surface); color: var(--ink); }
 @keyframes band-in { to { opacity: 1; } }
-.band span { display: block; padding: 0 4vw; }
-.band .logo { height: clamp(48px, 12vh, 132px); }
+.band > .marquee > span { display: block; padding: 0 4vw; }
+.band .sf-logo { font-size: clamp(56px, 13vh, 150px); }
 #splash.is-settle .band:nth-child(1) { transform: translateY(-100%); }
 #splash.is-settle .band:nth-child(3) { transform: translateY(100%); }
 
@@ -322,7 +352,14 @@ html[data-splash-seen] #splash { display: none; }
   transition: transform 500ms var(--ease);
 }
 .counter .strip span { height: 1em; }
-.counter-unit { margin: 0 0 8px 8px; font-family: var(--font-mono); font-size: 12px; }
+/* Loading state: the seed grows with the count (--p, 0 to 1, set by main.js) */
+.counter-seed {
+  display: inline-block; flex-shrink: 0;
+  width: 0.3em; height: 0.3em; margin-left: 0.094em;
+  border-radius: var(--radius-full); background: #8dbb78;
+  transform: scale(calc(0.3 + 0.7 * var(--p, 0))); transform-origin: 50% 100%;
+  transition: transform 300ms var(--ease);
+}
 
 .splash-resolved {
   position: absolute; inset: 0;
@@ -333,8 +370,8 @@ html[data-splash-seen] #splash { display: none; }
   transition: clip-path 0.9s var(--curtain), opacity 0.4s;
 }
 #splash.is-settle .splash-resolved { opacity: 1; clip-path: inset(0 0 0 0); }
-.splash-resolved .logo {
-  width: clamp(200px, 30vw, 420px);
+.splash-resolved .sf-logo {
+  font-size: clamp(104px, 13vw, 200px);
   opacity: 0; transform: translateY(20px);
   transition: all 1s var(--ease) 0.2s;
 }
@@ -343,7 +380,7 @@ html[data-splash-seen] #splash { display: none; }
   text-align: center; line-height: 20px;
   opacity: 0; transition: opacity 0.8s 0.45s;
 }
-#splash.is-settle .splash-resolved .logo,
+#splash.is-settle .splash-resolved .sf-logo,
 #splash.is-settle .splash-resolved p { opacity: 1; transform: none; }
 
 @media (min-width: 768px) {
@@ -372,7 +409,7 @@ html.is-leaving.is-leaving-go #curtain { transition: transform 0.65s var(--curta
   border-right: 1px solid var(--hairline);
   background: var(--surface);
 }
-.rail__brand .logo { width: 156px; }
+.rail__brand .sf-logo { font-size: 28px; }
 .rail__brand .label { margin-top: 14px; }
 .rail__nav li { display: flex; align-items: center; gap: 12px; }
 .rail__nav li + li { margin-top: 16px; }
@@ -426,7 +463,13 @@ html.is-leaving.is-leaving-go #curtain { transition: transform 0.65s var(--curta
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
 }
-.mobile-bar .logo { width: 128px; }
+.mobile-bar .sf-logo { font-size: 26px; }
+/* Very narrow screens: the header logo collapses to the monogram */
+@media (max-width: 340px) {
+  .sf-logo--responsive .sf-logo__tail { display: none; }
+  .sf-logo--responsive { letter-spacing: -0.03em; }
+  .sf-logo--responsive .sf-logo__seed { margin-left: 0.067em; }
+}
 .menu-btn { display: flex; align-items: center; gap: 12px; height: 40px; font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; }
 .menu-btn .bars { position: relative; width: 20px; height: 8px; }
 .menu-btn .bars i {

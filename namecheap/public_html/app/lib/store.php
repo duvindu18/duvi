@@ -33,8 +33,8 @@ function normalize_content(array $c): array
 {
     $c += ['site' => [], 'home' => [], 'works' => [], 'studio' => [], 'contact' => [], 'projects' => []];
     $c['site'] += [
-        'name' => 'Seedform', 'tagline' => '', 'description' => '', 'descriptor' => '3D visualisation studio',
-        'founded' => '', 'based' => '', 'email' => '', 'phone' => '', 'logo' => ['src' => 'images/seedform-lockup.svg', 'w' => 300, 'h' => 64],
+        'name' => 'Seedform', 'tagline' => '', 'description' => '', 'descriptor' => '3D Visualization',
+        'founded' => '', 'based' => '', 'email' => '', 'phone' => '', 'logo' => ['src' => 'builtin', 'w' => 0, 'h' => 0],
         'social' => [],
         // Optional project facts. Off for a visualization studio; switch on in
         // Admin > Site & home for an architectural practice.

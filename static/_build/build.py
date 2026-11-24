@@ -17,27 +17,34 @@ from datetime import date
 from content import CONTACT_PAGE, CONTACTS, HOME, PRINCIPLES, PROJECTS, SITE, STUDIO, WORKS
 
 OUT = Path(__file__).resolve().parent.parent
-FONTS = "https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Playfair+Display:ital,wght@0,400;1,400&family=Manrope:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap"
+FONTS = "https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@600&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Playfair+Display:ital,wght@0,400;1,400&family=Manrope:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap"
 
 
 # ---------------------------------------------------------------- helpers
-# Seedform master logo geometry (from the design system's SVG masters), inlined so
-# CSS can colour it for each theme: frame/line/wordmark use --logo-ink, the seed --logo-seed.
-_MARK = ('<rect class="lk-stroke" x="4.5" y="4.5" width="55" height="55" rx="2" stroke-width="5"/>'
-         '<rect class="lk-fill" x="29.5" y="6" width="5" height="31"/>'
-         '<circle class="lk-seed" cx="32" cy="44" r="8"/>')
-LOCKUP = ('<svg class="logo" viewBox="0 0 300 64" width="300" height="64" {a11y}>' + _MARK +
-          '<text class="lk-fill" x="82" y="45" font-family="Fraunces, Georgia, \'Times New Roman\', serif" '
-          'font-size="40" font-weight="500" letter-spacing="-0.4">seedform</text></svg>')
-STACKED = ('<svg class="logo" viewBox="0 0 200 128" width="200" height="128" {a11y}><g transform="translate(68 0)">' + _MARK +
-           '</g><text class="lk-fill" x="100" y="114" text-anchor="middle" font-family="Fraunces, Georgia, \'Times New Roman\', serif" '
-           'font-size="36" font-weight="500" letter-spacing="-0.36">seedform</text></svg>')
-
-
-def wordmark(root="", alt="Seedform", stacked=False):
-    """The Seedform lockup as inline SVG (alt="" marks a decorative copy)."""
-    a11y = f'role="img" aria-label="{alt}"' if alt else 'aria-hidden="true" focusable="false"'
-    return (STACKED if stacked else LOCKUP).replace("{a11y}", a11y)
+# Seedform responsive logo system (from the "Responsive logo system" design canvas):
+# "seed" in Inter SemiBold + "form" in Archivo Black, followed by the seed dot.
+#   primary    stacked "seed" over a large "form"   (splash, covers)
+#   horizontal seed·form on one line                (header, menus)
+#   monogram   "sf" + seed                          (small spaces)
+#   seed       the dot alone                        (favicon, loading)
+# The horizontal logo collapses to the monogram by hiding the letters after s / f,
+# so one piece of markup can respond to the space it has (see .sf-logo--responsive).
+def wordmark(root="", alt="Seedform", variant="horizontal"):
+    """The Seedform logo as live text (alt="" marks a decorative copy)."""
+    a11y = f'role="img" aria-label="{alt}"' if alt else 'aria-hidden="true"'
+    seed = '<i class="sf-logo__seed"></i>'
+    if variant == "primary":
+        inner = ('<span class="sf-logo__light">seed</span>'
+                 f'<span class="sf-logo__row"><span class="sf-logo__bold">form</span>{seed}</span>')
+    elif variant == "monogram":
+        inner = f'<span class="sf-logo__light">s</span><span class="sf-logo__bold">f</span>{seed}'
+    elif variant == "seed":
+        inner = seed
+    else:  # horizontal; "responsive" adds the collapse-to-monogram behaviour
+        inner = ('<span class="sf-logo__light">s<span class="sf-logo__tail">eed</span></span>'
+                 f'<span class="sf-logo__bold">f<span class="sf-logo__tail">orm</span></span>{seed}')
+    classes = "sf-logo sf-logo--horizontal sf-logo--responsive" if variant == "responsive" else f"sf-logo sf-logo--{variant}"
+    return f'<span class="{classes}" {a11y}>{inner}</span>'
 
 
 THIS_YEAR = date.today().year
@@ -128,10 +135,10 @@ def splash(root):
 <div id="splash" role="status" aria-label="Loading {SITE['full_name']}">
 {bands}  <div class="splash-foot">
     <div><p class="label">Loading</p><p class="label">{tok(HOME['kicker'])}</p></div>
-    <div class="counter" aria-hidden="true">{digits}<span class="counter-unit">%</span></div>
+    <div class="counter" aria-hidden="true">{digits}<i class="counter-seed"></i></div>
   </div>
   <div class="splash-resolved">
-    {wordmark(root, stacked=True)}
+    {wordmark(root, variant="primary")}
     <p class="label">{tok(SITE['tagline'])}<br>{SITE['based']}</p>
   </div>
   <div class="splash-meta"><span class="label">{SITE['full_name']}</span><span class="label">{SITE['descriptor']}</span></div>
@@ -176,7 +183,7 @@ def mobile(root):
     )
     return f"""
 <header class="mobile-bar">
-  <a href="{root}index.html" aria-label="{SITE['full_name']}, home">{wordmark(root, alt='')}</a>
+  <a href="{root}index.html" aria-label="{SITE['full_name']}, home">{wordmark(root, alt='', variant='responsive')}</a>
   <button class="menu-btn" type="button" aria-expanded="false" aria-controls="mobile-menu" data-menu-toggle>
     <span data-menu-label>Menu</span><span class="bars"><i></i><i></i></span>
   </button>
@@ -399,7 +406,7 @@ def project(i, p):
     specs = [("Year", p["year"]), ("Location", f"{p['city']}, {p['country']}"), ("Typology", p["typology"]),
              ("Status", p["status"]), ("Area", p["area"])]
     spec_html = "".join(f'<div><dt class="label">{k}</dt><dd>{v}</dd></div>' for k, v in specs)
-    # Client and materials stay in content.py but are not shown (visualisation studio).
+    # Client and materials stay in content.py but are not shown (visualization studio).
     plates = ""
     for n, (f, w, h, cap) in enumerate(p["figures"]):
         plates += f"""

@@ -54,6 +54,7 @@
     var start = performance.now();
 
     function render(value) {
+      splash.style.setProperty("--p", value / 100); // the loading seed grows with the count
       var digits = String(value).padStart(3, "0").split("");
       strips.forEach(function (strip, i) {
         strip.style.transform = "translateY(-" + Number(digits[i]) + "em)";

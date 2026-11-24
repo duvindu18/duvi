@@ -89,9 +89,11 @@ Tips:
 - Upload photos straight from the camera if you like: anything larger than 2400 px is
   scaled down automatically and phone photos are turned the right way up.
   JPG, PNG or WebP, up to 15 MB each.
-- The **logo** is the Seedform lockup, built in as SVG: it switches to its reversed colours in
-  dark mode and on the canopy loading bands by itself. Uploading a PNG under Site & home replaces
-  it everywhere; pick artwork that reads on both the limewash and the dark background.
+- The **logo** is the Seedform responsive logo, built in as live text ("seed" in Inter SemiBold,
+  "form" in Archivo Black, then the seed dot). It uses the stacked form on the loading screen, the
+  horizontal form in the menus and the "sf" monogram on very narrow phones, and switches colours in
+  dark mode by itself. The browser-tab icon is the seed. Uploading a PNG under Site & home replaces
+  the logo everywhere; pick artwork that reads on both the limewash and the dark background.
 - Every save makes a backup of the previous version first, so mistakes can be undone
   under Account & backups. Restoring brings back text and project data; images are never
   deleted by a restore.

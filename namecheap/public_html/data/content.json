@@ -1,17 +1,17 @@
 {
   "site": {
     "name": "Seedform",
-    "descriptor": "3D visualisation studio",
-    "tagline": "Visualising architecture since {founded}",
-    "description": "Seedform is an independent 3D visualisation studio based in Sri Lanka. Since 2020 we have handled local and international projects, from small houses to large infrastructure.",
+    "descriptor": "3D Visualization",
+    "tagline": "Visualizing architecture since {founded}",
+    "description": "Seedform is an independent 3D visualization studio based in Sri Lanka. Since 2020 we have handled local and international projects, from small houses to large infrastructure.",
     "founded": 2020,
     "based": "Sri Lanka",
     "email": "hello@seedform.lk",
     "phone": "+94 11 000 0000",
     "logo": {
-      "src": "images/seedform-lockup.svg",
-      "w": 300,
-      "h": 64
+      "src": "builtin",
+      "w": 0,
+      "h": 0
     },
     "social": [
       {
@@ -109,7 +109,7 @@
       },
       {
         "year": "2024",
-        "award": "Visualisation Film Award — winner",
+        "award": "Visualization Film Award — winner",
         "project": "Timber Pavilion"
       },
       {

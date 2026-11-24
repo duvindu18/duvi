@@ -22,7 +22,7 @@ function social_icon(array $s): string
     return '<span class="label">' . e($s['short']) . '</span>';
 }
 
-const FONTS_URL = 'https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Playfair+Display:ital,wght@0,400;1,400&family=Manrope:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap';
+const FONTS_URL = 'https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@600&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Playfair+Display:ital,wght@0,400;1,400&family=Manrope:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap';
 
 /** Render app/views/<name>.php with variables and return the HTML. */
 function render(string $view, array $vars = []): string
@@ -47,43 +47,56 @@ function project_url(array $p): string
     return url('projects/' . rawurlencode($p['slug']));
 }
 
-/** Path of the built-in Seedform lockup; while it is the logo, it is inlined as SVG. */
-const DEFAULT_LOGO = 'images/seedform-lockup.svg';
+/** Value of site.logo.src that means "use the built-in Seedform logo" (live text). */
+const BUILTIN_LOGO = 'builtin';
 
 /**
- * The Seedform master logo geometry (frame, line and seed), inlined so CSS can
- * colour it per theme: frame, line and wordmark take --logo-ink, the seed --logo-seed.
+ * The Seedform responsive logo system: "seed" in Inter SemiBold + "form" in
+ * Archivo Black, followed by the seed dot. Variants:
+ *   primary    stacked "seed" over a large "form"  (splash)
+ *   horizontal seed·form on one line               (header, menus, admin)
+ *   responsive horizontal, collapsing to the "sf" monogram on very narrow screens
+ *   monogram   "sf" + seed
+ *   seed       the dot alone
  */
-const LOGO_MARK = '<rect class="lk-stroke" x="4.5" y="4.5" width="55" height="55" rx="2" stroke-width="5"/>'
-    . '<rect class="lk-fill" x="29.5" y="6" width="5" height="31"/>'
-    . '<circle class="lk-seed" cx="32" cy="44" r="8"/>';
-
-function logo_svg(string $alt = '', bool $stacked = false): string
+function logo_text(string $alt = '', string $variant = 'horizontal'): string
 {
-    $a11y = $alt !== '' ? 'role="img" aria-label="' . e($alt) . '"' : 'aria-hidden="true" focusable="false"';
-    $font = 'font-family="Fraunces, Georgia, \'Times New Roman\', serif" font-weight="500"';
-    if ($stacked) {
-        return '<svg class="logo" viewBox="0 0 200 128" width="200" height="128" ' . $a11y . '><g transform="translate(68 0)">' . LOGO_MARK
-            . '</g><text class="lk-fill" x="100" y="114" text-anchor="middle" ' . $font . ' font-size="36" letter-spacing="-0.36">seedform</text></svg>';
+    $a11y = $alt !== '' ? 'role="img" aria-label="' . e($alt) . '"' : 'aria-hidden="true"';
+    $seed = '<i class="sf-logo__seed"></i>';
+    switch ($variant) {
+        case 'primary':
+            $inner = '<span class="sf-logo__light">seed</span><span class="sf-logo__row"><span class="sf-logo__bold">form</span>' . $seed . '</span>';
+            break;
+        case 'monogram':
+            $inner = '<span class="sf-logo__light">s</span><span class="sf-logo__bold">f</span>' . $seed;
+            break;
+        case 'seed':
+            $inner = $seed;
+            break;
+        default:
+            $inner = '<span class="sf-logo__light">s<span class="sf-logo__tail">eed</span></span>'
+                . '<span class="sf-logo__bold">f<span class="sf-logo__tail">orm</span></span>' . $seed;
     }
-    return '<svg class="logo" viewBox="0 0 300 64" width="300" height="64" ' . $a11y . '>' . LOGO_MARK
-        . '<text class="lk-fill" x="82" y="45" ' . $font . ' font-size="40" letter-spacing="-0.4">seedform</text></svg>';
+    $classes = $variant === 'responsive' ? 'sf-logo sf-logo--horizontal sf-logo--responsive' : 'sf-logo sf-logo--' . $variant;
+    return '<span class="' . $classes . '" ' . $a11y . '>' . $inner . '</span>';
 }
 
 /**
- * The studio logo. The built-in Seedform lockup is inlined (so it follows light and
- * dark mode); an uploaded replacement is shown as an image. $alt = '' marks a
- * decorative copy, e.g. inside a link that already has a label.
+ * The studio logo. The built-in Seedform logo is live text (it follows light and
+ * dark mode and scales with its space); an uploaded replacement is shown as an
+ * image. $alt = '' marks a decorative copy, e.g. inside a link that has a label.
  */
-function logo_img(?string $alt = null, bool $stacked = false): string
+function logo_img(?string $alt = null, string $variant = 'horizontal'): string
 {
     $site = content()['site'];
     $logo = $site['logo'];
     $alt = $alt ?? $site['name'];
-    if (($logo['src'] ?? '') === DEFAULT_LOGO) {
-        return logo_svg($alt, $stacked);
+    $src = (string) ($logo['src'] ?? '');
+    if ($src === BUILTIN_LOGO || $src === '' || strpos($src, 'images/seedform-') === 0) {
+        return logo_text($alt, $variant);
     }
-    return '<img class="logo logo--image" src="' . e(url($logo['src'])) . '" width="' . (int) $logo['w'] . '" height="' . (int) $logo['h'] . '" alt="' . e($alt) . '">';
+    $cls = $variant === 'primary' ? 'logo logo--image logo--large' : 'logo logo--image';
+    return '<img class="' . $cls . '" src="' . e(url($src)) . '" width="' . (int) $logo['w'] . '" height="' . (int) $logo['h'] . '" alt="' . e($alt) . '">';
 }
 
 /** Masked line-by-line reveal. Lines are plain text; *word* becomes a light accent. */
@@ -206,10 +219,10 @@ function splash_html(): string
 <div id="splash" role="status" aria-label="Loading ' . e($site['name']) . '">
 ' . $bands . '  <div class="splash-foot">
     <div><p class="label">Loading</p><p class="label">' . txt($c['home']['kicker']) . '</p></div>
-    <div class="counter" aria-hidden="true">' . $digits . '<span class="counter-unit">%</span></div>
+    <div class="counter" aria-hidden="true">' . $digits . '<i class="counter-seed"></i></div>
   </div>
   <div class="splash-resolved">
-    ' . logo_img(null, true) . '
+    ' . logo_img(null, 'primary') . '
     <p class="label">' . txt($site['tagline']) . $place . '</p>
   </div>
   <div class="splash-meta"><span class="label">' . e($site['name']) . '</span><span class="label">' . e($site['descriptor']) . '</span></div>
@@ -265,7 +278,7 @@ function mobile_html(): string
     $mail = $site['email'] !== '' ? '<a href="mailto:' . e($site['email']) . '">' . e($site['email']) . '</a>' : '';
     return '
 <header class="mobile-bar">
-  <a href="' . e(url()) . '" aria-label="' . e($site['name']) . ', home">' . logo_img('') . '</a>
+  <a href="' . e(url()) . '" aria-label="' . e($site['name']) . ', home">' . logo_img('', 'responsive') . '</a>
   <button class="menu-btn" type="button" aria-expanded="false" aria-controls="mobile-menu" data-menu-toggle>
     <span data-menu-label>Menu</span><span class="bars"><i></i><i></i></span>
   </button>

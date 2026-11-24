@@ -101,7 +101,7 @@ admin_head('Site & home', 'site'); ?>
       <h2>Studio</h2>
       <div class="row2">
         <?= f_text('name', 'Studio name', $site['name'], 'Used in page titles and link previews.', ['required' => true]) ?>
-        <?= f_text('descriptor', 'Descriptor', $site['descriptor'], 'Small line under the logo, e.g. 3D visualisation studio.') ?>
+        <?= f_text('descriptor', 'Descriptor', $site['descriptor'], 'Small line under the logo, e.g. 3D Visualization.') ?>
       </div>
       <?= f_text('tagline', 'Tagline', $site['tagline'], 'Shown on the loading screen.') ?>
       <?= f_area('description', 'Short description', $site['description'], 'Shown on the home page and used by search engines.', 2) ?>
@@ -129,7 +129,7 @@ admin_head('Site & home', 'site'); ?>
         <div class="logo-preview__dark"><?= logo_img('') ?></div>
       </div>
       <label class="drop"><input type="file" name="logo_new" accept="image/png,image/webp" data-file-preview>
-        <span><b>Replace logo</b> — PNG or WebP with a transparent background. The built-in Seedform logo adapts to light and dark mode by itself; an uploaded logo is shown as it is, so choose artwork that reads on both the limewash and the dark background. To go back to the built-in logo, restore an earlier backup under Account &amp; backups.</span></label>
+        <span><b>Replace logo</b> — PNG or WebP with a transparent background. The built-in Seedform logo is live text: it adapts to light and dark mode and switches between its full, stacked and "sf" monogram forms to fit the space. An uploaded logo replaces it everywhere and is shown as it is, so choose artwork that reads on both the limewash and the dark background. To go back to the built-in logo, restore an earlier backup under Account &amp; backups.</span></label>
       <div class="drop-preview" data-preview></div>
     </section>
 

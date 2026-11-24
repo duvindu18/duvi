@@ -208,7 +208,9 @@ function media_usage(array $c): array
             $use[$src][] = $label;
         }
     };
-    $add($c['site']['logo']['src'] ?? '', 'Logo');
+    if (($c['site']['logo']['src'] ?? '') !== 'builtin') {
+        $add($c['site']['logo']['src'] ?? '', 'Logo');
+    }
     foreach ($c['studio']['figures'] as $i => $f) {
         $add($f['src'] ?? '', 'Studio page, image ' . ($i + 1));
     }
