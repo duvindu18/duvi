@@ -118,7 +118,11 @@ The app follows the Seedform brand book: an architecture studio in Colombo, *Arc
 - **Colour:** limewash grounds (`#F4F1EA`), canopy green for weight (`#1F3B2D`: primary buttons, the selected sidebar item), sand bands, the sprout seed (`#5E8A4C`: focus rings, the logo's seed, progress), and laterite used sparingly (`#A84E33`: links, overdue, cancelled).
 - **Type:** Playfair Display for headlines and project titles, Manrope for text and the interface, IBM Plex Mono for labels (project numbers and dates, uppercase, tracked). All three are built in and work offline.
 - **Shape:** square-cut corners (2px) and 1px hairlines instead of shadows. The only circle is the seed: dots, markers, avatars.
-- **Logo:** the frame, line and seed mark with the lowercase *seedform* wordmark, in the window bar, the splash screen and the phone's connect screen. The app and phone icons are the brand's app icon.
+- **Logo:** the responsive logo. "seed" is set in Inter, "form" in Archivo Black, followed by the sprout-green seed. It comes in four sizes:
+  - the primary logo ("seed" over a big "form") on the splash screen, which plays the motion logo once;
+  - the horizontal logo in the window bar and on the phone screens;
+  - the monogram *sf* when the sidebar is collapsed or the window is narrow, and as the app and phone icons;
+  - the seed alone as the phone's loading dot.
 - **Folder icons:** square-cut, in the brand palette. Canopy is in progress, sprout completed, sand on hold, the line tone upcoming and laterite cancelled, in the app and in File Explorer.
 - **The assistant:** speaks in the brand voice (calm, plain, warm), and its light at the bottom of the window uses the brand greens.
 

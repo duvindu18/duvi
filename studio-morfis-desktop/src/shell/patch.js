@@ -15,7 +15,7 @@ const ICON = {
 const WBAR =
   '<div class="wbar" id="wbar" hidden>' +
   '<button type="button" class="wside" id="wbarSide" tabindex="-1" aria-label="Collapse the sidebar" title="Collapse the sidebar (Ctrl+B)"></button>' +
-  '<div class="wbrand"><span class="wbrand-logo" role="img" aria-label="Seedform"><svg class="sf-mark" viewBox="0 0 64 64" aria-hidden="true"><rect x="4.5" y="4.5" width="55" height="55" rx="2" fill="none" stroke="currentColor" stroke-width="5"/><rect x="29.5" y="6" width="5" height="31" fill="currentColor"/><circle class="sf-seed" cx="32" cy="44" r="8"/></svg><span class="sf-word">seedform</span></span><span class="wbrand-ic" id="wbarIcon" aria-hidden="true"></span><span class="wbrand-name" id="wbarName"></span><span class="wcrumb" id="wbarCrumb"></span></div>' +
+  '<div class="wbrand"><span class="wbrand-logo"><span class="sfl" role="img" aria-label="Seedform"><b class="sfl-full"><span class="sfl-a">seed</span><span class="sfl-b">form</span></b><b class="sfl-mono"><span class="sfl-a">s</span><span class="sfl-b">f</span></b><i class="sfl-dot"></i></span></span><span class="wbrand-ic" id="wbarIcon" aria-hidden="true"></span><span class="wbrand-name" id="wbarName"></span><span class="wcrumb" id="wbarCrumb"></span></div>' +
   '<div class="wtitle" id="wbarTitle"></div>' +
   '<div class="wctl" role="group" aria-label="Window controls">' +
   '<button type="button" class="wc wc-min" data-act="winMin" tabindex="-1" aria-label="Minimize" title="Minimize">' + ICON.min + '</button>' +

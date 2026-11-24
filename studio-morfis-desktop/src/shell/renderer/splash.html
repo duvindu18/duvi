@@ -18,16 +18,21 @@ body{display:grid;place-items:center}
 .name{font-weight:600;font-size:15px;letter-spacing:-.01em;color:var(--ink);max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;animation:fade .3s .1s ease-out both}
 .track{width:120px;height:2px;border-radius:2px;background:var(--track);overflow:hidden;animation:fade .3s .16s ease-out both}
 .track i{display:block;width:40%;height:100%;border-radius:2px;background:var(--accent);animation:run 1.1s cubic-bezier(.4,0,.2,1) infinite}
-/* Seedform: the lockup (frame, line and seed with the lowercase wordmark) on limewash, or on night garden in dark */
-.logo{display:none;align-items:center;gap:12px;color:var(--canopy);animation:icon .32s .04s cubic-bezier(.2,0,0,1) both}
-.logo svg{width:40px;height:40px;flex:none}
-.logo .seed{fill:var(--sprout)}
-.logo b{font-family:'Playfair Display',Georgia,'Times New Roman',serif;font-weight:500;font-size:38px;line-height:1;letter-spacing:-.01em;transform:translateY(-2px)}
+/* Seedform: the primary logo ("seed" over a big "form", then the seed), in ink on limewash or night garden.
+   It plays the motion logo once: the seed drops and bounces, "form" grows up from the baseline, "seed" rises in. */
+.logo{display:none;flex-direction:column;align-items:flex-start;gap:2px;color:var(--canopy)}
+.logo .a{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-weight:600;font-size:29px;line-height:1;letter-spacing:-.02em;margin-left:2px;animation:rise .5s .62s cubic-bezier(.2,.8,.2,1) both}
+.logo .r{display:flex;align-items:baseline;gap:5px}
+.logo .b{font-family:'Archivo Black','Arial Black',sans-serif;font-size:64px;line-height:.86;letter-spacing:-.02em;transform-origin:50% 100%;animation:grow .5s .4s cubic-bezier(.2,.8,.2,1) both}
+.logo .d{display:inline-block;width:19px;height:19px;border-radius:50%;background:var(--sprout);flex:none;animation:drop .62s cubic-bezier(.55,0,1,.45) both}
+@keyframes drop{0%{transform:translateY(-120px)}64%{transform:none;animation-timing-function:cubic-bezier(0,.55,.45,1)}82%{transform:translateY(-12px);animation-timing-function:cubic-bezier(.55,0,1,.45)}100%{transform:none}}
+@keyframes grow{from{transform:scaleY(0)}to{transform:none}}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .has-logo .icon,.has-logo .name{display:none}.has-logo .logo{display:flex}
-.has-logo .card{gap:20px;border-radius:2px;box-shadow:none;background:var(--sf-bg);border-color:var(--sf-line)}
+.has-logo .card{gap:22px;overflow:hidden;border-radius:2px;box-shadow:none;background:var(--sf-bg);border-color:var(--sf-line)}
 .has-logo .track{border-radius:0;background:var(--sf-line)}
 .has-logo .track i{border-radius:0;background:var(--sprout)}
-.has-logo .cap{font-family:'Manrope','Segoe UI',sans-serif;color:var(--sf-muted);font-size:12px}
+.has-logo .cap{font-family:'Inter','Segoe UI',sans-serif;color:var(--sf-muted);font-size:12px}
 :root{--canopy:#EDEAE2;--sprout:#8DBB78;--sf-bg:#131814;--sf-line:#323A34;--sf-muted:#A9AD9F}
 :root.light{--canopy:#1F3B2D;--sprout:#5E8A4C;--sf-bg:#F4F1EA;--sf-line:#D3CBBA;--sf-muted:#5A5D52}
 .cap{font-size:11px;color:var(--ink-2);letter-spacing:.02em;animation:fade .3s .2s ease-out both}
@@ -42,7 +47,7 @@ body{display:grid;place-items:center}
 </head>
 <body>
 <div class="card" role="status" aria-label="Loading">
-  <div class="logo" role="img" aria-label="Seedform"><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="4.5" y="4.5" width="55" height="55" rx="2" fill="none" stroke="currentColor" stroke-width="5"/><rect x="29.5" y="6" width="5" height="31" fill="currentColor"/><circle class="seed" cx="32" cy="44" r="8"/></svg><b>seedform</b></div>
+  <div class="logo" role="img" aria-label="Seedform"><span class="a">seed</span><span class="r"><span class="b">form</span><i class="d"></i></span></div>
   <div class="icon" id="icon"></div>
   <div class="name" id="name">Seedform</div>
   <div class="track" aria-hidden="true"><i></i></div>
@@ -56,10 +61,10 @@ body{display:grid;place-items:center}
   if (q.get('motion') === '0') root.classList.add('still');
   if (/^#[0-9a-f]{6}$/i.test(accent)) root.style.setProperty('--accent', accent);
   document.getElementById('name').textContent = name;
-  /* the Seedform lockup, set in the brand's own type (passed as file links), unless the app was given another name or icon */
+  /* the Seedform logo, set in its own type (passed as file links), unless the app was given another name or icon */
   if (q.get('logo')) {
     var css = '', f = function (fam, url, w) { return url ? '@font-face{font-family:\'' + fam + '\';font-weight:' + w + ';src:url(' + JSON.stringify(url) + ')}' : ''; };
-    css += f('Playfair Display', q.get('display'), '400 900') + f('Manrope', q.get('text'), '200 800');
+    css += f('Archivo Black', q.get('display'), '400') + f('Inter', q.get('text'), '100 900');
     var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
     root.classList.add('has-logo');
   }

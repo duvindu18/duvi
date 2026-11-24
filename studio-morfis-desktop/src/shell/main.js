@@ -26,7 +26,9 @@ const INTER = path.join(path.dirname(require.resolve('@fontsource-variable/inter
 const FONTS = {
   playfair: path.join(path.dirname(require.resolve('@fontsource-variable/playfair-display/package.json')), 'files'),
   manrope: path.join(path.dirname(require.resolve('@fontsource-variable/manrope/package.json')), 'files'),
-  plexmono: path.join(path.dirname(require.resolve('@fontsource/ibm-plex-mono/package.json')), 'files')
+  plexmono: path.join(path.dirname(require.resolve('@fontsource/ibm-plex-mono/package.json')), 'files'),
+  /* the logo: "seed" in Inter, "form" in Archivo Black */
+  archivo: path.join(path.dirname(require.resolve('@fontsource/archivo-black/package.json')), 'files')
 };
 /* the voice assistant, all on this computer: the speech engine (ONNX Runtime, WebAssembly), Whisper to listen,
    Kokoro to speak, and espeak-ng (through phonemizer) to turn words into sounds for Kokoro */
@@ -117,9 +119,9 @@ function asset(pathname) {
   if (pathname.indexOf('/vendor/leaflet/') === 0) file = path.join(LEAFLET, decodeURIComponent(pathname.slice('/vendor/leaflet/'.length)));
   else if (pathname.indexOf('/vendor/mammoth/') === 0) file = path.join(MAMMOTH, decodeURIComponent(pathname.slice('/vendor/mammoth/'.length)));
   else if (pathname.indexOf('/vendor/inter/') === 0) file = path.join(INTER, decodeURIComponent(pathname.slice('/vendor/inter/'.length)));
-  else if (/^\/vendor\/fonts\/(playfair|manrope|plexmono)\//.test(pathname)) { const k = pathname.split('/')[3]; file = path.join(FONTS[k], decodeURIComponent(pathname.split('/').slice(4).join('/'))); }
+  else if (/^\/vendor\/fonts\/(playfair|manrope|plexmono|archivo)\//.test(pathname)) { const k = pathname.split('/')[3]; file = path.join(FONTS[k], decodeURIComponent(pathname.split('/').slice(4).join('/'))); }
   else file = path.join(RENDERER, decodeURIComponent(pathname.slice(1)));
-  const okRoot = [LEAFLET, INTER, MAMMOTH, RENDERER, FONTS.playfair, FONTS.manrope, FONTS.plexmono].some((r) => path.resolve(file).startsWith(path.resolve(r) + path.sep));
+  const okRoot = [LEAFLET, INTER, MAMMOTH, RENDERER, FONTS.playfair, FONTS.manrope, FONTS.plexmono, FONTS.archivo].some((r) => path.resolve(file).startsWith(path.resolve(r) + path.sep));
   if (!okRoot || !fs.existsSync(file) || !fs.statSync(file).isFile()) return null;
   return { body: fs.readFileSync(file), type: MIME[path.extname(file).toLowerCase()] || 'application/octet-stream' };
 }
@@ -169,7 +171,7 @@ function openSplash() {
   const icon = branding.iconPng();
   /* the studio's wordmark, unless the app has been given another name or icon */
   const own = !prefs.get('branding').name && !prefs.get('branding').iconFile;
-  splash.loadFile(path.join(RENDERER, 'splash.html'), { query: { name: branding.name(), icon: require('url').pathToFileURL(icon).href, logo: own ? '1' : '', display: require('url').pathToFileURL(path.join(FONTS.playfair, 'playfair-display-latin-wght-normal.woff2')).href, text: require('url').pathToFileURL(path.join(FONTS.manrope, 'manrope-latin-wght-normal.woff2')).href, theme: resolvedTheme(), accent: prefs.get('accent'), motion: prefs.get('reduceMotion') ? '0' : '1' } });
+  splash.loadFile(path.join(RENDERER, 'splash.html'), { query: { name: branding.name(), icon: require('url').pathToFileURL(icon).href, logo: own ? '1' : '', display: require('url').pathToFileURL(path.join(FONTS.archivo, 'archivo-black-latin-400-normal.woff2')).href, text: require('url').pathToFileURL(path.join(INTER, 'inter-latin-wght-normal.woff2')).href, theme: resolvedTheme(), accent: prefs.get('accent'), motion: prefs.get('reduceMotion') ? '0' : '1' } });
   splash.once('ready-to-show', () => { if (splash) { splash.shownAt = Date.now(); splash.show(); } });
 }
 function closeSplash(then) {

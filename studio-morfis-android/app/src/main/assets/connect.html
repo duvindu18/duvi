@@ -13,11 +13,16 @@
   body{margin:0;min-height:100vh;background:var(--page);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Roboto,sans-serif;padding:26px 20px 40px;display:flex;justify-content:center}
   body::before{content:"";position:fixed;inset:0;background-image:radial-gradient(circle at 1px 1px,var(--grid) 1px,transparent 0);background-size:22px 22px;pointer-events:none}
   main{position:relative;width:100%;max-width:440px;display:flex;flex-direction:column;gap:18px}
-  /* the Seedform lockup: the frame, line and seed, with the lowercase wordmark */
-  .brand{display:flex;align-items:center;gap:10px;color:var(--canopy)}
-  .brand svg{width:32px;height:32px}
-  .brand .seed{fill:var(--dot)}
-  .brand b{font:500 30px/1 'Playfair Display',Georgia,'Times New Roman',serif;letter-spacing:-.01em}
+  /* the Seedform logo, horizontal: "seed" in Inter 600, "form" in Archivo Black, then the seed; the monogram on very narrow screens */
+  @font-face{font-family:SfA;font-weight:100 900;src:url(sf-inter.woff2)}
+  @font-face{font-family:SfB;font-display:block;src:url(sf-archivo.woff2)}
+  .brand{display:flex;align-items:baseline;gap:.09em;font-size:32px;line-height:1;color:var(--canopy);white-space:nowrap}
+  .brand b{font-weight:400;letter-spacing:-.02em}
+  .brand .a{font-family:SfA,system-ui,sans-serif;font-weight:600}
+  .brand .b{font-family:SfB,'Arial Black',sans-serif}
+  .brand i{width:.3em;height:.3em;border-radius:50%;background:var(--dot);display:inline-block}
+  .brand .m{display:none;letter-spacing:-.03em}
+  @media (max-width:320px){.brand .f{display:none}.brand .m{display:inline}}
   h1{margin:18px 0 0;font:500 42px/1.06 'Playfair Display',Georgia,'Times New Roman',serif;letter-spacing:-.01em}
   h1 span{color:var(--ink2)}
   p{margin:0;color:var(--ink2)}
@@ -39,15 +44,17 @@
   button.go2 i{width:38px;height:38px;border-radius:2px;background:transparent;color:var(--on);display:grid;place-items:center;font-style:normal;font-size:18px}
   button.scan{border:1px solid var(--line);background:none;font:500 13px system-ui;padding:6px 12px;border-radius:2px;margin-left:auto;color:var(--ink2)}
   .err{color:var(--bad);font-size:14px}
-  .spin{width:12px;height:12px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--ink);animation:s .8s linear infinite;display:inline-block}
-  @keyframes s{to{transform:rotate(360deg)}}
+  /* loading: the seed alone, breathing */
+  .spin{width:10px;height:10px;border-radius:50%;background:var(--dot);animation:s 1s ease-in-out infinite alternate;display:inline-block}
+  @keyframes s{from{transform:scale(.6);opacity:.5}to{transform:scale(1);opacity:1}}
+  @media (prefers-reduced-motion:reduce){.spin{animation:none}}
   ol{margin:0;padding-left:20px;color:var(--ink2);font-size:14px;display:flex;flex-direction:column;gap:6px}
   ol b{color:var(--ink)}
 </style>
 </head>
 <body>
 <main>
-  <div class="brand" role="img" aria-label="Seedform"><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="4.5" y="4.5" width="55" height="55" rx="2" fill="none" stroke="currentColor" stroke-width="5"/><rect x="29.5" y="6" width="5" height="31" fill="currentColor"/><circle class="seed" cx="32" cy="44" r="8"/></svg><b>seedform</b></div>
+  <div class="brand" role="img" aria-label="Seedform"><b class="f"><span class="a">seed</span><span class="b">form</span></b><b class="m"><span class="a">s</span><span class="b">f</span></b><i></i></div>
   <div><h1>Your studio <span>on your phone.</span></h1><p class="lead" style="margin-top:14px">Projects, documents and folders of your computer. Works offline, and catches up when it is back.</p></div>
   <p class="err" id="err" hidden></p>
   <h2>On this network <span class="spin" id="spin"></span><button class="scan" id="scan" type="button">Search again</button></h2>

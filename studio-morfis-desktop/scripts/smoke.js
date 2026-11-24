@@ -557,10 +557,10 @@ app.whenReady().then(async () => {
   /* the Seedform brand: the default style, its three typefaces from the app's own files, the lockup in the window bar */
   const sfb = JSON.parse(await js(w, '(async function(){var o={},d=document.documentElement;await document.fonts.ready;' +
     'o.style=d.classList.contains("style-seedform");o.title=document.title;' +
-    'await Promise.all(["500 20px \'Playfair Display\'","400 14px Manrope","500 12px \'IBM Plex Mono\'"].map(function(f){return document.fonts.load(f)}));' +
-    'o.fonts=["500 20px \'Playfair Display\'","400 14px Manrope","500 12px \'IBM Plex Mono\'"].map(function(f){return document.fonts.check(f)});' +
+    'await Promise.all(["500 20px \'Playfair Display\'","400 14px Manrope","500 12px \'IBM Plex Mono\'","20px \'Archivo Black\'"].map(function(f){return document.fonts.load(f)}));' +
+    'o.fonts=["500 20px \'Playfair Display\'","400 14px Manrope","500 12px \'IBM Plex Mono\'","20px \'Archivo Black\'"].map(function(f){return document.fonts.check(f)});' +
     'var h=document.querySelector("#dkView h1, #view h1");o.h1=h?getComputedStyle(h).fontFamily:"";o.radius=getComputedStyle(document.querySelector(".btn")).borderRadius;' +
-    'o.mark=!!document.querySelector(".wbrand .sf-mark");return JSON.stringify(o)})()'));
+    'var L=document.querySelector(".wbrand .sfl");o.mark=!!(L&&L.querySelector(".sfl-full")&&L.querySelector(".sfl-mono")&&L.querySelector(".sfl-dot"));return JSON.stringify(o)})()'));
   console.log('seedform:', JSON.stringify(sfb));
   const paint = {};
   paint.theme0 = await js(w, 'document.documentElement.dataset.theme');
