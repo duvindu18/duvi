@@ -138,11 +138,11 @@
         pic(p.main, mode, 'pf-pj-im') + '</div>';
     } else if (p.kind === 'pics') {
       var g = p.g;
-      /* Pictures always run from the left margin to the right one (265 mm). Their height follows their shape, up to
-         the 168 mm the page allows; a picture taller than that is trimmed top and bottom, never at the sides. */
-      if (g.k === 'one') { var h1 = Math.min(168, 265 / ratio(g.imgs[0])); body = '<div class="pf-g pf-g-one">' + pic(g.imgs[0], mode, '', 'width:265mm;height:' + h1.toFixed(1) + 'mm') + '</div>'; }
+      /* Pictures always fill the whole picture area, margin to margin and header to footer (265 by 168 mm), trimmed
+         from the centre where their shape differs; side by side, each takes a share of the width by its shape. */
+      if (g.k === 'one') body = '<div class="pf-g pf-g-one">' + pic(g.imgs[0], mode, '', 'width:265mm;height:168mm') + '</div>';
       else if (g.k === 'two' || g.k === 'three') {
-        var sum = g.imgs.reduce(function (a, im) { return a + ratio(im); }, 0), room = 265 - 4 * (g.imgs.length - 1), hmm = Math.min(168, room / sum);
+        var sum = g.imgs.reduce(function (a, im) { return a + ratio(im); }, 0), room = 265 - 4 * (g.imgs.length - 1), hmm = 168;
         body = '<div class="pf-g pf-g-row">' + g.imgs.map(function (im) { return pic(im, mode, '', 'width:' + (room * ratio(im) / sum).toFixed(2) + 'mm;height:' + hmm.toFixed(1) + 'mm'); }).join('') + '</div>';
       }
       else if (g.k === 'four') body = '<div class="pf-g pf-g-four">' + g.imgs.map(function (im) { return pic(im, mode); }).join('') + '</div>';
