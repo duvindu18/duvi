@@ -37,3 +37,10 @@
 .pf-pick .mono{grid-row:span 2;font-size:11px;color:var(--ink-2);align-self:center}
 .pf-pick b{font-weight:600}.pf-pick em{font-style:normal;font-size:12px;color:var(--ink-2)}
 @media (max-width:1180px){.pf-wrap{grid-template-columns:1fr}.pf-ed{position:static;max-height:none}}
+.pf-dr{cursor:grab}
+.pf-grip{width:10px;align-self:stretch;margin-left:4px;flex:none;background-image:radial-gradient(circle,var(--ink-3,var(--ink-2)) 1px,transparent 1.4px);background-size:5px 5px;background-position:center;background-repeat:repeat-y;opacity:.55}
+.pf-dr:hover .pf-grip{opacity:1}
+.pf-dragging{opacity:.4}
+.pf-row.pf-before{box-shadow:inset 0 2px 0 var(--sf-sprout,var(--accent))}.pf-row.pf-after{box-shadow:inset 0 -2px 0 var(--sf-sprout,var(--accent))}
+.pf-thumb[draggable=true]{cursor:grab}
+.pf-thumb.pf-before{box-shadow:-4px 0 0 var(--sf-sprout,var(--accent))}.pf-thumb.pf-after{box-shadow:4px 0 0 var(--sf-sprout,var(--accent))}

@@ -54,7 +54,7 @@ app.whenReady().then(async () => {
     await js("document.querySelector('[data-pf-act=add]').click()"); await wait(400);
     await js("document.querySelector('[data-pf-from=\"p:" + pid + "\"]').click()"); await wait(500);
     const files = JSON.stringify(it.imgs.map(P));
-    await js("(async function(){var D=window.MorfisPortfolio.data(),it=D.items[D.items.length-1];var a=await window.MorfisPortfolio.addImages(" + files + ");it.imgs=a;it.main=a[0].c;Object.assign(it," + JSON.stringify(it.set) + ");return a.length})()");
+    await js("(async function(){var D=window.MorfisPortfolio.data(),it=D.items[D.items.length-1];var a=await window.MorfisPortfolio.addImages(" + files + ");it.imgs=a;it.main=a[0].c;Object.assign(it," + JSON.stringify(it.set) + ");it.ed={text:1};return a.length})()");
   }
   /* the cover and the about page */
   await js("(async function(){var D=window.MorfisPortfolio.data();var a=await window.MorfisPortfolio.addImages(" + JSON.stringify([P('villa-3'), P('cafe-2')]) + ");D.cover=a[0];D.aboutImg=a[1];" +
@@ -70,13 +70,25 @@ app.whenReady().then(async () => {
   await shot('pf-4-editor-project');
   await js("document.querySelector('#dkView').scrollTop=600"); await wait(800);
   await shot('pf-5-editor-scrolled');
-  /* reorder: the clinic to the top, the contents page follows */
+  /* reorder by dragging: the clinic's row dropped above the first project; pages, contents and numbers follow */
   await js("document.querySelector('#dkView').scrollTop=0");
-  const last = await js("window.MorfisPortfolio.data().items[2].id");
-  await js("document.querySelector('[data-pf-mv=\"-1\"][data-id=\"" + last + "\"]').click()"); await wait(300);
-  await js("document.querySelector('[data-pf-mv=\"-1\"][data-id=\"" + last + "\"]').click()"); await wait(300);
+  const before = await js("window.MorfisPortfolio.data().items.map(function(i){return i.title}).join(' | ')");
+  await js("(function(){var D=window.MorfisPortfolio.data(),src=document.querySelector('[data-pf-drag=\"'+D.items[2].id+'\"]'),dst=document.querySelector('[data-pf-drag=\"'+D.items[0].id+'\"]');" +
+    "var dt=new DataTransfer(),r=dst.getBoundingClientRect(),o={bubbles:true,cancelable:true,dataTransfer:dt,clientX:r.left+20,clientY:r.top+3};" +
+    "src.dispatchEvent(new DragEvent('dragstart',o));dst.dispatchEvent(new DragEvent('dragover',o));dst.dispatchEvent(new DragEvent('drop',o));src.dispatchEvent(new DragEvent('dragend',o));})()");
+  await wait(400);
+  const after = await js("window.MorfisPortfolio.data().items.map(function(i){return i.title}).join(' | ')");
+  console.log('order before:', before); console.log('order after drag:', after);
+  /* a project renamed in the app: the portfolio follows, the contents too */
+  const ref = await js("window.MorfisPortfolio.data().items[0].ref");
+  await js("(function(){var pg=window.Morfis.page(),p=pg.P('" + ref + "');p.name='Ratnayake Family Dental';pg.commit(p);})()"); await wait(900);
+  await js("document.querySelector('#dkSide [data-go=home]').click()"); await wait(300);
+  await js("document.querySelector('#dkSide [data-go=portfolio]').click()"); await wait(1500);
   await js("document.querySelector('[data-pf-sel=contents]').click()"); await wait(1500);
+  const followed = await js("window.MorfisPortfolio.data().items[0].title");
+  console.log('after renaming the project:', followed);
   await shot('pf-6-reordered-contents');
+  if (!/^Ratnayake/.test(after) || followed !== 'Ratnayake Family Dental') errors.push('drag or follow did not work');
   /* the PDF */
   const pdf = path.join(out, 'Seedform Portfolio.pdf');
   const r = await js("window.Morfis.H.savePortfolioPdf(window.MorfisPortfolio.html('pdf'),'__test__:" + pdf.replace(/\\/g, '/') + "')");

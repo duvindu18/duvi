@@ -45,6 +45,24 @@
   }
   var saveT = 0;
   function save() { clearTimeout(saveT); saveT = setTimeout(function () { H.kvSet(KEY, D).catch(function () { M.toast('The portfolio could not be saved.'); }); }, 350); }
+  /* A project's details follow the project (a new name, area or client shows up here) until you change that detail
+     in the portfolio; from then on the portfolio keeps your wording. */
+  var FOLLOW = { title: 1, location: 1, year: 1, type: 1, area: 1, client: 1, text: 1 };
+  function source(it) {
+    if (!it.ref || !pg()) return null;
+    if (/^Freelance/.test(it.src || '')) { var all = window.MorfisFreelance ? window.MorfisFreelance.all() || {} : {}, j = all[it.ref] || Object.values(all).filter(function (x) { return x.id === it.ref; })[0]; return j ? fromJob(j) : null; }
+    var p = pg().P(it.ref); return p ? fromProject(p) : null;
+  }
+  function follow() {
+    var changed = false;
+    (D ? D.items : []).forEach(function (it) {
+      var f = source(it); if (!f) return;
+      it.ed = it.ed || {};
+      Object.keys(FOLLOW).forEach(function (k) { if (!it.ed[k] && f[k] && f[k] !== it[k]) { it[k] = f[k]; changed = true; } });
+    });
+    if (changed) save();
+    return changed;
+  }
   var item = function (id) { return D.items.filter(function (x) { return x.id === id; })[0]; };
 
   /* ----- page layout ----- */
@@ -120,12 +138,12 @@
         pic(p.main, mode, 'pf-pj-im') + '</div>';
     } else if (p.kind === 'pics') {
       var g = p.g;
-      /* one picture, whole: as wide or as tall as the page allows (265 by 168 mm) */
-      if (g.k === 'one') { var r1 = ratio(g.imgs[0]), wmm = r1 >= 265 / 168 ? 265 : 168 * r1; body = '<div class="pf-g pf-g-one">' + pic(g.imgs[0], mode, '', 'width:' + wmm.toFixed(1) + 'mm;height:' + (wmm / r1).toFixed(1) + 'mm') + '</div>'; }
-      /* a row: every picture whole and the same height, as tall as the page allows (4 mm between them) */
+      /* Pictures always run from the left margin to the right one (265 mm). Their height follows their shape, up to
+         the 168 mm the page allows; a picture taller than that is trimmed top and bottom, never at the sides. */
+      if (g.k === 'one') { var h1 = Math.min(168, 265 / ratio(g.imgs[0])); body = '<div class="pf-g pf-g-one">' + pic(g.imgs[0], mode, '', 'width:265mm;height:' + h1.toFixed(1) + 'mm') + '</div>'; }
       else if (g.k === 'two' || g.k === 'three') {
-        var sum = g.imgs.reduce(function (a, im) { return a + ratio(im); }, 0), hmm = Math.min(168, (265 - 4 * (g.imgs.length - 1)) / sum);
-        body = '<div class="pf-g pf-g-row">' + g.imgs.map(function (im) { return pic(im, mode, '', 'width:' + (ratio(im) * hmm).toFixed(1) + 'mm;height:' + hmm.toFixed(1) + 'mm'); }).join('') + '</div>';
+        var sum = g.imgs.reduce(function (a, im) { return a + ratio(im); }, 0), room = 265 - 4 * (g.imgs.length - 1), hmm = Math.min(168, room / sum);
+        body = '<div class="pf-g pf-g-row">' + g.imgs.map(function (im) { return pic(im, mode, '', 'width:' + (room * ratio(im) / sum).toFixed(2) + 'mm;height:' + hmm.toFixed(1) + 'mm'); }).join('') + '</div>';
       }
       else if (g.k === 'four') body = '<div class="pf-g pf-g-four">' + g.imgs.map(function (im) { return pic(im, mode); }).join('') + '</div>';
       else body = '<div class="pf-g pf-g-big">' + pic(g.imgs[0], mode, 'pf-g-a') + pic(g.imgs[1], mode) + pic(g.imgs[2], mode) + '</div>';
@@ -183,7 +201,7 @@
     /* picture pages */
     '.pf-g{height:100%;display:flex;gap:4mm}.pf-g>*{min-width:0;min-height:0}' +
     '.pf-g-one{align-items:center;justify-content:center}' +
-    '.pf-g-row{align-items:center;justify-content:center}.pf-g-row>*{flex:none}' +
+    '.pf-g-row{align-items:center;justify-content:space-between}.pf-g-row>*{flex:none}' +
     '.pf-g-four{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}' +
     '.pf-g-big{display:grid;grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr}.pf-g-a{grid-row:span 2}' +
     /* back page */
@@ -199,14 +217,14 @@
 
   /* ----- the editor ----- */
   function sections() {
-    var row = function (id, name, sub, tools) {
-      return '<div class="pf-row' + (SEL === id ? ' on' : '') + '"><button type="button" class="pf-row-b" data-pf-sel="' + esc(id) + '"><b>' + esc(name) + '</b>' + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</button>' + (tools || '') + '</div>';
+    var row = function (id, name, sub, tools, drag) {
+      return '<div class="pf-row' + (SEL === id ? ' on' : '') + (drag ? ' pf-dr" draggable="true" data-pf-drag="' + esc(id) + '" title="Drag to reorder' : '') + '">' + (drag ? '<span class="pf-grip" aria-hidden="true"></span>' : '') + '<button type="button" class="pf-row-b" data-pf-sel="' + esc(id) + '"><b>' + esc(name) + '</b>' + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</button>' + (tools || '') + '</div>';
     };
     return '<div class="pf-secs">' + row('cover', 'Cover', D.title) + row('about', 'About', D.aboutTitle) + row('contents', 'Contents', 'Updates itself') +
       D.items.map(function (it, i) {
         return row(it.id, two(i + 1) + '  ' + (it.title || 'Untitled project'), (it.imgs || []).length + ' picture' + ((it.imgs || []).length === 1 ? '' : 's'),
           '<span class="pf-tools"><button type="button" class="icon-btn" data-pf-mv="-1" data-id="' + esc(it.id) + '" aria-label="Move up" title="Move up"' + (i ? '' : ' disabled') + '>' + ic('chev', 14).replace('<svg', '<svg style="transform:rotate(180deg)"') + '</button>' +
-          '<button type="button" class="icon-btn" data-pf-mv="1" data-id="' + esc(it.id) + '" aria-label="Move down" title="Move down"' + (i < D.items.length - 1 ? '' : ' disabled') + '>' + ic('chev', 14) + '</button></span>');
+          '<button type="button" class="icon-btn" data-pf-mv="1" data-id="' + esc(it.id) + '" aria-label="Move down" title="Move down"' + (i < D.items.length - 1 ? '' : ' disabled') + '>' + ic('chev', 14) + '</button></span>', true);
       }).join('') + row('back', 'Back page', 'Contact details') +
       '<button type="button" class="btn sm pf-add" data-pf-act="add">' + ic('plus', 14) + 'Add a project</button></div>';
   }
@@ -238,7 +256,7 @@
       fld('About the project', 'i.text', it.text, { wide: true, area: true, rows: 6, ph: 'The idea, the site and what makes the project worth showing.' }) + '</div>' +
       '<div class="fx-sec-h" style="margin:6px 0 8px"><h3 style="margin:0">Pictures</h3><span class="count">' + imgs.length + '</span></div>' +
       '<div class="pf-imgs">' + imgs.map(function (im, i) {
-        return '<div class="pf-thumb' + (im.c === main ? ' main' : '') + (im.missing ? ' missing' : '') + '" title="' + esc(im.name || '') + '"><img src="' + esc(IMG[im.c] || '') + '" alt="">' + (im.c === main ? '<span class="pf-main">Main</span>' : '') +
+        return '<div class="pf-thumb' + (im.c === main ? ' main' : '') + (im.missing ? ' missing' : '') + '" draggable="true" data-pf-dragimg="' + i + '" title="' + esc((im.name ? im.name + ' · ' : '') + 'drag to reorder') + '"><img src="' + esc(IMG[im.c] || '') + '" alt="">' + (im.c === main ? '<span class="pf-main">Main</span>' : '') +
           '<span class="pf-th-tools">' + (im.c === main ? '' : '<button type="button" class="icon-btn" data-pf-main="' + i + '" aria-label="Use as the main picture" title="Use as the main picture">' + ic('check', 13) + '</button>') +
           '<button type="button" class="icon-btn" data-pf-img="-1" data-i="' + i + '" aria-label="Move earlier" title="Move earlier"' + (i ? '' : ' disabled') + '>' + ic('chevR', 13).replace('<svg', '<svg style="transform:scaleX(-1)"') + '</button>' +
           '<button type="button" class="icon-btn" data-pf-img="1" data-i="' + i + '" aria-label="Move later" title="Move later"' + (i < imgs.length - 1 ? '' : ' disabled') + '>' + ic('chevR', 13) + '</button>' +
@@ -298,6 +316,7 @@
   function draw() {
     if (!EL || M.current() !== 'portfolio') return;
     if (!D) { EL.innerHTML = '<div class="fx-empty">Opening the portfolio…</div>'; load().then(draw); return; }
+    follow();
     var ed = EL.querySelector('#pfEd');
     if (ed) { var y = ed.scrollTop; ed.innerHTML = editor(); ed.scrollTop = y; updateFrame(); }
     else { EL.innerHTML = view(); mountFrame(); }
@@ -395,12 +414,42 @@
       if (it && (b = t.closest('[data-pf-rm]'))) { var r = it.imgs.splice(+b.dataset.pfRm, 1)[0]; if (r && it.main === r.c) it.main = it.imgs[0] && it.imgs[0].c; save(); draw(); return; }
       if ((b = t.closest('[data-pf-sel]'))) { SEL = b.dataset.pfSel; draw(); }
     });
+    /* drag to reorder: projects in the list, pictures in a project; pages, contents and numbers follow at once */
+    var DR = null;
+    var clearMarks = function () { el.querySelectorAll('.pf-before,.pf-after').forEach(function (x) { x.classList.remove('pf-before', 'pf-after'); }); };
+    el.addEventListener('dragstart', function (e) {
+      var r = e.target.closest && e.target.closest('[data-pf-drag],[data-pf-dragimg]');
+      if (!r || M.current() !== 'portfolio') return;
+      DR = r.dataset.pfDrag ? { kind: 'item', id: r.dataset.pfDrag } : { kind: 'img', i: +r.dataset.pfDragimg };
+      r.classList.add('pf-dragging');
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'pf'); } catch (x) { /* fine */ }
+    });
+    var target = function (e) { return DR && e.target.closest && e.target.closest(DR.kind === 'item' ? '[data-pf-drag]' : '[data-pf-dragimg]'); };
+    el.addEventListener('dragover', function (e) {
+      var t = target(e); if (!t) return;
+      e.preventDefault();
+      var bx = t.getBoundingClientRect(), after = DR.kind === 'item' ? e.clientY > bx.top + bx.height / 2 : e.clientX > bx.left + bx.width / 2;
+      clearMarks(); t.classList.add(after ? 'pf-after' : 'pf-before');
+    });
+    el.addEventListener('drop', function (e) {
+      var t = target(e); if (!t) return;
+      e.preventDefault();
+      var after = t.classList.contains('pf-after'), list, from, to;
+      if (DR.kind === 'item') { list = D.items; from = list.indexOf(item(DR.id)); to = list.indexOf(item(t.dataset.pfDrag)); }
+      else { var it = item(SEL); if (!it) return; list = it.imgs; from = DR.i; to = +t.dataset.pfDragimg; }
+      if (from < 0 || to < 0) return;
+      var x = list.splice(from, 1)[0];
+      if (from < to) to--;
+      list.splice(after ? to + 1 : to, 0, x);
+      DR = null; clearMarks(); save(); draw();
+    });
+    el.addEventListener('dragend', function () { DR = null; clearMarks(); el.querySelectorAll('.pf-dragging').forEach(function (x) { x.classList.remove('pf-dragging'); }); });
     el.addEventListener('input', function (e) {
       var k = e.target.dataset && e.target.dataset.pfF;
       if (M.current() !== 'portfolio' || !k || !D) return;
       var v = e.target.value;
       if (k.indexOf('c.') === 0) D.contact[k.slice(2)] = v;
-      else if (k.indexOf('i.') === 0) { var it = item(SEL); if (it) it[k.slice(2)] = v; }
+      else if (k.indexOf('i.') === 0) { var it = item(SEL); if (it) { it[k.slice(2)] = v; it.ed = it.ed || {}; it.ed[k.slice(2)] = 1; } }
       else D[k] = v;
       save(); redrawPreview();
     });
@@ -410,7 +459,7 @@
     title: 'Portfolio', placeholder: 'Search',
     crumb: function () { var it = D && item(SEL); return 'Portfolio' + (it ? ' / ' + (it.title || 'Untitled project') : ''); },
     render: function (el, o) { EL = el; bind(el); EL.innerHTML = ''; if (o && o.sel) SEL = o.sel; draw(); },
-    refresh: function () { /* the portfolio is redrawn on its own edits */ },
+    refresh: function () { if (D && follow() && !(document.activeElement && document.activeElement.closest && document.activeElement.closest('.pf-form'))) draw(); },
     search: function () { /* nothing to search */ }
   });
   window.MorfisPortfolio = { html: function (mode) { return D ? docHtml(mode || 'pdf') : ''; }, pages: function () { return D ? pageList().length : 0; }, data: function () { return D; }, load: load, addImages: addImages, reload: function () { loading = null; D = null; return load().then(draw); } };
