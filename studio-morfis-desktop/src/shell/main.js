@@ -409,6 +409,57 @@ const API = {
   docDelete: (id) => store.docDelete(id),
   kvGet: (k) => store.kvGet(k),
   kvSet: (k, v) => store.kvSet(k, v),
+  /* the portfolio maker: a picture, resized once (longest side 2400 px) into the app's own folder, so pages stay
+     quick and the PDF stays a sensible size; the original is never changed */
+  async pfImage(file, cached) {
+    const dir = path.join(store.root, 'portfolio');
+    /* the original moved or is gone: the copy made when it was added still serves */
+    if (!fs.existsSync(file) && cached && /^[0-9a-f]{20}$/.test(cached) && fs.existsSync(path.join(dir, cached + '.jpg'))) file = path.join(dir, cached + '.jpg');
+    const st = fs.statSync(file);
+    const id = path.dirname(file) === dir ? path.basename(file, '.jpg') : require('crypto').createHash('sha1').update(file + '|' + st.size + '|' + st.mtimeMs).digest('hex').slice(0, 20);
+    const out = path.join(dir, id + '.jpg');
+    fs.mkdirSync(dir, { recursive: true });
+    let img;
+    if (fs.existsSync(out)) img = nativeImage.createFromPath(out);
+    else {
+      img = nativeImage.createFromPath(file);
+      if (img.isEmpty()) throw new Error('This picture cannot be read. Use a JPG or PNG.');
+      const s = img.getSize(), k = Math.min(1, 2400 / Math.max(s.width, s.height));
+      if (k < 1) img = img.resize({ width: Math.round(s.width * k), height: Math.round(s.height * k), quality: 'best' });
+      fs.writeFileSync(out, img.toJPEG(86));
+    }
+    const s = img.getSize();
+    return { c: id, w: s.width, h: s.height, url: '/__file/' + previewLink(out), name: path.basename(file) };
+  },
+  /* the portfolio as a PDF: its pages (A4 landscape), with the pictures and the brand's typefaces from this computer */
+  async savePortfolioPdf(html, filename) {
+    const dir = path.join(store.root, 'portfolio');
+    const fu = (f) => require('url').pathToFileURL(f).href;
+    const faces = "@font-face{font-family:'Playfair Display';font-weight:400 900;src:url(" + fu(path.join(FONTS.playfair, 'playfair-display-latin-wght-normal.woff2')) + ")}" +
+      "@font-face{font-family:'Playfair Display';font-style:italic;font-weight:400 900;src:url(" + fu(path.join(FONTS.playfair, 'playfair-display-latin-wght-italic.woff2')) + ")}" +
+      "@font-face{font-family:'Manrope';font-weight:200 800;src:url(" + fu(path.join(FONTS.manrope, 'manrope-latin-wght-normal.woff2')) + ")}" +
+      "@font-face{font-family:'IBM Plex Mono';font-weight:400;src:url(" + fu(path.join(FONTS.plexmono, 'ibm-plex-mono-latin-400-normal.woff2')) + ")}" +
+      "@font-face{font-family:'IBM Plex Mono';font-weight:500;src:url(" + fu(path.join(FONTS.plexmono, 'ibm-plex-mono-latin-500-normal.woff2')) + ")}" +
+      "@font-face{font-family:'Inter';font-weight:100 900;src:url(" + fu(path.join(INTER, 'inter-latin-wght-normal.woff2')) + ")}" +
+      "@font-face{font-family:'Archivo Black';src:url(" + fu(path.join(FONTS.archivo, 'archivo-black-latin-400-normal.woff2')) + ")}";
+    const doc = String(html).replace('/*PF-FONTS*/', faces).replace(/pfimg:([0-9a-f]{20})/g, (m, id) => fu(path.join(dir, id + '.jpg')));
+    const tmp = path.join(app.getPath('temp'), 'seedform-portfolio-' + process.pid + '.html');
+    fs.writeFileSync(tmp, doc);
+    const w = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false } });
+    let pdf;
+    try {
+      await w.loadFile(tmp);
+      await new Promise((r) => setTimeout(r, 400));
+      pdf = await w.webContents.printToPDF({ landscape: true, printBackground: true, margins: { marginType: 'none' }, preferCSSPageSize: true });
+    } finally { w.destroy(); try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ } }
+    if (String(filename).indexOf('__test__:') === 0 && process.env.MORFIS_TEST_PDF) { fs.writeFileSync(String(filename).slice(9), pdf); filename = '__test__'; }
+    if (filename === '__test__') return { bytes: pdf.length, pages: Math.max.apply(null, (String(pdf.toString('latin1')).match(/\/Count (\d+)/g) || ['/Count 0']).map((x) => +x.slice(7))) };
+    const r = await dialog.showSaveDialog(win, { defaultPath: path.join(lastSaveDir || app.getPath('documents'), filename), filters: [{ name: 'PDF document', extensions: ['pdf'] }] });
+    if (r.canceled || !r.filePath) return null;
+    fs.writeFileSync(r.filePath, pdf);
+    lastSaveDir = path.dirname(r.filePath);
+    return r.filePath;
+  },
   async savePdf(html, filename) {
     const pdf = await renderPdf(html);
     const r = await dialog.showSaveDialog(win, { defaultPath: path.join(lastSaveDir || app.getPath('documents'), filename), filters: [{ name: 'PDF document', extensions: ['pdf'] }] });

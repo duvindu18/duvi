@@ -13,6 +13,7 @@
     "dist": "electron-builder --win nsis --x64",
     "dist:portable": "electron-builder --win portable --x64",
     "pack": "electron-builder --win dir --x64",
+    "portfolio-demo": "electron scripts/portfolio-demo.js portfolio-out",
     "voice-test": "electron scripts/voice-test.js"
   },
   "dependencies": {

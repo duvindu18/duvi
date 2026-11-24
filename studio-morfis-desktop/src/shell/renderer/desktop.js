@@ -13,6 +13,7 @@
 
   /* ----- icons (24 px grid, 1.7 stroke, same family as the dashboard's) ----- */
   var PATHS = {
+    book: '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5zM13 4h5.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H13z"/>',
     home: '<path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z"/>',
     projects: '<rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/>',
     timeline: '<path d="M4 6h9M7 12h11M5 18h7"/><circle cx="16" cy="6" r="1.4"/><circle cx="20" cy="12" r="1.4"/><circle cx="14" cy="18" r="1.4"/>',
@@ -210,7 +211,7 @@
     var html =
       '<div class="dk-scroll">' +
       grp('ws', 'Workspace', item('home', 'Home', 'home') + item('projects', 'Projects', 'projects') + item('timeline', 'Timeline', 'timeline') + item('payments', 'Payments', 'payments', n(od, 'bad'), 'Payments' + (od ? ', ' + od + ' overdue' : ''))) +
-      grp('studio', 'Studio', item('files', 'Files', 'files') + item('direct', 'Direct projects', 'layers', n(window.MorfisDirect ? window.MorfisDirect.attention() : 0)) + item('freelance', 'Freelance', 'briefcase', n(window.MorfisFreelance ? window.MorfisFreelance.attention() : 0)) + item('documents', 'Invoices & quotes', 'documents', n(drafts)) + item('automations', 'Automations', 'automations', n(auto))) +
+      grp('studio', 'Studio', item('files', 'Files', 'files') + item('direct', 'Direct projects', 'layers', n(window.MorfisDirect ? window.MorfisDirect.attention() : 0)) + item('freelance', 'Freelance', 'briefcase', n(window.MorfisFreelance ? window.MorfisFreelance.attention() : 0)) + item('documents', 'Invoices & quotes', 'documents', n(drafts)) + item('portfolio', 'Portfolio', 'book') + item('automations', 'Automations', 'automations', n(auto))) +
       '<div class="dk-grp-p">' + grp('proj', 'Active projects', projItems, 'newProject') + '</div>' +
       '</div>' +
       '<div class="dk-foot">' +
