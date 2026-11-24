@@ -84,29 +84,74 @@
     });
   }
 
-  /* ===== speaking: Kokoro, sentence by sentence; Windows' own voice if the engine is not there ===== */
-  var OUT = null, PLAY = { at: 0, sources: [], id: 0 };
-  function speak(text) {
+  /* ===== speaking: Kokoro, a phrase at a time; Windows' own voice if the engine is not there =====
+     A talk is a queue of phrases: the first can be heard while the answer is still being written, and the next one
+     is made while the one before plays. */
+  var OUT = null, PLAY = { at: 0, sources: [], id: 0, cur: 0 };
+  var clean = function (text) { return String(text).replace(/\s*\n\s*/g, '. ').replace(/[•·]/g, ',').replace(/\bLKR\b/g, 'rupees').replace(/\bFL I (\d+) I (\d+)\b/g, 'F L $1 $2').replace(/\bMRF I (\d+) I (\d+)\b/g, 'M R F $1 $2'); };
+  function talkStart() {
     stopSpeaking();
-    if (!text || PR().voiceReply === false) return Promise.resolve();
-    var cleanText = String(text).replace(/\s*\n\s*/g, '. ').replace(/[•·]/g, ',').replace(/\bLKR\b/g, 'rupees').replace(/\bFL I (\d+) I (\d+)\b/g, 'F L $1 $2').replace(/\bMRF I (\d+) I (\d+)\b/g, 'M R F $1 $2');
     if (!OUT) { OUT = new AudioContext({ sampleRate: 24000 }); OUT.an = OUT.createAnalyser(); OUT.an.fftSize = 256; OUT.an.connect(OUT.destination); }
     if (OUT.state === 'suspended') OUT.resume();
-    PLAY.at = OUT.currentTime + 0.05;
-    return new Promise(function (resolve) {
-      var id = ++seq, settled = false, finish = function () { if (settled) return; settled = true; resolve(); };
-      PLAY.id = id;
-      PEND[id] = { res: function () { var wait = Math.max(0, (PLAY.at - OUT.currentTime) * 1000); setTimeout(function () { if (PLAY.id === id) setState(STATE === 'speaking' ? 'idle' : STATE); finish(); }, wait + 60); },
-        rej: function () { winSpeak(cleanText).then(finish); },
-        onAudio: function (m) {
-          if (PLAY.id !== id) return;
-          var b = OUT.createBuffer(1, m.pcm.length, m.rate); b.copyToChannel(m.pcm, 0);
-          var s = OUT.createBufferSource(); s.buffer = b; s.connect(OUT.an);
-          var at = Math.max(PLAY.at, OUT.currentTime + 0.02); s.start(at); PLAY.at = at + b.duration + 0.06; PLAY.sources.push(s);
-          if (m.index === 0) setState('speaking');
-        } };
-      worker().postMessage({ type: 'speak', id: id, text: cleanText, voice: PR().voiceName || 'af_heart', speed: +PR().voiceSpeed || 1 });
+    PLAY.at = OUT.currentTime + 0.03;
+    var T = { g: ++seq, q: Promise.resolve() };
+    PLAY.id = T.g;
+    return T;
+  }
+  function talkAdd(T, text) {
+    text = clean(text).trim();
+    if (!text || T.g !== PLAY.id) return;
+    T.q = T.q.then(function () {
+      return new Promise(function (done) {
+        if (T.g !== PLAY.id) { done(); return; }
+        var id = ++seq; PLAY.cur = id;
+        PEND[id] = { res: function () { done(); }, rej: function () { if (T.g === PLAY.id) winSpeak(text).then(done); else done(); },
+          onAudio: function (m) {
+            if (PLAY.id !== T.g) return;
+            var b = OUT.createBuffer(1, m.pcm.length, m.rate); b.copyToChannel(m.pcm, 0);
+            var src = OUT.createBufferSource(); src.buffer = b; src.connect(OUT.an);
+            var at = Math.max(PLAY.at, OUT.currentTime + 0.02); src.start(at); PLAY.at = at + b.duration + 0.05; PLAY.sources.push(src);
+            if (STATE !== 'speaking') setState('speaking');
+          } };
+        worker().postMessage({ type: 'speak', id: id, text: text, voice: PR().voiceName || 'af_heart', speed: +PR().voiceSpeed || 1 });
+      });
     });
+  }
+  function talkEnd(T) {
+    return T.q.then(function () {
+      var wait = T.g === PLAY.id && OUT ? Math.max(0, (PLAY.at - OUT.currentTime) * 1000) : 0;
+      return new Promise(function (r) { setTimeout(r, wait + 50); });
+    }).then(function () { if (PLAY.id === T.g && STATE === 'speaking') setState('idle'); });
+  }
+  function speak(text) {
+    if (!text || PR().voiceReply === false) { stopSpeaking(); return Promise.resolve(); }
+    var T = talkStart(); talkAdd(T, text); return talkEnd(T);
+  }
+  /* where the text written so far can be cut and spoken: after a full stop, a question or, for the very first
+     phrase, a comma, so the voice starts as soon as there is something worth saying */
+  function cutAt(t, first) {
+    var re = first ? /([.!?…]["”)]?|[,;:])\s/g : /[.!?…]["”)]?\s/g, m, end = 0;
+    while ((m = re.exec(t))) { if (!first || m.index >= 18 || /[.!?…]/.test(m[1] || m[0])) { end = m.index + m[0].length; if (first) break; } }
+    return end;
+  }
+  /* an answer that is still being written: shown as it comes, spoken a phrase at a time */
+  function live() {
+    var T = PR().voiceReply !== false && ENGINE.ready ? talkStart() : null, spoken = 0, last = '';
+    return {
+      text: function (t) {
+        last = t; showLive(t);
+        if (!T) return;
+        var rest = t.slice(spoken), n = cutAt(rest, spoken === 0);
+        if (n) { talkAdd(T, rest.slice(0, n)); spoken += n; }
+      },
+      /* the whole answer: say what is left of it, or all of it when it is not the one being written */
+      finish: function (full) {
+        if (!T) return null;
+        var said = last.slice(0, spoken);
+        talkAdd(T, full.indexOf(said) === 0 ? full.slice(spoken) : spoken ? '' : full);
+        return talkEnd(T);
+      }
+    };
   }
   function winSpeak(text) {
     return new Promise(function (resolve) {
@@ -116,7 +161,8 @@
     });
   }
   function stopSpeaking() {
-    if (PLAY.id) { try { if (WK) WK.postMessage({ type: 'stop', of: PLAY.id }); } catch (e) { /* gone */ } }
+    if (PLAY.cur) { try { if (WK) WK.postMessage({ type: 'stop', of: PLAY.cur }); } catch (e) { /* gone */ } }
+    PLAY.cur = 0;
     PLAY.id = 0;
     PLAY.sources.forEach(function (s) { try { s.stop(); } catch (e) { /* done */ } });
     PLAY.sources = [];
@@ -463,12 +509,13 @@
     return { say: p.name + ' is ' + A.STATUS[A.statusOf(p, today())].label.toLowerCase() + ', in stage ' + p.currentStage + ', ' + st.name + ', with ' + g.pct + ' percent of the checklist done.' + (f.overdue ? ' ' + money(f.overdue) + ' is overdue.' : ''), items: [{ label: 'Open ' + p.name, go: t }] };
   }
   /* no rule for it: the local AI model, with a short picture of the studio, if it is installed */
-  function thinkHarder(said) {
+  function thinkHarder(said, onSay) {
     var S = pg().S, lines = [];
     Object.values(S.projects).slice(0, 25).forEach(function (p) { var f = pg().projectFinance(p, today()); lines.push('Project ' + p.code + ' "' + p.name + '": ' + A.STATUS[A.statusOf(p, today())].label + ', stage ' + p.currentStage + ', client ' + ((p.client && p.client.name) || '-') + ', fee ' + f.contract + ', received ' + f.received + ', overdue ' + f.overdue); });
     if (window.MorfisFreelance) window.MorfisFreelance.all().slice(0, 25).forEach(function (j) { lines.push('Freelance job ' + j.code + ' "' + (j.title || '') + '": ' + window.MorfisFreelance.statusOf(j) + ', client ' + (j.client || '-') + ', due ' + (j.due || '-') + ', fee ' + (j.fee || 0) + ', paid ' + (j.paid || 0)); });
     var sys = 'You are the voice assistant of Seedform, an architecture studio in Colombo. Speak like a good architect on site: calm, clear, warm, plain words, no exclamation marks. Today is ' + today() + '. Answer in one or two short sentences that sound natural when spoken. Use the studio data below; if it does not hold the answer, say so briefly. Amounts are in ' + (S.settings.currency || 'LKR') + '.\n\n' + lines.join('\n');
-    return H.aiChat({ system: sys, prompt: said, timeoutMs: 45000 }).then(function (r) { return { say: String(r.text || '').replace(/\*\*/g, '').trim() || 'I’m not sure.' }; },
+    var o = { system: sys, prompt: said, timeoutMs: 45000 };
+    return (onSay && H.aiStream ? H.aiStream(o, function (t) { onSay(t.replace(/\*\*/g, '')); }) : H.aiChat(o)).then(function (r) { return { say: String(r.text || '').replace(/\*\*/g, '').trim() || 'I’m not sure.' }; },
       function () { return { say: 'I can’t answer that one yet. Try asking what’s due, who owes you money, or say open, and a project’s name.', items: ['What can you do?'].map(function (x) { return { label: x, ask: x }; }) }; });
   }
 
@@ -505,14 +552,15 @@
     if (EL) { EL.classList.remove('vx-open'); document.documentElement.dataset.vx = ''; var el = EL; setTimeout(function () { if (!el.classList.contains('vx-open')) el.hidden = true; }, 260); }
     setTimeout(closeMic, 400);
   }
-  function show(r) {
+  function show(r, instant) {
     LAST.reply = r || null;
     if (!EL) return;
-    /* the answer arrives word by word */
+    /* the answer, at once: a quick fade over its first words only (a streamed answer is already on screen) */
     var words = String(r ? r.text || r.say || '' : '').split(/(\s+)/), wi = 0;
-    EL.querySelector('.vx-reply').innerHTML = words.map(function (w) { return /^\s+$/.test(w) || !w ? w : '<span class="vx-w" style="animation-delay:' + Math.min(900, (wi++) * 32) + 'ms">' + esc(w) + '</span>'; }).join('');
+    EL.querySelector('.vx-reply').innerHTML = instant ? esc(words.join('')) : words.map(function (w) { return /^\s+$/.test(w) || !w ? w : '<span class="vx-w" style="animation-delay:' + Math.min(120, (wi++) * 10) + 'ms">' + esc(w) + '</span>'; }).join('');
     EL.querySelector('.vx-items').innerHTML = r && r.items && r.items.length ? r.items.map(function (x, i) { return '<button type="button" class="vx-it' + (x.confirm ? ' vx-yes' : x.cancel ? ' vx-no' : x.info ? ' vx-info' : '') + '" data-vx-item="' + i + '"><b>' + esc(x.label) + '</b>' + (x.sub ? '<span>' + esc(x.sub) + '</span>' : '') + '</button>'; }).join('') : '';
   }
+  function showLive(t) { if (EL) { EL.querySelector('.vx-reply').textContent = t; EL.querySelector('.vx-items').innerHTML = ''; } }
   function showSaid(t) { if (EL) EL.querySelector('.vx-said').textContent = t ? '“' + t + '”' : ''; }
   /* the orb follows the voice: the microphone while listening, the answer while speaking */
   var raf = 0;
@@ -564,18 +612,21 @@
   }
   function handle(text) {
     open(); showSaid(text); LAST.said = text; setState('thinking');
-    var r = null;
+    var r = null, LV = null;
     try { r = brain(text); } catch (e) { r = { say: 'Something went wrong there: ' + e.message }; }
-    var p = r ? Promise.resolve(r) : (window.MorfisAgent ? window.MorfisAgent.plan(text).then(function (pl) {
-      if (!pl.actions.length) return pl.say ? { say: pl.say } : thinkHarder(text);
+    /* an answer from the AI model streams in: shown and spoken while it is still being written */
+    var onSay = function (t) { if (!LV) LV = live(); LV.text(t); };
+    var p = r ? Promise.resolve(r) : (window.MorfisAgent ? window.MorfisAgent.plan(text, onSay).then(function (pl) {
+      if (!pl.actions.length) return pl.say ? { say: pl.say } : thinkHarder(text, onSay);
       var out = agentReply(window.MorfisAgent.execute(pl.actions));
       if (pl.say && !out.ask) out.say = pl.say + ' ' + out.say;
       return out;
-    }, function () { return thinkHarder(text); }) : thinkHarder(text));
+    }, function () { return thinkHarder(text, onSay); }) : thinkHarder(text, onSay));
     return p.then(function (reply) {
       if (reply.pending) CTX.pending = reply.pending;
-      show(reply);
-      var said = PR().voiceReply !== false ? (ENGINE.ready || ENGINE.warming ? speak(reply.say) : warm().then(function () { return speak(reply.say); }, function () { return winSpeak(reply.say); })) : Promise.resolve();
+      show(reply, !!LV);
+      var streamed = LV && LV.finish(reply.say);
+      var said = streamed ? streamed : PR().voiceReply !== false ? (ENGINE.ready || ENGINE.warming ? speak(reply.say) : warm().then(function () { return speak(reply.say); }, function () { return winSpeak(reply.say); })) : Promise.resolve();
       if (PR().voiceReply === false) setState('idle');
       return said.then(function () {
         setState('idle');

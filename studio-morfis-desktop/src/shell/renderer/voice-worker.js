@@ -110,6 +110,8 @@ function sentences(text) {
     while (s.length > 260) { let cut = s.lastIndexOf(', ', 240); if (cut < 80) cut = s.lastIndexOf(' ', 240); if (cut < 40) cut = 240; out.push(s.slice(0, cut + 1).trim()); s = s.slice(cut + 1); }
     if (s.trim()) out.push(s.trim());
   });
+  /* a long first sentence is cut at its first comma, so the voice starts sooner */
+  if (out[0] && out[0].length > 70) { const c = out[0].indexOf(', ', 18); if (c > 0 && c < out[0].length - 12) out.splice(0, 1, out[0].slice(0, c + 1), out[0].slice(c + 2)); }
   return out;
 }
 const STOP = new Set();

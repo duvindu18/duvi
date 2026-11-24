@@ -19,12 +19,19 @@
     'renameItem', 'movePath', 'journalList', 'removeIfEmpty', 'makeDir', 'moveItems', 'trashItems', 'geocode', 'reverse',
     'getPrefs', 'setPref', 'resetPrefs', 'relaunch', 'openBackups', 'backupNow', 'refreshShortcuts',
     'docsList', 'docSave', 'docDelete', 'kvGet', 'kvSet', 'savePdf', 'pfImage', 'savePortfolioPdf', 'printHtml', 'notify', 'openExternal',
-    'aiStatus', 'aiChat', 'aiPull', 'aiDelete', 'remoteStatus', 'remoteSet', 'remoteNewPin', 'remoteForget', 'remotePort', 'explorerDark', 'folderIcon', 'folderIconClear', 'folderIconClearTree', 'folderIconRefresh', 'preview', 'readText', 'thumb'].forEach(function (m) { api[m] = call(m); });
+    'aiStatus', 'aiChat', 'aiChatStream', 'aiPull', 'aiDelete', 'remoteStatus', 'remoteSet', 'remoteNewPin', 'remoteForget', 'remotePort', 'explorerDark', 'folderIcon', 'folderIconClear', 'folderIconClearTree', 'folderIconRefresh', 'preview', 'readText', 'thumb'].forEach(function (m) { api[m] = call(m); });
   /* the page sends Uint8Array bytes for saved files; that crosses to the main process as is */
   api.onWin = function (fn) { B.on('win:state', fn); };
   api.onFocus = function (fn) { B.on('app:focus', fn); };
   api.onZoom = function (fn) { B.on('app:zoom', fn); };
   api.onAiPull = function (fn) { B.on('ai:pull', fn); };
+  /* a streamed AI answer: every piece as { sid, text so far } */
+  var STREAMS = {}, sidN = 0;
+  B.on('ai:token', function (m) { var f = m && STREAMS[m.sid]; if (f) f(m.text); });
+  api.aiStream = function (o, onText) {
+    var sid = 's' + (++sidN) + Date.now().toString(36); STREAMS[sid] = onText;
+    return api.aiChatStream(o, sid).then(function (r) { delete STREAMS[sid]; return r; }, function (e) { delete STREAMS[sid]; throw e; });
+  };
   /* a change saved from a phone (or another page), and phones pairing or connecting */
   api.onStore = function (fn) { B.on('store:changed', fn); };
   api.onRemote = function (fn) { B.on('remote:status', fn); };

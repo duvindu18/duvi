@@ -30,7 +30,7 @@ const rand = (n) => crypto.randomBytes(n).toString('hex');
 /* window, zoom, theme and the program's name and icon belong to the computer's own window; the computer applies a
    name or icon change itself when the studio settings reach it */
 const PHONE_ONLY_NOOP = { winAct: {}, winState: {}, setZoom: 1, setTheme: true, notify: false, setBranding: { changed: false } };
-const PHONE_BLOCKED = new Set(['saveFile', 'savePdf', 'pickFiles', 'pickFolder', 'printHtml', 'movePath', 'removeIfEmpty', 'folderIconClearTree', 'aiDelete', 'pfImage', 'savePortfolioPdf']);
+const PHONE_BLOCKED = new Set(['saveFile', 'savePdf', 'pickFiles', 'pickFolder', 'printHtml', 'movePath', 'removeIfEmpty', 'folderIconClearTree', 'aiDelete', 'pfImage', 'savePortfolioPdf', 'aiChatStream']);
 
 class Remote {
   /* o: { dir, api, prefs, version, name(), page(), asset(pathname) -> { file, type } | null, previewFile(token) -> path, renderPdf(html), onChange(ev) } */
@@ -167,14 +167,14 @@ class Remote {
   pairPage(msg) {
     const name = String(this.o.name()).replace(/[<>&"]/g, '');
     return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + name + '</title>' +
-      '<style>:root{color-scheme:light dark;--pg:#F4F1EA;--sf:#FBFAF6;--ln:#D3CBBA;--ink:#22231F;--ink2:#5A5D52;--pill:#1F3B2D;--on:#F4F1EA;--cn:#1F3B2D;--sd:#5E8A4C}' +
-      '@media (prefers-color-scheme:dark){:root{--pg:#131814;--sf:#1C231E;--ln:#323A34;--ink:#EDEAE2;--ink2:#A9AD9F;--pill:#3F7056;--on:#FFFFFF;--cn:#EDEAE2;--sd:#8DBB78}}' +
-      'body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--pg);color:var(--ink);font:15px/1.5 system-ui,Roboto,sans-serif;padding:20px;box-sizing:border-box}' +
-      '.c{width:100%;max-width:380px;display:flex;flex-direction:column;gap:14px}@font-face{font-family:SfA;font-weight:100 900;src:url(/vendor/inter/inter-latin-wght-normal.woff2)}@font-face{font-family:SfB;font-display:block;src:url(/vendor/fonts/archivo/archivo-black-latin-400-normal.woff2)}.lg{display:flex;align-items:baseline;gap:.09em;font-size:34px;line-height:1;color:var(--cn);margin-bottom:10px;white-space:nowrap}.lg b{font-weight:400;letter-spacing:-.02em}.lg .a{font-family:SfA,system-ui,sans-serif;font-weight:600}.lg .b{font-family:SfB,\'Arial Black\',sans-serif}.lg i{width:.3em;height:.3em;border-radius:50%;background:var(--sd);display:inline-block}.lg .m{display:none;letter-spacing:-.03em}@media (max-width:330px){.lg .f{display:none}.lg .m{display:inline}}h1{font-size:38px;line-height:1.04;letter-spacing:-.045em;font-weight:750;margin:6px 0 0}h1 span{color:var(--ink2)}p{margin:0;color:var(--ink2)}' +
+      '<style>:root{color-scheme:light dark;--pg:#F0EEE9;--sf:#FAF9F6;--ln:#D6D0C4;--ink:#141414;--ink2:#5E5C57;--pill:#123524;--on:#F0EEE9;--cn:#123524;--sd:#9C7A3C}' +
+      '@media (prefers-color-scheme:dark){:root{--pg:#123524;--sf:#1A4330;--ln:#2E5641;--ink:#F0EEE9;--ink2:#B5C4B9;--pill:#2B5A43;--on:#F0EEE9;--cn:#F0EEE9;--sd:#D4B786}}' +
+      'body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--pg);color:var(--ink);font:15px/1.5 SfA,system-ui,Roboto,sans-serif;padding:20px;box-sizing:border-box}' +
+      '.c{width:100%;max-width:380px;display:flex;flex-direction:column;gap:14px}@font-face{font-family:SfA;font-weight:100 900;src:url(/vendor/inter/inter-latin-wght-normal.woff2)}@font-face{font-family:SfB;font-display:block;font-weight:400 900;src:url(/vendor/fonts/playfair/playfair-display-latin-wght-normal.woff2)}.lg{display:flex;align-items:baseline;gap:0;font-size:34px;line-height:1;color:var(--cn);margin-bottom:10px;white-space:nowrap}.lg b{font-weight:400;letter-spacing:-.02em}.lg .a{font-family:SfA,system-ui,sans-serif;font-weight:600}.lg .b{font-family:SfB,Georgia,serif;font-weight:900;letter-spacing:-.015em}.lg .s{font-family:SfB,Georgia,serif;font-weight:900;color:var(--sd)}.lg .m{display:none;letter-spacing:-.03em}@media (max-width:330px){.lg .f{display:none}.lg .m{display:inline}}h1{font:900 36px/1.08 SfB,Georgia,serif;letter-spacing:-.01em;margin:6px 0 0}h1 span{color:var(--ink2)}p{margin:0;color:var(--ink2)}' +
       'input{font:700 26px/1 ui-monospace,monospace;letter-spacing:.35em;text-align:center;padding:14px;border-radius:2px;border:1px solid var(--ln);background:var(--sf);color:var(--ink);width:100%;box-sizing:border-box}' +
       'input.n{font:15px system-ui,sans-serif;letter-spacing:0;text-align:left}button{font:600 16px system-ui,sans-serif;padding:16px 22px;border-radius:2px;border:0;background:var(--pill);color:var(--on);display:flex;align-items:center;justify-content:space-between}' +
       'button i{width:34px;height:34px;border-radius:50%;background:var(--on);color:var(--pill);display:grid;place-items:center;font-style:normal;font-size:18px;margin:-10px -14px -10px 0}' +
-      '.e{color:#D93A4A;min-height:1.5em}</style></head><body><form class="c" id="f"><span class="lg" role="img" aria-label="Seedform"><b class="f"><span class="a">seed</span><span class="b">form</span></b><b class="m"><span class="a">s</span><span class="b">f</span></b><i></i></span><h1>Connect to <span>' + name + '</span></h1>' +
+      '.e{color:#D93A4A;min-height:1.5em}</style></head><body><form class="c" id="f"><span class="lg" role="img" aria-label="Seedform"><b class="f"><span class="a">seed</span><span class="b">form</span></b><b class="m"><span class="a">s</span><span class="b">f</span></b><span class="s">.</span></span><h1>Connect to <span>' + name + '</span></h1>' +
       '<p>On the computer, open Settings &gt; Desktop app &gt; Phone access and type the PIN shown there.</p>' +
       '<input id="pin" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" required>' +
       '<input class="n" id="nm" maxlength="40" placeholder="Name of this phone" required><button>Connect<i>→</i></button><p class="e" id="e">' + (msg || '') + '</p></form>' +
@@ -201,7 +201,7 @@ class Remote {
     if (p === '/ping') return this.json(res, { app: 'studio-morfis', id: this.data.serverId, name: this.o.name(), version: this.o.version });
     if (p === '/app-icon.png') return this.sendFile(req, res, this.o.iconPng());
     /* the logo's two typefaces, for the pairing page before a phone is paired */
-    if (p === '/vendor/inter/inter-latin-wght-normal.woff2' || p === '/vendor/fonts/archivo/archivo-black-latin-400-normal.woff2') { const a = this.o.asset(p); if (a) { res.writeHead(200, { 'content-type': a.type || 'font/woff2', 'cache-control': 'max-age=86400' }); return res.end(a.body); } }
+    if (p === '/vendor/inter/inter-latin-wght-normal.woff2' || p === '/vendor/fonts/playfair/playfair-display-latin-wght-normal.woff2') { const a = this.o.asset(p); if (a) { res.writeHead(200, { 'content-type': a.type || 'font/woff2', 'cache-control': 'max-age=86400' }); return res.end(a.body); } }
     if (p === '/logo.png') { const a = this.o.asset('/logo.png'); res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'no-cache' }); return res.end(a.body); }
     if (p === '/pair' && req.method === 'POST') {
       const b = JSON.parse(String(await this.body(req, 4096)) || '{}');

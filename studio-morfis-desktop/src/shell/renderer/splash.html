@@ -18,13 +18,14 @@ body{display:grid;place-items:center}
 .name{font-weight:600;font-size:15px;letter-spacing:-.01em;color:var(--ink);max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;animation:fade .3s .1s ease-out both}
 .track{width:120px;height:2px;border-radius:2px;background:var(--track);overflow:hidden;animation:fade .3s .16s ease-out both}
 .track i{display:block;width:40%;height:100%;border-radius:2px;background:var(--accent);animation:run 1.1s cubic-bezier(.4,0,.2,1) infinite}
-/* Seedform: the primary logo ("seed" over a big "form", then the seed), in ink on limewash or night garden.
-   It plays the motion logo once: the seed drops and bounces, "form" grows up from the baseline, "seed" rises in. */
-.logo{display:none;flex-direction:column;align-items:flex-start;gap:2px;color:var(--canopy)}
-.logo .a{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-weight:600;font-size:29px;line-height:1;letter-spacing:-.02em;margin-left:2px;animation:rise .5s .62s cubic-bezier(.2,.8,.2,1) both}
-.logo .r{display:flex;align-items:baseline;gap:5px}
-.logo .b{font-family:'Archivo Black','Arial Black',sans-serif;font-size:64px;line-height:.86;letter-spacing:-.02em;transform-origin:50% 100%;animation:grow .5s .4s cubic-bezier(.2,.8,.2,1) both}
-.logo .d{display:inline-block;width:19px;height:19px;border-radius:50%;background:var(--sprout);flex:none;animation:drop .62s cubic-bezier(.55,0,1,.45) both}
+/* Seedform: the stacked logo, edition 2: a small "seed" (Inter SemiBold, 46% of the size of "form") above "form."
+   (Playfair Display Black), with the full stop as the seed, in sand. Phthalo ground in dark, Cloud Dancer in light.
+   It plays the motion logo once: the seed drops into place, "form" grows up from the baseline, then "seed" appears. */
+.logo{display:none;flex-direction:column;align-items:flex-start;color:var(--canopy)}
+.logo .a{font-family:'Inter','Segoe UI',system-ui,sans-serif;font-weight:600;font-size:29.4px;line-height:1;letter-spacing:-.02em;margin:0 0 6.4px 1px;animation:rise .45s .62s cubic-bezier(.2,.8,.2,1) both}
+.logo .r{display:flex;align-items:baseline}
+.logo .b{font-family:'Playfair Display','Bodoni 72',Georgia,serif;font-weight:900;font-size:64px;line-height:.86;letter-spacing:-.015em;transform-origin:50% 100%;animation:grow .5s .4s cubic-bezier(.2,.8,.2,1) both}
+.logo .d{font-family:'Playfair Display','Bodoni 72',Georgia,serif;font-weight:900;font-size:64px;line-height:.86;font-style:normal;color:var(--sprout);display:inline-block;animation:drop .62s cubic-bezier(.55,0,1,.45) both}
 @keyframes drop{0%{transform:translateY(-120px)}64%{transform:none;animation-timing-function:cubic-bezier(0,.55,.45,1)}82%{transform:translateY(-12px);animation-timing-function:cubic-bezier(.55,0,1,.45)}100%{transform:none}}
 @keyframes grow{from{transform:scaleY(0)}to{transform:none}}
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
@@ -33,8 +34,8 @@ body{display:grid;place-items:center}
 .has-logo .track{border-radius:0;background:var(--sf-line)}
 .has-logo .track i{border-radius:0;background:var(--sprout)}
 .has-logo .cap{font-family:'Inter','Segoe UI',sans-serif;color:var(--sf-muted);font-size:12px}
-:root{--canopy:#EDEAE2;--sprout:#8DBB78;--sf-bg:#131814;--sf-line:#323A34;--sf-muted:#A9AD9F}
-:root.light{--canopy:#1F3B2D;--sprout:#5E8A4C;--sf-bg:#F4F1EA;--sf-line:#D3CBBA;--sf-muted:#5A5D52}
+:root{--canopy:#F0EEE9;--sprout:#D4B786;--sf-bg:#123524;--sf-line:#2E5641;--sf-muted:#B5C4B9}
+:root.light{--canopy:#123524;--sprout:#9C7A3C;--sf-bg:#F0EEE9;--sf-line:#D6D0C4;--sf-muted:#5E5C57}
 .cap{font-size:11px;color:var(--ink-2);letter-spacing:.02em;animation:fade .3s .2s ease-out both}
 .out .card{animation:out .18s ease-in forwards}
 @keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
@@ -47,7 +48,7 @@ body{display:grid;place-items:center}
 </head>
 <body>
 <div class="card" role="status" aria-label="Loading">
-  <div class="logo" role="img" aria-label="Seedform"><span class="a">seed</span><span class="r"><span class="b">form</span><i class="d"></i></span></div>
+  <div class="logo" role="img" aria-label="Seedform"><span class="a">seed</span><span class="r"><span class="b">form</span><i class="d">.</i></span></div>
   <div class="icon" id="icon"></div>
   <div class="name" id="name">Seedform</div>
   <div class="track" aria-hidden="true"><i></i></div>
@@ -64,7 +65,7 @@ body{display:grid;place-items:center}
   /* the Seedform logo, set in its own type (passed as file links), unless the app was given another name or icon */
   if (q.get('logo')) {
     var css = '', f = function (fam, url, w) { return url ? '@font-face{font-family:\'' + fam + '\';font-weight:' + w + ';src:url(' + JSON.stringify(url) + ')}' : ''; };
-    css += f('Archivo Black', q.get('display'), '400') + f('Inter', q.get('text'), '100 900');
+    css += f('Playfair Display', q.get('display'), '400 900') + f('Inter', q.get('text'), '100 900');
     var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
     root.classList.add('has-logo');
   }

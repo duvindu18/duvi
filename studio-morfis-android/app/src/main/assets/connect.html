@@ -6,24 +6,24 @@
 <title>Seedform</title>
 <style>
   /* Seedform: limewash ground, canopy green for weight, a sprout seed, square-cut corners; night garden when the phone is dark */
-  :root{color-scheme:light dark;--page:#F4F1EA;--surface:#FBFAF6;--line:#D3CBBA;--ink:#22231F;--ink2:#5A5D52;--ink3:#77796E;--pill:#1F3B2D;--on:#F4F1EA;--dot:#5E8A4C;--canopy:#1F3B2D;--bad:#A84E33;--grid:rgba(34,35,31,.05)}
-  @media (prefers-color-scheme:dark){:root{--page:#131814;--surface:#1C231E;--line:#323A34;--ink:#EDEAE2;--ink2:#A9AD9F;--ink3:#8A8E80;--pill:#3F7056;--on:#FFFFFF;--dot:#8DBB78;--canopy:#EDEAE2;--bad:#D57552;--grid:rgba(237,234,226,.05)}}
+  :root{color-scheme:light dark;--page:#F0EEE9;--surface:#FAF9F6;--line:#D6D0C4;--ink:#141414;--ink2:#5E5C57;--ink3:#77746D;--pill:#123524;--on:#F0EEE9;--dot:#9C7A3C;--canopy:#123524;--bad:#A84E33;--grid:rgba(20,20,20,.05)}
+  @media (prefers-color-scheme:dark){:root{--page:#123524;--surface:#1A4330;--line:#2E5641;--ink:#F0EEE9;--ink2:#B5C4B9;--ink3:#9DB0A3;--pill:#2B5A43;--on:#F0EEE9;--dot:#D4B786;--canopy:#F0EEE9;--bad:#E07A55;--grid:rgba(240,238,233,.05)}}
   *{box-sizing:border-box}
   [hidden]{display:none!important}
-  body{margin:0;min-height:100vh;background:var(--page);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Roboto,sans-serif;padding:26px 20px 40px;display:flex;justify-content:center}
+  body{margin:0;min-height:100vh;background:var(--page);color:var(--ink);font:15px/1.5 SfA,system-ui,-apple-system,Roboto,sans-serif;padding:26px 20px 40px;display:flex;justify-content:center}
   body::before{content:"";position:fixed;inset:0;background-image:radial-gradient(circle at 1px 1px,var(--grid) 1px,transparent 0);background-size:22px 22px;pointer-events:none}
   main{position:relative;width:100%;max-width:440px;display:flex;flex-direction:column;gap:18px}
   /* the Seedform logo, horizontal: "seed" in Inter 600, "form" in Archivo Black, then the seed; the monogram on very narrow screens */
   @font-face{font-family:SfA;font-weight:100 900;src:url(sf-inter.woff2)}
-  @font-face{font-family:SfB;font-display:block;src:url(sf-archivo.woff2)}
-  .brand{display:flex;align-items:baseline;gap:.09em;font-size:32px;line-height:1;color:var(--canopy);white-space:nowrap}
+  @font-face{font-family:SfB;font-display:block;font-weight:400 900;src:url(sf-playfair.woff2)}
+  .brand{display:flex;align-items:baseline;gap:0;font-size:32px;line-height:1;color:var(--canopy);white-space:nowrap}
   .brand b{font-weight:400;letter-spacing:-.02em}
   .brand .a{font-family:SfA,system-ui,sans-serif;font-weight:600}
-  .brand .b{font-family:SfB,'Arial Black',sans-serif}
-  .brand i{width:.3em;height:.3em;border-radius:50%;background:var(--dot);display:inline-block}
+  .brand .b{font-family:SfB,Georgia,serif;font-weight:900;letter-spacing:-.015em}
+  .brand .s{font-family:SfB,Georgia,serif;font-weight:900;color:var(--dot)}
   .brand .m{display:none;letter-spacing:-.03em}
   @media (max-width:320px){.brand .f{display:none}.brand .m{display:inline}}
-  h1{margin:18px 0 0;font:500 42px/1.06 'Playfair Display',Georgia,'Times New Roman',serif;letter-spacing:-.01em}
+  h1{margin:18px 0 0;font:900 40px/1.08 SfB,Georgia,serif;letter-spacing:-.01em}
   h1 span{color:var(--ink2)}
   p{margin:0;color:var(--ink2)}
   .lead{font-size:17px}
@@ -54,7 +54,7 @@
 </head>
 <body>
 <main>
-  <div class="brand" role="img" aria-label="Seedform"><b class="f"><span class="a">seed</span><span class="b">form</span></b><b class="m"><span class="a">s</span><span class="b">f</span></b><i></i></div>
+  <div class="brand" role="img" aria-label="Seedform"><b class="f"><span class="a">seed</span><span class="b">form</span></b><b class="m"><span class="a">s</span><span class="b">f</span></b><span class="s">.</span></div>
   <div><h1>Your studio <span>on your phone.</span></h1><p class="lead" style="margin-top:14px">Projects, documents and folders of your computer. Works offline, and catches up when it is back.</p></div>
   <p class="err" id="err" hidden></p>
   <h2>On this network <span class="spin" id="spin"></span><button class="scan" id="scan" type="button">Search again</button></h2>

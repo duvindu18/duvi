@@ -138,7 +138,10 @@ section[data-dropzone].drop-on{outline:2px dashed var(--accent-fill);outline-off
 .ed{display:flex;flex-direction:column;height:100%;min-height:0}
 .ed-bar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .ed-name{display:flex;flex-direction:column;min-width:0;line-height:1.25}
-.ed-name b{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ed-name b{font-size:14px;font-weight:600;white-space:nowrap}
+/* the type, then its number as a label on the same baseline */
+.ed-t{display:flex;align-items:baseline;gap:8px;min-width:0;line-height:1.3}
+.ed-no{font:500 11.5px/1.3 'IBM Plex Mono',ui-monospace,Menlo,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .ed-saved{font-size:11.5px;color:var(--ink-3)}
 .ed-saved.busy{color:var(--warn)}
 .ed-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 320px}
@@ -154,27 +157,29 @@ section[data-dropzone].drop-on{outline:2px dashed var(--accent-fill);outline-off
 .ed-warn svg{flex:none;margin-top:1px}
 
 /* ===== the A4 page: fixed colours, the same on screen, in the PDF and on paper ===== */
-.pp{--pp-ink:#17171C;--pp-ink2:#5B5B66;--pp-ink3:#8A8A95;--pp-line:#E6E6EC;--pp-soft:#F6F6F9;
-  position:relative;width:794px;min-height:1123px;box-sizing:border-box;padding:0 56px 96px;background:#fff;color:var(--pp-ink);font:12.5px/1.5 'InterVar','Segoe UI',system-ui,sans-serif;font-feature-settings:'tnum';border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.18),0 12px 40px -12px rgba(0,0,0,.45);text-align:left}
+.pp{--pp-ink:#141414;--pp-ink2:#5E5C57;--pp-ink3:#77746D;--pp-line:#D6D0C4;--pp-soft:#F0EEE9;--pp-acc:#123524;--pp-seed:#9C7A3C;
+  position:relative;width:794px;min-height:1123px;box-sizing:border-box;padding:57px 57px 96px;background:#fff;color:var(--pp-ink);font:12.5px/1.55 'InterVar','Inter','Helvetica Neue',Arial,sans-serif;font-feature-settings:'tnum';border-radius:2px;box-shadow:0 0 0 1px var(--line,#D6D0C4);text-align:left}
 .pp *{box-sizing:border-box}
-.pp-band{height:6px;margin:0 -56px 40px;background:var(--pp-acc)}
+/* Seedform's letterhead (brand book, Applications): the one-line logo top left, 15 mm margins, hairlines */
+.pp-sfl{display:flex;align-items:baseline;font-size:31px;line-height:1;color:var(--pp-acc);margin:0 0 10px;white-space:nowrap}
+.pp-sfl .a{font-family:'InterVar','Inter',Arial,sans-serif;font-weight:600;letter-spacing:-.02em}.pp-sfl .b{font-family:'Playfair Display',Georgia,serif;font-weight:900;letter-spacing:-.015em}.pp-sfl .sd{font-family:'Playfair Display',Georgia,serif;font-weight:900;color:var(--pp-seed)}
 .pp-head{display:flex;justify-content:space-between;gap:28px;align-items:flex-start}
 .pp-from{display:flex;gap:14px;align-items:flex-start;min-width:0}
-.pp-logo{width:44px;height:44px;border-radius:10px;object-fit:cover;flex:none}
-.pp-studio{font-size:19px;font-weight:650;letter-spacing:-.02em;margin-bottom:4px}
+.pp-logo{width:44px;height:44px;border-radius:2px;object-fit:cover;flex:none}
+.pp-studio{font-size:19px;font-weight:600;letter-spacing:-.02em;margin-bottom:4px}
 .pp-muted{color:var(--pp-ink2);font-size:11.5px;line-height:1.55}
 .pp-title{text-align:right;min-width:220px;display:flex;flex-direction:column;align-items:flex-end;gap:1px}
-.pp-kind{font-size:26px;font-weight:700;letter-spacing:-.03em;color:var(--pp-acc);line-height:1.1;margin-bottom:6px}
-.pp-no{font-weight:600;font-size:13px;text-align:right}
+.pp-kind{font-family:'Playfair Display',Georgia,serif;font-size:30px;font-weight:900;letter-spacing:-.01em;color:var(--pp-acc);line-height:1.1;margin-bottom:8px}
+.pp-no{font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:500;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;text-align:right}
 .pp-kv{display:flex;justify-content:space-between;gap:18px;width:100%;font-size:12px;align-items:baseline}
 .pp-kv span{color:var(--pp-ink2)}
 .pp-kv b{font-weight:550}
 .pp-parties{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin:34px 0 26px;padding:18px 0;border-top:1px solid var(--pp-line);border-bottom:1px solid var(--pp-line)}
 .pp-parties>div{display:flex;flex-direction:column;gap:1px;min-width:0}
-.pp-label{font-size:10px;font-weight:650;letter-spacing:.09em;text-transform:uppercase;color:var(--pp-ink3);margin:0 0 5px}
+.pp-label{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:9.5px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--pp-ink2);margin:0 0 5px}
 .pp-strong{font-weight:600;font-size:13.5px}
 .pp-items{width:100%;border-collapse:collapse;min-width:0}
-.pp-items th{font-size:10px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--pp-ink3);text-align:left;padding:8px 6px;border-bottom:1.5px solid var(--pp-ink);white-space:nowrap}
+.pp-items th{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:9.5px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--pp-ink2);text-align:left;padding:8px 6px;border-bottom:1px solid var(--pp-acc);white-space:nowrap}
 .pp-items td{padding:10px 6px;border-bottom:1px solid var(--pp-line);vertical-align:top}
 .pp-line{break-inside:avoid}
 .pp-c-n{width:26px;color:var(--pp-ink3)}
@@ -191,26 +196,26 @@ section[data-dropzone].drop-on{outline:2px dashed var(--accent-fill);outline-off
 .pp-bank span{color:var(--pp-ink2)}
 .pp-tot{display:flex;flex-direction:column;gap:6px}
 .pp-tot .pp-kv{font-size:12.5px}
-.pp-grand{padding-top:9px;margin-top:3px;border-top:1.5px solid var(--pp-ink)}
+.pp-grand{padding-top:9px;margin-top:3px;border-top:1px solid var(--pp-acc)}
 .pp-grand span{color:var(--pp-ink);font-weight:600}
-.pp-grand b{font-size:16px;font-weight:700;letter-spacing:-.01em}
+.pp-grand b{font-family:'Playfair Display',Georgia,serif;font-size:19px;font-weight:900;letter-spacing:-.01em;color:var(--pp-acc)}
 .pp-note span,.pp-note b{color:var(--pp-ink3);font-weight:450;font-size:11.5px}
-.pp-foot{position:absolute;left:56px;right:56px;bottom:34px;padding-top:12px;border-top:1px solid var(--pp-line);font-size:10.5px;color:var(--pp-ink3);text-align:center}
+.pp-foot{position:absolute;left:57px;right:57px;bottom:34px;padding-top:12px;border-top:1px solid var(--pp-line);font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:500;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--pp-ink2);text-align:left}
 /* editing on the page */
-.pp-in{display:block;width:100%;border:0;background:none;color:inherit;font:inherit;padding:1px 4px;margin:0 -4px;border-radius:4px;outline:0;resize:none;overflow:hidden;line-height:inherit;min-width:0}
+.pp-in{display:block;width:100%;border:0;background:none;color:inherit;font:inherit;padding:1px 4px;margin:0 -4px;border-radius:2px;outline:0;resize:none;overflow:hidden;line-height:inherit;min-width:0}
 .pp-in::placeholder{color:#B4B4BE}
-.pp-in:hover{background:#F4F4F8}
+.pp-in:hover{background:#F0EEE9}
 .pp-in:focus{background:#fff;box-shadow:0 0 0 2px color-mix(in srgb,var(--pp-acc) 45%,transparent)}
 .pp-title .pp-in{text-align:right}
 .pp-kv .pp-in{width:auto;flex:1;text-align:right;margin-right:-4px}
 .pp-date{max-width:140px;color-scheme:light}
 .pp-num{text-align:right}
 .pp-area{min-height:20px}
-.pp-x{position:absolute;right:-30px;top:8px;width:22px;height:22px;border-radius:6px;border:0;background:none;color:#A0A0AA;display:grid;place-items:center;opacity:0;cursor:pointer}
+.pp-x{position:absolute;right:-30px;top:8px;width:22px;height:22px;border-radius:2px;border:0;background:none;color:#A0A0AA;display:grid;place-items:center;opacity:0;cursor:pointer}
 .pp-line:hover .pp-x{opacity:1}
 .pp-x:hover{background:#FDECEE;color:#C2394A}
 .pp-addrow{display:flex;gap:6px;margin-top:8px}
-.pp-add{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:6px;border:1px dashed #D6D6DE;background:none;color:#6B6B76;font:500 12px 'InterVar',system-ui,sans-serif;cursor:pointer}
+.pp-add{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:2px;border:1px dashed #D6D0C4;background:none;color:#6B6B76;font:500 12px 'InterVar',system-ui,sans-serif;cursor:pointer}
 .pp-add:hover{border-color:var(--pp-acc);color:var(--pp-acc)}
 @media print{.pp{box-shadow:none;border-radius:0}}
 
@@ -506,7 +511,7 @@ html[data-theme="light"] .vx-aura .band{background:radial-gradient(ellipse at 50
 .vx:not([data-state="idle"]) .vx-card::before{opacity:0}
 .vx[data-state="thinking"] .vx-state,.vx[data-state="hearing"] .vx-state,.vx[data-state="loading"] .vx-state{background:linear-gradient(90deg,var(--ink-3) 0%,#4285F4 30%,#D96570 50%,var(--ink-3) 75%);background-size:220% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:vxShim 1.6s linear infinite}
 @keyframes vxShim{from{background-position:120% 0}to{background-position:-100% 0}}
-.vx-w{display:inline-block;animation:vxWord .32s cubic-bezier(.2,.9,.3,1) both}
+.vx-w{display:inline-block;animation:vxWord .18s cubic-bezier(.2,.9,.3,1) both}
 @keyframes vxWord{from{opacity:0;filter:blur(4px);transform:translateY(4px)}to{opacity:1;filter:none;transform:none}}
 .vx-yes{background:var(--ink)!important;color:var(--surface)!important;border-color:var(--ink)!important}
 .vx-yes span{color:inherit;opacity:.7}

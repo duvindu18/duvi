@@ -31,7 +31,7 @@ const DEFAULTS = {
   pattern: true,               // a dot grid behind the content
   glow: false,                 // the accent wash at the top of the page
   followGlow: true,            // a soft accent light that follows the pointer
-  style: 'seedform',           // seedform (the studio's brand: limewash, canopy green, Playfair Display) | mono (light grey, ink black, heavy type) | graphite (the dark graphite look) | red | green (Andromeda Red / Green: Mono on painted metallic backgrounds)
+  style: 'seedform',           // the one style: Seedform, light (Cloud Dancer) and dark (Phthalo)
   monoIntro: false,            // set once by the move to Mono: the page then switches to the light theme
   lookV: 5,
   roundCorners: true,
@@ -51,7 +51,7 @@ const DEFAULTS = {
 
 const CHOICES = {
   controls: ['windows', 'pill', 'mac'],
-  style: ['seedform', 'mono', 'graphite', 'red', 'green'],
+  style: ['seedform'],
   density: ['comfortable', 'compact'],
   titleBar: ['name', 'none'],
   font: ['inter', 'segoe', 'technical', 'system', 'studio'],
@@ -79,6 +79,8 @@ class Prefs {
       if (!(raw.lookV >= 4)) { this.data.glow = false; this.data.lookV = 4; }
       /* version 1.14, the rebrand to Seedform: Mono moves to the Seedform style once (Graphite and Andromeda stay) */
       if (!(raw.lookV >= 5)) { if (this.data.style === 'mono') this.data.style = 'seedform'; this.data.lookV = 5; }
+      /* version 1.16, brand book edition 2: Seedform is the only style */
+      if (!(raw.lookV >= 6)) { this.data.style = 'seedform'; this.data.font = 'inter'; this.data.lookV = 6; }
     } catch (e) { /* first start, or an unreadable file: defaults */ }
     this.clean();
   }

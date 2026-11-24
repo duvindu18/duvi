@@ -472,7 +472,7 @@ public class MainActivity extends Activity {
     /* status and navigation bars in the page's paper colour, with dark icons on the light theme */
     @SuppressWarnings("deprecation")
     private void bars(boolean light) {
-        int c = Color.parseColor(light ? "#F4F1EA" : "#131814");
+        int c = Color.parseColor(light ? "#F0EEE9" : "#123524");
         getWindow().setStatusBarColor(c);
         getWindow().setNavigationBarColor(c);
         web.setBackgroundColor(c);

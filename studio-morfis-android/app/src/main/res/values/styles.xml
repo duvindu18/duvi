@@ -6,6 +6,6 @@
         <item name="android:navigationBarColor">@color/page</item>
         <item name="android:colorAccent">@color/accent</item>
     </style>
-    <color name="page">#131814</color>
-    <color name="accent">#1F3B2D</color>
+    <color name="page">#123524</color>
+    <color name="accent">#123524</color>
 </resources>

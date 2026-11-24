@@ -269,16 +269,8 @@
   /* ===== look: classes on <html>, the same ones the main process sets before first paint ===== */
   var CLASS_PREFS = {
     controls: function (v) { ['windows', 'pill', 'mac'].forEach(function (k) { root.classList.toggle('wc-' + k, k === v); }); },
-    style: function (v) {
-      v = v || 'seedform';
-      var paint = v === 'red' || v === 'green';
-      root.classList.toggle('style-mono', v === 'mono' || v === 'seedform' || paint); root.classList.toggle('style-graphite', v === 'graphite');
-      root.classList.toggle('style-seedform', v === 'seedform');
-      root.classList.toggle('paint', paint); root.classList.toggle('paint-red', v === 'red'); root.classList.toggle('paint-green', v === 'green');
-      /* the painted styles are dark: switch to dark when one is chosen */
-      if (paint && root.dataset.theme === 'light') { var tb = document.querySelector('[data-act="toggleTheme"]'); if (tb) tb.click(); }
-      var pg = page(); if (pg && pg.renderAll) pg.renderAll();
-    },
+    /* one style: Seedform, in its light (Cloud Dancer) and dark (Phthalo) themes */
+    style: function () { root.classList.add('style-mono', 'style-seedform'); root.classList.remove('style-graphite', 'paint', 'paint-red', 'paint-green'); },
     font: function (v) { ['inter', 'segoe', 'technical', 'system', 'studio'].forEach(function (k) { root.classList.toggle('font-' + k, k === v); }); },
     density: function (v) { ['comfortable', 'compact'].forEach(function (k) { root.classList.toggle('density-' + k, k === v); }); },
     titleBar: function (v) { root.classList.toggle('no-wtitle', v === 'none'); },
@@ -326,8 +318,6 @@
         sw('rememberWindow', 'Reopen at the same size and place') +
       '</div>' +
       '<div class="dk-sec"><h3>Look</h3>' +
-        field('Style', seg('style', [['seedform', 'Seedform'], ['mono', 'Mono'], ['graphite', 'Graphite'], ['red', 'Andromeda Red'], ['green', 'Andromeda Green']])) +
-        field('Font', seg('font', [['inter', 'Inter'], ['segoe', 'Segoe UI'], ['technical', 'Technical'], ['system', 'System'], ['studio', 'Studio classic']])) +
         field('Spacing', seg('density', [['comfortable', 'Comfortable'], ['compact', 'Compact']])) +
         sw('pattern', 'Dot grid background', 'Fine dots behind the content') +
         sw('followGlow', 'Light follows the pointer', 'A soft accent glow under the pointer that lights up the dots') +

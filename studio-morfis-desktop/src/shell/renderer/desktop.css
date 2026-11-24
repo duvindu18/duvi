@@ -187,22 +187,21 @@ html[data-dk-view]:not([data-dk-view="home"]):not([data-dk-view="projects"]) .to
 .wbrand-logo{display:none;align-items:center;gap:8px;height:22px;color:var(--sf-canopy,var(--ink))}
 .wbrand.has-logo .wbrand-logo{display:inline-flex}
 .wbrand.has-logo .wbrand-ic,.wbrand.has-logo .wbrand-name{display:none}
-.wbrand-logo .sfl{font-size:19px}
-/* The responsive logo: one idea at four sizes, with the seed as the constant.
-   01 primary (stacked: "seed" over a big "form"), 02 horizontal (seedform), 03 monogram (sf), 04 seed alone.
-   "seed" is Inter 600, "form" Archivo Black, the seed a sprout-green circle 0.3 of the type size. */
-.sfl{display:inline-flex;align-items:baseline;gap:.09em;line-height:1;color:var(--sf-canopy,var(--ink));white-space:nowrap}
-.sfl b{font-weight:400;letter-spacing:-.02em}
-.sfl .sfl-a{font-family:'InterVar','Inter',system-ui,sans-serif;font-weight:600}
-.sfl .sfl-b{font-family:'Archivo Black','Arial Black',system-ui,sans-serif;font-weight:400}
-.sfl-dot{display:inline-block;width:.3em;height:.3em;border-radius:50%;background:var(--sf-sprout,#8DBB78);flex:none}
-.sfl-mono{display:none;letter-spacing:-.03em}
-.sfl.is-mono .sfl-full{display:none}.sfl.is-mono .sfl-mono{display:inline}.sfl.is-mono{gap:.07em}
-.sfl.is-seed b{display:none}
-/* in the window bar: the horizontal logo, the monogram when the sidebar is collapsed or the window is narrow */
+.wbrand-logo .sfl{font-size:20px}
+/* The Seedform logo, edition 2: "seed" in Inter SemiBold (tracking -2%) and "form" in Playfair Display Black
+   (tracking -1.5%), the same size, on one baseline, no space between; the full stop is the seed, in sand.
+   The monogram is "sf." at -3%. In the window bar the one-line logo, the monogram when the sidebar is collapsed
+   or the window is narrow. */
+.sfl{display:inline-flex;align-items:baseline;line-height:1;color:var(--sf-canopy,var(--ink));white-space:nowrap}
+.sfl b{font-weight:400}
+.sfl .sfl-a{font-family:'InterVar','Inter','Helvetica Neue',Arial,sans-serif;font-weight:600;letter-spacing:-.02em}
+.sfl .sfl-b{font-family:'Playfair Display','Bodoni 72',Georgia,serif;font-weight:900;letter-spacing:-.015em}
+.sfl-dot{font-family:'Playfair Display','Bodoni 72',Georgia,serif;font-weight:900;font-style:normal;color:var(--sf-sprout,#9C7A3C)}
+.sfl-mono{display:none}.sfl-mono .sfl-a,.sfl-mono .sfl-b{letter-spacing:-.03em}
+.sfl.is-mono .sfl-full{display:none}.sfl.is-mono .sfl-mono{display:inline}
 html.side-collapsed .wbrand-logo .sfl .sfl-full{display:none}html.side-collapsed .wbrand-logo .sfl .sfl-mono{display:inline}
-html.side-collapsed .wbrand-logo .sfl{font-size:21px;gap:.07em}
-@media (max-width:1080px){.wbrand-logo .sfl .sfl-full{display:none}.wbrand-logo .sfl .sfl-mono{display:inline}.wbrand-logo .sfl{font-size:21px;gap:.07em}}
+html.side-collapsed .wbrand-logo .sfl{font-size:22px}
+@media (max-width:1080px){.wbrand-logo .sfl .sfl-full{display:none}.wbrand-logo .sfl .sfl-mono{display:inline}.wbrand-logo .sfl{font-size:22px}}
 
 /* light and dark switch: one quick cross-fade; the page's own per-element colour easing is what lagged */
 html.theming,html.theming *,html.theming *::before,html.theming *::after{transition:none!important}

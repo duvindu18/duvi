@@ -22,13 +22,10 @@ const DEFAULT_ICON = path.join(ROOT, 'build', 'icon.png');
 const LEAFLET = path.dirname(require.resolve('leaflet/dist/leaflet.js'));
 const MAMMOTH = path.dirname(require.resolve('mammoth/mammoth.browser.min.js'));
 const INTER = path.join(path.dirname(require.resolve('@fontsource-variable/inter/package.json')), 'files');
-/* the Seedform typefaces, on this computer: Playfair Display (headlines), Manrope (text and interface), IBM Plex Mono (labels) */
+/* the Seedform typefaces, on this computer: Playfair Display (headlines and the "form" of the logo), IBM Plex Mono (labels); Inter (text) is INTER */
 const FONTS = {
   playfair: path.join(path.dirname(require.resolve('@fontsource-variable/playfair-display/package.json')), 'files'),
-  manrope: path.join(path.dirname(require.resolve('@fontsource-variable/manrope/package.json')), 'files'),
-  plexmono: path.join(path.dirname(require.resolve('@fontsource/ibm-plex-mono/package.json')), 'files'),
-  /* the logo: "seed" in Inter, "form" in Archivo Black */
-  archivo: path.join(path.dirname(require.resolve('@fontsource/archivo-black/package.json')), 'files')
+  plexmono: path.join(path.dirname(require.resolve('@fontsource/ibm-plex-mono/package.json')), 'files')
 };
 /* the voice assistant, all on this computer: the speech engine (ONNX Runtime, WebAssembly), Whisper to listen,
    Kokoro to speak, and espeak-ng (through phonemizer) to turn words into sounds for Kokoro */
@@ -119,9 +116,9 @@ function asset(pathname) {
   if (pathname.indexOf('/vendor/leaflet/') === 0) file = path.join(LEAFLET, decodeURIComponent(pathname.slice('/vendor/leaflet/'.length)));
   else if (pathname.indexOf('/vendor/mammoth/') === 0) file = path.join(MAMMOTH, decodeURIComponent(pathname.slice('/vendor/mammoth/'.length)));
   else if (pathname.indexOf('/vendor/inter/') === 0) file = path.join(INTER, decodeURIComponent(pathname.slice('/vendor/inter/'.length)));
-  else if (/^\/vendor\/fonts\/(playfair|manrope|plexmono|archivo)\//.test(pathname)) { const k = pathname.split('/')[3]; file = path.join(FONTS[k], decodeURIComponent(pathname.split('/').slice(4).join('/'))); }
+  else if (/^\/vendor\/fonts\/(playfair|plexmono)\//.test(pathname)) { const k = pathname.split('/')[3]; file = path.join(FONTS[k], decodeURIComponent(pathname.split('/').slice(4).join('/'))); }
   else file = path.join(RENDERER, decodeURIComponent(pathname.slice(1)));
-  const okRoot = [LEAFLET, INTER, MAMMOTH, RENDERER, FONTS.playfair, FONTS.manrope, FONTS.plexmono, FONTS.archivo].some((r) => path.resolve(file).startsWith(path.resolve(r) + path.sep));
+  const okRoot = [LEAFLET, INTER, MAMMOTH, RENDERER, FONTS.playfair, FONTS.plexmono].some((r) => path.resolve(file).startsWith(path.resolve(r) + path.sep));
   if (!okRoot || !fs.existsSync(file) || !fs.statSync(file).isFile()) return null;
   return { body: fs.readFileSync(file), type: MIME[path.extname(file).toLowerCase()] || 'application/octet-stream' };
 }
@@ -171,7 +168,7 @@ function openSplash() {
   const icon = branding.iconPng();
   /* the studio's wordmark, unless the app has been given another name or icon */
   const own = !prefs.get('branding').name && !prefs.get('branding').iconFile;
-  splash.loadFile(path.join(RENDERER, 'splash.html'), { query: { name: branding.name(), icon: require('url').pathToFileURL(icon).href, logo: own ? '1' : '', display: require('url').pathToFileURL(path.join(FONTS.archivo, 'archivo-black-latin-400-normal.woff2')).href, text: require('url').pathToFileURL(path.join(INTER, 'inter-latin-wght-normal.woff2')).href, theme: resolvedTheme(), accent: prefs.get('accent'), motion: prefs.get('reduceMotion') ? '0' : '1' } });
+  splash.loadFile(path.join(RENDERER, 'splash.html'), { query: { name: branding.name(), icon: require('url').pathToFileURL(icon).href, logo: own ? '1' : '', display: require('url').pathToFileURL(path.join(FONTS.playfair, 'playfair-display-latin-wght-normal.woff2')).href, text: require('url').pathToFileURL(path.join(INTER, 'inter-latin-wght-normal.woff2')).href, theme: resolvedTheme(), accent: prefs.get('accent'), motion: prefs.get('reduceMotion') ? '0' : '1' } });
   splash.once('ready-to-show', () => { if (splash) { splash.shownAt = Date.now(); splash.show(); } });
 }
 function closeSplash(then) {
@@ -437,11 +434,9 @@ const API = {
     const fu = (f) => require('url').pathToFileURL(f).href;
     const faces = "@font-face{font-family:'Playfair Display';font-weight:400 900;src:url(" + fu(path.join(FONTS.playfair, 'playfair-display-latin-wght-normal.woff2')) + ")}" +
       "@font-face{font-family:'Playfair Display';font-style:italic;font-weight:400 900;src:url(" + fu(path.join(FONTS.playfair, 'playfair-display-latin-wght-italic.woff2')) + ")}" +
-      "@font-face{font-family:'Manrope';font-weight:200 800;src:url(" + fu(path.join(FONTS.manrope, 'manrope-latin-wght-normal.woff2')) + ")}" +
       "@font-face{font-family:'IBM Plex Mono';font-weight:400;src:url(" + fu(path.join(FONTS.plexmono, 'ibm-plex-mono-latin-400-normal.woff2')) + ")}" +
       "@font-face{font-family:'IBM Plex Mono';font-weight:500;src:url(" + fu(path.join(FONTS.plexmono, 'ibm-plex-mono-latin-500-normal.woff2')) + ")}" +
-      "@font-face{font-family:'Inter';font-weight:100 900;src:url(" + fu(path.join(INTER, 'inter-latin-wght-normal.woff2')) + ")}" +
-      "@font-face{font-family:'Archivo Black';src:url(" + fu(path.join(FONTS.archivo, 'archivo-black-latin-400-normal.woff2')) + ")}";
+      "@font-face{font-family:'Inter';font-weight:100 900;src:url(" + fu(path.join(INTER, 'inter-latin-wght-normal.woff2')) + ")}";
     const doc = String(html).replace('/*PF-FONTS*/', faces).replace(/pfimg:([0-9a-f]{20})/g, (m, id) => fu(path.join(dir, id + '.jpg')));
     const tmp = path.join(app.getPath('temp'), 'seedform-portfolio-' + process.pid + '.html');
     fs.writeFileSync(tmp, doc);
@@ -488,6 +483,8 @@ const API = {
   aiStatus: () => ai.status(prefs),
   aiDelete: (name) => ai.remove(prefs, name),
   aiChat: (o) => ai.chat(prefs, o || {}),
+  /* the same, with the answer sent to the page piece by piece as it is written (ai:token events) */
+  aiChatStream: (o, sid) => ai.chat(prefs, Object.assign({}, o || {}, { onToken: (t, all) => { if (win && !win.isDestroyed()) win.webContents.send('ai:token', { sid: sid, text: all }); } })),
   aiPull(name) {
     return ai.pull(prefs, name, (p) => { if (win && !win.isDestroyed()) win.webContents.send('ai:pull', p); remote.push({ t: 'ai:pull', p: p }); });
   },

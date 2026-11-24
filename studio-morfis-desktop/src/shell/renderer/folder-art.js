@@ -88,17 +88,18 @@
       in_progress: ['#F8D54E', '#F5C400', '#DDAE00'], completed: ['#9CAA73', '#7F8D56', '#717F4A'], on_hold: ['#C4C4C4', '#ABABAB', '#9B9B9B'],
       not_started: ['#E2E2E2', '#D3D3D3', '#BEBEBE'], cancelled: ['#E2E2E2', '#D3D3D3', '#BEBEBE'], plain: ['#DCDCDC', '#CBCBCB', '#B4B4B4']
     },
-    /* Seedform: the brand palette, square-cut. Canopy in progress, sprout when completed, sand on hold, the line
-       tone for upcoming and the numbered folders, laterite when cancelled */
+    /* Seedform, edition 2: the brand palette, square-cut, told apart by lightness as well as hue. Phthalo in
+       progress, sand (the seed) when completed, the sand tint on hold, the line tone for upcoming and the numbered
+       folders, laterite when cancelled */
     'seed-light': {
       sq: true,
-      in_progress: ['#2F5541', '#1F3B2D', '#3B6550'], completed: ['#7EA56B', '#5E8A4C', '#4D7540'], on_hold: ['#EAE1CF', '#E2D6BF', '#C8B894'],
-      not_started: ['#E6E1D5', '#D3CBBA', '#B9AE98'], cancelled: ['#BE6A4F', '#A84E33', '#8C3E27'], plain: ['#E6E1D5', '#D3CBBA', '#B4A992']
+      in_progress: ['#1F4A34', '#123524', '#2B5A43'], completed: ['#B39456', '#9C7A3C', '#80632E'], on_hold: ['#EEE5D3', '#E7DCC6', '#CBBB98'],
+      not_started: ['#E4DFD5', '#D6D0C4', '#BDB5A5'], cancelled: ['#BE6A4F', '#A84E33', '#8C3E27'], plain: ['#E4DFD5', '#D6D0C4', '#B8AF9F']
     },
     'seed-dark': {
       sq: true,
-      in_progress: ['#4E8466', '#3F7056', '#5A8F71'], completed: ['#A0C98D', '#8DBB78', '#76A563'], on_hold: ['#4A4940', '#3B3A31', '#57554B'],
-      not_started: ['#2D3530', '#232A25', '#3A433C'], cancelled: ['#DE8868', '#D57552', '#B45E3F'], plain: ['#2D3530', '#232A25', '#3C463E']
+      in_progress: ['#3A6A52', '#2B5A43', '#467A60'], completed: ['#E0C79C', '#D4B786', '#B89A68'], on_hold: ['#5D7262', '#4C6152', '#6C8170'],
+      not_started: ['#2A5241', '#1F4232', '#34604C'], cancelled: ['#E89272', '#E07A55', '#C2603D'], plain: ['#2A5241', '#1F4232', '#376350']
     },
     'mono-dark': {
       in_progress: ['#F8D54E', '#F5C400', '#DDAE00'], completed: ['#8A9862', '#6F7D47', '#7E8C55'], on_hold: ['#6A6A6A', '#555555', '#626262'],
@@ -199,5 +200,5 @@
   window.MorfisArt = { STATUS: STATUS, ORDER: ORDER, statusOf: statusOf, statusDot: statusDot, statusTag: statusTag, glyph: glyph,
     kindOf: kindOf, fileIcon: fileIcon, folder: folder, variant: variant, kindsOf: kindsOf, explorerIcon: explorerIcon, toPng: toPng, look: look };
   /* a new version redraws the Explorer icons; it follows the look, so switching it redraws them too */
-  Object.defineProperty(window.MorfisArt, 'ICON_VERSION', { get: function () { return look() === 'graphite' ? 'v7' : (/^seed/.test(look()) ? 'v11s-' : 'v10m-') + (window.__morfisExplorerDark ? 'd' : 'l'); } });
+  Object.defineProperty(window.MorfisArt, 'ICON_VERSION', { get: function () { return look() === 'graphite' ? 'v7' : (/^seed/.test(look()) ? 'v12s-' : 'v10m-') + (window.__morfisExplorerDark ? 'd' : 'l'); } });
 })();

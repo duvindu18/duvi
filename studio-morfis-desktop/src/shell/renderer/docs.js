@@ -168,9 +168,11 @@
       '<div class="pp-kv pp-grand"><span>Total</span><b>' + esc(fmt(t.total, cur)) + '</b></div>' +
       (d.taxMode === 'included' && t.tax ? '<div class="pp-kv pp-note"><span>Includes ' + esc(st.taxLabel) + ' ' + num(d.taxPct) + '%</span><b>' + esc(fmt(t.tax, cur)) + '</b></div>' : '') +
       (t.retain ? '<div class="pp-kv"><span>Retention ' + num(d.retainPct) + '%</span><b>− ' + esc(fmt(t.retain, cur)) + '</b></div><div class="pp-kv pp-grand"><span>Amount due</span><b>' + esc(fmt(t.due, cur)) + '</b></div>' : '') + '</div>';
-    return '<article class="pp' + (E ? ' pp-edit' : '') + '" style="--pp-acc:' + esc(st.accent) + '">' +
-      '<div class="pp-band"></div>' +
-      '<header class="pp-head"><div class="pp-from">' + (st.logo ? '<img class="pp-logo" src="' + esc(st.logo) + '" alt="">' : '') + '<div><div class="pp-studio">' + esc(st.name) + '</div>' +
+    /* Seedform's letterhead: the one-line logo top left (a studio with another name or its own icon shows that) */
+    var brand = !st.logo && /^seedform$/i.test(String(st.name).trim());
+    return '<article class="pp' + (E ? ' pp-edit' : '') + '">' +
+      '<header class="pp-head"><div class="pp-from">' + (st.logo ? '<img class="pp-logo" src="' + esc(st.logo) + '" alt="">' : '') + '<div>' +
+        (brand ? '<div class="pp-sfl" role="img" aria-label="Seedform"><span class="a">seed</span><span class="b">form</span><span class="sd">.</span></div>' : '<div class="pp-studio">' + esc(st.name) + '</div>') +
         (st.tagline ? '<div class="pp-muted">' + esc(st.tagline) + '</div>' : '') + st.address.map(function (a) { return '<div class="pp-muted">' + esc(a) + '</div>'; }).join('') +
         '<div class="pp-muted">' + esc([st.phone, st.email, st.website].filter(Boolean).join('  ·  ')) + '</div>' + (st.taxNo ? '<div class="pp-muted">' + esc(st.taxLabel) + ' reg. no. ' + esc(st.taxNo) + '</div>' : '') + '</div></div>' +
         '<div class="pp-title"><div class="pp-kind">' + TYPE[d.type] + '</div>' + inp('no', d.no, 'Number', 'pp-no') +
@@ -183,20 +185,24 @@
       '<div class="pp-bottom"><div class="pp-notes">' + (d.notes || E ? '<div class="pp-label">Notes</div>' + area('notes', d.notes, 'Anything the client should know') : '') +
         (d.terms || E ? '<div class="pp-label">' + (d.type === 'quote' ? 'Terms' : 'Payment terms') + '</div>' + area('terms', d.terms, 'Payment terms') : '') +
         (d.showBank && st.bank.length ? '<div class="pp-label">Pay to</div><div class="pp-bank">' + st.bank.map(function (b) { return '<span>' + esc(b[0]) + '</span><b>' + esc(b[1]) + '</b>'; }).join('') + '</div>' : '') + '</div>' + tot + '</div>' +
-      '<footer class="pp-foot">' + esc(st.name) + (d.type === 'quote' ? '  ·  Thank you for considering us' : '  ·  Thank you') + '</footer>' +
+      '<footer class="pp-foot">' + esc([st.name, st.address.join(', '), st.phone, st.website].filter(Boolean).join('  ·  ')) + '</footer>' +
       (E ? '<datalist id="ppUnits">' + UNITS.map(function (u) { return '<option value="' + u + '">'; }).join('') + '</datalist>' : '') + '</article>';
   }
 
   /* complete stand-alone HTML for the PDF and the printer: same page, Inter embedded, no scripts */
   var FONT = null;
+  /* the brand's three typefaces, embedded: Inter (text), Playfair Display (the title and the logo), IBM Plex Mono (labels) */
   function fontCss() {
     if (FONT !== null) return Promise.resolve(FONT);
-    return fetch('vendor/inter/inter-latin-wght-normal.woff2').then(function (r) { return r.arrayBuffer(); }).then(function (buf) {
-      var bin = '', b = new Uint8Array(buf);
-      for (var i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
-      FONT = "@font-face{font-family:'InterVar';font-weight:100 900;src:url(data:font/woff2;base64," + btoa(bin) + ") format('woff2-variations')}";
-      return FONT;
-    }, function () { FONT = ''; return FONT; });
+    var FACES = [['InterVar', 'vendor/inter/inter-latin-wght-normal.woff2', '100 900', 'woff2-variations'], ['Playfair Display', 'vendor/fonts/playfair/playfair-display-latin-wght-normal.woff2', '400 900', 'woff2-variations'],
+      ['IBM Plex Mono', 'vendor/fonts/plexmono/ibm-plex-mono-latin-500-normal.woff2', '500', 'woff2'], ['IBM Plex Mono', 'vendor/fonts/plexmono/ibm-plex-mono-latin-400-normal.woff2', '400', 'woff2']];
+    return Promise.all(FACES.map(function (f) {
+      return fetch(f[1]).then(function (r) { return r.arrayBuffer(); }).then(function (buf) {
+        var bin = '', b = new Uint8Array(buf);
+        for (var i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+        return "@font-face{font-family:'" + f[0] + "';font-weight:" + f[2] + ";src:url(data:font/woff2;base64," + btoa(bin) + ") format('" + f[3] + "')}";
+      }, function () { return ''; });
+    })).then(function (a) { FONT = a.join(''); return FONT; });
   }
   function printHtml(d) {
     var css = '';
@@ -241,7 +247,7 @@
       : (d.status === 'draft' ? '<button type="button" class="btn primary" data-ed-act="issue">' + ic('send', 15) + 'Issue invoice</button>' : '');
     return '<div class="ed">' +
       '<div class="ed-bar"><button type="button" class="icon-btn" data-ed-act="back" title="Back to the list">' + ic('back', 18) + '</button>' +
-      '<div class="ed-name"><b>' + TYPE[d.type] + ' <span class="mono">' + esc(d.no) + '</span></b><span><span id="edSaved" class="ed-saved">Saved</span></span></div>' + statusTag(d) +
+      '<div class="ed-name"><div class="ed-t"><b>' + TYPE[d.type] + '</b><span class="ed-no">' + esc(d.no) + '</span></div><span><span id="edSaved" class="ed-saved">Saved</span></span></div>' + statusTag(d) +
       '<span class="grow"></span>' +
       '<button type="button" class="btn" data-ed-act="print">' + ic('print', 15) + 'Print</button>' +
       '<button type="button" class="btn" data-ed-act="pdf">' + ic('pdf', 15) + 'Export PDF</button>' + main +

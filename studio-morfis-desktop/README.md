@@ -28,7 +28,7 @@ All data stays on the computer.
 - **Graphite:** the dark graphite look described below, with an accent colour of your choice.
 
 
-- **Colours and type:** a graphite dark theme (and a matching light theme), Inter type bundled with the app, and one accent colour you choose with the built-in colour picker. Accent buttons are flat, with a slim accent border. Borders are 1 px and corners use four radii: 6, 8, 12 and 14 px.
+- **Colours and type:** the Seedform brand, in a light and a dark theme (see *The Seedform brand* below).
 - **Background:** a fine dot grid, and a soft accent light that follows the pointer and lights up the dots under it. Both can be turned off in Settings > Desktop app.
 - **Sidebar:** Workspace and Studio groups, and the active projects. Each project has a coloured square showing its status and current stage. The button at the top, or Ctrl+B, narrows the sidebar to icons. Ctrl+K jumps to the search box.
 - **Window bar:** the app icon, its name and where you are. Minimize, maximize/restore and close sit on the right in the Windows style; *Soft pill* and *Round* (three coloured dots, also on the right) are other styles in Settings. Dialogs and side panels open below the window bar.
@@ -112,30 +112,21 @@ The grid layout of a folder shows the same thumbnails File Explorer does. Files 
 
 ## The Seedform brand
 
-The app follows the Seedform brand book: an architecture studio in Colombo, *Architecture, grown from an idea.*
+The app follows the Seedform brand book, edition 2 (November 2026): an architecture studio in Colombo, *Architecture, grown from an idea.*
 
-- **Style:** *Seedform* is the default style (*Settings > Desktop app > Look > Style*), with a light theme (Limewash) and a dark theme (Night garden). Mono, Graphite, Andromeda Red and Andromeda Green remain as choices.
-- **Colour:** limewash grounds (`#F4F1EA`), canopy green for weight (`#1F3B2D`: primary buttons, the selected sidebar item), sand bands, the sprout seed (`#5E8A4C`: focus rings, the logo's seed, progress), and laterite used sparingly (`#A84E33`: links, overdue, cancelled).
-- **Type:** Playfair Display for headlines and project titles, Manrope for text and the interface, IBM Plex Mono for labels (project numbers and dates, uppercase, tracked). All three are built in and work offline.
-- **Shape:** square-cut corners (2px) and 1px hairlines instead of shadows. The only circle is the seed: dots, markers, avatars.
-- **Logo:** the responsive logo. "seed" is set in Inter, "form" in Archivo Black, followed by the sprout-green seed. It comes in four sizes:
-  - the primary logo ("seed" over a big "form") on the splash screen, which plays the motion logo once;
-  - the horizontal logo in the window bar and on the phone screens;
-  - the monogram *sf* when the sidebar is collapsed or the window is narrow, and as the app and phone icons;
-  - the seed alone as the phone's loading dot.
-- **Folder icons:** square-cut, in the brand palette. Canopy is in progress, sprout completed, sand on hold, the line tone upcoming and laterite cancelled, in the app and in File Explorer.
-- **The assistant:** speaks in the brand voice (calm, plain, warm), and its light at the bottom of the window uses the brand greens.
+- **One style, two themes:** Seedform is the app's only style. The light theme is **Cloud Dancer** (`#F0EEE9`) and the dark theme is **Phthalo** (`#123524`), the brand's signature ground. Switch with the sun and moon button.
+- **Colour:** Phthalo green for weight (primary buttons, the selected sidebar item, titles on documents), **Sand** for the seed (`#9C7A3C` on light, `#D4B786` on phthalo: the full stop, dots, focus in the dark theme), a sand tint for quiet bands, and laterite (`#A84E33`) used rarely (links, overdue, cancelled).
+- **Type:** Playfair Display Black for page headlines, project titles and big numbers; Inter for text and the interface; IBM Plex Mono for labels (project numbers and dates, uppercase, tracked +8%). All three are built in and work offline.
+- **Shape:** square-cut corners (2px), 1px hairlines instead of shadows, line icons with a 1.5px stroke and square caps. The only circle is the seed.
+- **Logo:** a type-led wordmark. "seed" is set in Inter SemiBold and "form" in Playfair Display Black, and the sand full stop is the seed.
+  - The one-line logo (**seedform.**) is in the window bar, on invoices and quotes, and on the phone screens.
+  - The stacked logo (a small "seed" above **form.**) is on the splash screen, which plays the motion logo once, and on the portfolio cover.
+  - The monogram (**sf.**) appears when the sidebar is collapsed or the window is narrow, on the portfolio's back page, and as the app and phone icons.
+- **Buttons:** hovering only highlights a button, with nothing moving or changing size.
+- **Folder icons:** square-cut, in the brand palette. Phthalo is in progress, sand completed, the sand tint on hold, the line tone upcoming and laterite cancelled, in the app and in File Explorer.
+- **Documents:** invoices and quotes use the brand's letterhead: the one-line logo at top left, a Playfair title and total, Plex Mono labels and a Plex Mono footer line. The portfolio uses Cloud Dancer pages and Phthalo covers with 15mm margins and 5mm gutters.
 
 Your records stay where they were: the app still keeps them in `%APPDATA%\Studio Morfis`. The installer upgrades the old app in place. The projects folder on disk is not renamed.
-
-## Andromeda Red and Andromeda Green
-
-Two more styles in *Settings > Desktop app > Look > Style*, next to Mono and Graphite. They use Mono's type and pill controls on a painted background that shifts colour like metallic car paint, with tinted glass cards that let the paint show through.
-
-- **Andromeda Red:** deep red, with copper and gold where the light falls, purple in the shadows and a blue undertone. Warnings turn coral and amber so they stay clear against the red.
-- **Andromeda Green:** racing green, with champagne gold, teal and blue.
-
-Both are dark: choosing one switches to dark mode, and light mode shows Mono's light look.
 
 ## Morfis, the voice assistant
 

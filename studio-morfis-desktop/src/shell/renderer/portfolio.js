@@ -101,7 +101,10 @@
 
   /* ----- one page ----- */
   var two = function (n) { return (n < 10 ? '0' : '') + n; };
-  var logo = function (cls) { return '<span class="pf-lg ' + (cls || '') + '"><b><span class="a">seed</span><span class="b">form</span></b><i></i></span>'; };
+  /* the Seedform logo, edition 2: "seed" in Inter SemiBold, "form" in Playfair Display Black, the full stop as the seed */
+  var logo = function (cls) { return '<span class="pf-lg ' + (cls || '') + '"><b><span class="a">seed</span><span class="b">form</span></b><span class="sd">.</span></span>'; };
+  /* a headline ends with a full stop; on the cover it is set in the seed colour, once */
+  var stop = function (t) { t = String(t || '').trim(); return /[.!?…:]$/.test(t) ? esc(t) : esc(t) + '<span class="sd">.</span>'; };
   function src(im, mode) { return !im ? '' : mode === 'pdf' ? 'pfimg:' + im.c : (IMG[im.c] || ''); }
   function pic(im, mode, cls, style) {
     if (!im) return '<div class="pf-ph ' + (cls || '') + '"' + (style ? ' style="' + style + '"' : '') + '><span>Add a picture</span></div>';
@@ -117,8 +120,8 @@
     if (p.kind === 'cover') {
       body = (D.cover ? pic(D.cover, mode, 'pf-cv-im') : '') +
         '<div class="pf-cv' + (D.cover ? ' has-im' : '') + '"><div class="pf-cv-top mono">Portfolio · ' + esc(D.year) + '</div>' +
-        '<div class="pf-cv-bot">' + '<div class="pf-prim"><span class="a">seed</span><span class="r"><span class="b">form</span><i></i></span></div>' +
-        '<h1>' + esc(D.title) + '</h1><p>' + esc(D.subtitle) + '</p></div></div>';
+        '<div class="pf-cv-bot">' + '<div class="pf-prim"><span class="a">seed</span><span class="r"><span class="b">form</span><span class="sd">.</span></span></div>' +
+        '<h1>' + stop(D.title) + '</h1><p>' + esc(D.subtitle) + '</p></div></div>';
     } else if (p.kind === 'about') {
       var c = D.contact || {};
       var crow = [['Studio', c.studio], ['Address', c.address], ['Email', c.email], ['Phone', c.phone], ['Website', c.website]].filter(function (r) { return r[1]; });
@@ -138,18 +141,18 @@
         pic(p.main, mode, 'pf-pj-im') + '</div>';
     } else if (p.kind === 'pics') {
       var g = p.g;
-      /* Pictures always fill the whole picture area, margin to margin and header to footer (265 by 168 mm), trimmed
+      /* Pictures always fill the whole picture area, margin to margin and header to footer (267 by 168 mm), trimmed
          from the centre where their shape differs; side by side, each takes a share of the width by its shape. */
-      if (g.k === 'one') body = '<div class="pf-g pf-g-one">' + pic(g.imgs[0], mode, '', 'width:265mm;height:168mm') + '</div>';
+      if (g.k === 'one') body = '<div class="pf-g pf-g-one">' + pic(g.imgs[0], mode, '', 'width:267mm;height:168mm') + '</div>';
       else if (g.k === 'two' || g.k === 'three') {
-        var sum = g.imgs.reduce(function (a, im) { return a + ratio(im); }, 0), room = 265 - 4 * (g.imgs.length - 1), hmm = 168;
+        var sum = g.imgs.reduce(function (a, im) { return a + ratio(im); }, 0), room = 267 - 5 * (g.imgs.length - 1), hmm = 168;
         body = '<div class="pf-g pf-g-row">' + g.imgs.map(function (im) { return pic(im, mode, '', 'width:' + (room * ratio(im) / sum).toFixed(2) + 'mm;height:' + hmm.toFixed(1) + 'mm'); }).join('') + '</div>';
       }
       else if (g.k === 'four') body = '<div class="pf-g pf-g-four">' + g.imgs.map(function (im) { return pic(im, mode); }).join('') + '</div>';
       else body = '<div class="pf-g pf-g-big">' + pic(g.imgs[0], mode, 'pf-g-a') + pic(g.imgs[1], mode) + pic(g.imgs[2], mode) + '</div>';
     } else if (p.kind === 'back') {
       var cc = D.contact || {};
-      body = '<div class="pf-bk"><span class="pf-mono"><b><span class="a">s</span><span class="b">f</span></b><i></i></span>' +
+      body = '<div class="pf-bk"><span class="pf-mono"><b><span class="a">s</span><span class="b">f</span></b><span class="sd">.</span></span>' +
         '<p class="mono">' + esc([cc.email, cc.phone, cc.website].filter(Boolean).join('   ·   ') || (cc.studio || 'Seedform')) + '</p></div>';
     }
     var hd = chrome ? '<header class="pf-hd">' + logo() + '<span class="pf-sec mono">' + esc(p.kind === 'pics' || p.kind === 'project' ? two(p.n) + ' · ' + (p.label || '') : p.label || '') + '</span></header>' : '';
@@ -159,55 +162,57 @@
 
   /* the pages' own styles: the same in the app and in the PDF */
   var CSS =
-    '.pf-pg{--lw:#F4F1EA;--rz:#FBFAF6;--sand:#E2D6BF;--ln:#D3CBBA;--ink:#22231F;--mu:#5A5D52;--cn:#1F3B2D;--sp:#5E8A4C;--spl:#8DBB78;--lt:#A84E33;' +
-      'width:297mm;height:210mm;position:relative;overflow:hidden;box-sizing:border-box;background:var(--lw);color:var(--ink);font-family:Manrope,"Segoe UI",sans-serif;font-size:10pt;line-height:1.5;break-after:page;page-break-after:always}' +
+    /* edition 2: Cloud Dancer pages, Phthalo covers, Sand for the seed; 15 mm margins, 5 mm gutters */
+    '.pf-pg{--lw:#F0EEE9;--rz:#FAF9F6;--sand:#E7DCC6;--ln:#D6D0C4;--ink:#141414;--mu:#5E5C57;--cn:#123524;--sp:#9C7A3C;--spl:#D4B786;--lt:#A84E33;' +
+      'width:297mm;height:210mm;position:relative;overflow:hidden;box-sizing:border-box;background:var(--lw);color:var(--ink);font-family:Inter,"Helvetica Neue",Arial,sans-serif;font-size:10pt;line-height:1.5;break-after:page;page-break-after:always}' +
     '.pf-pg *{box-sizing:border-box}.pf-pg .mono{font-family:"IBM Plex Mono",ui-monospace,monospace}' +
-    '.pf-pg h1,.pf-pg h2{font-family:"Playfair Display",Georgia,serif;font-weight:500;letter-spacing:-.01em;margin:0}' +
-    '.pf-lg{display:inline-flex;align-items:baseline;gap:.09em;font-size:11pt;line-height:1;color:var(--cn);white-space:nowrap}.pf-lg b,.pf-mono b{font-weight:400;letter-spacing:-.02em}' +
-    '.pf-pg .a{font-family:Inter,"Segoe UI",sans-serif;font-weight:600}.pf-pg .b{font-family:"Archivo Black","Arial Black",sans-serif;font-weight:400}' +
-    '.pf-lg i,.pf-mono i,.pf-prim i{display:inline-block;width:.3em;height:.3em;border-radius:50%;background:var(--sp)}' +
-    '.pf-hd{position:absolute;left:16mm;right:16mm;top:9mm;height:8mm;display:flex;align-items:center;justify-content:space-between;border-bottom:.25mm solid var(--ln)}' +
-    '.pf-sec,.pf-ft{font-size:6.8pt;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}' +
-    '.pf-ft{position:absolute;left:16mm;right:16mm;bottom:8mm;height:6mm;display:flex;align-items:center;justify-content:space-between;border-top:.25mm solid var(--ln)}' +
+    '.pf-pg h1,.pf-pg h2{font-family:"Playfair Display","Bodoni 72",Georgia,serif;font-weight:900;letter-spacing:-.01em;margin:0}' +
+    '.pf-lg{display:inline-flex;align-items:baseline;font-size:12pt;line-height:1;color:var(--cn);white-space:nowrap}.pf-lg b,.pf-mono b{font-weight:400}' +
+    '.pf-pg .a{font-family:Inter,"Helvetica Neue",Arial,sans-serif;font-weight:600;letter-spacing:-.02em}.pf-pg .b{font-family:"Playfair Display","Bodoni 72",Georgia,serif;font-weight:900;letter-spacing:-.015em}' +
+    '.pf-pg .sd{font-family:"Playfair Display","Bodoni 72",Georgia,serif;font-weight:900;color:var(--sp)}' +
+    '.pf-hd{position:absolute;left:15mm;right:15mm;top:9mm;height:8mm;display:flex;align-items:center;justify-content:space-between;border-bottom:.25mm solid var(--ln)}' +
+    '.pf-sec,.pf-ft{font-family:"IBM Plex Mono",ui-monospace,monospace;font-weight:500;font-size:6.8pt;letter-spacing:.08em;text-transform:uppercase;color:var(--mu)}' +
+    '.pf-ft{position:absolute;left:15mm;right:15mm;bottom:8mm;height:6mm;display:flex;align-items:center;justify-content:space-between;border-top:.25mm solid var(--ln)}' +
     '.pf-no b{color:var(--ink);font-weight:500}' +
-    '.pf-body{position:absolute;left:16mm;right:16mm;top:23mm;bottom:19mm}' +
+    '.pf-body{position:absolute;left:15mm;right:15mm;top:23mm;bottom:19mm}' +
     '.pf-k-cover .pf-body,.pf-k-back .pf-body{inset:0}' +
     '.pf-im{overflow:hidden;background:var(--sand)}.pf-im img{width:100%;height:100%;object-fit:cover;display:block}' +
-    '.pf-ph{background:var(--sand);display:grid;place-items:center;color:var(--mu);font:7pt "IBM Plex Mono",monospace;letter-spacing:.14em;text-transform:uppercase}' +
-    '.pf-lbl{display:block;font:500 6.8pt "IBM Plex Mono",monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--mu);margin-bottom:4mm}.pf-lbl b{color:var(--sp);font-weight:500;margin-right:2mm}' +
+    '.pf-ph{background:var(--sand);display:grid;place-items:center;color:var(--mu);font:500 7pt "IBM Plex Mono",monospace;letter-spacing:.08em;text-transform:uppercase}' +
+    '.pf-lbl{display:block;font:500 6.8pt "IBM Plex Mono",monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-bottom:4mm}.pf-lbl b{color:var(--sp);font-weight:500;margin-right:2mm}' +
     '.pf-txt p{margin:0 0 2.6mm}.pf-cols{column-count:2;column-gap:8mm}' +
     '.pf-dl{display:grid;grid-template-columns:22mm 1fr;margin:0 0 6mm;border-top:.25mm solid var(--ln)}.pf-dl dt,.pf-dl dd{margin:0;padding:1.6mm 0;border-bottom:.25mm solid var(--ln)}' +
-    '.pf-dl dt{font:500 6.4pt/1.9 "IBM Plex Mono",monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--mu)}.pf-dl dd{font-size:9pt}' +
+    '.pf-dl dt{font:500 6.4pt/1.9 "IBM Plex Mono",monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--mu)}.pf-dl dd{font-size:9pt}' +
     /* cover */
     '.pf-k-cover{background:var(--cn);color:var(--lw)}' +
-    '.pf-cv{position:absolute;inset:0;padding:14mm 16mm 16mm;display:flex;flex-direction:column;justify-content:space-between}.pf-cv.has-im{right:46%}' +
+    '.pf-cv{position:absolute;inset:0;padding:15mm;display:flex;flex-direction:column;justify-content:space-between}.pf-cv.has-im{right:46%}' +
     '.pf-cv-im{position:absolute;top:0;right:0;bottom:0;width:46%}' +
-    '.pf-cv-top{font-size:7pt;letter-spacing:.16em;text-transform:uppercase;color:rgba(244,241,234,.72)}' +
-    '.pf-prim{display:flex;flex-direction:column;align-items:flex-start;gap:.6mm;color:var(--lw);margin-bottom:10mm}.pf-prim .a{font-size:22pt;line-height:1;letter-spacing:-.02em;margin-left:.6mm}' +
-    '.pf-prim .r{display:flex;align-items:baseline;gap:1.4mm}.pf-prim .b{font-size:50pt;line-height:.86;letter-spacing:-.02em}.pf-prim i{background:var(--spl)}' +
-    '.pf-cv h1{font-size:30pt;line-height:1.08;max-width:150mm}.pf-cv p{margin:3mm 0 0;font-size:11pt;color:rgba(244,241,234,.78)}' +
+    '.pf-cv-top{font-weight:500;font-size:7pt;letter-spacing:.08em;text-transform:uppercase;color:#B5C4B9}' +
+    /* the stacked logo: "seed" at 46% of the size of "form.", left-aligned, with 10% of the "form" size between them */
+    '.pf-prim{display:flex;flex-direction:column;align-items:flex-start;color:var(--lw);margin-bottom:10mm}.pf-prim .a{font-size:23pt;line-height:1;margin:0 0 5pt .4mm}' +
+    '.pf-prim .r{display:flex;align-items:baseline}.pf-prim .b,.pf-prim .sd{font-size:50pt;line-height:.86}.pf-k-cover .sd,.pf-k-back .sd{color:var(--spl)}' +
+    '.pf-cv h1{font-size:32pt;line-height:1.1;max-width:150mm}.pf-cv p{margin:3mm 0 0;font-size:11pt;color:#B5C4B9}' +
     /* about */
-    '.pf-ab{display:grid;grid-template-columns:1fr 92mm;gap:14mm;height:100%}.pf-ab h2{font-size:26pt;margin-bottom:7mm}' +
+    '.pf-ab{display:grid;grid-template-columns:1fr 92mm;gap:15mm;height:100%}.pf-ab h2{font-size:28pt;margin-bottom:7mm}' +
     '.pf-ab-s{display:flex;flex-direction:column;gap:6mm;min-height:0}.pf-ab-im{flex:1;min-height:0}.pf-sand{background:var(--sand);display:grid;place-items:center}.pf-lg-big{font-size:26pt}' +
     '.pf-dl-c{margin:0}' +
     /* contents */
-    '.pf-ct{display:grid;grid-template-columns:80mm 1fr;gap:14mm;height:100%}.pf-ct h2{font-size:26pt}' +
+    '.pf-ct{display:grid;grid-template-columns:80mm 1fr;gap:15mm;height:100%}.pf-ct h2{font-size:28pt}' +
     '.pf-ct-l{list-style:none;margin:0;padding:0;border-top:.25mm solid var(--ln)}.pf-ct-l li{display:flex;align-items:baseline;gap:6mm;padding:3.2mm 0;border-bottom:.25mm solid var(--ln)}' +
-    '.pf-ct-n{font-size:8pt;color:var(--sp);width:8mm}.pf-ct-t{flex:1;display:flex;flex-direction:column}.pf-ct-t b{font:500 14pt/1.2 "Playfair Display",Georgia,serif}.pf-ct-t em{font-style:normal;color:var(--mu);font-size:8.5pt}' +
+    '.pf-ct-n{font-weight:500;font-size:8pt;color:var(--sp);width:8mm}.pf-ct-t{flex:1;display:flex;flex-direction:column}.pf-ct-t b{font:900 14pt/1.2 "Playfair Display","Bodoni 72",Georgia,serif}.pf-ct-t em{font-style:normal;color:var(--mu);font-size:8.5pt}' +
     '.pf-ct-p{font-size:9pt}.pf-ct-e{color:var(--mu)}' +
     /* a project's opening page */
     '.pf-pj{display:grid;grid-template-columns:84mm 1fr;gap:10mm;height:100%}.pf-pj-t{min-height:0;overflow:hidden}.pf-pj h2{font-size:24pt;line-height:1.12;margin-bottom:6mm}.pf-pj-im{height:100%}' +
     '.pf-pj .pf-txt{font-size:9pt}' +
     /* picture pages */
-    '.pf-g{height:100%;display:flex;gap:4mm}.pf-g>*{min-width:0;min-height:0}' +
+    '.pf-g{height:100%;display:flex;gap:5mm}.pf-g>*{min-width:0;min-height:0}' +
     '.pf-g-one{align-items:center;justify-content:center}' +
     '.pf-g-row{align-items:center;justify-content:space-between}.pf-g-row>*{flex:none}' +
     '.pf-g-four{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}' +
     '.pf-g-big{display:grid;grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr}.pf-g-a{grid-row:span 2}' +
     /* back page */
     '.pf-k-back{background:var(--cn);color:var(--lw)}.pf-bk{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12mm}' +
-    '.pf-mono{display:inline-flex;align-items:baseline;gap:.07em;font-size:64pt;line-height:.86;letter-spacing:-.03em;color:var(--lw)}.pf-mono i{background:var(--spl)}' +
-    '.pf-bk p{margin:0;font-size:7.5pt;letter-spacing:.14em;color:rgba(244,241,234,.72)}';
+    '.pf-mono{display:inline-flex;align-items:baseline;font-size:72pt;line-height:.86;color:var(--lw)}.pf-mono .a,.pf-mono .b{letter-spacing:-.03em}' +
+    '.pf-bk p{margin:0;font-weight:500;font-size:7.5pt;letter-spacing:.08em;text-transform:uppercase;color:#B5C4B9}';
 
   function docHtml(mode) {
     var P = pageList();
@@ -267,11 +272,9 @@
   }
   /* the pages are drawn in a frame of their own, so the app's styles cannot reach them: what you see is the PDF */
   var FACES = "@font-face{font-family:'Playfair Display';font-weight:400 900;src:url(vendor/fonts/playfair/playfair-display-latin-wght-normal.woff2)}" +
-    "@font-face{font-family:'Manrope';font-weight:200 800;src:url(vendor/fonts/manrope/manrope-latin-wght-normal.woff2)}" +
     "@font-face{font-family:'IBM Plex Mono';font-weight:400;src:url(vendor/fonts/plexmono/ibm-plex-mono-latin-400-normal.woff2)}" +
     "@font-face{font-family:'IBM Plex Mono';font-weight:500;src:url(vendor/fonts/plexmono/ibm-plex-mono-latin-500-normal.woff2)}" +
-    "@font-face{font-family:'Inter';font-weight:100 900;src:url(vendor/inter/inter-latin-wght-normal.woff2)}" +
-    "@font-face{font-family:'Archivo Black';src:url(vendor/fonts/archivo/archivo-black-latin-400-normal.woff2)}";
+    "@font-face{font-family:'Inter';font-weight:100 900;src:url(vendor/inter/inter-latin-wght-normal.woff2)}";
   function thumbs() {
     var P = pageList();
     return P.map(function (p) { return '<div class="pf-th' + (p.sec === SEL ? ' on' : '') + '" data-pf-sel="' + esc(p.sec) + '" title="Page ' + p.no + '"><div class="pf-scale">' + page(p, P.length, 'app') + '</div><span class="pf-th-n">' + two(p.no) + '</span></div>'; }).join('');
@@ -279,7 +282,7 @@
   function frameDoc() {
     var cs = getComputedStyle(document.documentElement), v = function (n, d) { return (cs.getPropertyValue(n) || '').trim() || d; };
     return '<!doctype html><html><head><meta charset="utf-8"><style>' + FACES +
-      ':root{--line:' + v('--line', '#D3CBBA') + ';--ink2:' + v('--ink-2', '#5A5D52') + ';--on:' + v('--sf-sprout', '#5E8A4C') + '}' +
+      ':root{--line:' + v('--line', '#D6D0C4') + ';--ink2:' + v('--ink-2', '#5E5C57') + ';--on:' + v('--sf-sprout', '#9C7A3C') + '}' +
       'html,body{margin:0;background:transparent}body{padding:3px 3px 24px}' +
       '.pf-grid{display:grid;grid-template-columns:repeat(auto-fill,260px);gap:30px 18px}' +
       '.pf-th{position:relative;width:260px;height:184px;cursor:pointer;outline:1px solid var(--line)}.pf-th:hover{outline-color:var(--ink2)}' +

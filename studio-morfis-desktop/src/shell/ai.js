@@ -42,13 +42,33 @@ async function status(prefs) {
 async function chat(prefs, o) {
   if (!prefs.get('aiEnabled')) throw new Error('The AI assistant is turned off in Automations.');
   const body = {
-    model: prefs.get('aiModel'), stream: false, keep_alive: '10m',
+    model: prefs.get('aiModel'), stream: !!o.onToken, keep_alive: '10m',
     messages: [{ role: 'system', content: String(o.system || '') }, { role: 'user', content: String(o.prompt || '') }],
     options: { temperature: o.temperature == null ? 0.2 : +o.temperature, num_ctx: 8192 }
   };
   if (o.json) body.format = 'json';
-  const r = await call(prefs, '/api/chat', body, o.timeoutMs || 180000), j = await r.json();
-  const text = (j.message && j.message.content) || '';
+  const r = await call(prefs, '/api/chat', body, o.timeoutMs || 180000);
+  let text = '';
+  if (o.onToken) {
+    /* streamed: one JSON line per piece, passed on as it comes, so the answer can be shown and spoken early */
+    const rd = r.body.getReader(), dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { done, value } = await rd.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+        if (!line) continue;
+        try { const piece = JSON.parse(line); const t = (piece.message && piece.message.content) || ''; if (t) { text += t; o.onToken(t, text); } } catch (e) { /* a partial line */ }
+      }
+    }
+    if (buf.trim()) { try { const piece = JSON.parse(buf.trim()); const t = (piece.message && piece.message.content) || ''; if (t) { text += t; o.onToken(t, text); } } catch (e) { /* not an answer */ } }
+  } else {
+    const j = await r.json();
+    text = (j.message && j.message.content) || '';
+  }
   if (!o.json) return { text: text.trim() };
   try { return { data: JSON.parse(text) }; }
   catch (e) {
