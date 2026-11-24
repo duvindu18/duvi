@@ -54,7 +54,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Studio Morfis on Android: the Studio Morfis app of a computer on the same network, on the phone.
+ * Seedform on Android: the Seedform app of a computer on the same network, on the phone.
  * The computer serves the whole interface (Settings > Desktop app > Phone access); this app finds the computer,
  * shows its pages, and does what only a phone can: choose files to upload, save downloads, and open links.
  *
@@ -257,7 +257,7 @@ public class MainActivity extends Activity {
         @Override
         public void onReceivedError(WebView view, WebResourceRequest req, WebResourceError err) {
             if (!req.isForMainFrame() || req.getUrl().toString().startsWith("file:")) return;
-            showConnect("Could not reach " + server() + ", and the app has not been opened with it yet. Check that the computer is on, Studio Morfis is open with phone access allowed, and both are on the same network.");
+            showConnect("Could not reach " + server() + ", and the app has not been opened with it yet. Check that the computer is on, Seedform is open with phone access allowed, and both are on the same network.");
         }
     }
 
@@ -309,7 +309,7 @@ public class MainActivity extends Activity {
             if (mime != null && !mime.isEmpty()) r.setMimeType(mime);
             r.setTitle(name);
             r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "Studio Morfis/" + name);
+            r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "Seedform/" + name);
             DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
             synchronized (ourDownloads) { ourDownloads.add(dm.enqueue(r)); }
             Toast.makeText(this, "Downloading " + name, Toast.LENGTH_SHORT).show();
@@ -330,13 +330,13 @@ public class MainActivity extends Activity {
             Intent v = new Intent(Intent.ACTION_VIEW);
             v.setDataAndType(file, dm.getMimeTypeForDownloadedFile(id));
             v.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-            try { startActivity(v); } catch (ActivityNotFoundException e) { Toast.makeText(c, "Saved in Downloads/Studio Morfis.", Toast.LENGTH_LONG).show(); }
+            try { startActivity(v); } catch (ActivityNotFoundException e) { Toast.makeText(c, "Saved in Downloads/Seedform.", Toast.LENGTH_LONG).show(); }
         }
     };
 
     /* ----- what the pages can ask the app ----- */
     private class Bridge {
-        /** Ask the network for computers running Studio Morfis; answers arrive in window.onMorfisFound(list). */
+        /** Ask the network for computers running Seedform; answers arrive in window.onMorfisFound(list). */
         @JavascriptInterface
         public void discover() {
             if (!trusted()) return;
@@ -368,7 +368,7 @@ public class MainActivity extends Activity {
                             if (!seen.add(url)) continue;
                             JSONObject o = new JSONObject();
                             o.put("url", url);
-                            o.put("name", j.optString("name", "Studio Morfis"));
+                            o.put("name", j.optString("name", "Seedform"));
                             o.put("host", j.optString("host", ""));
                             found.put(o);
                         } catch (Exception ignore) { /* not one of ours */ }
@@ -402,7 +402,7 @@ public class MainActivity extends Activity {
                     JSONObject j = new JSONObject(new String(readAll(c.getInputStream()), StandardCharsets.UTF_8));
                     if ("studio-morfis".equals(j.optString("app"))) id = j.optString("id", "");
                 } catch (Exception ignore) { /* not reachable */ }
-                if (id == null) { ui.post(() -> showConnect("No Studio Morfis answered at " + url + ".")); return; }
+                if (id == null) { ui.post(() -> showConnect("No Seedform answered at " + url + ".")); return; }
                 SharedPreferences.Editor e = prefs.edit().putString("server", url);
                 /* another computer: this phone pairs with it, and keeps nothing of the last one's key */
                 if (!id.equals(prefs.getString("serverId", ""))) e.putString("serverId", id).putString("key", "");
@@ -472,7 +472,7 @@ public class MainActivity extends Activity {
     /* status and navigation bars in the page's paper colour, with dark icons on the light theme */
     @SuppressWarnings("deprecation")
     private void bars(boolean light) {
-        int c = Color.parseColor(light ? "#F2F2F2" : "#0E0E0E");
+        int c = Color.parseColor(light ? "#F4F1EA" : "#131814");
         getWindow().setStatusBarColor(c);
         getWindow().setNavigationBarColor(c);
         web.setBackgroundColor(c);

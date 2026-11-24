@@ -76,6 +76,7 @@
   function look() {
     var r = document.documentElement;
     if (!r.classList.contains('style-mono')) return 'graphite';
+    if (r.classList.contains('style-seedform')) return r.getAttribute('data-theme') === 'light' ? 'seed-light' : 'seed-dark';
     return r.getAttribute('data-theme') === 'light' ? 'mono-light' : 'mono-dark';
   }
   /* Mono: a flat folder, a lighter tab behind a darker front, and a label pressed into the front in a shade of the
@@ -86,6 +87,18 @@
     'mono-light': {
       in_progress: ['#F8D54E', '#F5C400', '#DDAE00'], completed: ['#9CAA73', '#7F8D56', '#717F4A'], on_hold: ['#C4C4C4', '#ABABAB', '#9B9B9B'],
       not_started: ['#E2E2E2', '#D3D3D3', '#BEBEBE'], cancelled: ['#E2E2E2', '#D3D3D3', '#BEBEBE'], plain: ['#DCDCDC', '#CBCBCB', '#B4B4B4']
+    },
+    /* Seedform: the brand palette, square-cut. Canopy in progress, sprout when completed, sand on hold, the line
+       tone for upcoming and the numbered folders, laterite when cancelled */
+    'seed-light': {
+      sq: true,
+      in_progress: ['#2F5541', '#1F3B2D', '#3B6550'], completed: ['#7EA56B', '#5E8A4C', '#4D7540'], on_hold: ['#EAE1CF', '#E2D6BF', '#C8B894'],
+      not_started: ['#E6E1D5', '#D3CBBA', '#B9AE98'], cancelled: ['#BE6A4F', '#A84E33', '#8C3E27'], plain: ['#E6E1D5', '#D3CBBA', '#B4A992']
+    },
+    'seed-dark': {
+      sq: true,
+      in_progress: ['#4E8466', '#3F7056', '#5A8F71'], completed: ['#A0C98D', '#8DBB78', '#76A563'], on_hold: ['#4A4940', '#3B3A31', '#57554B'],
+      not_started: ['#2D3530', '#232A25', '#3A433C'], cancelled: ['#DE8868', '#D57552', '#B45E3F'], plain: ['#2D3530', '#232A25', '#3C463E']
     },
     'mono-dark': {
       in_progress: ['#F8D54E', '#F5C400', '#DDAE00'], completed: ['#8A9862', '#6F7D47', '#7E8C55'], on_hold: ['#6A6A6A', '#555555', '#626262'],
@@ -108,8 +121,14 @@
   }
   function mono(o, pal) {
     var c = pal[o.status] || pal.plain, t = o.status ? MONO_WORD[o.status] || '' : (o.num ? '.' + o.num : ''), out = '';
-    out += '<path d="M6 14a9 9 0 0 1 9-9h28c3.2 0 6.1 1.6 7.8 4.2l3.6 5.6c1.7 2.6 4.6 4.2 7.8 4.2H117a9 9 0 0 1 9 9v66a9 9 0 0 1-9 9H15a9 9 0 0 1-9-9z" fill="' + c[0] + '"/>';
-    out += '<path d="M6 34a8 8 0 0 1 8-8h104a8 8 0 0 1 8 8v56a9 9 0 0 1-9 9H15a9 9 0 0 1-9-9z" fill="' + c[1] + '"/>';
+    if (pal.sq) {
+      /* square-cut, like stone and timber: corners of 2 */
+      out += '<path d="M6 7a2 2 0 0 1 2-2h38l8 10h64a2 2 0 0 1 2 2v80a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z" fill="' + c[0] + '"/>';
+      out += '<path d="M6 28a2 2 0 0 1 2-2h116a2 2 0 0 1 2 2v69a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z" fill="' + c[1] + '"/>';
+    } else {
+      out += '<path d="M6 14a9 9 0 0 1 9-9h28c3.2 0 6.1 1.6 7.8 4.2l3.6 5.6c1.7 2.6 4.6 4.2 7.8 4.2H117a9 9 0 0 1 9 9v66a9 9 0 0 1-9 9H15a9 9 0 0 1-9-9z" fill="' + c[0] + '"/>';
+      out += '<path d="M6 34a8 8 0 0 1 8-8h104a8 8 0 0 1 8 8v56a9 9 0 0 1-9 9H15a9 9 0 0 1-9-9z" fill="' + c[1] + '"/>';
+    }
     if (t) {
       out += '<text x="14" y="90" font-family="' + MONO_FONT.replace(/'/g, '&apos;') + '" font-weight="800" font-size="' + monoSize().toFixed(2) + '" letter-spacing="-.03em" fill="' + c[2] + '">' + t + '</text>';
     }
@@ -159,7 +178,7 @@
   function explorerIcon(o) {
     if (typeof o === 'string') o = { status: o, count: 1 };
     /* in File Explorer the folders follow Windows' own light or dark mode (see automations.js) */
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><g transform="translate(0 27) scale(1.9394)">' + art(variant(o), look() === 'graphite' ? 'graphite' : (window.__morfisExplorerDark ? 'mono-dark' : 'mono-light')) + '</g></svg>';
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><g transform="translate(0 27) scale(1.9394)">' + art(variant(o), look() === 'graphite' ? 'graphite' : /^seed/.test(look()) ? (window.__morfisExplorerDark ? 'seed-dark' : 'seed-light') : (window.__morfisExplorerDark ? 'mono-dark' : 'mono-light')) + '</g></svg>';
   }
 
   /* SVG text -> PNG data URL, drawn at size x size */
@@ -180,5 +199,5 @@
   window.MorfisArt = { STATUS: STATUS, ORDER: ORDER, statusOf: statusOf, statusDot: statusDot, statusTag: statusTag, glyph: glyph,
     kindOf: kindOf, fileIcon: fileIcon, folder: folder, variant: variant, kindsOf: kindsOf, explorerIcon: explorerIcon, toPng: toPng, look: look };
   /* a new version redraws the Explorer icons; it follows the look, so switching it redraws them too */
-  Object.defineProperty(window.MorfisArt, 'ICON_VERSION', { get: function () { return look() === 'graphite' ? 'v7' : 'v10m-' + (window.__morfisExplorerDark ? 'd' : 'l'); } });
+  Object.defineProperty(window.MorfisArt, 'ICON_VERSION', { get: function () { return look() === 'graphite' ? 'v7' : (/^seed/.test(look()) ? 'v11s-' : 'v10m-') + (window.__morfisExplorerDark ? 'd' : 'l'); } });
 })();

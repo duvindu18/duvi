@@ -1,5 +1,5 @@
 'use strict';
-/* Studio Morfis for Windows: the main process.
+/* Seedform for Windows: the main process.
    It opens one frameless window that shows the dashboard, keeps the data on this computer, gives the page real
    folder access through window.morfisDesktop (see preload.js and bridge.js), and handles the splash screen, tray,
    app name and icon, and the desktop settings. */
@@ -22,6 +22,12 @@ const DEFAULT_ICON = path.join(ROOT, 'build', 'icon.png');
 const LEAFLET = path.dirname(require.resolve('leaflet/dist/leaflet.js'));
 const MAMMOTH = path.dirname(require.resolve('mammoth/mammoth.browser.min.js'));
 const INTER = path.join(path.dirname(require.resolve('@fontsource-variable/inter/package.json')), 'files');
+/* the Seedform typefaces, on this computer: Playfair Display (headlines), Manrope (text and interface), IBM Plex Mono (labels) */
+const FONTS = {
+  playfair: path.join(path.dirname(require.resolve('@fontsource-variable/playfair-display/package.json')), 'files'),
+  manrope: path.join(path.dirname(require.resolve('@fontsource-variable/manrope/package.json')), 'files'),
+  plexmono: path.join(path.dirname(require.resolve('@fontsource/ibm-plex-mono/package.json')), 'files')
+};
 /* the voice assistant, all on this computer: the speech engine (ONNX Runtime, WebAssembly), Whisper to listen,
    Kokoro to speak, and espeak-ng (through phonemizer) to turn words into sounds for Kokoro */
 /* a package's folder (some packages do not let their package.json be resolved by name: find it from the entry file) */
@@ -53,6 +59,8 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'morfis', privileges: { standard
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 app.setAppUserModelId(APP_ID);
 
+/* the program is called Seedform now; its records stay in the folder they have always been in */
+if (path.resolve(app.getPath('userData')) === path.resolve(path.join(app.getPath('appData'), app.getName()))) app.setPath('userData', path.join(app.getPath('appData'), 'Studio Morfis'));
 const USER = app.getPath('userData');
 const prefs = new Prefs(USER);
 const store = new Store(path.join(USER, 'data'));
@@ -109,8 +117,9 @@ function asset(pathname) {
   if (pathname.indexOf('/vendor/leaflet/') === 0) file = path.join(LEAFLET, decodeURIComponent(pathname.slice('/vendor/leaflet/'.length)));
   else if (pathname.indexOf('/vendor/mammoth/') === 0) file = path.join(MAMMOTH, decodeURIComponent(pathname.slice('/vendor/mammoth/'.length)));
   else if (pathname.indexOf('/vendor/inter/') === 0) file = path.join(INTER, decodeURIComponent(pathname.slice('/vendor/inter/'.length)));
+  else if (/^\/vendor\/fonts\/(playfair|manrope|plexmono)\//.test(pathname)) { const k = pathname.split('/')[3]; file = path.join(FONTS[k], decodeURIComponent(pathname.split('/').slice(4).join('/'))); }
   else file = path.join(RENDERER, decodeURIComponent(pathname.slice(1)));
-  const okRoot = [LEAFLET, INTER, MAMMOTH, RENDERER].some((r) => path.resolve(file).startsWith(path.resolve(r) + path.sep));
+  const okRoot = [LEAFLET, INTER, MAMMOTH, RENDERER, FONTS.playfair, FONTS.manrope, FONTS.plexmono].some((r) => path.resolve(file).startsWith(path.resolve(r) + path.sep));
   if (!okRoot || !fs.existsSync(file) || !fs.statSync(file).isFile()) return null;
   return { body: fs.readFileSync(file), type: MIME[path.extname(file).toLowerCase()] || 'application/octet-stream' };
 }
@@ -160,7 +169,7 @@ function openSplash() {
   const icon = branding.iconPng();
   /* the studio's wordmark, unless the app has been given another name or icon */
   const own = !prefs.get('branding').name && !prefs.get('branding').iconFile;
-  splash.loadFile(path.join(RENDERER, 'splash.html'), { query: { name: branding.name(), icon: require('url').pathToFileURL(icon).href, logo: own ? require('url').pathToFileURL(path.join(RENDERER, 'logo.png')).href : '', theme: resolvedTheme(), accent: prefs.get('accent'), motion: prefs.get('reduceMotion') ? '0' : '1' } });
+  splash.loadFile(path.join(RENDERER, 'splash.html'), { query: { name: branding.name(), icon: require('url').pathToFileURL(icon).href, logo: own ? '1' : '', display: require('url').pathToFileURL(path.join(FONTS.playfair, 'playfair-display-latin-wght-normal.woff2')).href, text: require('url').pathToFileURL(path.join(FONTS.manrope, 'manrope-latin-wght-normal.woff2')).href, theme: resolvedTheme(), accent: prefs.get('accent'), motion: prefs.get('reduceMotion') ? '0' : '1' } });
   splash.once('ready-to-show', () => { if (splash) { splash.shownAt = Date.now(); splash.show(); } });
 }
 function closeSplash(then) {

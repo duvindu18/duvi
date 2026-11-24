@@ -1,4 +1,4 @@
-name: Build Studio Morfis for Windows
+name: Build Seedform for Windows
 
 on:
   push:
@@ -44,5 +44,5 @@ jobs:
         run: npm run dist
       - uses: actions/upload-artifact@v4
         with:
-          name: Studio-Morfis-Setup
-          path: studio-morfis-desktop/dist/Studio-Morfis-Setup-*.exe
+          name: Seedform-Setup
+          path: studio-morfis-desktop/dist/Seedform-Setup-*.exe

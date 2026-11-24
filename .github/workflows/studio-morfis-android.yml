@@ -1,4 +1,4 @@
-name: Build Studio Morfis for Android
+name: Build Seedform for Android
 
 on:
   push:
@@ -32,9 +32,9 @@ jobs:
         run: |
           v=$(node -p "require('./studio-morfis-desktop/package.json').version")
           mkdir -p out
-          cp studio-morfis-android/app/build/outputs/apk/release/app-release.apk "out/Studio-Morfis-$v.apk"
+          cp studio-morfis-android/app/build/outputs/apk/release/app-release.apk "out/Seedform-$v.apk"
           ls -la out
       - uses: actions/upload-artifact@v4
         with:
-          name: Studio-Morfis-Android
+          name: Seedform-Android
           path: out/*.apk

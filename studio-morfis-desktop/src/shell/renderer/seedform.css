@@ -1,0 +1,156 @@
+/* Seedform: the studio's brand, from the Seedform brand book.
+   Limewash grounds, canopy green for weight, sand bands, one sprout seed, laterite used sparingly; Playfair Display
+   for headlines, Manrope for text and the interface, IBM Plex Mono for labels (uppercase, tracked); square-cut
+   corners (2px) and 1px hairlines instead of shadows. The only circle is the seed: dots, markers, avatars.
+   Built on Mono's layout (html.style-mono.style-seedform), with a light (Limewash) and a dark (Night garden) theme. */
+
+/* ===== the typefaces, on this computer (SIL Open Font License) ===== */
+@font-face{font-family:'Playfair Display';font-style:normal;font-display:swap;font-weight:400 900;src:url(vendor/fonts/playfair/playfair-display-latin-wght-normal.woff2) format('woff2-variations');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Playfair Display';font-style:normal;font-display:swap;font-weight:400 900;src:url(vendor/fonts/playfair/playfair-display-latin-ext-wght-normal.woff2) format('woff2-variations');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1E00-1E9F,U+20A0-20AB,U+20AD-20C0,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'Playfair Display';font-style:italic;font-display:swap;font-weight:400 900;src:url(vendor/fonts/playfair/playfair-display-latin-wght-italic.woff2) format('woff2-variations')}
+@font-face{font-family:'Manrope';font-style:normal;font-display:swap;font-weight:200 800;src:url(vendor/fonts/manrope/manrope-latin-wght-normal.woff2) format('woff2-variations');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Manrope';font-style:normal;font-display:swap;font-weight:200 800;src:url(vendor/fonts/manrope/manrope-latin-ext-wght-normal.woff2) format('woff2-variations');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1E00-1E9F,U+20A0-20AB,U+20AD-20C0,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-display:swap;font-weight:400;src:url(vendor/fonts/plexmono/ibm-plex-mono-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-display:swap;font-weight:500;src:url(vendor/fonts/plexmono/ibm-plex-mono-latin-500-normal.woff2) format('woff2')}
+
+/* the lockup's colours in every style: canopy and sprout on light, limewash and the dark sprout on dark */
+:root{--sf-canopy:#EDEAE2;--sf-sprout:#8DBB78}
+:root[data-theme="light"]{--sf-canopy:#1F3B2D;--sf-sprout:#5E8A4C}
+
+/* ===== tokens: Night garden (dark) ===== */
+html.style-mono.style-seedform{
+  --page:#131814;--win:#131814;--surface:#1C231E;--surface-2:#222A24;--surface-3:#2C342E;
+  --sf-sand:#3B3A31;--sf-laterite:#D57552;--sf-on-canopy:#FFFFFF;--sf-fill:#3F7056;
+  --ink:#EDEAE2;--ink-2:#A9AD9F;--ink-3:#8A8E80;--line:#323A34;--line-2:#3E4740;
+  --hover:rgba(237,234,226,.05);--press:rgba(237,234,226,.08);
+  /* canopy is a fill in the dark theme, never text: the text accent is the dark sprout */
+  --accent-fill:#3F7056!important;--accent:#8DBB78!important;--accent-mark:#8DBB78!important;--accent-soft:rgba(141,187,120,.12)!important;
+  --on-accent:#FFFFFF!important;--accent-badge:#3F7056!important;--on-badge:#FFFFFF!important;
+  --mono-pill:#3F7056;--mono-on-pill:#FFFFFF;--mono-dot:#8DBB78;
+  --good:#8DBB78;--good-bg:rgba(141,187,120,.14);--bad:#D57552;--bad-bg:rgba(213,117,82,.14);--warn:#D9A65A;--warn-bg:rgba(217,166,90,.14);--info:#8DBB78;--info-bg:rgba(141,187,120,.12);
+  --grid-line:rgba(237,234,226,.035);--fi-bg:#222A24;--fi-line:#3E4740;
+  --shadow:none;--shadow-lg:none;--win-shadow:none;
+  --r-xs:2px;--r-sm:2px;--r-md:2px;--r-lg:2px;
+  --sf-canopy:#EDEAE2;--sf-sprout:#8DBB78
+}
+/* ===== tokens: Limewash (light) ===== */
+html.style-mono.style-seedform[data-theme="light"]{
+  --page:#F4F1EA;--win:#F4F1EA;--surface:#FBFAF6;--surface-2:#EDE8DC;--surface-3:#E2D6BF;
+  --sf-sand:#E2D6BF;--sf-laterite:#A84E33;--sf-on-canopy:#F4F1EA;--sf-fill:#1F3B2D;
+  --ink:#22231F;--ink-2:#5A5D52;--ink-3:#77796E;--line:#D3CBBA;--line-2:#C3B9A5;
+  --hover:rgba(34,35,31,.045);--press:rgba(34,35,31,.075);
+  --accent-fill:#1F3B2D!important;--accent:#1F3B2D!important;--accent-mark:#1F3B2D!important;--accent-soft:rgba(31,59,45,.08)!important;
+  --on-accent:#F4F1EA!important;--accent-badge:#1F3B2D!important;--on-badge:#F4F1EA!important;
+  --mono-pill:#1F3B2D;--mono-on-pill:#F4F1EA;--mono-dot:#5E8A4C;
+  --good:#3E6B30;--good-bg:rgba(94,138,76,.14);--bad:#A84E33;--bad-bg:rgba(168,78,51,.1);--warn:#8A5A12;--warn-bg:rgba(138,90,18,.1);--info:#1F3B2D;--info-bg:rgba(31,59,45,.08);
+  --grid-line:rgba(34,35,31,.04);--fi-bg:#FBFAF6;--fi-line:#C3B9A5;
+  --sf-canopy:#1F3B2D;--sf-sprout:#5E8A4C
+}
+/* ===== type: Playfair Display headlines, Manrope text, Plex Mono labels (unless another font is chosen) ===== */
+html.style-mono.style-seedform.font-inter{
+  --f-display:'Playfair Display',Georgia,'Times New Roman',serif;
+  --f-body:'Manrope','Segoe UI',system-ui,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace
+}
+html.style-mono.style-seedform.font-inter body{font-family:var(--f-body);letter-spacing:0;font-feature-settings:normal}
+html.style-mono.style-seedform.font-inter h1{font-family:var(--f-display);font-weight:500;letter-spacing:-.01em}
+html.style-mono.style-seedform.font-inter .hero h1{font-weight:400;letter-spacing:-.02em;line-height:1.05}
+html.style-mono.style-seedform.font-inter .fx-head h1,html.style-mono.style-seedform.font-inter .page-head h1,html.style-mono.style-seedform.font-inter .sec-head h1{font-weight:500;letter-spacing:-.01em}
+/* section headings are heading-2: Manrope SemiBold */
+html.style-mono.style-seedform.font-inter h2,html.style-mono.style-seedform.font-inter h3{font-family:var(--f-body);font-weight:600;letter-spacing:0}
+html.style-mono.style-seedform.font-inter .sec-head h2,html.style-mono.style-seedform.font-inter .fx-sec-h h2{font-size:21px;letter-spacing:-.005em}
+/* titles of dialogs and project pages in the display face */
+html.style-mono.style-seedform.font-inter .dlg-head h2,html.style-mono.style-seedform.font-inter .fl-h1{font-family:var(--f-display);font-weight:500;letter-spacing:-.01em}
+html.style-mono.style-seedform.font-inter .kpi .val,html.style-mono.style-seedform.font-inter .stat b{font-family:var(--f-display);font-weight:500;letter-spacing:-.01em}
+/* labels: project numbers, dates and small headings in Plex Mono, uppercase, tracked +8% */
+html.style-mono.style-seedform.font-inter .mono,html.style-mono.style-seedform.font-inter code,html.style-mono.style-seedform.font-inter .fl-code{font-family:var(--f-mono)}
+html.style-mono.style-seedform.font-inter .lbl-up,html.style-mono.style-seedform.font-inter .hero-date,html.style-mono.style-seedform.font-inter .kpi .lbl,html.style-mono.style-seedform.font-inter .fx-group,html.style-mono.style-seedform.font-inter .vx-state,html.style-mono.style-seedform.font-inter .fx-th,html.style-mono.style-seedform.font-inter .dk-gh{font-family:var(--f-mono);font-weight:500;text-transform:uppercase;letter-spacing:.08em;font-size:11.5px}
+html.style-mono.style-seedform .mono-g{color:var(--ink-2)}
+
+/* ===== shape: square-cut; the only circle is the seed ===== */
+html.style-mono.style-seedform .btn,html.style-mono.style-seedform .btn.sm,html.style-mono.style-seedform .search,html.style-mono.style-seedform .sel,html.style-mono.style-seedform .in,
+html.style-mono.style-seedform .seg-ctl,html.style-mono.style-seedform .seg-ctl button,html.style-mono.style-seedform .tabs,html.style-mono.style-seedform .tab,html.style-mono.style-seedform .ph,
+html.style-mono.style-seedform .chip,html.style-mono.style-seedform .count,html.style-mono.style-seedform .stg-tag,html.style-mono.style-seedform .st-tag,html.style-mono.style-seedform .chip-btn,
+html.style-mono.style-seedform .fx-filt,html.style-mono.style-seedform .dk-it,html.style-mono.style-seedform .toast,html.style-mono.style-seedform .icon-btn,html.style-mono.style-seedform .icon-btn.lg,
+html.style-mono.style-seedform .card,html.style-mono.style-seedform .kpi,html.style-mono.style-seedform .pcard-body,html.style-mono.style-seedform .pcard-top,html.style-mono.style-seedform .dialog,
+html.style-mono.style-seedform .menu,html.style-mono.style-seedform .dk-menu,html.style-mono.style-seedform .dd-pop,html.style-mono.style-seedform .dd-btn,html.style-mono.style-seedform .fx-card,
+html.style-mono.style-seedform .fl-card,html.style-mono.style-seedform .fx-table,html.style-mono.style-seedform .dk-sec,html.style-mono.style-seedform .vx-card,html.style-mono.style-seedform .vx-it,
+html.style-mono.style-seedform .vx-type .in,html.style-mono.style-seedform .np-opt,html.style-mono.style-seedform .fl-note,html.style-mono.style-seedform .au-rule,html.style-mono.style-seedform .lg-row,
+html.style-mono.style-seedform .ro-col,html.style-mono.style-seedform .np-row,html.style-mono.style-seedform .fx-fcard,html.style-mono.style-seedform .fx-thumb,html.style-mono.style-seedform .window{border-radius:2px}
+html.style-mono.style-seedform .vx-card::before{border-radius:3px}
+
+/* ===== surfaces: limewash, raised panels, 1px hairlines, no shadows ===== */
+html.style-mono.style-seedform body{background:var(--page)!important}
+html.style-mono.style-seedform .card,html.style-mono.style-seedform .kpi,html.style-mono.style-seedform .pcard-body,html.style-mono.style-seedform .col,html.style-mono.style-seedform .tbl-wrap,
+html.style-mono.style-seedform .au-rule,html.style-mono.style-seedform .fx-table,html.style-mono.style-seedform .fl-card{background:var(--surface);border:1px solid var(--line);box-shadow:none}
+html.style-mono.style-seedform .dk-sec{background:var(--surface)}
+html.style-mono.style-seedform .dialog,html.style-mono.style-seedform .menu,html.style-mono.style-seedform .dk-menu,html.style-mono.style-seedform .dd-pop{box-shadow:none!important;border:1px solid var(--line-2)}
+html.style-mono.style-seedform .pcard-top:has(.dk-cart){background:var(--surface);border-color:var(--line)}
+html.style-mono.style-seedform[data-theme="light"] .pcard-top:has(.dk-cart){background:var(--surface)}
+/* sand: quiet bands (the hero, the selected filter) */
+html.style-mono.style-seedform .count{background:var(--surface-3);color:var(--ink-2)}
+html.style-mono.style-seedform .st-tag{background:var(--surface-2);color:var(--ink-2)}
+
+/* ===== controls ===== */
+/* primary: a canopy fill with limewash text, sentence case, the icon inline */
+html.style-mono.style-seedform .btn{border:1px solid var(--ink);background:transparent;color:var(--ink);font-weight:600}
+html.style-mono.style-seedform[data-theme="dark"] .btn,html.style-mono.style-seedform:not([data-theme="light"]) .btn{border-color:var(--line-2)}
+html.style-mono.style-seedform .btn:hover{background:var(--hover);border-color:var(--ink)}
+html.style-mono.style-seedform .btn.primary{background:var(--sf-fill);color:var(--sf-on-canopy);border:1px solid var(--sf-fill)}
+html.style-mono.style-seedform .btn.primary:not([disabled]):hover{background:var(--sf-fill);opacity:.9;border-color:var(--sf-fill)}
+html.style-mono.style-seedform .btn.primary:has(.ic){padding:0 16px;gap:8px}
+html.style-mono.style-seedform .btn.primary .ic,html.style-mono.style-seedform .btn.primary.sm .ic{order:0;padding:0;background:none;color:inherit;width:15px;height:15px;border-radius:0}
+html.style-mono.style-seedform .top .btn.primary{height:40px;font-size:14px;padding:0 18px}
+html.style-mono.style-seedform .top .btn.primary .ic{width:16px;height:16px;padding:0}
+html.style-mono.style-seedform .btn.danger,html.style-mono.style-seedform .btn.danger.ghost{color:var(--sf-laterite);border-color:var(--sf-laterite)}
+html.style-mono.style-seedform .seg-ctl{background:var(--surface-2);border:1px solid var(--line)}
+html.style-mono.style-seedform .seg-ctl button.on,html.style-mono.style-seedform .tab.on,html.style-mono.style-seedform .ph.on{background:var(--sf-fill);color:var(--sf-on-canopy);border-color:var(--sf-fill)}
+html.style-mono.style-seedform .ph{border:1px solid var(--line-2);color:var(--ink-2)}
+html.style-mono.style-seedform .search,html.style-mono.style-seedform .sel{background:var(--surface);border:1px solid var(--line)}
+html.style-mono.style-seedform .in{background:var(--surface);border-color:var(--line-2)}
+html.style-mono.style-seedform .switch input:checked{background:var(--sf-fill)}
+html.style-mono.style-seedform .toast{background:var(--ink);color:var(--page)}
+html.style-mono.style-seedform .toast button{color:var(--mono-dot)}
+/* focus: a 2px sprout ring, 2px off */
+html.style-mono.style-seedform :focus-visible{outline:2px solid var(--sf-sprout)!important;outline-offset:2px}
+/* links: laterite, underlined */
+html.style-mono.style-seedform .content a:not(.btn):not([class*="dk-"]){color:var(--sf-laterite);text-decoration:underline;text-underline-offset:2px}
+
+/* ===== sidebar: the selected place in canopy ===== */
+html.style-mono.style-seedform .dk-it.on{background:var(--sf-fill);border-color:var(--sf-fill);color:var(--sf-on-canopy)}
+html.style-mono.style-seedform .dk-it.on .ic{color:var(--sf-on-canopy)}
+html.style-mono.style-seedform .dk-it.on .dk-n{background:rgba(255,255,255,.18);color:var(--sf-on-canopy)}
+html.style-mono.style-seedform .dk-sq{background:var(--surface-3)!important;color:var(--ink)}
+html.style-mono.style-seedform .dk-it.on .dk-sq{background:var(--sf-on-canopy)!important;color:var(--sf-fill)}
+html.style-mono.style-seedform .dk-gh{color:var(--ink-2)}
+
+/* ===== status: the seed while in progress, sprout when done, laterite when late ===== */
+html.style-mono.style-seedform .st-tag.st-info{color:var(--ink)}
+html.style-mono.style-seedform .st-tag.st-info .st-ic circle{fill:var(--sf-sprout)}
+html.style-mono.style-seedform .st-tag.st-info .st-ic path{stroke:var(--page)}
+html.style-mono.style-seedform .scale i.done,html.style-mono.style-seedform .scale i.cur{background:var(--sf-fill)}
+html.style-mono.style-seedform .fl-prog i{background:var(--sf-sprout)}
+html.style-mono.style-seedform .fl-late{color:var(--sf-laterite)}
+
+/* ===== the window bar wordmark carries the seed's colour ===== */
+html.style-mono.style-seedform .wbrand-name::after{background:var(--sf-sprout)}
+
+/* ===== the assistant: Seedform's greens and sand instead of the multicolour light ===== */
+html.style-mono.style-seedform .vx{--o1:#3F7056;--o2:#8DBB78;--o3:#E2D6BF;--o4:#D57552}
+html.style-mono.style-seedform .vx-aura .a1{background:radial-gradient(closest-side,#1F3B2D,rgba(31,59,45,.55) 55%,transparent)}
+html.style-mono.style-seedform .vx-aura .a2{background:radial-gradient(closest-side,#5E8A4C,rgba(94,138,76,.5) 55%,transparent)}
+html.style-mono.style-seedform .vx-aura .a3{background:radial-gradient(closest-side,#8DBB78,rgba(141,187,120,.45) 55%,transparent)}
+html.style-mono.style-seedform .vx-aura .a4{background:radial-gradient(closest-side,#D57552,rgba(213,117,82,.35) 55%,transparent);opacity:.5}
+html.style-mono.style-seedform .vx-aura .band{background:radial-gradient(ellipse at 50% 60%,rgba(244,241,234,.9),rgba(226,214,191,.7) 30%,rgba(141,187,120,.35) 60%,transparent 75%)}
+html.style-mono.style-seedform .vx-card{background:color-mix(in srgb,var(--surface) 88%,transparent)}
+html.style-mono.style-seedform .vx-yes{background:var(--sf-fill)!important;color:var(--sf-on-canopy)!important;border-color:var(--sf-fill)!important}
+
+/* the rest of the dashboard, square-cut too (dots, date markers and avatars stay round: the seed) */
+html.style-mono.style-seedform .legend>div,html.style-mono.style-seedform .wk-col,html.style-mono.style-seedform .row-item,html.style-mono.style-seedform .pcard-pill,
+html.style-mono.style-seedform .fx-node,html.style-mono.style-seedform .theme-opt,html.style-mono.style-seedform .mini,html.style-mono.style-seedform .tile,html.style-mono.style-seedform .path,
+html.style-mono.style-seedform .code-row,html.style-mono.style-seedform .dk-prev,html.style-mono.style-seedform .rail,html.style-mono.style-seedform .dc-kind,html.style-mono.style-seedform .au-kind,
+html.style-mono.style-seedform .dk-n,html.style-mono.style-seedform .bell-n,html.style-mono.style-seedform kbd,html.style-mono.style-seedform .flow-bar,html.style-mono.style-seedform .flow-bar i,
+html.style-mono.style-seedform .dk-sq,html.style-mono.style-seedform .fl-prog,html.style-mono.style-seedform .fl-prog i,html.style-mono.style-seedform .scale i,html.style-mono.style-seedform .tl-seg,
+html.style-mono.style-seedform .hero,html.style-mono.style-seedform .empty,html.style-mono.style-seedform .fx-empty,html.style-mono.style-seedform .dk-pin,html.style-mono.style-seedform .dk-addr{border-radius:2px}
+/* the money bar in the brand's colours, not greyed */
+html.style-mono.style-seedform .g-bar,html.style-mono.style-seedform .g-prog,html.style-mono.style-seedform .flow-bar i,html.style-mono.style-seedform .col-bar i{filter:none}

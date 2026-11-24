@@ -1,6 +1,6 @@
-# Studio Morfis for Windows
+# Seedform for Windows
 
-This is the Studio Morfis practice dashboard as an installable Windows program. Everything the web dashboard does works here too:
+This is the Seedform practice dashboard as an installable Windows program. Everything the web dashboard does works here too:
 
 - projects and their seven stages
 - the task board and Gantt chart
@@ -109,6 +109,20 @@ The grid layout of a folder shows the same thumbnails File Explorer does. Files 
 - **Quotations:** *Mark as sent*, then *Accepted*, then *Make the invoice* copies the lines into a new invoice. A sent quotation shows as Expired once its valid-until date passes.
 - **Invoices:** *Issue invoice* on a milestone invoice adds it to Payments, so receipts and overdue tracking keep working. The Payments preview has an *Edit invoice* button that opens the same invoice here.
 - **Output:** *Export PDF* (A4, Inter embedded) and *Print*. Both use the same page you edit.
+
+## The Seedform brand
+
+The app follows the Seedform brand book: an architecture studio in Colombo, *Architecture, grown from an idea.*
+
+- **Style:** *Seedform* is the default style (*Settings > Desktop app > Look > Style*), with a light theme (Limewash) and a dark theme (Night garden). Mono, Graphite, Andromeda Red and Andromeda Green remain as choices.
+- **Colour:** limewash grounds (`#F4F1EA`), canopy green for weight (`#1F3B2D`: primary buttons, the selected sidebar item), sand bands, the sprout seed (`#5E8A4C`: focus rings, the logo's seed, progress), and laterite used sparingly (`#A84E33`: links, overdue, cancelled).
+- **Type:** Playfair Display for headlines and project titles, Manrope for text and the interface, IBM Plex Mono for labels (project numbers and dates, uppercase, tracked). All three are built in and work offline.
+- **Shape:** square-cut corners (2px) and 1px hairlines instead of shadows. The only circle is the seed: dots, markers, avatars.
+- **Logo:** the frame, line and seed mark with the lowercase *seedform* wordmark, in the window bar, the splash screen and the phone's connect screen. The app and phone icons are the brand's app icon.
+- **Folder icons:** square-cut, in the brand palette. Canopy is in progress, sprout completed, sand on hold, the line tone upcoming and laterite cancelled, in the app and in File Explorer.
+- **The assistant:** speaks in the brand voice (calm, plain, warm), and its light at the bottom of the window uses the brand greens.
+
+Your records stay where they were: the app still keeps them in `%APPDATA%\Studio Morfis`. The installer upgrades the old app in place. The projects folder on disk is not renamed.
 
 ## Andromeda Red and Andromeda Green
 
@@ -242,7 +256,7 @@ Everything an automation makes waits for your review under *Waiting for you*. Wh
 
 ## Phone access and the Android app
 
-The Android app shows this computer's Studio Morfis on a phone: projects, stages, tasks, payments, invoices and quotations, Files with the real folders on this computer, Automations and Settings. Changes made on the phone are saved on the computer and appear in the desktop window straight away, and the other way round.
+The Android app shows this computer's Seedform on a phone: projects, stages, tasks, payments, invoices and quotations, Files with the real folders on this computer, Automations and Settings. Changes made on the phone are saved on the computer and appear in the desktop window straight away, and the other way round.
 
 **Turn it on:** Settings > Desktop app > Phone access > *Allow phones to connect*. The first time, Windows may ask whether the app may use the network: allow it on private networks.
 
@@ -259,7 +273,7 @@ The phone stays paired. Phone access lists the paired phones, shows which are co
 | Action | Where it happens |
 |---|---|
 | Choosing files to add to a folder | They are sent from the phone to the computer |
-| Exports and PDFs | They download to the phone (Downloads/Studio Morfis) and open in its viewer |
+| Exports and PDFs | They download to the phone (Downloads/Seedform) and open in its viewer |
 | Opening a file | It downloads to the phone and opens there |
 | Opening a folder | It opens in File Explorer on the computer |
 | Choosing a folder (for example the projects root) | You browse the computer's folders from the phone |
@@ -280,7 +294,7 @@ The phone stays paired. Phone access lists the paired phones, shows which are co
 - **Pairing:** a phone needs the PIN once. Five wrong tries replace the PIN, and only a hash of each phone's key is kept on the computer.
 - **Network:** traffic is plain HTTP on the local network, so use it on a network you trust (home or office Wi-Fi). To reach the computer from elsewhere, use a private VPN such as Tailscale or WireGuard and type the computer's VPN address. Do not forward the port on your router.
 
-The Android app's source is in `studio-morfis-android/`; GitHub Actions builds the APK (*Build Studio Morfis for Android*).
+The Android app's source is in `studio-morfis-android/`; GitHub Actions builds the APK (*Build Seedform for Android*).
 
 ## Run and build
 
@@ -294,7 +308,7 @@ npm run check        :: confirm the dashboard still matches the desktop patch
 npm run dist         :: build dist\Studio-Morfis-Setup-<version>.exe (on Windows)
 ```
 
-The GitHub Actions workflow *Build Studio Morfis for Windows* runs on every push to the `claude/studio-morfis-*` branches that touches this folder, and on pull requests. It runs the checks and the smoke test on Windows, then uploads the installer and screenshots.
+The GitHub Actions workflow *Build Seedform for Windows* runs on every push to the `claude/studio-morfis-*` branches that touches this folder, and on pull requests. It runs the checks and the smoke test on Windows, then uploads the installer and screenshots.
 
 ## Where things are kept
 

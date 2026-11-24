@@ -100,8 +100,11 @@
     v.render(el, opts || {});
   }
   function refreshDk() { if (R.cur && VIEWS[R.cur] && VIEWS[R.cur].refresh) VIEWS[R.cur].refresh($('#dkView')); }
+  var rebranded = false;
   function onPageRender() {
     var pg = page(); if (!pg || !pg.S) return;
+    /* the studio was renamed Seedform: a studio name still set to the old one follows, once */
+    if (!rebranded && pg.S.ready && !window.MORFIS_REMOTE) { rebranded = true; if (pg.S.settings.studio === 'Studio Morfis') { pg.S.settings.studio = 'Seedform'; pg.commitSettings(true); } }
     var key = [pg.S.ui.view, pg.S.ui.pid, pg.S.ui.tab].join('|');
     var changed = key !== R.pageKey;
     R.pageKey = key;
@@ -249,9 +252,9 @@
   function crumb() {
     var pg = page(), el = $('#wbarCrumb'), nm = $('#wbarName'), icn = $('#wbarIcon');
     if (!pg || !el) return;
-    if (nm) nm.textContent = pg.brandName ? pg.brandName() : 'Studio Morfis';
+    if (nm) nm.textContent = pg.brandName ? pg.brandName() : 'Seedform';
     /* the studio's own wordmark while the app keeps its own name and icon */
-    var wb = document.querySelector('.wbrand'); if (wb) wb.classList.toggle('has-logo', (pg.brandName ? pg.brandName() : 'Studio Morfis') === 'Studio Morfis' && !(pg.brandIcon && pg.brandIcon()));
+    var wb = document.querySelector('.wbrand'); if (wb) wb.classList.toggle('has-logo', (pg.brandName ? pg.brandName() : 'Seedform') === 'Seedform' && !(pg.brandIcon && pg.brandIcon()));
     if (icn) { var src = (pg.brandIcon && pg.brandIcon()) || 'app-icon.png'; if (icn.dataset.src !== src) { icn.dataset.src = src; icn.innerHTML = '<img src="' + esc(src) + '" alt="">'; } }
     var t = '';
     if (R.cur) t = VIEWS[R.cur].crumb ? VIEWS[R.cur].crumb() : VIEWS[R.cur].title;
@@ -266,9 +269,10 @@
   var CLASS_PREFS = {
     controls: function (v) { ['windows', 'pill', 'mac'].forEach(function (k) { root.classList.toggle('wc-' + k, k === v); }); },
     style: function (v) {
-      v = v || 'mono';
+      v = v || 'seedform';
       var paint = v === 'red' || v === 'green';
-      root.classList.toggle('style-mono', v === 'mono' || paint); root.classList.toggle('style-graphite', v === 'graphite');
+      root.classList.toggle('style-mono', v === 'mono' || v === 'seedform' || paint); root.classList.toggle('style-graphite', v === 'graphite');
+      root.classList.toggle('style-seedform', v === 'seedform');
       root.classList.toggle('paint', paint); root.classList.toggle('paint-red', v === 'red'); root.classList.toggle('paint-green', v === 'green');
       /* the painted styles are dark: switch to dark when one is chosen */
       if (paint && root.dataset.theme === 'light') { var tb = document.querySelector('[data-act="toggleTheme"]'); if (tb) tb.click(); }
@@ -321,7 +325,7 @@
         sw('rememberWindow', 'Reopen at the same size and place') +
       '</div>' +
       '<div class="dk-sec"><h3>Look</h3>' +
-        field('Style', seg('style', [['mono', 'Mono'], ['graphite', 'Graphite'], ['red', 'Andromeda Red'], ['green', 'Andromeda Green']])) +
+        field('Style', seg('style', [['seedform', 'Seedform'], ['mono', 'Mono'], ['graphite', 'Graphite'], ['red', 'Andromeda Red'], ['green', 'Andromeda Green']])) +
         field('Font', seg('font', [['inter', 'Inter'], ['segoe', 'Segoe UI'], ['technical', 'Technical'], ['system', 'System'], ['studio', 'Studio classic']])) +
         field('Spacing', seg('density', [['comfortable', 'Comfortable'], ['compact', 'Compact']])) +
         sw('pattern', 'Dot grid background', 'Fine dots behind the content') +
@@ -376,7 +380,7 @@
     if (!H.remoteStatus || window.MORFIS_REMOTE) return '';
     var r = RS || { on: !!P.remoteOn, devices: [], addresses: [] }, ago = function (t) { return t ? new Date(t).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''; };
     return '<div class="dk-sec dk-phone"><h3>Phone access</h3>' +
-      '<p class="small muted">Work on this computer’s projects, documents and folders from the Studio Morfis app on an Android phone, over the same Wi-Fi. Use it on networks you trust.</p>' +
+      '<p class="small muted">Work on this computer’s projects, documents and folders from the Seedform app on an Android phone, over the same Wi-Fi. Use it on networks you trust.</p>' +
       '<label class="switch dk-sw"><input type="checkbox" data-dk-remote' + (r.on ? ' checked' : '') + '><span><span class="dk-l">Allow phones to connect</span><span class="small muted dk-s">' + (r.on ? 'On. Leave the app running (closing to the notification area works too).' : 'Off. Nothing listens on the network.') + '</span></span></label>' +
       (r.error ? '<p class="small" style="color:var(--bad)">' + esc(r.error) + '</p>' : '') +
       (r.on ? '<div class="dk-pin"><div><span class="fl">PIN for a new phone</span><b class="mono">' + esc(String(r.pin).replace(/(\d{3})(\d{3})/, '$1 $2')) + '</b></div><button type="button" class="btn sm" data-dk-act="newPin">New PIN</button></div>' +

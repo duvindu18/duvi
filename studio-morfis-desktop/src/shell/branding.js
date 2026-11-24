@@ -7,7 +7,7 @@ const path = require('path');
 const { execFile } = require('child_process');
 const { app, nativeImage, shell } = require('electron');
 
-const DEFAULT_NAME = 'Studio Morfis';
+const DEFAULT_NAME = 'Seedform';
 const APP_ID = 'com.studiomorfis.desktop';
 
 /* PNG data URL -> bytes, or null */

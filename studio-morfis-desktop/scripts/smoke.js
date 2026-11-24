@@ -554,6 +554,14 @@ app.whenReady().then(async () => {
   console.log('agent:', JSON.stringify(ag));
 
   /* the Andromeda styles from Settings: painted dark backgrounds on Mono */
+  /* the Seedform brand: the default style, its three typefaces from the app's own files, the lockup in the window bar */
+  const sfb = JSON.parse(await js(w, '(async function(){var o={},d=document.documentElement;await document.fonts.ready;' +
+    'o.style=d.classList.contains("style-seedform");o.title=document.title;' +
+    'await Promise.all(["500 20px \'Playfair Display\'","400 14px Manrope","500 12px \'IBM Plex Mono\'"].map(function(f){return document.fonts.load(f)}));' +
+    'o.fonts=["500 20px \'Playfair Display\'","400 14px Manrope","500 12px \'IBM Plex Mono\'"].map(function(f){return document.fonts.check(f)});' +
+    'var h=document.querySelector("#dkView h1, #view h1");o.h1=h?getComputedStyle(h).fontFamily:"";o.radius=getComputedStyle(document.querySelector(".btn")).borderRadius;' +
+    'o.mark=!!document.querySelector(".wbrand .sf-mark");return JSON.stringify(o)})()'));
+  console.log('seedform:', JSON.stringify(sfb));
   const paint = {};
   paint.theme0 = await js(w, 'document.documentElement.dataset.theme');
   for (const v of ['red', 'green']) {
@@ -563,9 +571,9 @@ app.whenReady().then(async () => {
     await js(w, 'document.querySelector("#dkSide [data-go=home]").click()'); await wait(1200); await shot(w, '70-andromeda-' + v);
   }
   await go('settings', 'tmp-settings');
-  await js(w, 'document.querySelector("#dkCard [data-dk=style][data-v=mono]").click()'); await wait(800);
+  await js(w, 'document.querySelector("#dkCard [data-dk=style][data-v=seedform]").click()'); await wait(800);
   if (paint.theme0 === 'light') { await js(w, 'document.querySelector("[data-act=toggleTheme]").click()'); await wait(800); }
-  paint.back = await js(w, '!document.documentElement.classList.contains("paint")&&document.documentElement.classList.contains("style-mono")');
+  paint.back = await js(w, '!document.documentElement.classList.contains("paint")&&document.documentElement.classList.contains("style-seedform")');
   try { fs.unlinkSync(path.join(out, 'tmp-settings.png')); } catch (e) { /* none */ }
   console.log('paint styles:', JSON.stringify(paint));
 
@@ -616,6 +624,7 @@ app.whenReady().then(async () => {
   expect(!ag.err && ag.made && ag.task && ag.done && ag.stage === 2 && ag.waits && ag.moved && ag.delWaits && ag.kept && ag.undone && ag.renders && /Running/.test(ag.ra || '') && /no issued invoice|OK/.test(ag.pay || '') && ag.closeWaits, 'the assistant acts, and asks first for risky changes: ' + JSON.stringify(ag));
   expect(ag.delModel === 'ok' && ag.deletedOnServer && ag.modelRows >= 1, 'downloaded AI models listed and deleted: ' + JSON.stringify(ag));
   expect(paint.red && paint.red.cls && paint.red.dark && paint.red.bg && paint.green && paint.green.cls && paint.green.dark && paint.green.bg && paint.back, 'Andromeda Red and Green styles: ' + JSON.stringify(paint));
+  expect(sfb.style && sfb.fonts.every(Boolean) && /Playfair/.test(sfb.h1) && sfb.radius === '2px' && sfb.mark, 'the Seedform style, fonts and logo: ' + JSON.stringify(sfb));
   console.log(fails.length ? 'SMOKE FAILED: ' + fails.join('; ') : 'SMOKE PASSED');
   app.exit(fails.length ? 1 : 0);
 });

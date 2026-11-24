@@ -239,7 +239,7 @@
     if (/^(thanks|thank you|cheers|great|perfect|nice)\b/.test(s)) return { say: 'You’re welcome.', close: true };
     if (/\b(what can you do|what can i say|help me|how do i use you|commands)\b/.test(s) || s === 'help') return { say: 'I can open any page or project, tell you what’s due, who owes you money, change a project’s status, start a freelance job, add a reminder and search your files. Just ask.',
       items: ['What’s due this week?', 'Any overdue invoices?', 'Open Files', 'New freelance job for Anna', 'Remind me to call the client tomorrow at 10 am', 'Mark Galle Fort as on hold'].map(function (x) { return { label: x, ask: x }; }) };
-    if (/^(hi|hello|hey|good (morning|afternoon|evening)|morfis)\b/.test(s) && s.split(' ').length <= 4) {
+    if (/^(hi|hello|hey|good (morning|afternoon|evening)|morfis|seedform)\b/.test(s) && s.split(' ').length <= 4) {
       var hr = new Date().getHours(), up = upcoming(today(), addDays(7)), od = overdue();
       return { say: (hr < 12 ? 'Good morning.' : hr < 18 ? 'Good afternoon.' : 'Good evening.') + ' ' + (up.length ? plural(up.length, 'thing') + ' ' + (up.length === 1 ? 'is' : 'are') + ' due this week' : 'Nothing is due this week') + (od.inv.length ? ', and ' + plural(od.inv.length, 'invoice') + ' ' + (od.inv.length === 1 ? 'is' : 'are') + ' overdue.' : '.') + ' What can I do for you?', ask: true };
     }
@@ -467,7 +467,7 @@
     var S = pg().S, lines = [];
     Object.values(S.projects).slice(0, 25).forEach(function (p) { var f = pg().projectFinance(p, today()); lines.push('Project ' + p.code + ' "' + p.name + '": ' + A.STATUS[A.statusOf(p, today())].label + ', stage ' + p.currentStage + ', client ' + ((p.client && p.client.name) || '-') + ', fee ' + f.contract + ', received ' + f.received + ', overdue ' + f.overdue); });
     if (window.MorfisFreelance) window.MorfisFreelance.all().slice(0, 25).forEach(function (j) { lines.push('Freelance job ' + j.code + ' "' + (j.title || '') + '": ' + window.MorfisFreelance.statusOf(j) + ', client ' + (j.client || '-') + ', due ' + (j.due || '-') + ', fee ' + (j.fee || 0) + ', paid ' + (j.paid || 0)); });
-    var sys = 'You are Morfis, the friendly voice assistant of an architecture studio. Today is ' + today() + '. Answer in one or two short sentences that sound natural when spoken. Use the studio data below; if it does not hold the answer, say so briefly. Amounts are in ' + (S.settings.currency || 'LKR') + '.\n\n' + lines.join('\n');
+    var sys = 'You are the voice assistant of Seedform, an architecture studio in Colombo. Speak like a good architect on site: calm, clear, warm, plain words, no exclamation marks. Today is ' + today() + '. Answer in one or two short sentences that sound natural when spoken. Use the studio data below; if it does not hold the answer, say so briefly. Amounts are in ' + (S.settings.currency || 'LKR') + '.\n\n' + lines.join('\n');
     return H.aiChat({ system: sys, prompt: said, timeoutMs: 45000 }).then(function (r) { return { say: String(r.text || '').replace(/\*\*/g, '').trim() || 'I’m not sure.' }; },
       function () { return { say: 'I can’t answer that one yet. Try asking what’s due, who owes you money, or say open, and a project’s name.', items: ['What can you do?'].map(function (x) { return { label: x, ask: x }; }) }; });
   }
@@ -606,6 +606,6 @@
     hear: function (audio) { open(); setState('hearing'); return warm().then(function () { return call({ type: 'listen', audio: audio }); }).then(function (r) { return handle(r.text).then(function () { return r.text; }); }); },
     synth: function (text) { var parts = []; return warm().then(function () { return call({ type: 'speak', text: text, voice: PR().voiceName || 'af_heart', speed: 1 }, function (m) { parts.push(m.pcm); }); }).then(function () { var n = parts.reduce(function (a, b) { return a + b.length; }, 0), out = new Float32Array(n), at = 0; parts.forEach(function (b) { out.set(b, at); at += b.length; }); return out; }); },
     level: function () { return LEVEL; }, frames: function () { return FRAMES; },
-    voices: VOICES, sample: function () { return warm().then(function () { return speak('Hi, I’m Morfis. Ask me what’s due this week, or tell me to open a project.'); }); }
+    voices: VOICES, sample: function () { return warm().then(function () { return speak('Hi, I’m the Seedform assistant. Ask me what’s due this week, or tell me to open a project.'); }); }
   };
 })();

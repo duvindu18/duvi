@@ -31,9 +31,9 @@ const DEFAULTS = {
   pattern: true,               // a dot grid behind the content
   glow: false,                 // the accent wash at the top of the page
   followGlow: true,            // a soft accent light that follows the pointer
-  style: 'mono',               // mono (light grey, ink black, heavy type) | graphite (the dark graphite look) | red | green (Andromeda Red / Green: Mono on painted metallic backgrounds)
+  style: 'seedform',           // seedform (the studio's brand: limewash, canopy green, Playfair Display) | mono (light grey, ink black, heavy type) | graphite (the dark graphite look) | red | green (Andromeda Red / Green: Mono on painted metallic backgrounds)
   monoIntro: false,            // set once by the move to Mono: the page then switches to the light theme
-  lookV: 4,
+  lookV: 5,
   roundCorners: true,
   backupKeep: 14,
   voiceOn: true,               // the voice assistant (Whisper to listen, Kokoro to speak, all on this computer)
@@ -51,7 +51,7 @@ const DEFAULTS = {
 
 const CHOICES = {
   controls: ['windows', 'pill', 'mac'],
-  style: ['mono', 'graphite', 'red', 'green'],
+  style: ['seedform', 'mono', 'graphite', 'red', 'green'],
   density: ['comfortable', 'compact'],
   titleBar: ['name', 'none'],
   font: ['inter', 'segoe', 'technical', 'system', 'studio'],
@@ -77,6 +77,8 @@ class Prefs {
       if (!(raw.lookV >= 3)) { this.data.style = 'mono'; this.data.monoIntro = true; this.data.lookV = 3; }
       /* version 1.8: no gradient wash at the top of the page */
       if (!(raw.lookV >= 4)) { this.data.glow = false; this.data.lookV = 4; }
+      /* version 1.14, the rebrand to Seedform: Mono moves to the Seedform style once (Graphite and Andromeda stay) */
+      if (!(raw.lookV >= 5)) { if (this.data.style === 'mono') this.data.style = 'seedform'; this.data.lookV = 5; }
     } catch (e) { /* first start, or an unreadable file: defaults */ }
     this.clean();
   }

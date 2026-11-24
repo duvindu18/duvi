@@ -15,7 +15,7 @@ const ICON = {
 const WBAR =
   '<div class="wbar" id="wbar" hidden>' +
   '<button type="button" class="wside" id="wbarSide" tabindex="-1" aria-label="Collapse the sidebar" title="Collapse the sidebar (Ctrl+B)"></button>' +
-  '<div class="wbrand"><span class="wbrand-logo" role="img" aria-label="Studio Morfis"></span><span class="wbrand-ic" id="wbarIcon" aria-hidden="true"></span><span class="wbrand-name" id="wbarName"></span><span class="wcrumb" id="wbarCrumb"></span></div>' +
+  '<div class="wbrand"><span class="wbrand-logo" role="img" aria-label="Seedform"><svg class="sf-mark" viewBox="0 0 64 64" aria-hidden="true"><rect x="4.5" y="4.5" width="55" height="55" rx="2" fill="none" stroke="currentColor" stroke-width="5"/><rect x="29.5" y="6" width="5" height="31" fill="currentColor"/><circle class="sf-seed" cx="32" cy="44" r="8"/></svg><span class="sf-word">seedform</span></span><span class="wbrand-ic" id="wbarIcon" aria-hidden="true"></span><span class="wbrand-name" id="wbarName"></span><span class="wcrumb" id="wbarCrumb"></span></div>' +
   '<div class="wtitle" id="wbarTitle"></div>' +
   '<div class="wctl" role="group" aria-label="Window controls">' +
   '<button type="button" class="wc wc-min" data-act="winMin" tabindex="-1" aria-label="Minimize" title="Minimize">' + ICON.min + '</button>' +
@@ -107,6 +107,11 @@ function rules(o) {
     ["(HOST ? ' The installed program file and its desktop shortcut keep the original icon.' : '')",
       "(HOST ? ' The Start menu entry, desktop and taskbar shortcuts and the Apps list follow it too.' : '')", false],
     ['Desktop alerts in this browser', 'Windows notifications for reminders', false],
+    /* the rebrand: Seedform */
+    ["<title>Studio Morfis Practice Dashboard</title>", "<title>Seedform</title>", true],
+    ["  studio: 'Studio Morfis',", "  studio: 'Seedform',", true],
+    ["const brandName = () => String((S.settings && S.settings.appName) || '').trim() || 'Studio Morfis';", "const brandName = () => String((S.settings && S.settings.appName) || '').trim() || 'Seedform';", true],
+    ["/Creator (Studio Morfis Practice Dashboard) /Producer (Studio Morfis)", "/Creator (Seedform) /Producer (Seedform)", true],
     ['<p class="hint">Alerts need your browser’s permission and may be unavailable inside this page.</p>', '<p class="hint">Reminders also pop up in the Windows notification area.</p>', false],
     [/<\/body><\/html>\s*$/, o.tail + '</body></html>', true]
   ];
@@ -124,7 +129,7 @@ function build(html, o) {
   return { html: html, missing: missing };
 }
 
-const STYLES = ['vendor/leaflet/leaflet.css', 'theme.css', 'desktop.css', 'views.css', 'mono.css', 'paint.css'];
+const STYLES = ['vendor/leaflet/leaflet.css', 'theme.css', 'desktop.css', 'views.css', 'mono.css', 'seedform.css', 'paint.css'];
 const SCRIPTS = ['vendor/leaflet/leaflet.js', 'folder-art.js', 'desktop.js', 'preview.js', 'files.js', 'folder-log.js', 'folder-setup.js', 'docs.js', 'browser.js', 'freelance.js', 'direct.js', 'reorganise.js', 'automations.js', 'agent.js', 'voice.js'];
 /* the phone page adds its own layout and controls after the desktop ones */
 const REMOTE_STYLES = ['remote.css'], REMOTE_SCRIPTS = ['remote.js'];
@@ -135,8 +140,8 @@ function tail(base, remote) {
 
 /* html classes the desktop stylesheet reads, set before first paint so nothing jumps */
 function htmlClass(p) {
-  var paint = p.style === 'red' || p.style === 'green';
-  return [paint ? 'style-mono paint paint-' + p.style : 'style-' + (p.style || 'mono'), 'wc-' + p.controls, 'font-' + p.font, 'density-' + p.density, p.titleBar === 'none' ? 'no-wtitle' : '', p.reduceMotion ? 'reduce-motion' : '',
+  var paint = p.style === 'red' || p.style === 'green', st = p.style || 'seedform';
+  return [paint ? 'style-mono paint paint-' + st : st === 'seedform' ? 'style-mono style-seedform' : 'style-' + st, 'wc-' + p.controls, 'font-' + p.font, 'density-' + p.density, p.titleBar === 'none' ? 'no-wtitle' : '', p.reduceMotion ? 'reduce-motion' : '',
     p.pattern ? '' : 'no-pattern', p.glow ? '' : 'no-glow', p.followGlow ? '' : 'no-follow', p.roundCorners ? '' : 'square', p.sideCollapsed ? 'side-collapsed' : ''].filter(Boolean).join(' ');
 }
 
