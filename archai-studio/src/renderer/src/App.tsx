@@ -1,5 +1,6 @@
 import { Rail } from './components/Rail'
 import { TitleBlock } from './components/TitleBlock'
+import { ChatPage } from './pages/chat/Chat'
 import { Later } from './pages/Later'
 import { SetupWizard } from './pages/Setup'
 import { SettingsPage } from './pages/Settings'
@@ -12,9 +13,11 @@ function Main() {
   let page
   if (section === 'settings') page = <SettingsPage />
   else if (!activeProject) page = <StartProject />
+  else if (section === 'chat') page = <ChatPage key={activeProject.id} />
   else page = <Later section={section} />
+  const flush = section === 'chat' && activeProject
   return (
-    <main className="main" data-testid="main">
+    <main className={`main${flush ? ' main--flush' : ''}`} data-testid="main">
       {page}
     </main>
   )

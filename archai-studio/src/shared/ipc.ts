@@ -4,6 +4,8 @@
  */
 import { z } from 'zod'
 import type { InvokeChannel } from './channels'
+import type { ChatChunk, ChatDone, ChatError, ChatMessage, ChatStarted, ModelInfo, Thread } from './chat'
+import { ChatSendSchema, type ChatSend } from './chat'
 import type { CheckResult, ServicePing } from './checks'
 import type { Project } from './projects'
 import { ProjectName } from './projects'
@@ -47,7 +49,14 @@ export const requestSchemas = {
   'checks:run': z.undefined(),
   'services:ping': z.undefined(),
   'disk:free': z.object({ path: z.string().min(1).max(1000) }).strict(),
-  'clipboard:writeText': z.object({ text: z.string().max(100_000) }).strict()
+  'clipboard:writeText': z.object({ text: z.string().max(100_000) }).strict(),
+  'chat:models': z.undefined(),
+  'chat:threads': z.object({ projectId: Id }).strict(),
+  'chat:history': z.object({ threadId: Id }).strict(),
+  'chat:send': ChatSendSchema,
+  'chat:cancel': z.object({ streamId: z.string().uuid() }).strict(),
+  'chat:renameThread': z.object({ threadId: Id, title: z.string().trim().min(1).max(120) }).strict(),
+  'gpu:get': z.undefined()
 } satisfies Record<InvokeChannel, z.ZodType>
 
 export interface InvokeMap {
@@ -66,7 +75,16 @@ export interface InvokeMap {
   'services:ping': { req: undefined; res: ServicePing }
   'disk:free': { req: { path: string }; res: { bytes: number | null } }
   'clipboard:writeText': { req: { text: string }; res: true }
+  'chat:models': { req: undefined; res: ModelInfo[] }
+  'chat:threads': { req: { projectId: number }; res: Thread[] }
+  'chat:history': { req: { threadId: number }; res: ChatMessage[] }
+  'chat:send': { req: ChatSend; res: ChatStarted }
+  'chat:cancel': { req: { streamId: string }; res: boolean }
+  'chat:renameThread': { req: { threadId: number; title: string }; res: Thread }
+  'gpu:get': { req: undefined; res: GpuOwner }
 }
+
+export type GpuOwner = 'chat' | 'images' | null
 
 // Compile-time check that InvokeMap and the channel list stay in sync.
 type _MissingInMap = Exclude<InvokeChannel, keyof InvokeMap>
@@ -74,7 +92,12 @@ type _ExtraInMap = Exclude<keyof InvokeMap, InvokeChannel>
 const _sync: [_MissingInMap, _ExtraInMap] extends [never, never] ? true : never = true
 void _sync
 
-export type EventMap = Record<never, never>
+export interface EventMap {
+  'chat:chunk': ChatChunk
+  'chat:done': ChatDone
+  'chat:error': ChatError
+  'gpu:state': GpuOwner
+}
 
 /** Error shape returned across IPC (never a raw stack trace). */
 export interface IpcError {

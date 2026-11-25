@@ -6,11 +6,13 @@ import { join } from 'node:path'
 import { DB_FILE } from '../paths'
 import { log } from '../log'
 import { openDatabase, type Db } from './database'
+import { ChatRepo } from './chat-repo'
 import { ProjectsRepo } from './projects-repo'
 
 export class DataStore {
   private db: Db | null = null
   private repo: ProjectsRepo | null = null
+  private chatRepo: ChatRepo | null = null
   private openedAt: string | null = null
 
   constructor(private readonly dataDir: () => string) {}
@@ -26,6 +28,12 @@ export class DataStore {
     return this.repo
   }
 
+  chats(): ChatRepo {
+    this.projects()
+    this.chatRepo ??= new ChatRepo(this.db!)
+    return this.chatRepo
+  }
+
   /** The folder the open database lives in (null until first use). */
   openFolder(): string | null {
     return this.openedAt
@@ -35,5 +43,6 @@ export class DataStore {
     this.db?.close()
     this.db = null
     this.repo = null
+    this.chatRepo = null
   }
 }

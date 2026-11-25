@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { checkUrl } from '@shared/net-policy'
 import type { Settings } from '@shared/settings'
 import type { DataStore } from './db/store'
+import { ChatService } from './features/chat'
+import { GpuCoordinator } from './services/gpu'
 import type { Handlers } from './ipc'
 import { freeBytesFor, runChecks, runNvidiaSmi } from './services/checks'
 import { ComfyClient } from './services/comfy'
@@ -28,6 +30,17 @@ export function createHandlers(ctx: Context): Handlers {
   const ollama = new OllamaClient(() => ctx.settings.get().endpoints.ollama)
   const comfy = new ComfyClient(() => ctx.settings.get().endpoints.comfy)
   const alive = (p: Promise<unknown>) => p.then(() => true, () => false)
+  const broadcast = <T>(channel: string, payload: T) => {
+    for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(channel, payload)
+  }
+  const gpu = new GpuCoordinator(() => ctx.settings.get().gpu.turnTaking, ollama, comfy, (o) => broadcast('gpu:state', o))
+  const chat = new ChatService({
+    ollama,
+    chats: () => ctx.data.chats(),
+    projects,
+    gpu,
+    numCtx: () => ctx.settings.get().chat.contextLength
+  })
 
   return {
     'app:info': () => ({
@@ -123,6 +136,39 @@ export function createHandlers(ctx: Context): Handlers {
     'clipboard:writeText': ({ text }) => {
       clipboard.writeText(text)
       return true
-    }
+    },
+
+    'chat:models': async () => {
+      let models
+      try {
+        models = await ollama.tags(4000)
+      } catch {
+        throw new Error("Ollama isn't running, so the model list is empty. Start Ollama, then try again.")
+      }
+      return models
+        .filter((m) => !/embed/i.test(m.name))
+        .map((m) => ({
+          name: m.name,
+          sizeGb: m.size ? Math.round((m.size / 1024 ** 3) * 10) / 10 : null,
+          parameters: m.details?.parameter_size ?? null,
+          quantization: m.details?.quantization_level ?? null
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    },
+    'chat:threads': ({ projectId }) => ctx.data.chats().threads(projectId),
+    'chat:history': ({ threadId }) => ctx.data.chats().messages(threadId),
+    'chat:send': (req, event) => {
+      const send = <T>(ch: string, p: T) => {
+        if (!event.sender.isDestroyed()) event.sender.send(ch, p)
+      }
+      return chat.send(req, {
+        chunk: (c) => send('chat:chunk', c),
+        done: (d) => send('chat:done', d),
+        error: (e) => send('chat:error', e)
+      })
+    },
+    'chat:cancel': ({ streamId }) => chat.cancel(streamId),
+    'chat:renameThread': ({ threadId, title }) => ctx.data.chats().rename(threadId, title),
+    'gpu:get': () => gpu.current()
   }
 }

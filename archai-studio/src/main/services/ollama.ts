@@ -1,11 +1,40 @@
 /** Ollama HTTP client (loopback only, via the network guard). */
 import { guardedFetch } from '../net-guard'
+import { readNdjson } from './ndjson'
 
 export interface OllamaModel {
   name: string
   size?: number
   details?: { parameter_size?: string; quantization_level?: string; family?: string }
 }
+
+export interface OllamaMessage {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
+
+export interface ChatChunkRaw {
+  message?: { role: string; content?: string; thinking?: string }
+  done: boolean
+  error?: string
+  eval_count?: number
+  eval_duration?: number
+  total_duration?: number
+}
+
+export interface ChatRequest {
+  model: string
+  messages: OllamaMessage[]
+  numCtx: number
+  /** gpt-oss reasoning effort; other models ignore it. */
+  think?: 'low' | 'medium' | 'high' | boolean
+  signal?: AbortSignal
+  /** Unload the model straight after (used for GPU turn-taking). */
+  keepAlive?: string | number
+}
+
+/** A readable message for errors Ollama returns. */
+export class OllamaError extends Error {}
 
 export class OllamaClient {
   constructor(private readonly base: () => string) {}
@@ -22,5 +51,55 @@ export class OllamaClient {
 
   async tags(timeoutMs?: number): Promise<OllamaModel[]> {
     return (await this.getJson<{ models?: OllamaModel[] }>('/api/tags', timeoutMs)).models ?? []
+  }
+
+  /** Streams a chat reply. Yields chunks until done; throws OllamaError with a plain message on failure. */
+  async *chat(req: ChatRequest): AsyncGenerator<ChatChunkRaw> {
+    let res: Response
+    try {
+      res = await guardedFetch(`${this.base()}/api/chat`, 'local-ai', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        signal: req.signal,
+        body: JSON.stringify({
+          model: req.model,
+          messages: req.messages,
+          stream: true,
+          options: { num_ctx: req.numCtx },
+          ...(req.think !== undefined && { think: req.think }),
+          ...(req.keepAlive !== undefined && { keep_alive: req.keepAlive })
+        })
+      })
+    } catch (e) {
+      if (req.signal?.aborted) throw e
+      throw new OllamaError("Ollama isn't running. Start it from the Start menu, then try again.")
+    }
+    if (!res.ok || !res.body) {
+      let detail = ''
+      try {
+        detail = ((await res.json()) as { error?: string }).error ?? ''
+      } catch {
+        /* no body */
+      }
+      if (res.status === 404 && /not found/i.test(detail)) {
+        throw new OllamaError(`The model "${req.model}" isn't downloaded. In PowerShell run: ollama pull ${req.model}`)
+      }
+      throw new OllamaError(`Ollama couldn't answer (${res.status}${detail ? `: ${detail}` : ''}).`)
+    }
+    for await (const chunk of readNdjson<ChatChunkRaw>(res.body)) {
+      if (chunk.error) throw new OllamaError(`Ollama stopped with an error: ${chunk.error}`)
+      yield chunk
+      if (chunk.done) return
+    }
+  }
+
+  /** Asks Ollama to unload a model from video memory now. */
+  async unload(model: string): Promise<void> {
+    await guardedFetch(`${this.base()}/api/generate`, 'local-ai', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model, keep_alive: 0 }),
+      signal: AbortSignal.timeout(5000)
+    })
   }
 }

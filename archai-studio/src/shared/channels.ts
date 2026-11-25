@@ -20,10 +20,17 @@ export const INVOKE_CHANNELS = [
   'checks:run',
   'services:ping',
   'disk:free',
-  'clipboard:writeText'
+  'clipboard:writeText',
+  'chat:models',
+  'chat:threads',
+  'chat:history',
+  'chat:send',
+  'chat:cancel',
+  'chat:renameThread',
+  'gpu:get'
 ] as const
 
-export const EVENT_CHANNELS = [] as const
+export const EVENT_CHANNELS = ['chat:chunk', 'chat:done', 'chat:error', 'gpu:state'] as const
 
 export type InvokeChannel = (typeof INVOKE_CHANNELS)[number]
 export type EventChannel = (typeof EVENT_CHANNELS)[number]

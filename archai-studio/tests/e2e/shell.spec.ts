@@ -28,7 +28,7 @@ test('first launch asks for a project, then remembers everything after restart',
   await expect(page.getByRole('alert')).toHaveText('Give the project a name.')
   await createProject(page, 'Kandy Residence')
   await expect(page.getByTestId('tb-project')).toHaveText('Kandy Residence')
-  await expect(page.getByTestId('later')).toContainText('milestone 3')
+  await expect(page.getByTestId('chat')).toBeVisible()
 
   // Second project through the switcher.
   await page.getByTestId('project-switcher').click()

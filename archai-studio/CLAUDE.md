@@ -58,3 +58,13 @@ The owner is an architect, not a developer: explain decisions in plain language.
 - Writing style (UI copy AND model system prompts, from Seedform's voice guide): UK / Sri Lankan English (colour,
   centre, metres, programme), areas in m², numerals for all measurements, sentence case, no exclamation marks, plain
   words, short sentences. Local words (midula, pila) are fine; explain them the first time.
+- M3: Chat streams Ollama /api/chat (NDJSON) through ChatService (src/main/features/chat.ts). Chunks are batched
+  every 40 ms into `chat:chunk` events; `chat:done` carries the saved message. Stop aborts the request and saves the
+  partial reply with meta.stopped. History is trimmed to fit num_ctx (about 3.5 chars per token, 2048 tokens kept for the reply).
+  gpt-oss gets `think: "medium"`; its reasoning is stored and shown in a collapsed "Reasoning" section.
+- M3: System prompt: resources/prompts/chat.md, bundled into main via `?raw`. Sri Lankan practice context, metric,
+  Seedform voice, and a mandatory "check against source documents" note for regulations and structural figures.
+- M3: GPU turn-taking: GpuCoordinator frees ComfyUI (/free) before chat if images last used the GPU, and unloads the
+  chat model (keep_alive 0) before images (wired in M5).
+- M3: Model replies are rendered with react-markdown + remark-gfm. No raw HTML, images are shown as text, and only
+  https links are live (they open in the browser).

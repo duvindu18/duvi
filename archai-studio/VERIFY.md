@@ -36,3 +36,17 @@ To see the wizard again on a PC that has already run it, delete
 5. In *Where to keep your work*, turn on "Keep image galleries on another drive" and pick a folder on D:.
 6. Finish. The bottom strip should show Ollama and ComfyUI as Running. Quit Ollama, and within
    about 20 seconds it should change to Not running.
+
+## M3: Chat
+1. Open a project and ask: *What roof pitch should I use for clay tiles on a house in Kandy?*
+   The answer should appear word by word. The first reply can take 10–30 seconds while
+   gpt-oss loads into video memory. Later replies are faster.
+2. The answer should use metric units, UK spelling, and end with a short "check this against the
+   source documents" note.
+3. Click **Reasoning** above the answer to see how the model thought it through.
+4. Ask a long question, then click **Stop** part-way. The partial answer stays, marked "Stopped before the end".
+5. The **Model** list should show the models from `ollama list` (embedding models hidden).
+6. Close and reopen the app. The chat is in the list on the left, inside the same project.
+7. Create a second project. Its chat list should be empty.
+8. Quit Ollama and send a message. You should see "Ollama isn't running. Start it from the Start menu, then try again."
+9. Optional: watch video memory in Task Manager → Performance → GPU. Chat should use about 13–14 GB.

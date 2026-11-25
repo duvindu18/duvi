@@ -21,4 +21,14 @@ export class ComfyClient {
     if (!res.ok) throw new Error(`ComfyUI replied ${res.status}`)
     return (await res.json()) as ComfySystemStats
   }
+
+  /** Releases ComfyUI's models from video memory. */
+  async free(): Promise<void> {
+    await guardedFetch(`${this.base()}/free`, 'local-ai', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ unload_models: true, free_memory: true }),
+      signal: AbortSignal.timeout(5000)
+    })
+  }
 }

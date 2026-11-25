@@ -895,3 +895,371 @@ p {
   justify-self: start;
   text-underline-offset: 3px;
 }
+
+/* ---------- Chat ---------- */
+
+.main--flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.chat {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  height: 100%;
+  min-height: 0;
+}
+
+.chat__threads {
+  border-right: 1px solid var(--line);
+  padding: var(--s-5) var(--s-3);
+  overflow: hidden auto;
+  min-height: 0;
+}
+
+.chat__new {
+  width: 100%;
+  margin-bottom: var(--s-4);
+}
+
+.chat__threads ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px;
+}
+
+.chat__threads li button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--radius-s);
+  color: var(--text-2);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat__threads li button:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.chat__threads li button[aria-current='true'] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.chat__threads li button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.chat__none {
+  color: var(--text-3);
+  font-size: var(--t-13);
+  padding: 0 var(--s-3);
+}
+
+.chat__main {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+.chat__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-7) var(--s-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.chat__title {
+  font-size: var(--t-20);
+  font-stretch: var(--semi-wide);
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat__controls {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-3);
+  flex: none;
+}
+
+.chat__model {
+  display: grid;
+  gap: 2px;
+}
+
+.chat__model .input {
+  width: 220px;
+  height: 32px;
+}
+
+.chat__ctx {
+  height: 32px;
+  border: 1px solid var(--line);
+  background: none;
+  border-radius: var(--radius-s);
+  padding: 0 var(--s-3);
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: var(--t-13);
+}
+
+.chat__ctx--warn {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.chat__banner {
+  margin: var(--s-3) var(--s-7) 0;
+  padding: var(--s-2) var(--s-3);
+  background: var(--danger-soft);
+  color: var(--text);
+  border-radius: var(--radius-s);
+  font-size: var(--t-13);
+}
+
+.chat__scroll {
+  overflow: auto;
+  min-height: 0;
+}
+
+.transcript {
+  max-width: 78ch;
+  padding: var(--s-6) var(--s-7) var(--s-5);
+  display: grid;
+  gap: var(--s-5);
+}
+
+.chat__empty h2 {
+  font-size: var(--t-25);
+  font-stretch: var(--wide);
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.chat__empty > p {
+  color: var(--text-2);
+  margin-top: var(--s-2);
+}
+
+.chat__examples {
+  display: grid;
+  gap: var(--s-2);
+  margin-top: var(--s-5);
+  justify-items: start;
+}
+
+.example {
+  text-align: left;
+  border: 1px solid var(--line);
+  background: none;
+  border-radius: var(--radius-s);
+  padding: var(--s-2) var(--s-3);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.example:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.msg--user {
+  justify-self: start;
+  background: var(--surface-2);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--radius-s);
+  max-width: 100%;
+}
+
+.msg--user p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.msg--assistant {
+  min-width: 0;
+}
+
+.msg__waiting {
+  color: var(--text-3);
+}
+
+.msg__meta {
+  margin-top: var(--s-2);
+  color: var(--text-3);
+  font-size: var(--t-13);
+}
+
+.msg__error {
+  color: var(--danger);
+  background: var(--danger-soft);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--radius-s);
+}
+
+.reasoning {
+  margin-bottom: var(--s-3);
+  color: var(--text-3);
+  font-size: var(--t-13);
+}
+
+.reasoning summary {
+  cursor: pointer;
+  width: max-content;
+}
+
+.reasoning p {
+  margin-top: var(--s-2);
+  padding-left: var(--s-3);
+  border-left: 1px solid var(--line);
+  white-space: pre-wrap;
+}
+
+.composer {
+  display: flex;
+  gap: var(--s-2);
+  align-items: flex-end;
+  padding: var(--s-3) var(--s-7) 0;
+  max-width: calc(78ch + var(--s-7) * 2);
+}
+
+.composer__input {
+  flex: 1;
+  resize: none;
+  min-height: 72px;
+  max-height: 240px;
+  padding: var(--s-3);
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-s);
+  line-height: 1.5;
+}
+
+.composer__input:focus-visible {
+  outline-offset: 0;
+  border-color: var(--focus);
+}
+
+.composer__note {
+  padding: var(--s-2) var(--s-7) var(--s-4);
+  color: var(--text-3);
+  font-size: var(--t-12);
+}
+
+/* Markdown from the model */
+
+.md {
+  display: grid;
+  gap: var(--s-3);
+  overflow-wrap: anywhere;
+}
+
+.md > * {
+  margin: 0;
+}
+
+.md h1,
+.md h2,
+.md h3 {
+  font-size: var(--t-16);
+  font-weight: 600;
+  margin-top: var(--s-2);
+}
+
+.md ul,
+.md ol {
+  padding-left: var(--s-5);
+  display: grid;
+  gap: var(--s-1);
+}
+
+.md blockquote {
+  margin: 0;
+  padding: var(--s-2) var(--s-4);
+  border-left: 2px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.md a {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+.md-code {
+  font-family: var(--font-code);
+  font-size: 0.92em;
+  background: var(--surface-2);
+  padding: 1px 4px;
+  border-radius: var(--radius-s);
+}
+
+.md-table {
+  overflow-x: auto;
+}
+
+.md table {
+  border-collapse: collapse;
+  font-size: var(--t-13);
+}
+
+.md th,
+.md td {
+  border-bottom: 1px solid var(--line);
+  padding: var(--s-2) var(--s-3);
+  text-align: left;
+  vertical-align: top;
+}
+
+.md th {
+  font-weight: 600;
+  border-bottom-color: var(--line-strong);
+}
+
+.codeblock {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  overflow: hidden;
+}
+
+.codeblock__bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px var(--s-1) 2px var(--s-3);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--t-12);
+  color: var(--text-3);
+}
+
+.codeblock__bar .btn {
+  height: 26px;
+}
+
+.codeblock pre {
+  margin: 0;
+  padding: var(--s-3);
+  overflow-x: auto;
+  font-family: var(--font-code);
+  font-size: var(--t-13);
+  line-height: 1.55;
+  background: var(--bg);
+}
