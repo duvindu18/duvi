@@ -9,7 +9,7 @@ import type { DataStore } from './db/store'
 import { ChatService, type ChatSink } from './features/chat'
 import { explainMessage, fixMessage, generateMessage, scriptSystemPrompt } from './features/scripts'
 import { TARGETS, scriptFileName } from '@shared/scripts'
-import { checkBindings, detectBindings, guessMode, parseApiWorkflow, type ApiWorkflow } from '@shared/images'
+import { checkBindings, describeWorkflow, detectBindings, guessMode, parseApiWorkflow, type ApiWorkflow } from '@shared/images'
 import { ImagesService, toGallery, type InputImage } from './features/images'
 import { handleImageProtocol } from './protocol'
 import { GpuCoordinator } from './services/gpu'
@@ -256,7 +256,7 @@ export function createHandlers(ctx: Context): Handlers {
       }
       const wf = parseApiWorkflow(raw) // explains the editor-vs-API format problem
       const bindings = detectBindings(wf)
-      const mode = guessMode(bindings)
+      const mode = guessMode(bindings, wf)
       const token = randomUUID()
       pendingImports.set(token, wf)
       return {
@@ -276,10 +276,10 @@ export function createHandlers(ctx: Context): Handlers {
       const id = `user-${randomUUID().slice(0, 8)}`
       ctx.data.images().addWorkflow(id, name, mode, 'Imported from ComfyUI', wf, bindings)
       pendingImports.delete(token)
-      return { id, name, mode, description: 'Imported from ComfyUI', builtIn: false, bindings }
+      return { id, name, mode, description: 'Imported from ComfyUI', builtIn: false, bindings, ...describeWorkflow(wf, bindings) }
     },
     'images:models': () => comfy.models(),
-    'images:promptHelp': ({ description, preset, mode }) => images.promptHelp(description, preset, mode),
+    'images:promptHelp': ({ description, preset, mode, family }) => images.promptHelp(description, preset, mode, family),
     'images:pickInput': async () => {
       const win = parentWindow()
       const opts = { title: 'Choose a sketch, screenshot or image', properties: ['openFile' as const], filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }] }

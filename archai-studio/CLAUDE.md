@@ -87,3 +87,9 @@ The owner is an architect, not a developer: explain decisions in plain language.
   path from the screen). "Remove" moves the file to the Recycle Bin (shell.trashItem), never a permanent delete.
 - M5: Fake ComfyUI (tests/fakes/fake-comfy.ts) uses the `ws` dev dependency for the progress websocket. The app itself
   uses Node's built-in WebSocket through guardedWebSocket.
+- Flux: templates flux-text (all-in-one checkpoint), flux-split-text, flux-variation (UNETLoader + DualCLIPLoader type
+  flux + VAELoader + FluxGuidance, cfg 1) and flux-sketch-canny (official Flux.1 Canny dev: Canny, then
+  InstructPixToPixConditioning, guidance 30). Model bindings: checkpoint, controlnet, unet, clip1, clip2, vae; lists from
+  /object_info (UNETLoader, DualCLIPLoader, VAELoader). Choices are stored per workflow in settings.images.byWorkflow, and
+  `pickModel` falls back from your last choice to the template file, then the meta `prefer` regex, then the first listed.
+  The prompt helper writes natural sentences for Flux (family from describeWorkflow).

@@ -1,0 +1,24 @@
+{
+  "20": { "class_type": "UNETLoader", "inputs": { "unet_name": "flux1-canny-dev.safetensors", "weight_dtype": "fp8_e4m3fn" } },
+  "21": { "class_type": "DualCLIPLoader", "inputs": { "clip_name1": "t5xxl_fp8_e4m3fn.safetensors", "clip_name2": "clip_l.safetensors", "type": "flux" } },
+  "22": { "class_type": "VAELoader", "inputs": { "vae_name": "ae.safetensors" } },
+  "10": { "class_type": "LoadImage", "inputs": { "image": "input.png" } },
+  "15": { "class_type": "ImageScaleToTotalPixels", "inputs": { "image": ["10", 0], "upscale_method": "lanczos", "megapixels": 1.0 } },
+  "11": { "class_type": "Canny", "inputs": { "image": ["15", 0], "low_threshold": 0.15, "high_threshold": 0.3 } },
+  "6": { "class_type": "CLIPTextEncode", "inputs": { "text": "", "clip": ["21", 0] } },
+  "16": { "class_type": "FluxGuidance", "inputs": { "conditioning": ["6", 0], "guidance": 30.0 } },
+  "7": { "class_type": "CLIPTextEncode", "inputs": { "text": "", "clip": ["21", 0] } },
+  "17": {
+    "class_type": "InstructPixToPixConditioning",
+    "inputs": { "positive": ["16", 0], "negative": ["7", 0], "vae": ["22", 0], "pixels": ["11", 0] }
+  },
+  "3": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 0, "steps": 24, "cfg": 1.0, "sampler_name": "euler", "scheduler": "normal", "denoise": 1.0,
+      "model": ["20", 0], "positive": ["17", 0], "negative": ["17", 1], "latent_image": ["17", 2]
+    }
+  },
+  "8": { "class_type": "VAEDecode", "inputs": { "samples": ["3", 0], "vae": ["22", 0] } },
+  "9": { "class_type": "SaveImage", "inputs": { "filename_prefix": "ArchAI", "images": ["8", 0] } }
+}

@@ -81,3 +81,16 @@ Before you start: put an SDXL checkpoint (for example `sd_xl_base_1.0.safetensor
 8. Quit ComfyUI and open Visual Studio. It should say "ComfyUI isn't running", and Chat still works.
 9. Optional: in ComfyUI, export one of your own workflows with **Workflow → Export (API)**, then use
    **Advanced → Import a ComfyUI workflow…** to import it.
+
+## Flux (optional)
+Files (from the official Flux.1 releases, which you download yourself):
+- `ComfyUI\models\diffusion_models\flux1-dev.safetensors` (or an fp8 version), and `flux1-canny-dev.safetensors` for sketches
+- `ComfyUI\models\text_encoders\t5xxl_fp8_e4m3fn.safetensors` and `clip_l.safetensors`
+- `ComfyUI\models\vae\ae.safetensors`
+1. In Visual Studio, set **Workflow** to *Flux.1 dev text to image (separate files)*. Under **Advanced**, check that
+   the diffusion model, both text encoders and the VAE are picked correctly.
+2. **From sketch** with *Flux.1 Canny dev sketch to render*: try a clean line drawing. It follows lines closely.
+3. **Variation** with *Flux.1 dev image variation*.
+4. Expect about 30–60 seconds per image on the RTX 5080, against about 10 for SDXL. Video memory is close to full,
+   so keep "Take turns on the GPU" on in Settings.
+5. Switch back to an SDXL workflow. Its checkpoint choice should be unchanged.

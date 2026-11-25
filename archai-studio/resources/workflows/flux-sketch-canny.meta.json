@@ -1,0 +1,19 @@
+{
+  "name": "Flux.1 Canny dev sketch to render",
+  "mode": "sketch",
+  "description": "Black Forest Labs' official Flux.1 Canny dev model (flux1-canny-dev.safetensors in models/diffusion_models), plus the usual Flux text encoders and ae.safetensors. Follows line drawings very closely. Flux ignores the negative prompt.",
+  "prefer": { "unet": "canny", "clip1": "t5xxl", "clip2": "clip_l", "vae": "^ae\\b|flux" },
+  "bindings": {
+    "positive": { "node": "6", "input": "text" },
+    "negative": { "node": "7", "input": "text" },
+    "seed": { "node": "3", "input": "seed" },
+    "steps": { "node": "3", "input": "steps" },
+    "guidance": { "node": "16", "input": "guidance" },
+    "unet": { "node": "20", "input": "unet_name" },
+    "clip1": { "node": "21", "input": "clip_name1" },
+    "clip2": { "node": "21", "input": "clip_name2" },
+    "vae": { "node": "22", "input": "vae_name" },
+    "image": { "node": "10", "input": "image" },
+    "prefix": { "node": "9", "input": "filename_prefix" }
+  }
+}

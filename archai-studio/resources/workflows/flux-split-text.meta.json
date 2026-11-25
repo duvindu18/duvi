@@ -1,0 +1,20 @@
+{
+  "name": "Flux.1 dev text to image (separate files)",
+  "mode": "text",
+  "description": "Flux installed as separate files: the diffusion model in models/diffusion_models, t5xxl and clip_l in models/text_encoders (or clip), and ae.safetensors in models/vae. Flux ignores the negative prompt.",
+  "prefer": { "unet": "flux1-(dev|schnell)(?!.*(canny|depth|fill))", "clip1": "t5xxl", "clip2": "clip_l", "vae": "^ae\\b|flux" },
+  "bindings": {
+    "positive": { "node": "6", "input": "text" },
+    "negative": { "node": "7", "input": "text" },
+    "seed": { "node": "3", "input": "seed" },
+    "steps": { "node": "3", "input": "steps" },
+    "guidance": { "node": "16", "input": "guidance" },
+    "unet": { "node": "20", "input": "unet_name" },
+    "clip1": { "node": "21", "input": "clip_name1" },
+    "clip2": { "node": "21", "input": "clip_name2" },
+    "vae": { "node": "22", "input": "vae_name" },
+    "width": { "node": "5", "input": "width" },
+    "height": { "node": "5", "input": "height" },
+    "prefix": { "node": "9", "input": "filename_prefix" }
+  }
+}

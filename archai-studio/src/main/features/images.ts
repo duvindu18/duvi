@@ -11,6 +11,7 @@ import {
   applyBindings,
   checkBindings,
   composePrompt,
+  describeWorkflow,
   SIZES,
   sizeForImage,
   type ApiWorkflow,
@@ -21,6 +22,7 @@ import {
   type ImageError,
   type ImageMode,
   type ImageProgress,
+  type ModelKey,
   type WorkflowInfo
 } from '@shared/images'
 import type { ImageRow, ImagesRepo } from '../db/images-repo'
@@ -40,9 +42,9 @@ export const BUILT_IN_WORKFLOWS: (WorkflowInfo & { json: ApiWorkflow })[] = Obje
   .filter(([p]) => p.endsWith('.meta.json'))
   .map(([p, meta]) => {
     const id = basename(p, '.meta.json')
-    const m = meta as { name: string; mode: ImageMode; description: string; bindings: Bindings }
+    const m = meta as { name: string; mode: ImageMode; description: string; bindings: Bindings; prefer?: Partial<Record<ModelKey, string>> }
     const json = files[p.replace('.meta.json', '.json')] as ApiWorkflow
-    return { id, name: m.name, mode: m.mode, description: m.description, builtIn: true, bindings: m.bindings, json }
+    return { id, name: m.name, mode: m.mode, description: m.description, builtIn: true, bindings: m.bindings, prefer: m.prefer, ...describeWorkflow(json, m.bindings), json }
   })
   .sort((a, b) => a.id.localeCompare(b.id))
 
@@ -113,7 +115,7 @@ export class ImagesService {
   constructor(private readonly d: ImagesDeps) {}
 
   workflows(): (WorkflowInfo & { json: ApiWorkflow })[] {
-    return [...BUILT_IN_WORKFLOWS, ...this.d.repo().workflows()]
+    return [...BUILT_IN_WORKFLOWS, ...this.d.repo().workflows().map((w) => ({ ...w, ...describeWorkflow(w.json, w.bindings) }))]
   }
 
   workflow(id: string): (WorkflowInfo & { json: ApiWorkflow }) | null {
@@ -121,7 +123,7 @@ export class ImagesService {
   }
 
   /** gpt-oss turns a short description into a full prompt + negative prompt. */
-  async promptHelp(description: string, preset: string | null, mode: ImageMode): Promise<{ positive: string; negative: string }> {
+  async promptHelp(description: string, preset: string | null, mode: ImageMode, family: 'sdxl' | 'flux' | 'other' = 'sdxl'): Promise<{ positive: string; negative: string }> {
     const fallback = composePrompt(description, preset)
     const styleLine = preset ? `Style: ${preset.replace(/-/g, ' ')}.` : ''
     const model = this.d.helperModel()
@@ -133,7 +135,7 @@ export class ImagesService {
       think: model.startsWith('gpt-oss') ? 'low' : undefined,
       messages: [
         { role: 'system', content: IMAGE_HELPER_PROMPT },
-        { role: 'user', content: `Mode: ${mode}. ${styleLine}\nDescription: ${description.trim()}` }
+        { role: 'user', content: `Model: ${family === 'flux' ? 'Flux' : 'SDXL'}. Mode: ${mode}. ${styleLine}\nDescription: ${description.trim()}` }
       ]
     })) {
       text += c.message?.content ?? ''
@@ -198,8 +200,8 @@ export class ImagesService {
         cfg: req.cfg,
         denoise: req.denoise,
         strength: req.strength,
-        checkpoint: req.checkpoint,
-        controlnet: req.controlnet,
+        guidance: req.guidance,
+        ...req.models,
         image: uploaded,
         width: size.width,
         height: size.height,
@@ -222,7 +224,10 @@ export class ImagesService {
       sink.progress({ jobId, value: 1, max: 1, stage: 'saving' })
       const refs = Object.values(entry.outputs ?? {}).flatMap((o) => o.images ?? []).filter((r) => r.type === 'output')
       if (refs.length === 0) throw new ComfyError('ComfyUI finished but returned no images. Check that the workflow ends in a Save Image node.')
-      const checkpoint = req.checkpoint ?? (wf.bindings.checkpoint ? String(wf.json[wf.bindings.checkpoint.node]?.inputs[wf.bindings.checkpoint.input] ?? '') : '')
+      // The main model for the gallery: the checkpoint, or for Flux-style workflows the diffusion model.
+      const mainKey: ModelKey | null = wf.bindings.checkpoint ? 'checkpoint' : wf.bindings.unet ? 'unet' : null
+      const mainBind = mainKey ? wf.bindings[mainKey] : undefined
+      const checkpoint = (mainKey && req.models?.[mainKey]) ?? (mainBind ? String(wf.json[mainBind.node]?.inputs[mainBind.input] ?? '') : '')
       const saved: GalleryImage[] = []
       for (const ref of refs) {
         const raw = await this.d.comfy.view(ref)

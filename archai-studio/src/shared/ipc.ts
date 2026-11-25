@@ -77,7 +77,14 @@ export const requestSchemas = {
     })
     .strict(),
   'images:models': z.undefined(),
-  'images:promptHelp': z.object({ description: z.string().trim().min(1, 'Describe the image first.').max(4000), preset: z.string().max(60).nullable(), mode: z.enum(['text', 'sketch', 'variation']) }).strict(),
+  'images:promptHelp': z
+    .object({
+      description: z.string().trim().min(1, 'Describe the image first.').max(4000),
+      preset: z.string().max(60).nullable(),
+      mode: z.enum(['text', 'sketch', 'variation']),
+      family: z.enum(['sdxl', 'flux', 'other']).optional()
+    })
+    .strict(),
   'images:pickInput': z.undefined(),
   'images:generate': GenerateSchema,
   'images:cancel': z.object({ jobId: z.string().uuid() }).strict(),
@@ -118,7 +125,7 @@ export interface InvokeMap {
   'images:importWorkflow': { req: undefined; res: WorkflowImportPreview | null }
   'images:saveWorkflow': { req: { token: string; name: string; mode: ImageMode; bindings: Bindings }; res: WorkflowInfo }
   'images:models': { req: undefined; res: ComfyModels }
-  'images:promptHelp': { req: { description: string; preset: string | null; mode: ImageMode }; res: { positive: string; negative: string } }
+  'images:promptHelp': { req: { description: string; preset: string | null; mode: ImageMode; family?: 'sdxl' | 'flux' | 'other' }; res: { positive: string; negative: string } }
   'images:pickInput': { req: undefined; res: PickedInput | null }
   'images:generate': { req: GenerateRequest; res: { jobId: string } }
   'images:cancel': { req: { jobId: string }; res: boolean }

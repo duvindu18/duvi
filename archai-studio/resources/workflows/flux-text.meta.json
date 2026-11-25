@@ -1,15 +1,46 @@
 {
-  "name": "Flux.1 dev text to image (optional)",
+  "name": "Flux.1 dev text to image (all-in-one checkpoint)",
   "mode": "text",
-  "description": "For an all-in-one Flux.1 dev fp8 checkpoint. Flux ignores the negative prompt. Slower than SDXL but follows long prompts closely.",
+  "description": "For a single-file Flux.1 dev fp8 checkpoint in models/checkpoints. Flux ignores the negative prompt.",
   "bindings": {
-    "positive": { "node": "6", "input": "text" },
-    "negative": { "node": "7", "input": "text" },
-    "seed": { "node": "3", "input": "seed" },
-    "steps": { "node": "3", "input": "steps" },
-    "checkpoint": { "node": "4", "input": "ckpt_name" },
-    "width": { "node": "5", "input": "width" },
-    "height": { "node": "5", "input": "height" },
-    "prefix": { "node": "9", "input": "filename_prefix" }
+    "positive": {
+      "node": "6",
+      "input": "text"
+    },
+    "negative": {
+      "node": "7",
+      "input": "text"
+    },
+    "seed": {
+      "node": "3",
+      "input": "seed"
+    },
+    "steps": {
+      "node": "3",
+      "input": "steps"
+    },
+    "checkpoint": {
+      "node": "4",
+      "input": "ckpt_name"
+    },
+    "width": {
+      "node": "5",
+      "input": "width"
+    },
+    "height": {
+      "node": "5",
+      "input": "height"
+    },
+    "prefix": {
+      "node": "9",
+      "input": "filename_prefix"
+    },
+    "guidance": {
+      "node": "16",
+      "input": "guidance"
+    }
+  },
+  "prefer": {
+    "checkpoint": "flux"
   }
 }

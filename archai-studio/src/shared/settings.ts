@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MODEL_KEYS } from './images'
 import { LOOPBACK_HOSTS } from './net-policy'
 
 /** A local service address: http on this computer only, any port. */
@@ -27,8 +28,8 @@ export const SettingsSchema = z.object({
   models: z.object({ chat: ModelName, scripts: ModelName, embed: ModelName }),
   chat: z.object({ contextLength: z.number().int().min(2048).max(131072) }),
   gpu: z.object({ turnTaking: z.boolean() }),
-  /** Last-used image models (file names as ComfyUI lists them). */
-  images: z.object({ checkpoint: z.string().max(300).nullable(), controlnet: z.string().max(300).nullable() }),
+  /** Last-used model files per workflow (names as ComfyUI lists them), so SDXL and Flux choices never mix. */
+  images: z.object({ byWorkflow: z.record(z.string().max(100), z.partialRecord(z.enum(MODEL_KEYS), z.string().max(300))) }),
   folders: z.object({ data: FolderPath, gallery: FolderPath.nullable() }),
   activeProjectId: z.number().int().positive().nullable()
 })
@@ -59,7 +60,7 @@ export function defaultSettings(dataDir: string): Settings {
     models: { chat: 'gpt-oss:20b', scripts: 'gpt-oss:20b', embed: 'nomic-embed-text' },
     chat: { contextLength: 8192 },
     gpu: { turnTaking: true },
-    images: { checkpoint: null, controlnet: null },
+    images: { byWorkflow: {} },
     folders: { data: dataDir, gallery: null },
     activeProjectId: null
   }

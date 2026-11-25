@@ -75,8 +75,14 @@ export class ComfyClient {
       const v = info[node]?.input?.required?.[input]?.[0]
       return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
     }
-    const [checkpoints, controlnets] = await Promise.all([list('CheckpointLoaderSimple', 'ckpt_name'), list('ControlNetLoader', 'control_net_name')])
-    return { checkpoints, controlnets }
+    const [checkpoints, controlnets, unets, clips, vaes] = await Promise.all([
+      list('CheckpointLoaderSimple', 'ckpt_name'),
+      list('ControlNetLoader', 'control_net_name'),
+      list('UNETLoader', 'unet_name'),
+      list('DualCLIPLoader', 'clip_name1'),
+      list('VAELoader', 'vae_name')
+    ])
+    return { checkpoints, controlnets, unets, clips, vaes }
   }
 
   async uploadImage(bytes: Buffer, filename: string): Promise<string> {

@@ -15,5 +15,8 @@ Reply with **only** a JSON object, no other text:
 - In **variation** mode, describe what should stay and what should change.
 - Never add people's names, brand names, artists' names or text in the image.
 
+## If the model is Flux
+Flux understands plain language. Write the prompt as 2 to 4 natural, descriptive sentences (60 to 120 words) instead of comma-separated phrases, in the same order of ideas. Flux ignores negative prompts, so keep "negative" short: 3 to 6 phrases at most.
+
 ## The negative prompt
 - 10 to 25 comma-separated phrases: things that would spoil an architectural image (distorted perspective, warped lines, extra floors, blurry, oversaturated, cartoon, text, watermark), plus anything that contradicts the brief.

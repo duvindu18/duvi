@@ -6,8 +6,10 @@ import {
   applyBindings,
   checkBindings,
   composePrompt,
+  describeWorkflow,
   detectBindings,
   guessMode,
+  pickModel,
   parseApiWorkflow,
   sizeForImage,
   STYLE_PRESETS,
@@ -64,6 +66,52 @@ describe('built-in workflow templates', () => {
     expect(g['4']!.inputs.ckpt_name).toBe('x.safetensors')
     expect(g['3']!.inputs.model).toEqual(['4', 0])
     expect(t.json['6']!.inputs.text).toBe('')
+  })
+})
+
+describe('Flux support', () => {
+  const flux = (id: string) => BUILT_IN_WORKFLOWS.find((w) => w.id === id)!
+
+  it('ships Flux for every mode, including separate-file installs', () => {
+    expect(flux('flux-split-text').mode).toBe('text')
+    expect(flux('flux-sketch-canny').mode).toBe('sketch')
+    expect(flux('flux-variation').mode).toBe('variation')
+    for (const id of ['flux-text', 'flux-split-text', 'flux-sketch-canny', 'flux-variation']) expect(flux(id).family).toBe('flux')
+    for (const id of ['sdxl-text', 'sdxl-sketch-controlnet', 'sdxl-variation']) expect(flux(id).family).toBe('sdxl')
+  })
+
+  it('reads template defaults: steps, guidance and file names', () => {
+    expect(flux('flux-sketch-canny').defaults).toMatchObject({ steps: 24, guidance: 30, unet: 'flux1-canny-dev.safetensors', vae: 'ae.safetensors' })
+    expect(flux('flux-variation').defaults?.denoise).toBe(0.6)
+  })
+
+  it('Flux Canny uses the official InstructPixToPix conditioning with the traced edges', () => {
+    const wf = flux('flux-sketch-canny').json
+    expect(wf['17']!.class_type).toBe('InstructPixToPixConditioning')
+    expect(wf['17']!.inputs.pixels).toEqual(['11', 0])
+    expect(wf['3']!.inputs.latent_image).toEqual(['17', 2])
+    expect(wf['3']!.inputs.cfg).toBe(1)
+  })
+
+  it('detects Flux loaders in an imported workflow', () => {
+    const b = detectBindings(flux('flux-sketch-canny').json)
+    expect(b.unet).toEqual({ node: '20', input: 'unet_name' })
+    expect(b.clip1).toEqual({ node: '21', input: 'clip_name1' })
+    expect(b.clip2).toEqual({ node: '21', input: 'clip_name2' })
+    expect(b.vae).toEqual({ node: '22', input: 'vae_name' })
+    expect(b.guidance).toEqual({ node: '16', input: 'guidance' })
+    expect(guessMode(b, flux('flux-sketch-canny').json)).toBe('sketch')
+    expect(describeWorkflow(flux('flux-split-text').json, b).family).toBe('flux')
+  })
+
+  it('chooses model files sensibly', () => {
+    const unets = ['flux1-canny-dev.safetensors', 'flux1-dev-fp8.safetensors']
+    expect(pickModel(unets, undefined, 'flux1-dev.safetensors', 'flux1-(dev|schnell)(?!.*(canny|depth|fill))')).toBe('flux1-dev-fp8.safetensors')
+    expect(pickModel(unets, undefined, 'x', 'canny')).toBe('flux1-canny-dev.safetensors')
+    expect(pickModel(unets, 'flux1-dev-fp8.safetensors', 'x', 'canny')).toBe('flux1-dev-fp8.safetensors')
+    expect(pickModel(['a', 'sd_xl_base_1.0.safetensors', 'flux1-dev.safetensors'], undefined, 'missing', '^(?!.*flux).*(xl|sdxl)')).toBe('sd_xl_base_1.0.safetensors')
+    expect(pickModel([], undefined, 'ae.safetensors', undefined)).toBe('ae.safetensors')
+    expect(pickModel(['a'], 'gone', undefined, '(')).toBe('a')
   })
 })
 
@@ -165,7 +213,7 @@ describe('image jobs against a fake ComfyUI', () => {
   it('runs text to image with websocket progress and saves a PNG with metadata', async () => {
     const env = await service({ steps: 5 })
     const k = sink()
-    await env.svc.generate({ ...base, projectId: env.project.id, workflowId: 'sdxl-text', size: 'wide', checkpoint: 'juggernautXL_v9.safetensors' }, k.s)
+    await env.svc.generate({ ...base, projectId: env.project.id, workflowId: 'sdxl-text', size: 'wide', models: { checkpoint: 'juggernautXL_v9.safetensors' } }, k.s)
     const done = (await k.finished) as ImageDone
     expect(done.images).toHaveLength(1)
     expect(k.progress.filter((p) => p.stage === 'sampling').map((p) => p.value)).toEqual([1, 2, 3, 4, 5])
@@ -223,6 +271,29 @@ describe('image jobs against a fake ComfyUI', () => {
     expect(((await k.finished) as ImageError).message).toContain("can't find the model file")
   })
 
+  it('runs Flux Canny sketch to render with the chosen files and guidance', async () => {
+    const env = await service()
+    const k = sink()
+    await env.svc.generate(
+      { ...base, projectId: env.project.id, workflowId: 'flux-sketch-canny', input: { imageId: 1 }, guidance: 28, models: { unet: 'flux1-canny-dev.safetensors', clip1: 't5xxl_fp8_e4m3fn.safetensors', vae: 'ae.safetensors' } },
+      k.s
+    )
+    const done = (await k.finished) as ImageDone
+    const sent = env.comfy.prompts[0]!.prompt
+    expect(sent['20']!.inputs.unet_name).toBe('flux1-canny-dev.safetensors')
+    expect(sent['16']!.inputs.guidance).toBe(28)
+    expect(sent['10']!.inputs.image).toBe(env.comfy.uploads[0])
+    expect(done.images[0]!.model).toBe('flux1-canny-dev.safetensors')
+  })
+
+  it('lists Flux model files from ComfyUI', async () => {
+    const env = await service()
+    const m = await new ComfyClient(() => env.comfy.url).models()
+    expect(m.unets).toContain('flux1-canny-dev.safetensors')
+    expect(m.clips).toContain('t5xxl_fp8_e4m3fn.safetensors')
+    expect(m.vaes).toContain('ae.safetensors')
+  })
+
   it('reports errors during the run', async () => {
     const env = await service({ failAtRun: 'CUDA out of memory' })
     const k = sink()
@@ -263,5 +334,10 @@ describe('image jobs against a fake ComfyUI', () => {
     expect(r.negative).toContain('watermark')
     const body = JSON.parse(env.ollama.requests.find((q) => q.path === '/api/chat')!.body)
     expect(body.messages[0].content).toContain('JSON')
+    expect(body.messages[1].content).toContain('Model: SDXL')
+    await env.svc.promptHelp('small villa', null, 'text', 'flux')
+    const flux = JSON.parse(env.ollama.requests.filter((q) => q.path === '/api/chat').at(-1)!.body)
+    expect(flux.messages[1].content).toContain('Model: Flux')
+    expect(flux.messages[0].content).toContain('natural, descriptive sentences')
   })
 })

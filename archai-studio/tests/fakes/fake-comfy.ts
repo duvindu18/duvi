@@ -27,6 +27,9 @@ export interface FakeComfyOptions {
   port?: number
   checkpoints?: string[]
   controlnets?: string[]
+  unets?: string[]
+  clips?: string[]
+  vaes?: string[]
   /** Sampling steps reported over the websocket. */
   steps?: number
   stepDelayMs?: number
@@ -48,6 +51,9 @@ export interface FakeComfy extends FakeServer {
 export async function startFakeComfy(opts: FakeComfyOptions = {}): Promise<FakeComfy> {
   const checkpoints = opts.checkpoints ?? ['sd_xl_base_1.0.safetensors', 'juggernautXL_v9.safetensors']
   const controlnets = opts.controlnets ?? ['controlnet-canny-sdxl-1.0.safetensors']
+  const unets = opts.unets ?? ['flux1-canny-dev.safetensors', 'flux1-dev.safetensors']
+  const clips = opts.clips ?? ['clip_l.safetensors', 't5xxl_fp8_e4m3fn.safetensors']
+  const vaes = opts.vaes ?? ['ae.safetensors', 'sdxl_vae.safetensors']
   const history: Record<string, unknown> = {}
   const sockets = new Map<string, WebSocket>()
   const state = { prompts: [] as FakeComfy['prompts'], uploads: [] as string[], interrupted: 0 }
@@ -67,6 +73,9 @@ export async function startFakeComfy(opts: FakeComfyOptions = {}): Promise<FakeC
           devices: [{ name: 'cuda:0 NVIDIA GeForce RTX 5080 : cudaMallocAsync', type: 'cuda', vram_total: 17_094_000_000, vram_free: 15_000_000_000 }]
         }),
       'GET /object_info/CheckpointLoaderSimple': (_q, res) => json(res, 200, { CheckpointLoaderSimple: { input: { required: { ckpt_name: [checkpoints] } } } }),
+      'GET /object_info/UNETLoader': (_q, res) => json(res, 200, { UNETLoader: { input: { required: { unet_name: [unets], weight_dtype: [['default', 'fp8_e4m3fn']] } } } }),
+      'GET /object_info/DualCLIPLoader': (_q, res) => json(res, 200, { DualCLIPLoader: { input: { required: { clip_name1: [clips], clip_name2: [clips], type: [['sdxl', 'flux']] } } } }),
+      'GET /object_info/VAELoader': (_q, res) => json(res, 200, { VAELoader: { input: { required: { vae_name: [vaes] } } } }),
       'GET /object_info/ControlNetLoader': (_q, res) => json(res, 200, { ControlNetLoader: { input: { required: { control_net_name: [controlnets] } } } }),
       'POST /upload/image': (_q, res, body) => {
         const name = /filename="([^"]+)"/.exec(body)?.[1] ?? 'upload.png'

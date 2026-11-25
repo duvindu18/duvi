@@ -1,0 +1,20 @@
+{
+  "name": "Flux.1 dev image variation",
+  "mode": "variation",
+  "description": "Flux.1 dev as separate files. Keeps the composition of your image and redraws it. Flux ignores the negative prompt.",
+  "prefer": { "unet": "flux1-(dev|schnell)(?!.*(canny|depth|fill))", "clip1": "t5xxl", "clip2": "clip_l", "vae": "^ae\\b|flux" },
+  "bindings": {
+    "positive": { "node": "6", "input": "text" },
+    "negative": { "node": "7", "input": "text" },
+    "seed": { "node": "3", "input": "seed" },
+    "steps": { "node": "3", "input": "steps" },
+    "denoise": { "node": "3", "input": "denoise" },
+    "guidance": { "node": "16", "input": "guidance" },
+    "unet": { "node": "20", "input": "unet_name" },
+    "clip1": { "node": "21", "input": "clip_name1" },
+    "clip2": { "node": "21", "input": "clip_name2" },
+    "vae": { "node": "22", "input": "vae_name" },
+    "image": { "node": "10", "input": "image" },
+    "prefix": { "node": "9", "input": "filename_prefix" }
+  }
+}

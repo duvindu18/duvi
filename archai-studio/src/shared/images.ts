@@ -2,13 +2,73 @@ import { z } from 'zod'
 
 export type ImageMode = 'text' | 'sketch' | 'variation'
 
-export const BINDING_KEYS = ['positive', 'negative', 'seed', 'steps', 'cfg', 'denoise', 'checkpoint', 'controlnet', 'strength', 'image', 'width', 'height', 'prefix'] as const
+export const BINDING_KEYS = [
+  'positive',
+  'negative',
+  'seed',
+  'steps',
+  'cfg',
+  'denoise',
+  'guidance',
+  'checkpoint',
+  'controlnet',
+  'unet',
+  'clip1',
+  'clip2',
+  'vae',
+  'strength',
+  'image',
+  'width',
+  'height',
+  'prefix'
+] as const
 export type BindingKey = (typeof BINDING_KEYS)[number]
 export interface Binding {
   node: string
   input: string
 }
 export type Bindings = Partial<Record<BindingKey, Binding>>
+
+/** Bindings that name a model file, and which ComfyUI list each one is chosen from. */
+export const MODEL_KEYS = ['checkpoint', 'controlnet', 'unet', 'clip1', 'clip2', 'vae'] as const
+export type ModelKey = (typeof MODEL_KEYS)[number]
+export const MODEL_LIST: Record<ModelKey, keyof ComfyModels> = {
+  checkpoint: 'checkpoints',
+  controlnet: 'controlnets',
+  unet: 'unets',
+  clip1: 'clips',
+  clip2: 'clips',
+  vae: 'vaes'
+}
+export const MODEL_LABEL: Record<ModelKey, string> = {
+  checkpoint: 'Checkpoint model',
+  controlnet: 'ControlNet model',
+  unet: 'Diffusion model',
+  clip1: 'Text encoder 1 (t5xxl)',
+  clip2: 'Text encoder 2 (clip_l)',
+  vae: 'VAE'
+}
+export type ModelChoice = Partial<Record<ModelKey, string>>
+
+/**
+ * Chooses a model file for a binding: your last choice for this workflow, else the
+ * template's own file if you have it, else the first file matching the template's hint,
+ * else the first file ComfyUI lists.
+ */
+export function pickModel(list: string[], stored: string | undefined, templateDefault: unknown, prefer: string | undefined): string | undefined {
+  if (stored && list.includes(stored)) return stored
+  if (typeof templateDefault === 'string' && list.includes(templateDefault)) return templateDefault
+  if (prefer) {
+    try {
+      const re = new RegExp(prefer, 'i')
+      const hit = list.find((n) => re.test(n))
+      if (hit) return hit
+    } catch {
+      /* bad hint in a template; ignore */
+    }
+  }
+  return list[0] ?? (typeof templateDefault === 'string' ? templateDefault : undefined)
+}
 
 /** A ComfyUI workflow in API format: node id -> { class_type, inputs }. */
 export type ApiWorkflow = Record<string, { class_type: string; inputs: Record<string, unknown>; _meta?: unknown }>
@@ -20,6 +80,27 @@ export interface WorkflowInfo {
   description: string
   builtIn: boolean
   bindings: Bindings
+  /** Regex hints for choosing model files, e.g. { unet: "canny" }. */
+  prefer?: Partial<Record<ModelKey, string>>
+  /** The template's own values at each binding (steps, guidance, model file names…). */
+  defaults?: Partial<Record<BindingKey, unknown>>
+  family?: 'sdxl' | 'flux' | 'other'
+}
+
+/** Reads the template's own values at its bindings, and whether it is a Flux workflow. */
+export function describeWorkflow(wf: ApiWorkflow, b: Bindings): Pick<WorkflowInfo, 'defaults' | 'family'> {
+  const defaults: Partial<Record<BindingKey, unknown>> = {}
+  for (const [k, bind] of Object.entries(b) as [BindingKey, Binding][]) {
+    const v = wf[bind.node]?.inputs[bind.input]
+    if (v !== undefined && !isLink(v)) defaults[k] = v
+  }
+  const classes = Object.values(wf).map((n) => n.class_type)
+  const flux =
+    classes.includes('FluxGuidance') ||
+    Object.values(wf).some((n) => n.class_type.startsWith('DualCLIPLoader') && n.inputs.type === 'flux') ||
+    /flux/i.test(String(defaults.checkpoint ?? defaults.unet ?? ''))
+  const sdxl = !flux && classes.some((c) => c.startsWith('CheckpointLoader'))
+  return { defaults, family: flux ? 'flux' : sdxl ? 'sdxl' : 'other' }
 }
 
 export interface StylePreset {
@@ -163,6 +244,17 @@ export function detectBindings(wf: ApiWorkflow): Bindings {
   if (apply && 'strength' in apply[1].inputs) b.strength = { node: apply[0], input: 'strength' }
   const img = byClass(/^LoadImage$/)[0]
   if (img) b.image = { node: img[0], input: 'image' }
+  const unet = byClass(/^(UNETLoader|UnetLoaderGGUF)$/)[0]
+  if (unet) b.unet = { node: unet[0], input: 'unet_name' }
+  const dual = byClass(/^DualCLIPLoader/)[0]
+  if (dual) {
+    b.clip1 = { node: dual[0], input: 'clip_name1' }
+    b.clip2 = { node: dual[0], input: 'clip_name2' }
+  }
+  const vae = byClass(/^VAELoader$/)[0]
+  if (vae) b.vae = { node: vae[0], input: 'vae_name' }
+  const guidance = byClass(/^FluxGuidance$/)[0]
+  if (guidance) b.guidance = { node: guidance[0], input: 'guidance' }
   const latent = byClass(/^Empty.*LatentImage$/)[0]
   if (latent) {
     b.width = { node: latent[0], input: 'width' }
@@ -173,8 +265,9 @@ export function detectBindings(wf: ApiWorkflow): Bindings {
   return b
 }
 
-export function guessMode(b: Bindings): ImageMode {
-  if (b.image && b.controlnet) return 'sketch'
+export function guessMode(b: Bindings, wf?: ApiWorkflow): ImageMode {
+  const pix2pix = wf && Object.values(wf).some((n) => n.class_type === 'InstructPixToPixConditioning' || n.class_type === 'Canny')
+  if (b.image && (b.controlnet || pix2pix)) return 'sketch'
   if (b.image) return 'variation'
   return 'text'
 }
@@ -199,8 +292,13 @@ export interface JobValues {
   steps?: number
   cfg?: number
   denoise?: number
+  guidance?: number
   checkpoint?: string
   controlnet?: string
+  unet?: string
+  clip1?: string
+  clip2?: string
+  vae?: string
   strength?: number
   image?: string
   width?: number
@@ -236,8 +334,9 @@ export const GenerateSchema = z
     cfg: z.number().min(0).max(30).optional(),
     denoise: z.number().min(0.05).max(1).optional(),
     strength: z.number().min(0).max(2).optional(),
-    checkpoint: z.string().max(300).optional(),
-    controlnet: z.string().max(300).optional(),
+    guidance: z.number().min(0).max(100).optional(),
+    /** Model files chosen for this job, by binding. */
+    models: z.partialRecord(z.enum(MODEL_KEYS), z.string().min(1).max(300)).optional(),
     size: z.enum(['landscape', 'square', 'portrait', 'wide']).optional(),
     /** Token from images:pickInput or a gallery image id. */
     input: z.union([z.object({ token: z.string().uuid() }), z.object({ imageId: Id })]).optional(),
@@ -274,6 +373,11 @@ export interface PickedInput {
 export interface ComfyModels {
   checkpoints: string[]
   controlnets: string[]
+  /** Diffusion models (models/diffusion_models or models/unet), e.g. Flux. */
+  unets: string[]
+  /** Text encoders (models/text_encoders or models/clip). */
+  clips: string[]
+  vaes: string[]
 }
 
 export interface ImageJob {

@@ -27,8 +27,8 @@ test('text to image: progress, gallery with metadata, persists after restart', a
 
   // Model list comes from ComfyUI.
   await page.getByText('Advanced').click()
-  await expect(page.getByTestId('checkpoint-picker').locator('option')).toHaveText(['sd_xl_base_1.0.safetensors', 'juggernautXL_v9.safetensors'])
-  await page.getByTestId('checkpoint-picker').selectOption('juggernautXL_v9.safetensors')
+  await expect(page.getByTestId('model-checkpoint').locator('option')).toHaveText(['sd_xl_base_1.0.safetensors', 'juggernautXL_v9.safetensors'])
+  await page.getByTestId('model-checkpoint').selectOption('juggernautXL_v9.safetensors')
 
   await page.getByTestId('image-description').fill('courtyard house on a slope')
   await page.getByTestId('preset-bawa-courtyard').click()
@@ -61,7 +61,7 @@ test('text to image: progress, gallery with metadata, persists after restart', a
   await expect(page.getByTestId('gallery').locator('img')).toHaveCount(1)
   // The checkpoint choice was remembered.
   await page.getByText('Advanced').click()
-  await expect(page.getByTestId('checkpoint-picker')).toHaveValue('juggernautXL_v9.safetensors')
+  await expect(page.getByTestId('model-checkpoint')).toHaveValue('juggernautXL_v9.safetensors')
   await app.close()
   await comfy.close()
   await ollama.close()
@@ -100,6 +100,59 @@ test('sketch to render uploads the sketch, and a gallery image can be varied', a
   expect(comfy.prompts[1]!.prompt['3']!.inputs.denoise).toBe(0.55)
   await app.close()
   await comfy.close()
+})
+
+test('Flux: Canny sketch to render picks the right files and warns about missing ones', async () => {
+  const comfy = await startFakeComfy()
+  const d = makeDirs()
+  const [app, page] = await open(d, 'http://127.0.0.1:9', comfy.url)
+  await page.getByTestId('project-name').fill('Bentota Beach House')
+  await page.getByTestId('project-create').click()
+  await page.getByTestId('nav-visual').click()
+  await page.getByTestId('mode-sketch').click()
+  await page.getByTestId('workflow-picker').selectOption('flux-sketch-canny')
+  await page.getByText('Advanced').click()
+  await expect(page.getByTestId('model-unet')).toHaveValue('flux1-canny-dev.safetensors')
+  await expect(page.getByTestId('model-clip1')).toHaveValue('t5xxl_fp8_e4m3fn.safetensors')
+  await expect(page.getByTestId('model-clip2')).toHaveValue('clip_l.safetensors')
+  await expect(page.getByTestId('model-vae')).toHaveValue('ae.safetensors')
+  await expect(page.getByTestId('steps')).toHaveValue('24')
+  await expect(page.getByText('Flux guidance: 30.0')).toBeVisible()
+  await expect(page.getByText('Flux ignores the negative prompt').first()).toBeAttached()
+
+  const sketch = join(d.root, 'section.png')
+  writeFileSync(sketch, makePng(1200, 900))
+  await stubOpen(app, sketch)
+  await page.getByTestId('pick-input').click()
+  await page.getByTestId('image-description').fill('beach house, lime-washed walls, coconut palms')
+  await page.getByTestId('image-generate').click()
+  await expect(page.getByTestId('latest').locator('img')).toBeVisible()
+  const sent = comfy.prompts[0]!.prompt
+  expect(sent['20']!.inputs.unet_name).toBe('flux1-canny-dev.safetensors')
+  expect(sent['16']!.inputs.guidance).toBe(30)
+  expect(sent['3']!.inputs.steps).toBe(24)
+
+  // Variation with Flux picks the plain dev model, not the Canny one.
+  await page.getByTestId('mode-variation').click()
+  await page.getByTestId('workflow-picker').selectOption('flux-variation')
+  await expect(page.getByTestId('model-unet')).toHaveValue('flux1-dev.safetensors')
+
+  // SDXL choices are kept separately.
+  await page.getByTestId('workflow-picker').selectOption('sdxl-variation')
+  await expect(page.getByTestId('model-checkpoint')).toHaveValue('sd_xl_base_1.0.safetensors')
+  await app.close()
+  await comfy.close()
+
+  // No diffusion models installed: explain where they go.
+  const bare = await startFakeComfy({ unets: [] })
+  const [app2, page2] = await open(makeDirs(), 'http://127.0.0.1:9', bare.url)
+  await page2.getByTestId('project-name').fill('Matara House')
+  await page2.getByTestId('project-create').click()
+  await page2.getByTestId('nav-visual').click()
+  await page2.getByTestId('workflow-picker').selectOption('flux-split-text')
+  await expect(page2.getByTestId('missing-models')).toContainText('models/diffusion_models')
+  await app2.close()
+  await bare.close()
 })
 
 test('importing a ComfyUI workflow: editor format is explained, API format is mapped', async () => {

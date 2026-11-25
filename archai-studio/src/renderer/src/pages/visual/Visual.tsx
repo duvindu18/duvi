@@ -1,9 +1,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { composePrompt, SIZES, STYLE_PRESETS, type ComfyModels, type GalleryImage, type ImageMode, type ImageProgress, type PickedInput, type SizeId, type WorkflowInfo } from '@shared/images'
+import {
+  composePrompt,
+  MODEL_KEYS,
+  MODEL_LABEL,
+  MODEL_LIST,
+  pickModel,
+  SIZES,
+  STYLE_PRESETS,
+  type ComfyModels,
+  type GalleryImage,
+  type ImageMode,
+  type ImageProgress,
+  type ModelChoice,
+  type ModelKey,
+  type PickedInput,
+  type SizeId,
+  type WorkflowInfo
+} from '@shared/images'
 import { call, errorText } from '../../lib/ipc'
 import { useApp } from '../../state/AppState'
 import { ImageDetail } from './ImageDetail'
 import { ImportWorkflow } from './ImportWorkflow'
+
+/** Where each kind of model file goes in ComfyUI, for the "missing file" hint. */
+const MODEL_FOLDER: Record<ModelKey, string> = {
+  checkpoint: 'models/checkpoints',
+  controlnet: 'models/controlnet',
+  unet: 'models/diffusion_models',
+  clip1: 'models/text_encoders',
+  clip2: 'models/text_encoders',
+  vae: 'models/vae'
+}
 
 const MODES: { id: ImageMode; label: string; hint: string }[] = [
   { id: 'text', label: 'From text', hint: 'Describe a building or space.' },
@@ -39,9 +66,11 @@ export function VisualPage() {
   const [custom, setCustom] = useState<{ positive: string; negative: string } | null>(null)
   const [size, setSize] = useState<SizeId>('landscape')
   const [seedText, setSeedText] = useState('')
-  const [steps, setSteps] = useState(30)
+  // Steps, guidance and denoise follow the chosen workflow unless you change them.
+  const [stepsOverride, setStepsOverride] = useState<number | null>(null)
+  const [guidanceOverride, setGuidanceOverride] = useState<number | null>(null)
+  const [denoiseOverride, setDenoiseOverride] = useState<number | null>(null)
   const [strength, setStrength] = useState(0.75)
-  const [denoise, setDenoise] = useState(0.55)
   const [input, setInput] = useState<Input | null>(null)
   const [helping, setHelping] = useState(false)
   const [job, setJob] = useState<{ id: string; progress: ImageProgress | null } | null>(null)
@@ -107,10 +136,31 @@ export function VisualPage() {
 
   const modeWorkflows = workflows.filter((w) => w.mode === mode)
   const wf = modeWorkflows.find((w) => w.id === workflowId[mode]) ?? modeWorkflows[0]
-  const checkpoint = settings?.images.checkpoint ?? models?.checkpoints[0] ?? ''
-  const controlnet = settings?.images.controlnet ?? models?.controlnets[0] ?? ''
   const needsInput = mode !== 'text'
-  const usesControlnet = Boolean(wf?.bindings.controlnet)
+  const isFlux = wf?.family === 'flux'
+  const num = (v: unknown, d: number) => (typeof v === 'number' ? v : d)
+  const steps = stepsOverride ?? num(wf?.defaults?.steps, 30)
+  const guidance = guidanceOverride ?? num(wf?.defaults?.guidance, 3.5)
+  const denoise = denoiseOverride ?? num(wf?.defaults?.denoise, 0.55)
+  const byWorkflow = settings?.images.byWorkflow ?? {}
+  const stored = (wf && byWorkflow[wf.id]) || {}
+  const modelKeys = MODEL_KEYS.filter((k) => wf?.bindings[k])
+  const chosen: ModelChoice = {}
+  for (const k of modelKeys) {
+    const v = pickModel(models?.[MODEL_LIST[k]] ?? [], stored[k], wf?.defaults?.[k], wf?.prefer?.[k])
+    if (v) chosen[k] = v
+  }
+  // Files the workflow needs that ComfyUI doesn't list.
+  const missing = models ? modelKeys.filter((k) => !(models[MODEL_LIST[k]] ?? []).includes(chosen[k] ?? '')) : []
+  const setModel = (k: ModelKey, v: string) => {
+    if (wf) void updateSettings({ images: { byWorkflow: { ...byWorkflow, [wf.id]: { ...stored, [k]: v } } } })
+  }
+  const pickWorkflow = (id: string) => {
+    setWorkflowId({ ...workflowId, [mode]: id })
+    setStepsOverride(null)
+    setGuidanceOverride(null)
+    setDenoiseOverride(null)
+  }
   const seed = seedText.trim() === '' ? null : Number(seedText)
   const seedInvalid = seed !== null && (!Number.isInteger(seed) || seed < 0)
 
@@ -119,7 +169,7 @@ export function VisualPage() {
     setHelping(true)
     setError(null)
     try {
-      setCustom(await call('images:promptHelp', { description, preset, mode }))
+      setCustom(await call('images:promptHelp', { description, preset, mode, family: wf?.family }))
     } catch (e) {
       setError(errorText(e))
     } finally {
@@ -147,10 +197,10 @@ export function VisualPage() {
         negative: prompt.negative,
         seed: seedInvalid ? null : seed,
         steps,
-        ...(wf.bindings.checkpoint && checkpoint && { checkpoint }),
-        ...(usesControlnet && controlnet && { controlnet }),
-        ...(mode === 'sketch' && { strength }),
-        ...(mode === 'variation' && { denoise }),
+        models: chosen,
+        ...(wf.bindings.guidance && { guidance }),
+        ...(wf.bindings.strength && { strength }),
+        ...(wf.bindings.denoise && mode === 'variation' && { denoise }),
         ...(mode === 'text' && { size }),
         ...(input && needsInput && { input: input.kind === 'file' ? { token: input.token } : { imageId: input.imageId } }),
         preset,
@@ -185,6 +235,23 @@ export function VisualPage() {
           ))}
         </div>
         <p className="field__hint">{MODES.find((m) => m.id === mode)?.hint}</p>
+
+        <label className="field">
+          <span className="field__label">Workflow</span>
+          <select className="input" value={wf?.id ?? ''} onChange={(e) => pickWorkflow(e.target.value)} disabled={!!job} data-testid="workflow-picker">
+            {modeWorkflows.map((w) => (
+              <option key={w.id} value={w.id}>{w.name}</option>
+            ))}
+          </select>
+          {wf && <span className="field__hint">{wf.description}</span>}
+        </label>
+        {missing.length > 0 && (
+          <p className="field__warn" data-testid="missing-models">
+            ComfyUI doesn't list {missing.map((k) => MODEL_LABEL[k].toLowerCase()).join(', ')} files for this workflow. Put the file
+            {missing.length > 1 ? 's' : ''} in ComfyUI's {Array.from(new Set(missing.map((k) => MODEL_FOLDER[k]))).join(' and ')} folder, restart ComfyUI, then
+            reopen Visual Studio.
+          </p>
+        )}
 
         {modelsError && (
           <p className="chat__banner" role="alert" data-testid="comfy-down">
@@ -253,6 +320,7 @@ export function VisualPage() {
           <label className="field">
             <span className="field__hint">Negative prompt (things to avoid)</span>
             <textarea className="composer__input" rows={3} value={prompt.negative} onChange={(e) => setCustom({ ...prompt, negative: e.target.value })} data-testid="prompt-negative" />
+            {isFlux && <span className="field__hint">Flux ignores the negative prompt. Describe what you want instead.</span>}
           </label>
           {custom && (
             <button type="button" className="btn btn--quiet" onClick={() => setCustom(null)}>
@@ -273,7 +341,7 @@ export function VisualPage() {
             </div>
           </div>
         )}
-        {mode === 'sketch' && (
+        {mode === 'sketch' && wf?.bindings.strength && (
           <label className="field">
             <span className="field__label">How closely to follow the sketch: {strength.toFixed(2)}</span>
             <input type="range" min={0.3} max={1.2} step={0.05} value={strength} onChange={(e) => setStrength(Number(e.target.value))} />
@@ -282,45 +350,37 @@ export function VisualPage() {
         {mode === 'variation' && (
           <label className="field">
             <span className="field__label">How much to change: {denoise.toFixed(2)}</span>
-            <input type="range" min={0.2} max={0.9} step={0.05} value={denoise} onChange={(e) => setDenoise(Number(e.target.value))} />
+            <input type="range" min={0.2} max={0.9} step={0.05} value={denoise} onChange={(e) => setDenoiseOverride(Number(e.target.value))} />
           </label>
         )}
 
         <details className="advanced">
           <summary>Advanced</summary>
-          <label className="field">
-            <span className="field__hint">Workflow</span>
-            <select className="input" value={wf?.id ?? ''} onChange={(e) => setWorkflowId({ ...workflowId, [mode]: e.target.value })} data-testid="workflow-picker">
-              {modeWorkflows.map((w) => (
-                <option key={w.id} value={w.id}>{w.name}</option>
-              ))}
-            </select>
-          </label>
           <button type="button" className="btn btn--quiet" onClick={() => setImporting(true)} data-testid="import-workflow">Import a ComfyUI workflow…</button>
-          {wf?.bindings.checkpoint && (
+          {modelKeys.map((k) => {
+            const list = models?.[MODEL_LIST[k]] ?? []
+            const value = chosen[k] ?? ''
+            return (
+              <label className="field" key={k}>
+                <span className="field__hint">{MODEL_LABEL[k]}</span>
+                <select className="input" value={value} onChange={(e) => setModel(k, e.target.value)} data-testid={`model-${k}`}>
+                  {(list.length ? list : [value || 'No files found']).map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </label>
+            )
+          })}
+          {wf?.bindings.guidance && (
             <label className="field">
-              <span className="field__hint">Checkpoint model</span>
-              <select className="input" value={checkpoint} onChange={(e) => void updateSettings({ images: { checkpoint: e.target.value } })} data-testid="checkpoint-picker">
-                {(models?.checkpoints.length ? models.checkpoints : [checkpoint || 'No models found']).map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </label>
-          )}
-          {usesControlnet && (
-            <label className="field">
-              <span className="field__hint">ControlNet model</span>
-              <select className="input" value={controlnet} onChange={(e) => void updateSettings({ images: { controlnet: e.target.value } })}>
-                {(models?.controlnets.length ? models.controlnets : [controlnet || 'No ControlNet models found']).map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+              <span className="field__hint">Flux guidance: {guidance.toFixed(1)} (about 3.5 for text and variations, 30 for Canny)</span>
+              <input type="range" min={1} max={40} step={0.5} value={guidance} onChange={(e) => setGuidanceOverride(Number(e.target.value))} data-testid="guidance" />
             </label>
           )}
           <div className="row">
             <label className="field" style={{ flex: 1 }}>
               <span className="field__hint">Steps</span>
-              <input className="input" type="number" min={1} max={150} value={steps} onChange={(e) => setSteps(Math.max(1, Math.min(150, Number(e.target.value) || 30)))} />
+              <input className="input" type="number" min={1} max={150} value={steps} onChange={(e) => setStepsOverride(Math.max(1, Math.min(150, Number(e.target.value) || 30)))} data-testid="steps" />
             </label>
             <label className="field" style={{ flex: 2 }}>
               <span className="field__hint">Seed (blank for random)</span>
