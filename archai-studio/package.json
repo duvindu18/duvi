@@ -3,7 +3,7 @@
   "productName": "ArchAI Studio",
   "version": "0.1.0",
   "description": "Offline AI studio for architects: chat, scripting and renders using local Ollama and ComfyUI.",
-  "author": "PUBLISHER_NAME_PLACEHOLDER",
+  "author": "Seedform",
   "license": "UNLICENSED",
   "private": true,
   "type": "module",

@@ -1,7 +1,7 @@
 # Packaging config. Store identity values live in store-identity.json (filled in at M7).
 appId: com.archai.studio
 productName: ArchAI Studio
-copyright: Copyright © 2026 PUBLISHER_NAME_PLACEHOLDER
+copyright: Copyright © 2026 Seedform. All rights reserved.
 directories:
   output: dist
   buildResources: build

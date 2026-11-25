@@ -96,7 +96,7 @@ export function SettingsPage() {
         <Backup />
         <Group title="About">
           <p className="field__hint">
-            ArchAI Studio {info?.version} ({info?.buildType} build, Electron {info?.electron}). Everything runs on this computer. Nothing is sent to
+            ArchAI Studio {info?.version} by Seedform ({info?.buildType} build, Electron {info?.electron}). Everything runs on this computer. Nothing is sent to
             the internet, and no usage data is collected.
           </p>
         </Group>

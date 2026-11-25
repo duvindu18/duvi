@@ -20,6 +20,11 @@ The owner is an architect, not a developer: explain decisions in plain language.
 - Never auto-download models. Never run skill scripts without a per-script approval (hash-bound).
 - Never commit certificates or keys (.gitignore). Ask the owner before deleting user files.
 
+## Owner decisions
+- Publisher: **Seedform** (the owner's architecture studio, Colombo). Licence: **proprietary** (package.json
+  "UNLICENSED", LICENSE.md). So there is no SignPath workflow: the Store MSIX is re-signed free by Microsoft, and the
+  direct Setup.exe ships unsigned (SmartScreen warns other people). The self-signed script is for local sideload tests only.
+
 ## Decisions log
 - M0: The app lives in `archai-studio/` because the repo root holds a separate project (Veil).
 - M0: Screen served from `app://archai/` (custom privileged scheme), not file://, so CSP headers apply

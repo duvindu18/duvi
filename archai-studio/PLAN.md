@@ -1,6 +1,6 @@
 # ArchAI Studio: Plan
 
-Status: **draft, waiting for your OK** (see "Questions for you" at the end).
+Status: **approved**. Publisher: Seedform. Licence: proprietary (so no SignPath workflow; see section 9).
 
 ArchAI Studio is a Windows 11 desktop app for architectural practice. It runs
 offline and talks only to AI services on your own PC: Ollama for text and code,
