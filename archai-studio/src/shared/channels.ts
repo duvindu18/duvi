@@ -32,10 +32,21 @@ export const INVOKE_CHANNELS = [
   'scripts:explain',
   'scripts:fix',
   'scripts:save',
-  'scripts:list'
+  'scripts:list',
+  'images:workflows',
+  'images:importWorkflow',
+  'images:saveWorkflow',
+  'images:models',
+  'images:promptHelp',
+  'images:pickInput',
+  'images:generate',
+  'images:cancel',
+  'gallery:list',
+  'gallery:reveal',
+  'gallery:trash'
 ] as const
 
-export const EVENT_CHANNELS = ['chat:chunk', 'chat:done', 'chat:error', 'gpu:state'] as const
+export const EVENT_CHANNELS = ['chat:chunk', 'chat:done', 'chat:error', 'gpu:state', 'images:progress', 'images:done', 'images:error'] as const
 
 export type InvokeChannel = (typeof INVOKE_CHANNELS)[number]
 export type EventChannel = (typeof EVENT_CHANNELS)[number]

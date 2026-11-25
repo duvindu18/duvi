@@ -9,10 +9,30 @@ import { extname, join, normalize, relative, isAbsolute } from 'node:path'
 export const APP_SCHEME = 'app'
 export const APP_ORIGIN = 'app://archai'
 
+export const IMG_SCHEME = 'archai-img'
+
 export function registerSchemesAsPrivileged(): void {
   protocol.registerSchemesAsPrivileged([
-    { scheme: APP_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } }
+    { scheme: APP_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
+    { scheme: IMG_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } }
   ])
+}
+
+/**
+ * archai-img://gallery/<id> and archai-img://input/<token>: images the app knows about.
+ * The screen can never name an arbitrary file path.
+ */
+export function handleImageProtocol(resolve: (kind: string, key: string) => string | null): void {
+  protocol.handle(IMG_SCHEME, async (request) => {
+    const url = new URL(request.url)
+    const file = resolve(url.host, decodeURIComponent(url.pathname.replace(/^\//, '')))
+    if (!file) return new Response('Not found', { status: 404 })
+    try {
+      return new Response(await readFile(file), { status: 200, headers: { 'Content-Type': mimeFor(file), 'Cache-Control': 'max-age=31536000, immutable' } })
+    } catch {
+      return new Response('Not found', { status: 404 })
+    }
+  })
 }
 
 /**

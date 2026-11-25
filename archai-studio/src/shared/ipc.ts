@@ -7,6 +7,8 @@ import type { InvokeChannel } from './channels'
 import type { ChatChunk, ChatDone, ChatError, ChatMessage, ChatStarted, ModelInfo, Thread } from './chat'
 import { ChatSendSchema, type ChatSend } from './chat'
 import type { CheckResult, ServicePing } from './checks'
+import { BINDING_KEYS, GenerateSchema } from './images'
+import type { Bindings, ComfyModels, GalleryImage, GenerateRequest, ImageDone, ImageError, ImageMode, ImageProgress, PickedInput, WorkflowInfo } from './images'
 import { ScriptExplainSchema, ScriptFixSchema, ScriptGenerateSchema, ScriptSaveSchema } from './scripts'
 import type { SavedScript, ScriptExplain, ScriptFix, ScriptGenerate, ScriptSave } from './scripts'
 import type { Project } from './projects'
@@ -63,7 +65,25 @@ export const requestSchemas = {
   'scripts:explain': ScriptExplainSchema,
   'scripts:fix': ScriptFixSchema,
   'scripts:save': ScriptSaveSchema,
-  'scripts:list': z.object({ projectId: Id }).strict()
+  'scripts:list': z.object({ projectId: Id }).strict(),
+  'images:workflows': z.undefined(),
+  'images:importWorkflow': z.undefined(),
+  'images:saveWorkflow': z
+    .object({
+      token: z.string().uuid(),
+      name: z.string().trim().min(1).max(80),
+      mode: z.enum(['text', 'sketch', 'variation']),
+      bindings: z.partialRecord(z.enum(BINDING_KEYS), z.object({ node: z.string().max(20), input: z.string().max(80) }))
+    })
+    .strict(),
+  'images:models': z.undefined(),
+  'images:promptHelp': z.object({ description: z.string().trim().min(1, 'Describe the image first.').max(4000), preset: z.string().max(60).nullable(), mode: z.enum(['text', 'sketch', 'variation']) }).strict(),
+  'images:pickInput': z.undefined(),
+  'images:generate': GenerateSchema,
+  'images:cancel': z.object({ jobId: z.string().uuid() }).strict(),
+  'gallery:list': z.object({ projectId: Id }).strict(),
+  'gallery:reveal': z.object({ id: Id }).strict(),
+  'gallery:trash': z.object({ id: Id }).strict()
 } satisfies Record<InvokeChannel, z.ZodType>
 
 export interface InvokeMap {
@@ -94,6 +114,26 @@ export interface InvokeMap {
   'scripts:fix': { req: ScriptFix; res: ChatStarted }
   'scripts:save': { req: ScriptSave; res: { done: true; script: SavedScript } | { done: false } }
   'scripts:list': { req: { projectId: number }; res: SavedScript[] }
+  'images:workflows': { req: undefined; res: WorkflowInfo[] }
+  'images:importWorkflow': { req: undefined; res: WorkflowImportPreview | null }
+  'images:saveWorkflow': { req: { token: string; name: string; mode: ImageMode; bindings: Bindings }; res: WorkflowInfo }
+  'images:models': { req: undefined; res: ComfyModels }
+  'images:promptHelp': { req: { description: string; preset: string | null; mode: ImageMode }; res: { positive: string; negative: string } }
+  'images:pickInput': { req: undefined; res: PickedInput | null }
+  'images:generate': { req: GenerateRequest; res: { jobId: string } }
+  'images:cancel': { req: { jobId: string }; res: boolean }
+  'gallery:list': { req: { projectId: number }; res: GalleryImage[] }
+  'gallery:reveal': { req: { id: number }; res: true }
+  'gallery:trash': { req: { id: number }; res: true }
+}
+
+export interface WorkflowImportPreview {
+  token: string
+  name: string
+  mode: ImageMode
+  bindings: Bindings
+  nodes: { id: string; classType: string; inputs: string[] }[]
+  problems: string[]
 }
 
 export type GpuOwner = 'chat' | 'images' | null
@@ -109,6 +149,9 @@ export interface EventMap {
   'chat:done': ChatDone
   'chat:error': ChatError
   'gpu:state': GpuOwner
+  'images:progress': ImageProgress
+  'images:done': ImageDone
+  'images:error': ImageError
 }
 
 /** Error shape returned across IPC (never a raw stack trace). */

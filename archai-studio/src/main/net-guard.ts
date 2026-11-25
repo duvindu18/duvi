@@ -46,3 +46,14 @@ export async function guardedFetch(url: string, purpose: NetPurpose, init?: Requ
   }
   throw new NetBlockedError(current, 'too many redirects')
 }
+
+/** Opens a websocket to a local service (ComfyUI progress). Loopback only. */
+export function guardedWebSocket(url: string): WebSocket {
+  const verdict = checkUrl(url, 'local-ai', policy)
+  if (!verdict.allowed) {
+    log.warn(`net-guard blocked websocket: ${verdict.reason}`)
+    throw new NetBlockedError(url, verdict.reason)
+  }
+  // eslint-disable-next-line no-restricted-globals -- this is the guarded wrapper
+  return new WebSocket(url)
+}

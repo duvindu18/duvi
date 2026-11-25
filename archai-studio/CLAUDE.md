@@ -75,3 +75,15 @@ The owner is an architect, not a developer: explain decisions in plain language.
 - M4: Monaco 0.52.2 (ESM, bundled), core editor plus Python/TypeScript tokenizers and a small AutoLISP Monarch grammar.
   No language workers except the base editor worker; links, hovers and suggestions are off. Script Studio is lazy-loaded
   (startup bundle about 0.5 MB, editor chunk about 3 MB). Renderer build is minified.
+- M5: Visual Studio. Templates live in resources/workflows/<id>.json (ComfyUI API format) + <id>.meta.json (name, mode,
+  bindings: which node/input takes prompt, seed, checkpoint, image, …), bundled via import.meta.glob. Model file names
+  are never hard-coded: pickers come from /object_info, and the last choice is stored in settings.images.
+  Imported workflows go through parseApiWorkflow (rejects the editor format and explains Export (API)), then
+  detectBindings, then the user confirms, then they're stored in the `workflows` table.
+- M5: Job flow: upload input (/upload/image), then gpu.beforeImages() (unloads the Ollama model), then POST /prompt,
+  then progress over /ws (falls back to polling /history), then /view, then PNG saved with iTXt chunks (parameters,
+  archai:*), keeping ComfyUI's own prompt/workflow chunks. Files: <gallery>/<project-slug>-<id>/<date>/<date>_<time>_<seed>.png.
+- M5: The screen shows images only via archai-img://gallery/<id> or archai-img://input/<token> (known files only, never a
+  path from the screen). "Remove" moves the file to the Recycle Bin (shell.trashItem), never a permanent delete.
+- M5: Fake ComfyUI (tests/fakes/fake-comfy.ts) uses the `ws` dev dependency for the progress websocket. The app itself
+  uses Node's built-in WebSocket through guardedWebSocket.

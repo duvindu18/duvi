@@ -13,7 +13,7 @@ function sheetDate(d = new Date()): string {
  * Service status is a quick local ping every 20 seconds.
  */
 export function TitleBlock() {
-  const { activeProject, section, info, services, settings, wizard } = useApp()
+  const { activeProject, section, info, services, settings, wizard, gpu } = useApp()
   const svc = (up: boolean | undefined) =>
     up === undefined ? (
       <><span className="status-dot" />{settings?.firstRunComplete ? 'Checking' : 'Not checked'}</>
@@ -43,6 +43,12 @@ export function TitleBlock() {
       <div className="tb-cell">
         <span className="tb-label">ComfyUI</span>
         <span className="tb-value" data-testid="tb-comfy">{svc(services?.comfy)}</span>
+      </div>
+      <div className="tb-cell">
+        <span className="tb-label">GPU</span>
+        <span className="tb-value" data-testid="tb-gpu" title={settings?.gpu.turnTaking ? 'Chat and images take turns on the GPU' : 'Turn-taking is off'}>
+          {gpu === 'chat' ? 'Chat model loaded' : gpu === 'images' ? 'Image models loaded' : 'Idle'}
+        </span>
       </div>
       <div className="tb-cell">
         <span className="tb-label">Date</span>

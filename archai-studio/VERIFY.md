@@ -61,3 +61,23 @@ To see the wizard again on a PC that has already run it, delete
 5. Pick **AutoLISP**, generate a command, then **Save as .lsp**. Load it in AutoCAD with APPLOAD.
 6. Repeat once for Grasshopper (Rhino 8 Script component, Python 3), pyRevit, Blender and Excel.
    Tell me which targets give poor results, so I can tune their prompts.
+
+## M5: Visual Studio (needs ComfyUI with an SDXL checkpoint)
+Before you start: put an SDXL checkpoint (for example `sd_xl_base_1.0.safetensors` or JuggernautXL) in
+`ComfyUI\models\checkpoints`. For sketch to render, also add an SDXL Canny ControlNet
+(for example `controlnet-canny-sdxl-1.0`) to `ComfyUI\models\controlnet`. Restart ComfyUI.
+1. **From text:** type *Two-storey courtyard house on a sloping site in Kandy, clay tile roof, verandah facing
+   the garden, late afternoon*, pick **Bawa-inspired courtyard**, then click **Generate image**. Progress shows
+   "Rendering, step x of 30". The bottom strip shows GPU: Image models loaded.
+2. Click **Improve with prompt helper** first, and compare the prompt it writes (open "Prompt sent to ComfyUI").
+3. Open **Advanced** and check that the checkpoint list matches your ComfyUI models folder.
+4. **From sketch:** choose a hand sketch photo or a SketchUp/Revit massing screenshot, describe materials and
+   light, then generate. Try the "How closely to follow the sketch" slider.
+5. Click a gallery image, then **Vary this image**, and generate again.
+6. **Show in folder:** the PNG is in your gallery folder (on D: if you chose that). Drag it onto the ComfyUI
+   window. ComfyUI should load the workflow from it, proving the metadata is inside.
+7. GPU turn-taking: after rendering, ask something in Chat. The first reply takes a little longer (the model
+   reloads), but nothing should run out of video memory. Watch Task Manager → Performance → GPU.
+8. Quit ComfyUI and open Visual Studio. It should say "ComfyUI isn't running", and Chat still works.
+9. Optional: in ComfyUI, export one of your own workflows with **Workflow → Export (API)**, then use
+   **Advanced → Import a ComfyUI workflow…** to import it.

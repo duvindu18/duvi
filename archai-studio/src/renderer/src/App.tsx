@@ -6,6 +6,7 @@ import { Later } from './pages/Later'
 import { SetupWizard } from './pages/Setup'
 import { SettingsPage } from './pages/Settings'
 import { StartProject } from './pages/StartProject'
+import { VisualPage } from './pages/visual/Visual'
 import { AppStateProvider, useApp } from './state/AppState'
 
 // The code editor (Monaco) is large, so it loads the first time Script Studio opens.
@@ -24,8 +25,9 @@ function Main() {
         <ScriptsPage key={activeProject.id} />
       </Suspense>
     )
+  else if (section === 'visual') page = <VisualPage key={activeProject.id} />
   else page = <Later section={section} />
-  const flush = (section === 'chat' || section === 'scripts') && activeProject
+  const flush = (section === 'chat' || section === 'scripts' || section === 'visual') && activeProject
   return (
     <main className={`main${flush ? ' main--flush' : ''}`} data-testid="main">
       {page}

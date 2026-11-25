@@ -7,6 +7,7 @@ import { DB_FILE } from '../paths'
 import { log } from '../log'
 import { openDatabase, type Db } from './database'
 import { ChatRepo } from './chat-repo'
+import { ImagesRepo } from './images-repo'
 import { ProjectsRepo } from './projects-repo'
 import { ScriptsRepo } from './scripts-repo'
 
@@ -15,6 +16,7 @@ export class DataStore {
   private repo: ProjectsRepo | null = null
   private chatRepo: ChatRepo | null = null
   private scriptsRepo: ScriptsRepo | null = null
+  private imagesRepo: ImagesRepo | null = null
   private openedAt: string | null = null
 
   constructor(private readonly dataDir: () => string) {}
@@ -42,6 +44,12 @@ export class DataStore {
     return this.scriptsRepo
   }
 
+  images(): ImagesRepo {
+    this.projects()
+    this.imagesRepo ??= new ImagesRepo(this.db!)
+    return this.imagesRepo
+  }
+
   /** The folder the open database lives in (null until first use). */
   openFolder(): string | null {
     return this.openedAt
@@ -53,5 +61,6 @@ export class DataStore {
     this.repo = null
     this.chatRepo = null
     this.scriptsRepo = null
+    this.imagesRepo = null
   }
 }

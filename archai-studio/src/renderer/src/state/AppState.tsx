@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { ServicePing } from '@shared/checks'
-import type { AppInfo } from '@shared/ipc'
+import type { AppInfo, GpuOwner } from '@shared/ipc'
 import type { Project } from '@shared/projects'
 import type { Settings, SettingsPatch } from '@shared/settings'
 import { call, errorText } from '../lib/ipc'
@@ -29,6 +29,8 @@ interface AppState {
   section: Section
   toast: Toast | null
   services: ServicePing | null
+  /** Which side last used the GPU (turn-taking). */
+  gpu: GpuOwner
   /** True until the first-run setup has been completed. */
   wizard: boolean
   finishSetup(): Promise<void>
@@ -62,6 +64,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [section, setSection] = useState<Section>('chat')
   const [toast, setToast] = useState<Toast | null>(null)
   const [services, setServices] = useState<ServicePing | null>(null)
+  const [gpu, setGpu] = useState<GpuOwner>(null)
+  useEffect(() => {
+    void call('gpu:get').then(setGpu, () => undefined)
+    return window.archai.on('gpu:state', setGpu)
+  }, [])
 
   const notify = useCallback((text: string, error = false) => {
     setToast({ text, error })
@@ -165,6 +172,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     section,
     toast,
     services,
+    gpu,
     wizard: settings !== null && !settings.firstRunComplete,
     finishSetup,
     refreshServices,

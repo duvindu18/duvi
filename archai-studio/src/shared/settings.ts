@@ -27,6 +27,8 @@ export const SettingsSchema = z.object({
   models: z.object({ chat: ModelName, scripts: ModelName, embed: ModelName }),
   chat: z.object({ contextLength: z.number().int().min(2048).max(131072) }),
   gpu: z.object({ turnTaking: z.boolean() }),
+  /** Last-used image models (file names as ComfyUI lists them). */
+  images: z.object({ checkpoint: z.string().max(300).nullable(), controlnet: z.string().max(300).nullable() }),
   folders: z.object({ data: FolderPath, gallery: FolderPath.nullable() }),
   activeProjectId: z.number().int().positive().nullable()
 })
@@ -40,6 +42,7 @@ export const SettingsPatchSchema = z
     models: SettingsSchema.shape.models.partial(),
     chat: SettingsSchema.shape.chat.partial(),
     gpu: SettingsSchema.shape.gpu.partial(),
+    images: SettingsSchema.shape.images.partial(),
     folders: SettingsSchema.shape.folders.partial(),
     activeProjectId: SettingsSchema.shape.activeProjectId
   })
@@ -56,6 +59,7 @@ export function defaultSettings(dataDir: string): Settings {
     models: { chat: 'gpt-oss:20b', scripts: 'gpt-oss:20b', embed: 'nomic-embed-text' },
     chat: { contextLength: 8192 },
     gpu: { turnTaking: true },
+    images: { checkpoint: null, controlnet: null },
     folders: { data: dataDir, gallery: null },
     activeProjectId: null
   }
@@ -73,6 +77,7 @@ export function applyPatch(s: Settings, p: Patch): Settings {
     models: { ...s.models, ...p.models },
     chat: { ...s.chat, ...p.chat },
     gpu: { ...s.gpu, ...p.gpu },
+    images: { ...s.images, ...p.images },
     folders: { ...s.folders, ...p.folders }
   })
 }

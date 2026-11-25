@@ -1,0 +1,16 @@
+{
+  "name": "SDXL image variation",
+  "mode": "variation",
+  "description": "Keeps the layout and colours of an image and redraws the details. Lower change keeps more of the original.",
+  "bindings": {
+    "positive": { "node": "6", "input": "text" },
+    "negative": { "node": "7", "input": "text" },
+    "seed": { "node": "3", "input": "seed" },
+    "steps": { "node": "3", "input": "steps" },
+    "cfg": { "node": "3", "input": "cfg" },
+    "denoise": { "node": "3", "input": "denoise" },
+    "checkpoint": { "node": "4", "input": "ckpt_name" },
+    "image": { "node": "10", "input": "image" },
+    "prefix": { "node": "9", "input": "filename_prefix" }
+  }
+}

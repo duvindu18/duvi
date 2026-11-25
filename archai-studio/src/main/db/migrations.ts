@@ -47,5 +47,33 @@ export const MIGRATIONS: string[] = [
     created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
   );
   CREATE INDEX scripts_project ON scripts(project_id, created_at);
+  `,
+  /* 4: images and imported ComfyUI workflows */ `
+  CREATE TABLE images (
+    id          INTEGER PRIMARY KEY,
+    project_id  INTEGER NOT NULL REFERENCES projects(id),
+    path        TEXT NOT NULL,
+    width       INTEGER,
+    height      INTEGER,
+    positive    TEXT NOT NULL,
+    negative    TEXT NOT NULL,
+    seed        INTEGER NOT NULL,
+    model       TEXT,
+    workflow    TEXT NOT NULL,
+    mode        TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    trashed     INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+  CREATE INDEX images_project ON images(project_id, trashed, created_at);
+  CREATE TABLE workflows (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    mode        TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    json        TEXT NOT NULL,
+    bindings    TEXT NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
   `
 ]

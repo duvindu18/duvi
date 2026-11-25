@@ -6,6 +6,7 @@ export type Route = (req: IncomingMessage, res: ServerResponse, body: string) =>
 export interface FakeServer {
   url: string
   port: number
+  server: Server
   requests: { method: string; path: string; body: string }[]
   close(): Promise<void>
 }
@@ -15,11 +16,14 @@ export async function startFake(routes: Record<string, Route>, port = 0): Promis
   const requests: FakeServer['requests'] = []
   const server: Server = createServer((req, res) => {
     let body = ''
-    req.on('data', (c: Buffer) => (body += c.toString('utf8')))
+    req.on('data', (c: Buffer) => (body += c.toString('latin1')))
     req.on('end', () => {
       const path = (req.url ?? '/').split('?')[0] ?? '/'
       requests.push({ method: req.method ?? 'GET', path, body })
-      const route = routes[`${req.method} ${path}`]
+      // Exact route first, then a "prefix/*" route.
+      const route =
+        routes[`${req.method} ${path}`] ??
+        Object.entries(routes).find(([k]) => k.endsWith('/*') && `${req.method} ${path}`.startsWith(k.slice(0, -1)))?.[1]
       if (!route) {
         res.writeHead(404, { 'content-type': 'application/json' }).end('{"error":"not found"}')
         return
@@ -32,6 +36,7 @@ export async function startFake(routes: Record<string, Route>, port = 0): Promis
   return {
     url: `http://127.0.0.1:${actual}`,
     port: actual,
+    server,
     requests,
     close: () => new Promise((r) => { server.closeAllConnections(); server.close(() => r()) })
   }
