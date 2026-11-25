@@ -1,0 +1,29 @@
+# Packaging config. Store identity values live in store-identity.json (filled in at M7).
+appId: com.archai.studio
+productName: ArchAI Studio
+copyright: Copyright © 2026 PUBLISHER_NAME_PLACEHOLDER
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**
+  - package.json
+  - '!**/*.map'
+extraResources:
+  - from: resources
+    to: resources
+    filter: ['**/*']
+asar: true
+win:
+  target: [nsis]
+  artifactName: ArchAI-Studio-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: ArchAI Studio
+  deleteAppDataOnUninstall: false
+publish: null

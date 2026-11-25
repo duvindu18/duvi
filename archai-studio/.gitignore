@@ -1,0 +1,23 @@
+node_modules/
+out/
+dist/
+test-results/
+playwright-report/
+*.log
+.DS_Store
+
+# Secrets: never commit certificates, keys or tokens.
+*.pfx
+*.p12
+*.cer
+*.crt
+*.key
+*.pem
+*.snk
+*.spc
+*.pvk
+certs/
+.env
+.env.*
+!.env.example
+store-identity.local.json

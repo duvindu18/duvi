@@ -1,0 +1,52 @@
+name: ArchAI Studio CI
+
+on:
+  push:
+    paths: ['archai-studio/**', '.github/workflows/archai-ci.yml']
+  pull_request:
+    paths: ['archai-studio/**', '.github/workflows/archai-ci.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: archai-studio
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: archai-studio/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: xvfb-run -a npm run e2e
+
+  windows-build:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: archai-studio/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run e2e
+      - name: Build unsigned installer
+        run: npm run dist:exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ArchAI-Studio-unsigned-windows
+          path: archai-studio/dist/*.exe
+          retention-days: 14
