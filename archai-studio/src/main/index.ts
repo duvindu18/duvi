@@ -1,12 +1,17 @@
 import { app, session } from 'electron'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { loopbackPorts } from '@shared/settings'
 import { buildCsp } from './csp'
+import { openDatabase } from './db/database'
+import { ProjectsRepo } from './db/projects-repo'
+import { applyTheme, createHandlers } from './handlers'
 import { registerIpc } from './ipc'
-import { log } from './log'
-import { checkUrl } from '@shared/net-policy'
-import { getNetPolicy } from './net-guard'
+import { initLogFile, log } from './log'
+import { setNetPolicy } from './net-guard'
+import { DB_FILE, defaultDataDir, SETTINGS_FILE } from './paths'
 import { APP_ORIGIN, handleAppProtocol, registerSchemesAsPrivileged } from './protocol'
+import { SettingsStore } from './settings-store'
 import { createMainWindow, rendererRoot } from './window'
 
 // Test hook: isolate user data (used by Playwright so tests never touch real data).
@@ -14,17 +19,13 @@ if (process.env.ARCHAI_USER_DATA) app.setPath('userData', process.env.ARCHAI_USE
 
 const devServerUrl = !app.isPackaged ? process.env.ELECTRON_RENDERER_URL : undefined
 const devServerOrigin = devServerUrl ? new URL(devServerUrl).origin : undefined
-
 const here = dirname(fileURLToPath(import.meta.url))
 
 registerSchemesAsPrivileged()
 
 if (!app.requestSingleInstanceLock()) app.quit()
 
-app.whenReady().then(() => {
-  const csp = buildCsp({ devServerOrigin })
-  handleAppProtocol(rendererRoot(here), csp)
-
+function lockDownSession(): void {
   const ses = session.defaultSession
   // The screen may only load our own files: block every other request at the session level.
   ses.webRequest.onBeforeRequest((details, cb) => {
@@ -36,40 +37,56 @@ app.whenReady().then(() => {
       u.startsWith('blob:') ||
       u.startsWith('archai-img:') ||
       (devServerOrigin !== undefined && (u.startsWith(devServerOrigin) || u.startsWith(devServerOrigin.replace(/^http/, 'ws'))))
-    if (!ok) log.warn(`blocked screen request to ${new URL(u).host || u.slice(0, 40)}`)
+    if (!ok) log.warn(`blocked screen request to ${safeHost(u)}`)
     cb({ cancel: !ok })
   })
+  ses.setPermissionRequestHandler((_wc, _perm, cb) => cb(false))
+  ses.setPermissionCheckHandler(() => false)
+}
+
+function safeHost(u: string): string {
+  try {
+    return new URL(u).host || u.slice(0, 40)
+  } catch {
+    return u.slice(0, 40)
+  }
+}
+
+app.whenReady().then(() => {
+  initLogFile(join(app.getPath('userData'), 'logs'))
+  log.info(`ArchAI Studio ${app.getVersion()} starting`)
+
+  const csp = buildCsp({ devServerOrigin })
+  handleAppProtocol(rendererRoot(here), csp)
+  lockDownSession()
   if (devServerOrigin) {
-    ses.webRequest.onHeadersReceived((details, cb) => {
+    session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
       cb({ responseHeaders: { ...details.responseHeaders, 'Content-Security-Policy': [csp] } })
     })
   }
-  ses.setPermissionRequestHandler((_wc, _perm, cb) => cb(false))
-  ses.setPermissionCheckHandler(() => false)
 
-  registerIpc(
-    {
-      'app:info': () => ({
-        name: app.getName(),
-        version: app.getVersion(),
-        buildType: !app.isPackaged ? 'dev' : process.windowsStore ? 'store' : 'exe',
-        platform: process.platform,
-        electron: process.versions.electron,
-        userData: app.getPath('userData')
-      }),
-      'net:probe': ({ url }) => {
-        const v = checkUrl(url, 'local-ai', getNetPolicy())
-        return { url, allowed: v.allowed, reason: v.reason }
-      }
-    },
-    devServerOrigin
-  )
+  const settings = new SettingsStore(join(app.getPath('userData'), SETTINGS_FILE), defaultDataDir(), (s) => {
+    setNetPolicy({ loopbackPorts: loopbackPorts(s) })
+    applyTheme(s)
+  })
+  const s = settings.get()
+  setNetPolicy({ loopbackPorts: loopbackPorts(s) })
+  applyTheme(s)
+
+  const db = openDatabase(join(s.folders.data, DB_FILE))
+  log.info(`data folder: ${s.folders.data}`)
+  const projects = new ProjectsRepo(db)
+
+  registerIpc(createHandlers({ settings, projects }), devServerOrigin)
 
   createMainWindow({
     preloadPath: join(here, '../preload/index.cjs'),
     devServerUrl,
-    devTools: !app.isPackaged
+    devTools: !app.isPackaged,
+    dark: s.theme !== 'light'
   })
+
+  app.on('will-quit', () => db.close())
 })
 
 app.on('window-all-closed', () => app.quit())

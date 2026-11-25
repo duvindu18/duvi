@@ -5,7 +5,19 @@
  *
  * Milestones add channels here (see PLAN.md section 6).
  */
-export const INVOKE_CHANNELS = ['app:info', 'net:probe'] as const
+export const INVOKE_CHANNELS = [
+  'app:info',
+  'net:probe',
+  'settings:get',
+  'settings:set',
+  'settings:export',
+  'settings:import',
+  'dialog:pickFolder',
+  'projects:list',
+  'projects:create',
+  'projects:rename',
+  'projects:archive'
+] as const
 
 export const EVENT_CHANNELS = [] as const
 

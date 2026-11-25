@@ -1,24 +1,43 @@
-import { useEffect, useState } from 'react'
-import type { AppInfo } from '@shared/ipc'
+import { Rail } from './components/Rail'
+import { TitleBlock } from './components/TitleBlock'
+import { Later } from './pages/Later'
+import { SettingsPage } from './pages/Settings'
+import { StartProject } from './pages/StartProject'
+import { AppStateProvider, useApp } from './state/AppState'
 
-/** M0 placeholder screen. The real shell and design system arrive in M1. */
-export function App() {
-  const [info, setInfo] = useState<AppInfo | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    void window.archai.invoke('app:info').then((r) => (r.ok ? setInfo(r.data) : setError(r.error.message)))
-  }, [])
-
+function Main() {
+  const { section, activeProject, settings } = useApp()
+  if (!settings) return <main className="main" />
+  let page
+  if (section === 'settings') page = <SettingsPage />
+  else if (!activeProject) page = <StartProject />
+  else page = <Later section={section} />
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', color: '#e8e6e1', background: '#141414', minHeight: '100vh', padding: 48 }}>
-      <h1 data-testid="app-title" style={{ fontWeight: 500, letterSpacing: '-0.01em' }}>ArchAI Studio</h1>
-      {info && (
-        <p data-testid="app-version" style={{ opacity: 0.6 }}>
-          v{info.version} · {info.buildType} · Electron {info.electron}
-        </p>
-      )}
-      {error && <p role="alert">{error}</p>}
+    <main className="main" data-testid="main">
+      {page}
     </main>
+  )
+}
+
+function Toast() {
+  const { toast } = useApp()
+  if (!toast) return null
+  return (
+    <div className={`toast${toast.error ? ' toast--error' : ''}`} role={toast.error ? 'alert' : 'status'} data-testid="toast">
+      {toast.text}
+    </div>
+  )
+}
+
+export function App() {
+  return (
+    <AppStateProvider>
+      <div className="shell">
+        <Rail />
+        <Main />
+        <TitleBlock />
+      </div>
+      <Toast />
+    </AppStateProvider>
   )
 }

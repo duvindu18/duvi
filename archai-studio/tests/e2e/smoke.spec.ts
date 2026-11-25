@@ -5,8 +5,8 @@ test('app opens a locked-down window', async () => {
   const app = await launchApp()
   const page = await app.firstWindow()
 
-  await expect(page.getByTestId('app-title')).toHaveText('ArchAI Studio')
-  await expect(page.getByTestId('app-version')).toContainText('Electron')
+  await expect(page.getByTestId('titleblock')).toContainText('ArchAI')
+  await expect(page.getByTestId('tb-rev')).toHaveText('0.1.0')
   expect(page.url()).toBe('app://archai/index.html')
 
   // Security settings of the real window.

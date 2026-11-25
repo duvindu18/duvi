@@ -27,3 +27,13 @@ The owner is an architect, not a developer: explain decisions in plain language.
   sender checks compare protocol and host (`isAppUrl`).
 - M0: TypeScript 6.0 (typescript-eslint doesn't support TS 7 yet). Electron 45, Vite 8 (rolldown), electron-vite 6.
 - M0: Preload is built as a single CJS file (`index.cjs`), required for sandboxed preloads.
+- M1: SQLite via better-sqlite3 13. It ships N-API prebuilds (including win32-x64) that load in both
+  Node (Vitest) and Electron, so no native rebuild step is needed.
+- M1: settings.json lives in userData (%APPDATA%\ArchAI Studio). The DB lives in the data folder
+  (default ~/ArchAI Studio, override with ARCHAI_DATA_DIR). Changing the data folder applies on next start.
+- M1: Design system: Archivo variable (wdth axis) with wide titles, graphite + paper palette, single accent
+  "Lunuganga moss" #93B37E (light theme #4B763B). The bottom status strip is drawn as a drawing-sheet
+  title block, and it's the only element drawn with linework. No all-caps labels, no card grids.
+  Tokens live in src/renderer/src/theme/tokens.css.
+- M1: Projects are archived, never deleted (unique names among active projects, case-insensitive).
+- E2E tests launch the app folder ('.') so package.json supplies the name and version; dialogs are stubbed via app.evaluate.

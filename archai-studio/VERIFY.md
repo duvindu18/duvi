@@ -11,3 +11,14 @@ Each milestone adds a short section. Tick them off on your Windows 11 machine.
 4. Start **ArchAI Studio** from the Start menu. You should see a dark window that
    says "ArchAI Studio" with a version line. That's all M0 does.
 5. Uninstall it from *Settings → Apps*. (The "keep my data?" question comes in M7.)
+
+## M1: Look and feel, projects, settings
+Install the new Setup.exe from the latest CI run (same steps as M0).
+1. On first start you see **Start a project**. Type `Kandy Residence` and click **Create project**.
+   The bottom strip (the "title block") shows Project: Kandy Residence.
+2. Try creating `kandy residence` again from the project menu (top left). You should get "already exists".
+3. Open **Settings**, switch the theme to Light, then close and reopen the app. It should still be light.
+4. Change the Ollama address to `http://192.168.1.10:11434` and press Enter. It should refuse
+   (addresses on this computer only). Set it back to `http://127.0.0.1:11434`.
+5. Type `32768` in Context length. You should see the 16 GB video memory warning. Set it back to `8192`.
+6. Check that the folder `C:\Users\<you>\ArchAI Studio` now exists and contains `archai.db`.

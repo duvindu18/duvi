@@ -1,0 +1,83 @@
+/* ArchAI Studio design tokens.
+   Graphite + paper, one accent: Lunuganga moss (the garden green of Bawa's estate).
+   Type: Archivo (one family). Its width axis is the expressive device: wide for
+   titles (like title-block lettering), normal for reading. */
+
+@import '@fontsource-variable/archivo/wdth.css';
+@import '@fontsource/jetbrains-mono/400.css';
+
+:root {
+  --font: 'Archivo Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-code: 'JetBrains Mono', Consolas, monospace;
+
+  /* Type scale (1.25), desktop UI base 14px */
+  --t-12: 0.75rem;
+  --t-13: 0.8125rem;
+  --t-14: 0.875rem;
+  --t-16: 1rem;
+  --t-20: 1.25rem;
+  --t-25: 1.5625rem;
+  --t-31: 1.9375rem;
+  --wide: 125%;
+  --semi-wide: 112%;
+
+  /* 8px spatial grid */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+
+  --radius-s: 3px;
+  --radius-m: 6px;
+  --rail-w: 232px;
+  --titleblock-h: 52px;
+  --measure: 72ch;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #1b1c1a;
+  --surface: #232522;
+  --surface-2: #2c2e2a;
+  --line: #3a3d38;
+  --line-strong: #50544c;
+  --text: #e6e7e1;
+  --text-2: #b0b3aa;
+  --text-3: #8a8e84;
+  --accent: #93b37e;
+  --accent-strong: #a9c695;
+  --accent-ink: #172014;
+  --accent-soft: rgb(147 179 126 / 0.14);
+  --danger: #e58a7a;
+  --danger-soft: rgb(229 138 122 / 0.12);
+  --warn: #d9b45b;
+  --warn-soft: rgb(217 180 91 / 0.12);
+  --focus: #c7dcb8;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #ecede8;
+  --surface: #f5f6f2;
+  --surface-2: #e2e4de;
+  --line: #cbcec5;
+  --line-strong: #a3a79d;
+  --text: #1e201d;
+  --text-2: #464a43;
+  --text-3: #5f635b;
+  --accent: #4b763b;
+  --accent-strong: #3d6430;
+  --accent-ink: #f5f6f2;
+  --accent-soft: rgb(75 118 59 / 0.12);
+  --danger: #a8402f;
+  --danger-soft: rgb(168 64 47 / 0.1);
+  --warn: #85631a;
+  --warn-soft: rgb(133 99 26 / 0.12);
+  --focus: #2f5224;
+}
