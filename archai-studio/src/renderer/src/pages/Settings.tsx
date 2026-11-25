@@ -110,10 +110,11 @@ function Appearance({ settings }: { settings: Settings }) {
   const opts: { id: Settings['theme']; label: string }[] = [
     { id: 'dark', label: 'Dark' },
     { id: 'light', label: 'Light' },
+    { id: 'phthalo', label: 'Phthalo' },
     { id: 'system', label: 'Match Windows' }
   ]
   return (
-    <Group title="Appearance">
+    <Group title="Appearance" desc="Phthalo uses the Seedform colours: a deep green ground with sand accents.">
       <div className="field">
         <span className="field__label" id="theme-label">Theme</span>
         <div className="segmented" role="group" aria-labelledby="theme-label">
@@ -278,7 +279,7 @@ function Folders({ settings }: { settings: Settings }) {
       <div className="field">
         <span className="field__label">Image gallery folder</span>
         <div className="row">
-          <span className="path">{settings.folders.gallery ?? 'Inside the data folder'}</span>
+          <span className={`path${settings.folders.gallery ? '' : ' path--none'}`}>{settings.folders.gallery ?? 'Inside the data folder'}</span>
           <button className="btn" type="button" onClick={() => void pick('gallery')}>Choose…</button>
           {settings.folders.gallery && (
             <button className="btn btn--quiet" type="button" onClick={() => void updateSettings({ folders: { gallery: null } })}>Use data folder</button>

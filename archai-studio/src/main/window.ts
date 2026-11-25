@@ -2,14 +2,14 @@ import { BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { APP_ORIGIN, isAppUrl } from './protocol'
 
-export function createMainWindow(opts: { preloadPath: string; devServerUrl?: string; devTools: boolean; dark: boolean }): BrowserWindow {
+export function createMainWindow(opts: { preloadPath: string; devServerUrl?: string; devTools: boolean; background: string }): BrowserWindow {
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1024,
     minHeight: 680,
     show: false,
-    backgroundColor: opts.dark ? '#1B1C1A' : '#ECEDE8',
+    backgroundColor: opts.background,
     title: 'ArchAI Studio',
     autoHideMenuBar: true,
     webPreferences: {

@@ -45,3 +45,11 @@ The owner is an architect, not a developer: explain decisions in plain language.
 - M2: The title block pings Ollama /api/version and ComfyUI /system_stats every 20 s (loopback only).
 - E2E: `launchApp({ dirs, seed })` writes settings.json before launch. By default it seeds firstRunComplete=true;
   pass `seed: null` on relaunches to read what the app saved.
+- Theme input: the owner's **Seedform** design system (claude.ai artifact b9ae09c9-…). The owner said the current UI
+  is fine, so only these were taken: square-cut 2px corners (circles only for status dots), hairlines instead of
+  shadows, square-cap mitred icons, laterite (#E07A55 / #A84E33) for errors, Cloud Dancer #F0EEE9 light ground,
+  and an optional "Phthalo" theme (#123524 ground, sand #D4B786 accent). Archivo stays; Seedform's fonts and logo are
+  NOT used for the app (they are the studio's identity, not the product's).
+- Writing style (UI copy AND model system prompts, from Seedform's voice guide): UK / Sri Lankan English (colour,
+  centre, metres, programme), areas in m², numerals for all measurements, sentence case, no exclamation marks, plain
+  words, short sentences. Local words (midula, pila) are fine; explain them the first time.

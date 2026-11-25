@@ -48,6 +48,9 @@ test('first launch asks for a project, then remembers everything after restart',
 
   // Theme.
   await page.getByTestId('nav-settings').click()
+  await page.getByTestId('theme-phthalo').click()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'phthalo')
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(18, 53, 36)')
   await page.getByTestId('theme-light').click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
 

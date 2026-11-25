@@ -1,4 +1,4 @@
-/** Line icons drawn on a 24px grid, 1.5px stroke. Bundled, no icon font. */
+/** Line icons on a 24px grid: 1.5px stroke, square caps, mitred joins (Seedform icon spec). Bundled, no icon font. */
 import type { SVGProps } from 'react'
 
 const base: SVGProps<SVGSVGElement> = {
@@ -6,8 +6,8 @@ const base: SVGProps<SVGSVGElement> = {
   fill: 'none',
   stroke: 'currentColor',
   strokeWidth: 1.5,
-  strokeLinecap: 'round',
-  strokeLinejoin: 'round',
+  strokeLinecap: 'square',
+  strokeLinejoin: 'miter',
   'aria-hidden': true
 }
 

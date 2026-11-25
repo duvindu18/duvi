@@ -170,7 +170,6 @@ p {
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-m);
   padding: var(--s-1);
-  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
   max-height: 360px;
   overflow: auto;
 }
@@ -467,7 +466,7 @@ p {
   width: 36px;
   height: 20px;
   margin: 1px 0 0;
-  border-radius: 10px;
+  border-radius: var(--radius-s);
   background: var(--line-strong);
   position: relative;
   cursor: pointer;
@@ -481,7 +480,7 @@ p {
   left: 3px;
   width: 14px;
   height: 14px;
-  border-radius: 50%;
+  border-radius: 1px;
   background: var(--text);
   transition: transform 160ms var(--ease);
 }
@@ -554,6 +553,12 @@ p {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.path--none {
+  font-family: var(--font);
+  font-size: var(--t-14);
+  color: var(--text-3);
 }
 
 .plist {
@@ -640,7 +645,6 @@ p {
   color: var(--text);
   padding: var(--s-5);
   width: min(440px, 90vw);
-  box-shadow: 0 24px 64px rgb(0 0 0 / 0.45);
 }
 
 .dialog::backdrop {
@@ -669,7 +673,6 @@ p {
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-m);
   padding: var(--s-2) var(--s-4);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
   animation: toast-in 180ms var(--ease);
 }
 
@@ -735,7 +738,7 @@ p {
   display: grid;
   place-items: center;
   border: 1px solid var(--line-strong);
-  border-radius: 50%;
+  border-radius: var(--radius-s);
   font-size: var(--t-12);
 }
 

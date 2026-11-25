@@ -1,5 +1,8 @@
 /* ArchAI Studio design tokens.
    Graphite + paper, one accent: Lunuganga moss (the garden green of Bawa's estate).
+   Borrowed from the owner's Seedform brand: square-cut corners (2px; the only
+   circle is a status dot), hairlines instead of shadows, laterite for warnings,
+   Cloud Dancer for the light ground, and an optional Phthalo theme.
    Type: Archivo (one family). Its width axis is the expressive device: wide for
    titles (like title-block lettering), normal for reading. */
 
@@ -31,8 +34,9 @@
   --s-7: 48px;
   --s-8: 64px;
 
-  --radius-s: 3px;
-  --radius-m: 6px;
+  /* Square-cut, like stone and timber. Circles are for status dots only. */
+  --radius-s: 2px;
+  --radius-m: 2px;
   --rail-w: 232px;
   --titleblock-h: 52px;
   --measure: 72ch;
@@ -54,8 +58,8 @@
   --accent-strong: #a9c695;
   --accent-ink: #172014;
   --accent-soft: rgb(147 179 126 / 0.14);
-  --danger: #e58a7a;
-  --danger-soft: rgb(229 138 122 / 0.12);
+  --danger: #e07a55; /* laterite */
+  --danger-soft: rgb(224 122 85 / 0.12);
   --warn: #d9b45b;
   --warn-soft: rgb(217 180 91 / 0.12);
   --focus: #c7dcb8;
@@ -63,21 +67,43 @@
 
 :root[data-theme='light'] {
   color-scheme: light;
-  --bg: #ecede8;
-  --surface: #f5f6f2;
-  --surface-2: #e2e4de;
-  --line: #cbcec5;
-  --line-strong: #a3a79d;
-  --text: #1e201d;
+  --bg: #f0eee9; /* Cloud Dancer */
+  --surface: #faf9f6;
+  --surface-2: #e4e3dc;
+  --line: #d6d0c4;
+  --line-strong: #a29d91;
+  --text: #141414;
   --text-2: #464a43;
   --text-3: #5f635b;
   --accent: #4b763b;
   --accent-strong: #3d6430;
   --accent-ink: #f5f6f2;
   --accent-soft: rgb(75 118 59 / 0.12);
-  --danger: #a8402f;
-  --danger-soft: rgb(168 64 47 / 0.1);
+  --danger: #a84e33; /* laterite */
+  --danger-soft: rgb(168 78 51 / 0.1);
   --warn: #85631a;
   --warn-soft: rgb(133 99 26 / 0.12);
   --focus: #2f5224;
+}
+
+/* Phthalo: the Seedform signature ground. Cloud Dancer text, sand as the accent. */
+:root[data-theme='phthalo'] {
+  color-scheme: dark;
+  --bg: #123524;
+  --surface: #1a4330;
+  --surface-2: #24493a;
+  --line: #2e5641;
+  --line-strong: #4a7560;
+  --text: #f0eee9;
+  --text-2: #b5c4b9;
+  --text-3: #93a698;
+  --accent: #d4b786;
+  --accent-strong: #e2caa0;
+  --accent-ink: #123524;
+  --accent-soft: rgb(212 183 134 / 0.16);
+  --danger: #e8896a;
+  --danger-soft: rgb(232 137 106 / 0.14);
+  --warn: #e8b04a;
+  --warn-soft: rgb(232 176 74 / 0.14);
+  --focus: #d4b786;
 }

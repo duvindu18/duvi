@@ -50,7 +50,7 @@ export function useApp(): AppState {
   return v
 }
 
-function resolveTheme(theme: Settings['theme']): 'dark' | 'light' {
+function resolveTheme(theme: Settings['theme']): 'dark' | 'light' | 'phthalo' {
   if (theme !== 'system') return theme
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
 }

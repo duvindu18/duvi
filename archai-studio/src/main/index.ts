@@ -83,7 +83,7 @@ app.whenReady().then(() => {
     preloadPath: join(here, '../preload/index.cjs'),
     devServerUrl,
     devTools: !app.isPackaged,
-    dark: s.theme !== 'light'
+    background: s.theme === 'light' ? '#F0EEE9' : s.theme === 'phthalo' ? '#123524' : '#1B1C1A'
   })
 
   app.on('will-quit', () => data.close())

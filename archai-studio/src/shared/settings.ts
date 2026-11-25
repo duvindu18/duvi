@@ -22,7 +22,7 @@ const FolderPath = z.string().trim().min(1).max(1000)
 export const SettingsSchema = z.object({
   version: z.literal(1),
   firstRunComplete: z.boolean(),
-  theme: z.enum(['dark', 'light', 'system']),
+  theme: z.enum(['dark', 'light', 'phthalo', 'system']),
   endpoints: z.object({ ollama: LoopbackUrl, comfy: LoopbackUrl }),
   models: z.object({ chat: ModelName, scripts: ModelName, embed: ModelName }),
   chat: z.object({ contextLength: z.number().int().min(2048).max(131072) }),

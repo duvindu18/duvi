@@ -19,7 +19,8 @@ export interface Context {
 const parentWindow = () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
 
 export function applyTheme(s: Settings): void {
-  nativeTheme.themeSource = s.theme
+  // Window frame and native dialogs follow the theme; Phthalo is a dark theme.
+  nativeTheme.themeSource = s.theme === 'phthalo' ? 'dark' : s.theme
 }
 
 export function createHandlers(ctx: Context): Handlers {
