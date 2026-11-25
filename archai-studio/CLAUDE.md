@@ -37,3 +37,11 @@ The owner is an architect, not a developer: explain decisions in plain language.
   Tokens live in src/renderer/src/theme/tokens.css.
 - M1: Projects are archived, never deleted (unique names among active projects, case-insensitive).
 - E2E tests launch the app folder ('.') so package.json supplies the name and version; dialogs are stubbed via app.evaluate.
+- M2: First-run wizard (Welcome, Checks, Folders, Ready). Checks never download anything; each failure has
+  plain text, an optional PowerShell command (copied via the `clipboard:writeText` IPC; renderer permissions
+  stay fully denied) and an optional https link that opens in the browser on click.
+- M2: GPU detection order: nvidia-smi, then ComfyUI /system_stats, then Electron getGPUInfo (vendor 0x10de).
+- M2: DB opens lazily (src/main/db/store.ts), so nothing is written until setup confirms the data folder.
+- M2: The title block pings Ollama /api/version and ComfyUI /system_stats every 20 s (loopback only).
+- E2E: `launchApp({ dirs, seed })` writes settings.json before launch. By default it seeds firstRunComplete=true;
+  pass `seed: null` on relaunches to read what the app saved.

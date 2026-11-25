@@ -1,16 +1,11 @@
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { launchApp } from './launch'
+import { launchApp, makeDirs as dirs, type Dirs } from './launch'
 
-function dirs() {
-  const root = mkdtempSync(join(tmpdir(), 'archai-shell-'))
-  return { userData: join(root, 'u'), data: join(root, 'd'), root }
-}
-
-async function open(d: ReturnType<typeof dirs>): Promise<[ElectronApplication, Page]> {
-  const app = await launchApp({}, d)
+async function open(d: Dirs, first = true): Promise<[ElectronApplication, Page]> {
+  // Seed settings only on the first launch; later launches must read what the app saved.
+  const app = await launchApp({ dirs: d, seed: first ? { firstRunComplete: true } : null })
   const page = await app.firstWindow()
   await expect(page.getByTestId('titleblock')).toBeVisible()
   return [app, page]
@@ -57,7 +52,7 @@ test('first launch asks for a project, then remembers everything after restart',
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
 
   await app.close()
-  ;[app, page] = await open(d)
+  ;[app, page] = await open(d, false)
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   await expect(page.getByTestId('tb-project')).toHaveText('Kandy Residence')
   await app.close()

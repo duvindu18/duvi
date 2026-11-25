@@ -1,6 +1,7 @@
 import { Rail } from './components/Rail'
 import { TitleBlock } from './components/TitleBlock'
 import { Later } from './pages/Later'
+import { SetupWizard } from './pages/Setup'
 import { SettingsPage } from './pages/Settings'
 import { StartProject } from './pages/StartProject'
 import { AppStateProvider, useApp } from './state/AppState'
@@ -29,14 +30,21 @@ function Toast() {
   )
 }
 
+function Shell() {
+  const { settings, wizard } = useApp()
+  if (!settings) return <div className="shell" />
+  return (
+    <div className={`shell${wizard ? ' shell--wizard' : ''}`}>
+      {wizard ? <SetupWizard /> : <><Rail /><Main /></>}
+      <TitleBlock />
+    </div>
+  )
+}
+
 export function App() {
   return (
     <AppStateProvider>
-      <div className="shell">
-        <Rail />
-        <Main />
-        <TitleBlock />
-      </div>
+      <Shell />
       <Toast />
     </AppStateProvider>
   )

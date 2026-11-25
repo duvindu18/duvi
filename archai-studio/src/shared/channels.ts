@@ -16,7 +16,11 @@ export const INVOKE_CHANNELS = [
   'projects:list',
   'projects:create',
   'projects:rename',
-  'projects:archive'
+  'projects:archive',
+  'checks:run',
+  'services:ping',
+  'disk:free',
+  'clipboard:writeText'
 ] as const
 
 export const EVENT_CHANNELS = [] as const

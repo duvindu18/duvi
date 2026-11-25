@@ -4,6 +4,7 @@
  */
 import { z } from 'zod'
 import type { InvokeChannel } from './channels'
+import type { CheckResult, ServicePing } from './checks'
 import type { Project } from './projects'
 import { ProjectName } from './projects'
 import type { Settings, SettingsPatch } from './settings'
@@ -42,7 +43,11 @@ export const requestSchemas = {
   'projects:list': z.object({ includeArchived: z.boolean() }).strict().optional(),
   'projects:create': z.object({ name: ProjectName }).strict(),
   'projects:rename': z.object({ id: Id, name: ProjectName }).strict(),
-  'projects:archive': z.object({ id: Id, archived: z.boolean() }).strict()
+  'projects:archive': z.object({ id: Id, archived: z.boolean() }).strict(),
+  'checks:run': z.undefined(),
+  'services:ping': z.undefined(),
+  'disk:free': z.object({ path: z.string().min(1).max(1000) }).strict(),
+  'clipboard:writeText': z.object({ text: z.string().max(100_000) }).strict()
 } satisfies Record<InvokeChannel, z.ZodType>
 
 export interface InvokeMap {
@@ -57,6 +62,10 @@ export interface InvokeMap {
   'projects:create': { req: { name: string }; res: Project }
   'projects:rename': { req: { id: number; name: string }; res: Project }
   'projects:archive': { req: { id: number; archived: boolean }; res: Project }
+  'checks:run': { req: undefined; res: CheckResult[] }
+  'services:ping': { req: undefined; res: ServicePing }
+  'disk:free': { req: { path: string }; res: { bytes: number | null } }
+  'clipboard:writeText': { req: { text: string }; res: true }
 }
 
 // Compile-time check that InvokeMap and the channel list stay in sync.

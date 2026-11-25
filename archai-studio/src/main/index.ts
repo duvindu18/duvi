@@ -3,13 +3,12 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loopbackPorts } from '@shared/settings'
 import { buildCsp } from './csp'
-import { openDatabase } from './db/database'
-import { ProjectsRepo } from './db/projects-repo'
+import { DataStore } from './db/store'
 import { applyTheme, createHandlers } from './handlers'
 import { registerIpc } from './ipc'
 import { initLogFile, log } from './log'
 import { setNetPolicy } from './net-guard'
-import { DB_FILE, defaultDataDir, SETTINGS_FILE } from './paths'
+import { defaultDataDir, SETTINGS_FILE } from './paths'
 import { APP_ORIGIN, handleAppProtocol, registerSchemesAsPrivileged } from './protocol'
 import { SettingsStore } from './settings-store'
 import { createMainWindow, rendererRoot } from './window'
@@ -73,11 +72,12 @@ app.whenReady().then(() => {
   setNetPolicy({ loopbackPorts: loopbackPorts(s) })
   applyTheme(s)
 
-  const db = openDatabase(join(s.folders.data, DB_FILE))
-  log.info(`data folder: ${s.folders.data}`)
-  const projects = new ProjectsRepo(db)
+  // The data folder in use is fixed for this session; a change in Settings applies on next start.
+  const dataDir = s.folders.data
+  const data = new DataStore(() => (s.firstRunComplete ? dataDir : settings.get().folders.data))
+  log.info(`data folder: ${dataDir}`)
 
-  registerIpc(createHandlers({ settings, projects }), devServerOrigin)
+  registerIpc(createHandlers({ settings, data }), devServerOrigin)
 
   createMainWindow({
     preloadPath: join(here, '../preload/index.cjs'),
@@ -86,7 +86,7 @@ app.whenReady().then(() => {
     dark: s.theme !== 'light'
   })
 
-  app.on('will-quit', () => db.close())
+  app.on('will-quit', () => data.close())
 })
 
 app.on('window-all-closed', () => app.quit())

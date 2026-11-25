@@ -3,6 +3,7 @@ import type { Project } from '@shared/projects'
 import { CONTEXT_VRAM_WARNING, type Settings, type SettingsPatch } from '@shared/settings'
 import { call, errorText } from '../lib/ipc'
 import { useApp } from '../state/AppState'
+import { SetupChecksPanel } from './Setup'
 
 function Group({ title, desc, children }: { title: string; desc?: string; children: ReactNode }) {
   return (
@@ -87,6 +88,9 @@ export function SettingsPage() {
         <Appearance settings={settings} />
         <Projects />
         <Services settings={settings} />
+        <Group title="Setup checks" desc="Checks Ollama, the chat model, ComfyUI, your graphics card and free space.">
+          <SetupChecksPanel />
+        </Group>
         <Gpu settings={settings} />
         <Folders settings={settings} />
         <Backup />

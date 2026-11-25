@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import type { ServicePing } from '@shared/checks'
 import type { AppInfo } from '@shared/ipc'
 import type { Project } from '@shared/projects'
 import type { Settings, SettingsPatch } from '@shared/settings'
@@ -27,6 +28,11 @@ interface AppState {
   activeProject: Project | null
   section: Section
   toast: Toast | null
+  services: ServicePing | null
+  /** True until the first-run setup has been completed. */
+  wizard: boolean
+  finishSetup(): Promise<void>
+  refreshServices(): Promise<void>
   setSection(s: Section): void
   updateSettings(p: SettingsPatch): Promise<Settings | null>
   replaceSettings(s: Settings): void
@@ -55,6 +61,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([])
   const [section, setSection] = useState<Section>('chat')
   const [toast, setToast] = useState<Toast | null>(null)
+  const [services, setServices] = useState<ServicePing | null>(null)
 
   const notify = useCallback((text: string, error = false) => {
     setToast({ text, error })
@@ -68,15 +75,38 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void (async () => {
       try {
-        const [i, s, p] = await Promise.all([call('app:info'), call('settings:get'), call('projects:list')])
+        const [i, s] = await Promise.all([call('app:info'), call('settings:get')])
         setInfo(i)
         setSettings(s)
-        setProjects(p)
+        // The database is only opened once setup has confirmed the data folder.
+        if (s.firstRunComplete) setProjects(await call('projects:list'))
       } catch (e) {
         notify(errorText(e), true)
       }
     })()
   }, [notify])
+
+  const refreshServices = useCallback(async () => {
+    try {
+      setServices(await call('services:ping'))
+    } catch {
+      setServices(null)
+    }
+  }, [])
+
+  // The title block shows whether Ollama and ComfyUI answer (local addresses only).
+  const ready = settings?.firstRunComplete === true
+  useEffect(() => {
+    if (!ready) return
+    let live = true
+    const tick = () => void call('services:ping').then((p) => live && setServices(p), () => live && setServices(null))
+    tick()
+    const t = window.setInterval(tick, 20_000)
+    return () => {
+      live = false
+      window.clearInterval(t)
+    }
+  }, [ready, settings?.endpoints.ollama, settings?.endpoints.comfy])
 
   // Theme follows Settings; "system" tracks Windows' light/dark choice live.
   useEffect(() => {
@@ -117,6 +147,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     [updateSettings]
   )
 
+  const finishSetup = useCallback(async () => {
+    const s = await updateSettings({ firstRunComplete: true })
+    if (s) setProjects(await call('projects:list'))
+  }, [updateSettings])
+
   const activeProject = useMemo(() => {
     if (!settings) return null
     return projects.find((p) => p.id === settings.activeProjectId) ?? null
@@ -129,6 +164,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     activeProject,
     section,
     toast,
+    services,
+    wizard: settings !== null && !settings.firstRunComplete,
+    finishSetup,
+    refreshServices,
     setSection,
     updateSettings,
     replaceSettings: setSettings,

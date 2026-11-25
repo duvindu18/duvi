@@ -10,10 +10,16 @@ function sheetDate(d = new Date()): string {
 /**
  * The window's status strip, drawn like the title block of a drawing sheet:
  * project, current sheet, local AI services, GPU, date, revision.
- * Service status is filled in by the first-run checks (M2).
+ * Service status is a quick local ping every 20 seconds.
  */
 export function TitleBlock() {
-  const { activeProject, section, info } = useApp()
+  const { activeProject, section, info, services, settings, wizard } = useApp()
+  const svc = (up: boolean | undefined) =>
+    up === undefined ? (
+      <><span className="status-dot" />{settings?.firstRunComplete ? 'Checking' : 'Not checked'}</>
+    ) : (
+      <><span className={`status-dot status-dot--${up ? 'ok' : 'bad'}`} />{up ? 'Running' : 'Not running'}</>
+    )
   return (
     <footer className="titleblock" aria-label="Status" data-testid="titleblock">
       <div className="tb-cell tb-studio">
@@ -28,15 +34,15 @@ export function TitleBlock() {
       </div>
       <div className="tb-cell">
         <span className="tb-label">Sheet</span>
-        <span className="tb-value">{SECTION_NAMES[section]}</span>
+        <span className="tb-value">{wizard ? 'Setup' : SECTION_NAMES[section]}</span>
       </div>
       <div className="tb-cell">
         <span className="tb-label">Ollama</span>
-        <span className="tb-value"><span className="status-dot" />Not checked</span>
+        <span className="tb-value" data-testid="tb-ollama">{svc(services?.ollama)}</span>
       </div>
       <div className="tb-cell">
         <span className="tb-label">ComfyUI</span>
-        <span className="tb-value"><span className="status-dot" />Not checked</span>
+        <span className="tb-value" data-testid="tb-comfy">{svc(services?.comfy)}</span>
       </div>
       <div className="tb-cell">
         <span className="tb-label">Date</span>

@@ -1,16 +1,19 @@
-import { app, BrowserWindow, dialog, nativeTheme } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, nativeTheme } from 'electron'
 import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { checkUrl } from '@shared/net-policy'
 import type { Settings } from '@shared/settings'
-import type { ProjectsRepo } from './db/projects-repo'
+import type { DataStore } from './db/store'
 import type { Handlers } from './ipc'
+import { freeBytesFor, runChecks, runNvidiaSmi } from './services/checks'
+import { ComfyClient } from './services/comfy'
+import { OllamaClient } from './services/ollama'
 import { getNetPolicy } from './net-guard'
 import type { SettingsStore } from './settings-store'
 
 export interface Context {
   settings: SettingsStore
-  projects: ProjectsRepo
+  data: DataStore
 }
 
 const parentWindow = () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
@@ -20,6 +23,11 @@ export function applyTheme(s: Settings): void {
 }
 
 export function createHandlers(ctx: Context): Handlers {
+  const projects = () => ctx.data.projects()
+  const ollama = new OllamaClient(() => ctx.settings.get().endpoints.ollama)
+  const comfy = new ComfyClient(() => ctx.settings.get().endpoints.comfy)
+  const alive = (p: Promise<unknown>) => p.then(() => true, () => false)
+
   return {
     'app:info': () => ({
       name: app.getName(),
@@ -37,7 +45,7 @@ export function createHandlers(ctx: Context): Handlers {
 
     'settings:get': () => ctx.settings.get(),
     'settings:set': (patch) => {
-      if (patch.activeProjectId != null && !ctx.projects.get(patch.activeProjectId)) throw new Error('That project no longer exists.')
+      if (patch.activeProjectId != null && !projects().get(patch.activeProjectId)) throw new Error('That project no longer exists.')
       return ctx.settings.set(patch)
     },
 
@@ -77,19 +85,43 @@ export function createHandlers(ctx: Context): Handlers {
       return r.canceled || !dir ? { done: false } : { done: true, path: dir }
     },
 
-    'projects:list': (req) => ctx.projects.list(req?.includeArchived ?? false),
+    'projects:list': (req) => projects().list(req?.includeArchived ?? false),
     'projects:create': ({ name }) => {
-      const p = ctx.projects.create(name)
+      const p = projects().create(name)
       ctx.settings.set({ activeProjectId: p.id })
       return p
     },
-    'projects:rename': ({ id, name }) => ctx.projects.rename(id, name),
+    'projects:rename': ({ id, name }) => projects().rename(id, name),
     'projects:archive': ({ id, archived }) => {
-      const p = ctx.projects.setArchived(id, archived)
+      const p = projects().setArchived(id, archived)
       if (archived && ctx.settings.get().activeProjectId === id) {
-        ctx.settings.set({ activeProjectId: ctx.projects.list()[0]?.id ?? null })
+        ctx.settings.set({ activeProjectId: projects().list()[0]?.id ?? null })
       }
       return p
+    },
+
+    'checks:run': () =>
+      runChecks(ctx.settings.get(), {
+        ollama,
+        comfy,
+        nvidiaSmi: runNvidiaSmi,
+        electronGpus: async () => {
+          const info = (await app.getGPUInfo('basic')) as { gpuDevice?: { vendorId: number; deviceString?: string }[] }
+          return (info.gpuDevice ?? []).map((g) => ({ vendorId: g.vendorId, name: g.deviceString }))
+        },
+        freeBytes: freeBytesFor
+      }),
+
+    'services:ping': async () => {
+      const [o, c] = await Promise.all([alive(ollama.version(1500)), alive(comfy.systemStats(1500))])
+      return { ollama: o, comfy: c }
+    },
+
+    'disk:free': async ({ path }) => ({ bytes: await freeBytesFor(path) }),
+
+    'clipboard:writeText': ({ text }) => {
+      clipboard.writeText(text)
+      return true
     }
   }
 }

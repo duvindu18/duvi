@@ -22,3 +22,17 @@ Install the new Setup.exe from the latest CI run (same steps as M0).
    (addresses on this computer only). Set it back to `http://127.0.0.1:11434`.
 5. Type `32768` in Context length. You should see the 16 GB video memory warning. Set it back to `8192`.
 6. Check that the folder `C:\Users\<you>\ArchAI Studio` now exists and contains `archai.db`.
+
+## M2: First-run wizard
+To see the wizard again on a PC that has already run it, delete
+`%APPDATA%\ArchAI Studio\settings.json` first (or test on a fresh Windows user account).
+1. **Quit Ollama** (right-click its tray icon → Quit). Start ArchAI Studio. In *Check your setup*,
+   "Ollama isn't running" should be red, with a fix and an `ollama serve` command. Click **Copy**
+   and paste into Notepad to check.
+2. Start Ollama again and click **Check again**. Ollama and gpt-oss:20b should turn green.
+3. With ComfyUI closed, it should say "ComfyUI isn't running" and note that chat still works.
+   Start ComfyUI and check again.
+4. Your RTX 5080 should be listed with 16 GB, plus the free space on C:.
+5. In *Where to keep your work*, turn on "Keep image galleries on another drive" and pick a folder on D:.
+6. Finish. The bottom strip should show Ollama and ComfyUI as Running. Quit Ollama, and within
+   about 20 seconds it should change to Not running.
