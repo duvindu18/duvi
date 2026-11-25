@@ -1,0 +1,40 @@
+name: Build Seedform for Android
+
+on:
+  push:
+    branches: ["claude/studio-morfis-*"]
+    paths: ["studio-morfis-android/**", "studio-morfis-desktop/package.json", ".github/workflows/studio-morfis-android.yml"]
+  pull_request:
+    paths: ["studio-morfis-android/**", ".github/workflows/studio-morfis-android.yml"]
+  workflow_dispatch:
+
+# a newer push replaces a build still running for the same branch or pull request
+concurrency:
+  group: studio-morfis-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+      - name: Build the APK
+        run: gradle -p studio-morfis-android assembleRelease --no-daemon --stacktrace
+      - name: Name it after the version
+        run: |
+          v=$(node -p "require('./studio-morfis-desktop/package.json').version")
+          mkdir -p out
+          cp studio-morfis-android/app/build/outputs/apk/release/app-release.apk "out/Seedform-$v.apk"
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Seedform-Android
+          path: out/*.apk

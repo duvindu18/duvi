@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Seedform</title>
+<style>
+  /* Seedform: limewash ground, canopy green for weight, a sprout seed, square-cut corners; night garden when the phone is dark */
+  :root{color-scheme:light dark;--page:#F0EEE9;--surface:#FAF9F6;--line:#D6D0C4;--ink:#141414;--ink2:#5E5C57;--ink3:#77746D;--pill:#123524;--on:#F0EEE9;--dot:#9C7A3C;--canopy:#123524;--bad:#A84E33;--grid:rgba(20,20,20,.05)}
+  @media (prefers-color-scheme:dark){:root{--page:#123524;--surface:#1A4330;--line:#2E5641;--ink:#F0EEE9;--ink2:#B5C4B9;--ink3:#9DB0A3;--pill:#2B5A43;--on:#F0EEE9;--dot:#D4B786;--canopy:#F0EEE9;--bad:#E07A55;--grid:rgba(240,238,233,.05)}}
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  body{margin:0;min-height:100vh;background:var(--page);color:var(--ink);font:15px/1.5 SfA,system-ui,-apple-system,Roboto,sans-serif;padding:26px 20px 40px;display:flex;justify-content:center}
+  body::before{content:"";position:fixed;inset:0;background-image:radial-gradient(circle at 1px 1px,var(--grid) 1px,transparent 0);background-size:22px 22px;pointer-events:none}
+  main{position:relative;width:100%;max-width:440px;display:flex;flex-direction:column;gap:18px}
+  /* the Seedform logo, horizontal: "seed" in Inter 600, "form" in Archivo Black, then the seed; the monogram on very narrow screens */
+  @font-face{font-family:SfA;font-weight:100 900;src:url(sf-inter.woff2)}
+  @font-face{font-family:SfB;font-display:block;font-weight:400 900;src:url(sf-playfair.woff2)}
+  .brand{display:flex;align-items:baseline;gap:0;font-size:32px;line-height:1;color:var(--canopy);white-space:nowrap}
+  .brand b{font-weight:400;letter-spacing:-.02em}
+  .brand .a{font-family:SfA,system-ui,sans-serif;font-weight:600}
+  .brand .b{font-family:SfB,Georgia,serif;font-weight:900;letter-spacing:-.015em}
+  .brand .s{font-family:SfB,Georgia,serif;font-weight:900;color:var(--dot)}
+  .brand .m{display:none;letter-spacing:-.03em}
+  @media (max-width:320px){.brand .f{display:none}.brand .m{display:inline}}
+  h1{margin:18px 0 0;font:900 40px/1.08 SfB,Georgia,serif;letter-spacing:-.01em}
+  h1 span{color:var(--ink2)}
+  p{margin:0;color:var(--ink2)}
+  .lead{font-size:17px}
+  h2{margin:12px 0 0;font-size:20px;letter-spacing:-.03em;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:8px}
+  .list{display:flex;flex-direction:column;gap:2px}
+  .pc{display:flex;align-items:center;gap:14px;padding:12px 4px;border:0;border-bottom:1px solid var(--line);background:none;color:var(--ink);text-align:left;font:inherit;width:100%}
+  .pc i{width:44px;height:36px;flex:none;border-radius:2px;background:var(--line);position:relative}
+  .pc i::after{content:"";position:absolute;right:6px;bottom:6px;width:6px;height:6px;border-radius:50%;background:var(--dot)}
+  .pc span{display:flex;flex-direction:column;min-width:0;flex:1}
+  .pc b{font-weight:650;font-size:16px}
+  .pc em{font-style:normal;color:var(--ink2);font-size:13px;font-family:ui-monospace,monospace}
+  .pc .go{width:36px;height:36px;border-radius:2px;background:var(--pill);color:var(--on);display:grid;place-items:center;flex:none;font-size:17px}
+  .empty{padding:14px 2px;color:var(--ink2);font-size:14px}
+  .row{display:flex;flex-direction:column;gap:10px}
+  input{min-width:0;font:15px ui-monospace,monospace;padding:14px 16px;border-radius:2px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+  input:focus{outline:none;border-color:var(--ink)}
+  button.go2{align-self:flex-start;font:600 16px system-ui,sans-serif;padding:6px 6px 6px 22px;border-radius:2px;border:0;background:var(--pill);color:var(--on);display:flex;align-items:center;gap:14px}
+  button.go2 i{width:38px;height:38px;border-radius:2px;background:transparent;color:var(--on);display:grid;place-items:center;font-style:normal;font-size:18px}
+  button.scan{border:1px solid var(--line);background:none;font:500 13px system-ui;padding:6px 12px;border-radius:2px;margin-left:auto;color:var(--ink2)}
+  .err{color:var(--bad);font-size:14px}
+  /* loading: the seed alone, breathing */
+  .spin{width:10px;height:10px;border-radius:50%;background:var(--dot);animation:s 1s ease-in-out infinite alternate;display:inline-block}
+  @keyframes s{from{transform:scale(.6);opacity:.5}to{transform:scale(1);opacity:1}}
+  @media (prefers-reduced-motion:reduce){.spin{animation:none}}
+  ol{margin:0;padding-left:20px;color:var(--ink2);font-size:14px;display:flex;flex-direction:column;gap:6px}
+  ol b{color:var(--ink)}
+</style>
+</head>
+<body>
+<main>
+  <div class="brand" role="img" aria-label="Seedform"><b class="f"><span class="a">seed</span><span class="b">form</span></b><b class="m"><span class="a">s</span><span class="b">f</span></b><span class="s">.</span></div>
+  <div><h1>Your studio <span>on your phone.</span></h1><p class="lead" style="margin-top:14px">Projects, documents and folders of your computer. Works offline, and catches up when it is back.</p></div>
+  <p class="err" id="err" hidden></p>
+  <h2>On this network <span class="spin" id="spin"></span><button class="scan" id="scan" type="button">Search again</button></h2>
+  <div class="list" id="list"><div class="empty">Looking for computers…</div></div>
+  <h2>Or type its address</h2>
+  <form class="row" id="f"><input id="addr" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="192.168.1.20"><button class="go2">Connect<i>→</i></button></form>
+  <h2>First time</h2>
+  <ol>
+    <li>On the computer, open Seedform, then Settings &gt; Desktop app &gt; Phone access.</li>
+    <li>Turn on <b>Allow phones to connect</b>. If Windows asks, allow it on private networks.</li>
+    <li>Tap the computer above (or type the address shown there), then type the PIN.</li>
+  </ol>
+</main>
+<script>
+  var A = window.MorfisAndroid;
+  var q = new URLSearchParams(location.search), err = document.getElementById('err');
+  if (q.get('error')) { err.textContent = q.get('error'); err.hidden = false; }
+  var addr = document.getElementById('addr');
+  try { var last = A && A.lastServer(); if (last) addr.value = last.replace(/^http:\/\//, ''); } catch (e) { /* none */ }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  window.onMorfisFound = function (list) {
+    document.getElementById('spin').hidden = true;
+    var l = document.getElementById('list');
+    if (!list.length) { l.innerHTML = '<div class="empty">No computer answered. Check that phone access is on and the phone is on the same Wi-Fi, or type the address.</div>'; return; }
+    l.innerHTML = list.map(function (c) { return '<button class="pc" type="button" data-url="' + esc(c.url) + '"><i></i><span><b>' + esc(c.name) + (c.host ? ' · ' + esc(c.host) : '') + '</b><em>' + esc(c.url.replace(/^http:\/\//, '')) + '</em></span><span class="go">→</span></button>'; }).join('');
+    l.querySelectorAll('[data-url]').forEach(function (b) { b.onclick = function () { A.connect(b.dataset.url); }; });
+  };
+  function scan() { if (!A) return; document.getElementById('spin').hidden = false; A.discover(); }
+  document.getElementById('scan').onclick = scan;
+  document.getElementById('f').onsubmit = function (e) { e.preventDefault(); if (A && addr.value.trim()) A.connect(addr.value.trim()); };
+  scan();
+</script>
+</body>
+</html>

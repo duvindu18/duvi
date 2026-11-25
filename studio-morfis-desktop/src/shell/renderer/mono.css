@@ -1,0 +1,118 @@
+/* Mono: light grey paper, ink-black type and controls, grey for everything secondary, heavy tight headings, pill
+   shapes, and a single touch of yellow. A dark version swaps paper and ink. Chosen in Settings > Desktop app > Look,
+   on top of the graphite design system in theme.css, so every view follows. The accent colours are fixed here
+   (with !important, over the dashboard's own accent setting) because the look is ink, not a colour. */
+
+html.style-mono{
+  --page:#0E0E0E;--win:#0E0E0E;--surface:#151515;--surface-2:#1C1C1C;--surface-3:#252525;
+  --ink:#F2F2F2;--ink-2:#8E8E8E;--ink-3:#6E6E6E;--line:#232323;--line-2:#2E2E2E;
+  --hover:rgba(255,255,255,.05);--press:rgba(255,255,255,.08);
+  --accent-fill:#F2F2F2!important;--accent:#F2F2F2!important;--accent-mark:#F2F2F2!important;--accent-soft:rgba(242,242,242,.1)!important;
+  --on-accent:#0B0B0B!important;--accent-badge:#F2F2F2!important;--on-badge:#0B0B0B!important;--accent-edge:transparent!important;
+  --mono-pill:#F2F2F2;--mono-on-pill:#0B0B0B;--mono-dot:#F5C400;
+  --grid-line:rgba(255,255,255,.03);
+  --fi-bg:#1C1C1C;--fi-line:#2E2E2E;
+  --f-display:'InterVar','Segoe UI Variable Display','Segoe UI',system-ui,sans-serif;
+}
+html.style-mono[data-theme="light"]{
+  --page:#F2F2F2;--win:#F2F2F2;--surface:#F8F8F8;--surface-2:#EAEAEA;--surface-3:#E1E1E1;
+  --ink:#0B0B0B;--ink-2:#7A7A7A;--ink-3:#9A9A9A;--line:#E0E0E0;--line-2:#D2D2D2;
+  --hover:rgba(0,0,0,.045);--press:rgba(0,0,0,.07);
+  --accent-fill:#0B0B0B!important;--accent:#0B0B0B!important;--accent-mark:#0B0B0B!important;--accent-soft:rgba(11,11,11,.08)!important;
+  --on-accent:#FFFFFF!important;--accent-badge:#0B0B0B!important;--on-badge:#FFFFFF!important;
+  --mono-pill:#0B0B0B;--mono-on-pill:#FFFFFF;
+  --grid-line:rgba(0,0,0,.035);
+  --fi-bg:#FFFFFF;--fi-line:#D2D2D2;
+}
+
+/* ----- frame ----- */
+html.style-mono body{background:var(--page)!important}
+html.style-mono .window{border-color:transparent;background-color:var(--page);background-image:none!important}
+html.style-mono .dk-bg-glow{display:none}
+html.style-mono .wbrand-name{font-weight:750;letter-spacing:-.03em;font-size:14px}
+html.style-mono .wbrand-name::after{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--mono-dot);margin-left:3px;vertical-align:-1px}
+
+/* ----- type: heavy, tight headings; grey second halves ----- */
+html.style-mono h1{font-weight:750;letter-spacing:-.045em}
+html.style-mono h2{font-weight:700;letter-spacing:-.025em}
+html.style-mono .sec-head h2,html.style-mono .fx-sec-h h2{font-size:22px;letter-spacing:-.035em}
+html.style-mono .mono-g{color:var(--ink-2)}
+html.style-mono .hero{background:none;border:0;padding:24px 2px 6px}
+html.style-mono .hero::before,html.style-mono .hero .star{display:none}
+html.style-mono .hero h1{font-size:clamp(40px,5vw,64px);line-height:1.02}
+html.style-mono .hero p{font-size:18px;color:var(--ink-2);margin-top:14px}
+html.style-mono .kpi .val,html.style-mono .stat b{font-weight:750;letter-spacing:-.04em}
+
+/* ----- surfaces: flat, hairline borders ----- */
+html.style-mono .card,html.style-mono .kpi,html.style-mono .pcard-body,html.style-mono .col,html.style-mono .tbl-wrap,html.style-mono .dk-sec,html.style-mono .au-rule,html.style-mono .fx-table{background:var(--surface);border-color:var(--line);box-shadow:none}
+html.style-mono .dk-sec{background:var(--surface-2)}
+
+/* ----- controls: pills ----- */
+html.style-mono .btn{border-radius:999px;border:1px solid var(--line-2);background:transparent;color:var(--ink);font-weight:600}
+html.style-mono .btn:hover{background:var(--hover);border-color:var(--ink-3)}
+html.style-mono .btn.sm{border-radius:999px}
+/* the main action: an ink pill with its icon in a paper circle at the end */
+html.style-mono .btn.primary{background:var(--mono-pill);color:var(--mono-on-pill);border:0;filter:none}
+html.style-mono .btn.primary:not([disabled]):hover{background:var(--mono-pill);opacity:.88;border:0}
+html.style-mono .btn.primary .ic{color:var(--mono-pill)}
+html.style-mono .btn.primary:has(.ic){padding:0 5px 0 18px;gap:12px}
+html.style-mono .btn.primary .ic{order:2;box-sizing:content-box;width:14px;height:14px;padding:6px;border-radius:50%;background:var(--mono-on-pill);flex:none}
+html.style-mono .btn.primary.sm:has(.ic){padding:0 4px 0 14px}
+html.style-mono .btn.primary.sm .ic{padding:4px}
+html.style-mono .top .btn.primary{height:44px;font-size:14.5px}
+html.style-mono .top .btn.primary .ic{width:18px;height:18px;padding:8px}
+html.style-mono .search,html.style-mono .sel{border-radius:999px;background:var(--surface-2);border-color:transparent}
+html.style-mono .in{border-radius:10px}
+html.style-mono .icon-btn.lg{border-radius:50%;background:transparent;border-color:transparent}
+html.style-mono .icon-btn.lg:hover{background:var(--hover)}
+html.style-mono .seg-ctl{border-radius:999px;background:var(--surface-2);border-color:transparent}
+html.style-mono .seg-ctl button{border-radius:999px}
+html.style-mono .seg-ctl button.on{background:var(--mono-pill);color:var(--mono-on-pill);box-shadow:none}
+html.style-mono .tabs{border-radius:999px}
+html.style-mono .tab{border-radius:999px}
+html.style-mono .tab.on{background:var(--mono-pill);color:var(--mono-on-pill);box-shadow:none}
+html.style-mono .ph{border-radius:999px;border:1px solid var(--line-2);color:var(--ink-2)}
+html.style-mono .ph.on{background:var(--mono-pill);color:var(--mono-on-pill);border-color:var(--mono-pill)}
+html.style-mono .ph.on em{background:color-mix(in srgb,var(--mono-on-pill) 20%,transparent);color:inherit}
+html.style-mono .chip,html.style-mono .count,html.style-mono .stg-tag,html.style-mono .st-tag,html.style-mono .chip-btn,html.style-mono .fx-filt{border-radius:999px}
+html.style-mono .count{background:var(--surface-3);color:var(--ink-2)}
+html.style-mono .switch input:checked{background:var(--mono-pill)}
+html.style-mono .toast{border-radius:999px;background:var(--mono-pill);color:var(--mono-on-pill);border:0}
+html.style-mono .toast button{color:var(--mono-dot)}
+html.style-mono .dialog{border-color:var(--line)}
+
+/* ----- sidebar ----- */
+html.style-mono .dk-gh{color:var(--ink);font-weight:700;letter-spacing:-.01em;font-size:12.5px}
+html.style-mono .dk-it{border-radius:999px}
+html.style-mono .dk-it.on{background:var(--mono-pill);border-color:var(--mono-pill);color:var(--mono-on-pill)}
+html.style-mono .dk-it.on .ic{color:var(--mono-on-pill)}
+html.style-mono .dk-it.on .dk-n{background:color-mix(in srgb,var(--mono-on-pill) 20%,transparent);color:var(--mono-on-pill)}
+html.style-mono .dk-sq{background:var(--surface-3)!important;color:var(--ink)}
+html.style-mono .dk-it.on .dk-sq{background:var(--mono-on-pill)!important;color:var(--mono-pill)}
+
+/* ----- status: grey, the yellow dot while in progress ----- */
+html.style-mono .st-tag{background:var(--surface-2);color:var(--ink-2);border:0}
+html.style-mono .st-tag .st-ic circle{fill:var(--ink-3)}
+html.style-mono .st-tag.st-info{color:var(--ink)}
+html.style-mono .st-tag.st-info .st-ic circle{fill:var(--mono-dot)}
+html.style-mono .st-tag.st-info .st-ic path{stroke:#0B0B0B}
+html.style-mono .fx-node .st-ic circle{fill:var(--ink-3)}
+
+/* ----- charts and progress in ink and greys; warnings keep their colour ----- */
+html.style-mono .scale i.done,html.style-mono .scale i.cur{background:var(--ink)}
+html.style-mono .g-bar,html.style-mono .g-prog{filter:grayscale(1)}
+
+/* ----- folders: the flat grey folders sit on paper ----- */
+html.style-mono .fx-card{background:transparent;border-color:transparent}
+html.style-mono .fx-card:hover{background:var(--surface-2);border-color:transparent}
+html.style-mono .fx-tree{background:transparent}
+html.style-mono .pcard-top:has(.dk-cart){background:var(--surface);border-color:var(--line)}
+html.style-mono[data-theme="light"] .pcard-top:has(.dk-cart){background:#FFFFFF}
+html.style-mono .au-kind.ai{background:var(--surface-3);color:var(--ink)}
+html.style-mono .au-eng-ic{background:var(--surface-3);color:var(--ink)}
+html.style-mono .dk-pin{border-color:var(--line-2);background:var(--surface)}
+
+/* accent colours belong to Graphite: Mono is ink; say where to find them */
+html.style-mono .card.look .field:has(.swatches),html.style-mono .card.look .custom-color,html.style-mono .card.look .preview{display:none}
+html.style-mono .card.look::after{content:"Mono uses ink black for buttons and highlights. Accent colours apply to the Graphite style: Settings > Desktop app > Look > Style.";display:block;font-size:12.5px;color:var(--ink-2);margin-top:-4px}
+html.style-mono .flow-bar i,html.style-mono .col-bar i{filter:grayscale(1)}
