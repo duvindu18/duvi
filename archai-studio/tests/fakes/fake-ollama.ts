@@ -42,6 +42,20 @@ export function startFakeOllama(opts: FakeOllamaOptions = {}): Promise<FakeServe
         res.end(JSON.stringify({ model: req.model, message: { role: 'assistant', content: '' }, done: true, eval_count: tokens.length }) + '\n')
       },
       'POST /api/generate': (_q, res) => json(res, 200, { done: true }),
+      'POST /api/pull': async (_q, res, body) => {
+        const req = JSON.parse(body || '{}') as { model?: string }
+        res.writeHead(200, { 'content-type': 'application/x-ndjson' })
+        res.write(JSON.stringify({ status: 'pulling manifest' }) + '\n')
+        for (const [digest, total] of [['sha256:aaa', 1000], ['sha256:bbb', 200]] as const) {
+          for (const done of [0, total / 2, total]) {
+            res.write(JSON.stringify({ status: `pulling ${digest.slice(7)}`, digest, total, completed: done }) + '\n')
+            await new Promise((r) => setTimeout(r, opts.tokenDelayMs ?? 5))
+          }
+        }
+        res.write(JSON.stringify({ status: 'verifying sha256 digest' }) + '\n')
+        res.end(JSON.stringify({ status: 'success' }) + '\n')
+        if (req.model && !models.includes(req.model)) models.push(req.model)
+      },
       'POST /api/embed': (_q, res, body) => {
         const req = JSON.parse(body || '{}') as { input?: string | string[] }
         const inputs = Array.isArray(req.input) ? req.input : [req.input ?? '']

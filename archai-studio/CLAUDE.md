@@ -17,7 +17,9 @@ The owner is an architect, not a developer: explain decisions in plain language.
 - Screen (renderer): no network (CSP `connect-src 'self'`), no Node. ESLint bans fetch/WebSocket/electron imports.
 - New IPC channel = add to `src/shared/channels.ts` + zod schema and type in `src/shared/ipc.ts` + handler in main.
   A unit test enforces that the schemas match the channel list.
-- Never auto-download models. Never run skill scripts without a per-script approval (hash-bound).
+- Downloads happen ONLY from the setup Downloads panel, on an explicit click, for ticked items (owner changed the
+  original "never auto-download" rule). Every file needs a published SHA-256, or it isn't downloaded. Never replace an
+  existing file. Never run skill scripts without a per-script approval (hash-bound).
 - Never commit certificates or keys (.gitignore). Ask the owner before deleting user files.
 
 ## Owner decisions
@@ -93,3 +95,15 @@ The owner is an architect, not a developer: explain decisions in plain language.
   /object_info (UNETLoader, DualCLIPLoader, VAELoader). Choices are stored per workflow in settings.images.byWorkflow, and
   `pickModel` falls back from your last choice to the template file, then the meta `prefer` regex, then the first listed.
   The prompt helper writes natural sentences for Flux (family from describeWorkflow).
+- Setup downloads (src/main/features/setup.ts, catalogue in src/shared/downloads.ts): purpose `setup-download` allows
+  github.com, api.github.com, release-assets/objects.githubusercontent.com, huggingface.co and *.huggingface.co / *.hf.co
+  (HF serves from us.aws.cdn.hf.co). GitHub assets: size+digest from the releases API (Ollama also via sha256sum.txt).
+  HF: HEAD resolve, then x-linked-size + x-linked-etag (sha256). Downloads resume from .part with Range and are renamed only
+  after verification. Ollama installer: Authenticode must be Valid and signed by Ollama, then run with
+  /VERYSILENT /SUPPRESSMSGBOXES /NORESTART. ComfyUI: Comfy-Org/ComfyUI ComfyUI_windows_portable_nvidia.7z, unpacked with the
+  bundled 7zip-bin (asarUnpack) into <data>/Tools, then started by ComfyProcess on 127.0.0.1 only. Store build: programs not offered.
+  Flux: only Comfy-Org/Flux-1-Schnell (ungated, Apache 2.0). Owner declined gated Flux dev / HF tokens.
+- Verified from the cloud box (25 Nov 2026): HF sizes and checksums for SDXL base (6.94 GB), xinsir canny (2.50 GB) and
+  Flux schnell fp8 (17.24 GB); a real resume and verify on HF; Ollama v0.40.18 OllamaSetup.exe (1.95 GB, sha256sum.txt) and
+  ComfyUI v0.46.0 portable nvidia (2.09 GB). The GitHub releases API was blocked from the cloud box, so it's untested there.
+- Node fetch in the cloud box needs NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt for real network tests.

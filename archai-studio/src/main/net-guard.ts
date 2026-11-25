@@ -25,7 +25,7 @@ export class NetBlockedError extends Error {
   }
 }
 
-export async function guardedFetch(url: string, purpose: NetPurpose, init?: RequestInit): Promise<Response> {
+export async function guardedFetch(url: string, purpose: NetPurpose, init?: RequestInit, opts: { followRedirects?: boolean } = {}): Promise<Response> {
   const verdict = checkUrl(url, purpose, policy)
   if (!verdict.allowed) {
     log.warn(`net-guard blocked ${purpose} request: ${verdict.reason}`)
@@ -36,7 +36,7 @@ export async function guardedFetch(url: string, purpose: NetPurpose, init?: Requ
   for (let hop = 0; hop < 5; hop++) {
     // eslint-disable-next-line no-restricted-globals -- this is the guarded wrapper
     const res = await fetch(current, { ...init, redirect: 'manual' })
-    if (res.status < 300 || res.status >= 400) return res
+    if (res.status < 300 || res.status >= 400 || opts.followRedirects === false) return res
     const location = res.headers.get('location')
     if (!location) return res
     const next = new URL(location, current).toString()

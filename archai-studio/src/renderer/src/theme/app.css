@@ -1758,3 +1758,105 @@ input[type='range'] {
   max-height: 46vh;
   overflow: auto;
 }
+
+/* ---------- Downloads ---------- */
+
+.downloads {
+  display: grid;
+  gap: var(--s-4);
+}
+
+.dl-group__title {
+  font-size: var(--t-13);
+  font-weight: 400;
+  color: var(--text-3);
+  margin-bottom: var(--s-2);
+}
+
+.dl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+
+.dl-item {
+  border-bottom: 1px solid var(--line);
+  padding: var(--s-3) 0;
+  display: grid;
+  gap: var(--s-2);
+}
+
+.dl-item__main {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: var(--s-3);
+  align-items: start;
+  cursor: pointer;
+}
+
+.dl-item__main input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+}
+
+.dl-item__main > span {
+  display: grid;
+  gap: 2px;
+}
+
+.dl-item__name {
+  font-weight: 500;
+}
+
+.dl-item__what,
+.dl-item__meta {
+  color: var(--text-2);
+  font-size: var(--t-13);
+}
+
+.dl-item__meta a,
+.linkbtn {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+.linkbtn {
+  border: 0;
+  background: none;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+.dl-item__note {
+  color: var(--text-3);
+  font-size: var(--t-13);
+}
+
+.dl-item--installed .dl-item__name {
+  color: var(--text-2);
+}
+
+.dl-item__progress {
+  padding-left: calc(20px + var(--s-3));
+  display: grid;
+  gap: var(--s-1);
+  font-size: var(--t-13);
+}
+
+.dl-item__phase {
+  color: var(--text-2);
+}
+
+.dl-item--failed .dl-item__phase,
+.dl-item--skipped .dl-item__phase {
+  color: var(--danger);
+}
+
+.dl-item--done .dl-item__phase {
+  color: var(--accent);
+}

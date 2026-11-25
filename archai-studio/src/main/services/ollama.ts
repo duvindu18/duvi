@@ -93,6 +93,36 @@ export class OllamaClient {
     }
   }
 
+  /**
+   * Downloads a model through Ollama (Ollama fetches it from its own registry).
+   * Reports total bytes across all layers.
+   */
+  async pull(model: string, onProgress: (bytes: number, total: number, status: string) => void, signal?: AbortSignal): Promise<void> {
+    const res = await guardedFetch(`${this.base()}/api/pull`, 'local-ai', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model, stream: true }),
+      signal
+    }).catch(() => {
+      throw new OllamaError("Ollama isn't running, so the model can't be downloaded. Start Ollama, then try again.")
+    })
+    if (!res.ok || !res.body) throw new OllamaError(`Ollama couldn't start the download (${res.status}).`)
+    const layers = new Map<string, { total: number; completed: number }>()
+    for await (const c of readNdjson<{ status?: string; digest?: string; total?: number; completed?: number; error?: string }>(res.body)) {
+      if (c.error) throw new OllamaError(`Ollama couldn't download ${model}: ${c.error}`)
+      if (c.digest && c.total) layers.set(c.digest, { total: c.total, completed: c.completed ?? 0 })
+      let total = 0
+      let done = 0
+      for (const l of layers.values()) {
+        total += l.total
+        done += l.completed
+      }
+      onProgress(done, total, c.status ?? '')
+      if (c.status === 'success') return
+    }
+    throw new OllamaError(`The download of ${model} stopped before it finished. Try again to resume it.`)
+  }
+
   /** Asks Ollama to unload a model from video memory now. */
   async unload(model: string): Promise<void> {
     await guardedFetch(`${this.base()}/api/generate`, 'local-ai', {

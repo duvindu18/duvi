@@ -8,6 +8,8 @@ import { applyTheme, createHandlers } from './handlers'
 import { registerIpc } from './ipc'
 import { initLogFile, log } from './log'
 import { setNetPolicy } from './net-guard'
+import { setTestDownloadOrigin } from '@shared/net-policy'
+import { ComfyProcess } from './services/comfy-process'
 import { defaultDataDir, SETTINGS_FILE } from './paths'
 import { APP_ORIGIN, handleAppProtocol, registerSchemesAsPrivileged } from './protocol'
 import { SettingsStore } from './settings-store'
@@ -77,7 +79,23 @@ app.whenReady().then(() => {
   const data = new DataStore(() => (s.firstRunComplete ? dataDir : settings.get().folders.data))
   log.info(`data folder: ${dataDir}`)
 
-  registerIpc(createHandlers({ settings, data }), devServerOrigin)
+  // Test hook (unpackaged builds only): a local fake server stands in for GitHub and Hugging Face.
+  const testDownloadOrigin = !app.isPackaged ? process.env.ARCHAI_TEST_DOWNLOAD_ORIGIN : undefined
+  if (testDownloadOrigin) setTestDownloadOrigin(testDownloadOrigin)
+
+  const comfyProcess = new ComfyProcess(join(app.getPath('userData'), 'logs', 'comfyui.log'))
+  registerIpc(createHandlers({ settings, data, comfyProcess, testDownloadOrigin }), devServerOrigin)
+
+  // Start the ComfyUI that ArchAI Studio installed, if you've asked for that.
+  const c = settings.get().comfy
+  if (c.managedDir && c.autoStart) {
+    try {
+      comfyProcess.start(c.managedDir, Number(new URL(settings.get().endpoints.comfy).port || 8188))
+    } catch (e) {
+      log.warn(`could not start ComfyUI: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+  app.on('will-quit', () => comfyProcess.stop())
 
   createMainWindow({
     preloadPath: join(here, '../preload/index.cjs'),

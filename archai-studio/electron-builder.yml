@@ -14,6 +14,9 @@ extraResources:
     to: resources
     filter: ['**/*']
 asar: true
+# 7-Zip must run from outside the asar archive (used to unpack ComfyUI during setup).
+asarUnpack:
+  - node_modules/7zip-bin/win/**
 win:
   target: [nsis]
   artifactName: ArchAI-Studio-Setup-${version}.${ext}

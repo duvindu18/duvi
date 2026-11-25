@@ -43,10 +43,17 @@ export const INVOKE_CHANNELS = [
   'images:cancel',
   'gallery:list',
   'gallery:reveal',
-  'gallery:trash'
+  'gallery:trash',
+  'setup:components',
+  'setup:plan',
+  'setup:download',
+  'setup:cancel',
+  'setup:pickComfyFolder',
+  'comfy:start',
+  'comfy:stop'
 ] as const
 
-export const EVENT_CHANNELS = ['chat:chunk', 'chat:done', 'chat:error', 'gpu:state', 'images:progress', 'images:done', 'images:error'] as const
+export const EVENT_CHANNELS = ['chat:chunk', 'chat:done', 'chat:error', 'gpu:state', 'images:progress', 'images:done', 'images:error', 'setup:progress', 'setup:done'] as const
 
 export type InvokeChannel = (typeof INVOKE_CHANNELS)[number]
 export type EventChannel = (typeof EVENT_CHANNELS)[number]

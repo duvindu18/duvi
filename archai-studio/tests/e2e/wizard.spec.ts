@@ -20,6 +20,20 @@ test('first-run wizard reports a stopped Ollama, then goes green when it starts'
   await expect(page.getByTestId('wizard')).toBeVisible()
   await page.getByTestId('wizard-next').click()
 
+  // Folders: the default data folder, plus an optional gallery folder on another drive.
+  await expect(page.getByTestId('wizard-data-folder')).toHaveText(d.data)
+  const gallery = join(d.root, 'D-drive', 'ArchAI Gallery')
+  await app.evaluate(({ dialog }, f) => {
+    dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [f] })) as typeof dialog.showOpenDialog
+  }, gallery)
+  await page.getByTestId('gallery-toggle').click()
+  await expect(page.getByTestId('wizard-gallery-folder')).toHaveText(gallery)
+  await page.getByTestId('wizard-next').click()
+
+  // Downloads step: shown, but skipped here (covered by downloads.spec.ts).
+  await expect(page.getByTestId('downloads')).toBeVisible()
+  await page.getByTestId('wizard-next').click()
+
   const ollama = page.getByTestId('check-ollama')
   await expect(ollama).toHaveAttribute('data-status', 'fail')
   await expect(ollama).toContainText("Ollama isn't running")
@@ -36,18 +50,8 @@ test('first-run wizard reports a stopped Ollama, then goes green when it starts'
   await expect(ollama).toHaveAttribute('data-status', 'ok')
   await expect(page.getByTestId('check-model')).toHaveAttribute('data-status', 'ok')
   await expect(page.getByTestId('wizard-next')).toHaveText('Continue')
-  await page.getByTestId('wizard-next').click()
 
-  // Folders: the default data folder, plus an optional gallery folder on another drive.
-  await expect(page.getByTestId('wizard-data-folder')).toHaveText(d.data)
-  const gallery = join(d.root, 'D-drive', 'ArchAI Gallery')
-  await app.evaluate(({ dialog }, f) => {
-    dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [f] })) as typeof dialog.showOpenDialog
-  }, gallery)
-  await page.getByTestId('gallery-toggle').click()
-  await expect(page.getByTestId('wizard-gallery-folder')).toHaveText(gallery)
-
-  // Nothing has been written to the data folder yet.
+  // No database has been written to the data folder yet.
   expect(existsSync(join(d.data, 'archai.db'))).toBe(false)
 
   await page.getByTestId('wizard-next').click()

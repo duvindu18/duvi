@@ -3,7 +3,7 @@
  * contact. Pure functions so they can be unit-tested.
  */
 
-export type NetPurpose = 'local-ai' | 'github-import' | 'update-check'
+export type NetPurpose = 'local-ai' | 'github-import' | 'update-check' | 'setup-download'
 
 export interface NetPolicy {
   /** Ports of local services (from Settings), e.g. Ollama 11434, ComfyUI 8188. */
@@ -15,7 +15,20 @@ export const LOOPBACK_HOSTS = ['127.0.0.1', 'localhost', '[::1]', '::1'] as cons
 /** Hosts allowed only for the explicit, button-click purposes. */
 export const PURPOSE_HOSTS: Record<Exclude<NetPurpose, 'local-ai'>, readonly string[]> = {
   'github-import': ['github.com', 'api.github.com', 'codeload.github.com'],
-  'update-check': ['github.com', 'api.github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com']
+  'update-check': ['github.com', 'api.github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com'],
+  // Only while you are running "Download and install" in setup.
+  'setup-download': ['github.com', 'api.github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com', 'huggingface.co']
+}
+
+/** Hugging Face serves files from changing CDN hosts under these domains. */
+export const PURPOSE_HOST_SUFFIXES: Partial<Record<Exclude<NetPurpose, 'local-ai'>, readonly string[]>> = {
+  'setup-download': ['.huggingface.co', '.hf.co']
+}
+
+/** Test builds only: a local fake server standing in for the download hosts. */
+let testDownloadOrigin: string | null = null
+export function setTestDownloadOrigin(origin: string | null): void {
+  testDownloadOrigin = origin
 }
 
 export interface Verdict {
@@ -48,9 +61,11 @@ export function checkUrl(rawUrl: string, purpose: NetPurpose, policy: NetPolicy)
     return { allowed: true, reason: 'local service' }
   }
 
+  if (purpose === 'setup-download' && testDownloadOrigin && url.origin === testDownloadOrigin) return { allowed: true, reason: 'test download server' }
   if (url.protocol !== 'https:') return { allowed: false, reason: 'only https is allowed for internet requests' }
   if (url.port && url.port !== '443') return { allowed: false, reason: 'non-standard port' }
-  if (!PURPOSE_HOSTS[purpose].includes(host)) {
+  const suffixOk = (PURPOSE_HOST_SUFFIXES[purpose] ?? []).some((s) => host.endsWith(s) && host.length > s.length)
+  if (!PURPOSE_HOSTS[purpose].includes(host) && !suffixOk) {
     return { allowed: false, reason: `host ${host} is not allowed for ${purpose}` }
   }
   return { allowed: true, reason: purpose }

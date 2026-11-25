@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 
-export type Route = (req: IncomingMessage, res: ServerResponse, body: string) => void | Promise<void>
+export type Route = (req: IncomingMessage, res: ServerResponse, body: string) => unknown
 
 export interface FakeServer {
   url: string

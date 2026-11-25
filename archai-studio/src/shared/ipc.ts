@@ -7,6 +7,7 @@ import type { InvokeChannel } from './channels'
 import type { ChatChunk, ChatDone, ChatError, ChatMessage, ChatStarted, ModelInfo, Thread } from './chat'
 import { ChatSendSchema, type ChatSend } from './chat'
 import type { CheckResult, ServicePing } from './checks'
+import type { ComponentId, ComponentStatus, DownloadProgress, DownloadRunDone } from './downloads'
 import { BINDING_KEYS, GenerateSchema } from './images'
 import type { Bindings, ComfyModels, GalleryImage, GenerateRequest, ImageDone, ImageError, ImageMode, ImageProgress, PickedInput, WorkflowInfo } from './images'
 import { ScriptExplainSchema, ScriptFixSchema, ScriptGenerateSchema, ScriptSaveSchema } from './scripts'
@@ -36,6 +37,7 @@ export interface NetProbeResult {
 export type FileOpResult = { done: true; path: string } | { done: false }
 
 const Id = z.number().int().positive()
+const ComponentIdSchema = z.enum(['ollama-app', 'gpt-oss-20b', 'nomic-embed', 'comfyui', 'sdxl-base', 'sdxl-canny', 'flux-schnell'])
 
 export const requestSchemas = {
   'app:info': z.undefined(),
@@ -90,7 +92,14 @@ export const requestSchemas = {
   'images:cancel': z.object({ jobId: z.string().uuid() }).strict(),
   'gallery:list': z.object({ projectId: Id }).strict(),
   'gallery:reveal': z.object({ id: Id }).strict(),
-  'gallery:trash': z.object({ id: Id }).strict()
+  'gallery:trash': z.object({ id: Id }).strict(),
+  'setup:components': z.undefined(),
+  'setup:plan': z.object({ ids: z.array(ComponentIdSchema).max(20) }).strict(),
+  'setup:download': z.object({ ids: z.array(ComponentIdSchema).min(1, 'Tick at least one item.').max(20) }).strict(),
+  'setup:cancel': z.object({ runId: z.string().uuid() }).strict(),
+  'setup:pickComfyFolder': z.undefined(),
+  'comfy:start': z.undefined(),
+  'comfy:stop': z.undefined()
 } satisfies Record<InvokeChannel, z.ZodType>
 
 export interface InvokeMap {
@@ -132,6 +141,13 @@ export interface InvokeMap {
   'gallery:list': { req: { projectId: number }; res: GalleryImage[] }
   'gallery:reveal': { req: { id: number }; res: true }
   'gallery:trash': { req: { id: number }; res: true }
+  'setup:components': { req: undefined; res: { statuses: ComponentStatus[]; storeBuild: boolean; modelsDir: string | null; managed: boolean } }
+  'setup:plan': { req: { ids: ComponentId[] }; res: { need: number; free: number | null } }
+  'setup:download': { req: { ids: ComponentId[] }; res: { runId: string } }
+  'setup:cancel': { req: { runId: string }; res: boolean }
+  'setup:pickComfyFolder': { req: undefined; res: { done: boolean; modelsDir?: string } }
+  'comfy:start': { req: undefined; res: true }
+  'comfy:stop': { req: undefined; res: true }
 }
 
 export interface WorkflowImportPreview {
@@ -159,6 +175,8 @@ export interface EventMap {
   'images:progress': ImageProgress
   'images:done': ImageDone
   'images:error': ImageError
+  'setup:progress': DownloadProgress
+  'setup:done': DownloadRunDone
 }
 
 /** Error shape returned across IPC (never a raw stack trace). */

@@ -76,7 +76,8 @@ describe('Flux support', () => {
     expect(flux('flux-split-text').mode).toBe('text')
     expect(flux('flux-sketch-canny').mode).toBe('sketch')
     expect(flux('flux-variation').mode).toBe('variation')
-    for (const id of ['flux-text', 'flux-split-text', 'flux-sketch-canny', 'flux-variation']) expect(flux(id).family).toBe('flux')
+    for (const id of ['flux-text', 'flux-schnell-text', 'flux-split-text', 'flux-sketch-canny', 'flux-variation']) expect(flux(id).family).toBe('flux')
+    expect(flux('flux-schnell-text').defaults).toMatchObject({ steps: 4, checkpoint: 'flux1-schnell-fp8.safetensors' })
     for (const id of ['sdxl-text', 'sdxl-sketch-controlnet', 'sdxl-variation']) expect(flux(id).family).toBe('sdxl')
   })
 

@@ -41,6 +41,6 @@
     }
   },
   "prefer": {
-    "checkpoint": "flux"
+    "checkpoint": "flux1?-dev|flux.*dev"
   }
 }

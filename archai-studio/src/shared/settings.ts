@@ -31,6 +31,8 @@ export const SettingsSchema = z.object({
   /** Last-used model files per workflow (names as ComfyUI lists them), so SDXL and Flux choices never mix. */
   images: z.object({ byWorkflow: z.record(z.string().max(100), z.partialRecord(z.enum(MODEL_KEYS), z.string().max(300))) }),
   folders: z.object({ data: FolderPath, gallery: FolderPath.nullable() }),
+  /** A ComfyUI installed by ArchAI Studio, and where to put image models. */
+  comfy: z.object({ managedDir: FolderPath.nullable(), modelsDir: FolderPath.nullable(), autoStart: z.boolean() }),
   activeProjectId: z.number().int().positive().nullable()
 })
 export type Settings = z.infer<typeof SettingsSchema>
@@ -45,6 +47,7 @@ export const SettingsPatchSchema = z
     gpu: SettingsSchema.shape.gpu.partial(),
     images: SettingsSchema.shape.images.partial(),
     folders: SettingsSchema.shape.folders.partial(),
+    comfy: SettingsSchema.shape.comfy.partial(),
     activeProjectId: SettingsSchema.shape.activeProjectId
   })
   .partial()
@@ -62,6 +65,7 @@ export function defaultSettings(dataDir: string): Settings {
     gpu: { turnTaking: true },
     images: { byWorkflow: {} },
     folders: { data: dataDir, gallery: null },
+    comfy: { managedDir: null, modelsDir: null, autoStart: true },
     activeProjectId: null
   }
 }
@@ -79,7 +83,8 @@ export function applyPatch(s: Settings, p: Patch): Settings {
     chat: { ...s.chat, ...p.chat },
     gpu: { ...s.gpu, ...p.gpu },
     images: { ...s.images, ...p.images },
-    folders: { ...s.folders, ...p.folders }
+    folders: { ...s.folders, ...p.folders },
+    comfy: { ...s.comfy, ...p.comfy }
   })
 }
 

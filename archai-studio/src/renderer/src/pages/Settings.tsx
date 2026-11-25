@@ -4,6 +4,7 @@ import { CONTEXT_VRAM_WARNING, type Settings, type SettingsPatch } from '@shared
 import { call, errorText } from '../lib/ipc'
 import { useApp } from '../state/AppState'
 import { SetupChecksPanel } from './Setup'
+import { DownloadsPanel } from '../components/DownloadsPanel'
 
 function Group({ title, desc, children }: { title: string; desc?: string; children: ReactNode }) {
   return (
@@ -91,6 +92,10 @@ export function SettingsPage() {
         <Group title="Setup checks" desc="Checks Ollama, the chat model, ComfyUI, your graphics card and free space.">
           <SetupChecksPanel />
         </Group>
+        <Group title="Downloads" desc="Programs and models ArchAI Studio can install for you, from their official sources.">
+          <DownloadsPanel />
+        </Group>
+        <ComfyManaged settings={settings} />
         <Gpu settings={settings} />
         <Folders settings={settings} />
         <Backup />
@@ -318,6 +323,34 @@ function Backup() {
         <button className="btn" type="button" onClick={() => void exp()} data-testid="settings-export">Export settings…</button>
         <button className="btn" type="button" onClick={() => void imp()} data-testid="settings-import">Import settings…</button>
       </div>
+    </Group>
+  )
+}
+
+function ComfyManaged({ settings }: { settings: Settings }) {
+  const { updateSettings, notify, refreshServices } = useApp()
+  const dir = settings.comfy.managedDir
+  if (!dir) return null
+  const act = async (what: 'comfy:start' | 'comfy:stop') => {
+    try {
+      await call(what)
+      notify(what === 'comfy:start' ? 'Starting ComfyUI. It takes a moment.' : 'ComfyUI stopped')
+      window.setTimeout(() => void refreshServices(), 4000)
+    } catch (e) {
+      notify(errorText(e), true)
+    }
+  }
+  return (
+    <Group title="ComfyUI" desc="The ComfyUI that ArchAI Studio installed. It listens on this computer only.">
+      <span className="path" title={dir}>{dir}</span>
+      <div className="row">
+        <button className="btn" type="button" onClick={() => void act('comfy:start')} data-testid="comfy-start">Start ComfyUI</button>
+        <button className="btn btn--quiet" type="button" onClick={() => void act('comfy:stop')}>Stop</button>
+      </div>
+      <label className="switch">
+        <input type="checkbox" checked={settings.comfy.autoStart} onChange={(e) => void updateSettings({ comfy: { autoStart: e.target.checked } })} />
+        <span>Start ComfyUI when ArchAI Studio opens</span>
+      </label>
     </Group>
   )
 }

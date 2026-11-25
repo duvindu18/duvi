@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { GB, type CheckResult } from '@shared/checks'
 import { CheckList } from '../components/CheckList'
+import { DownloadsPanel } from '../components/DownloadsPanel'
 import { call, errorText } from '../lib/ipc'
 import { useApp } from '../state/AppState'
 
 const COUNT = ['No', 'One', 'Two', 'Three', 'Four', 'Five']
 
-const STEPS = ['Welcome', 'Check your setup', 'Where to keep your work', 'Ready'] as const
+const STEPS = ['Welcome', 'Where to keep your work', 'Download what you need', 'Check your setup', 'Ready'] as const
 
 /** Runs the checks and keeps the results; shared by the wizard and Settings. */
 export function useChecks(auto: boolean) {
@@ -56,9 +57,10 @@ export function SetupWizard() {
       </nav>
       <div className="wizard__body">
         {step === 0 && <Welcome next={() => setStep(1)} />}
-        {step === 1 && <Checks back={() => setStep(0)} next={() => setStep(2)} />}
-        {step === 2 && <Folders back={() => setStep(1)} next={() => setStep(3)} />}
-        {step === 3 && <Ready back={() => setStep(2)} />}
+        {step === 1 && <Folders back={() => setStep(0)} next={() => setStep(2)} />}
+        {step === 2 && <Downloads back={() => setStep(1)} next={() => setStep(3)} />}
+        {step === 3 && <Checks back={() => setStep(2)} next={() => setStep(4)} />}
+        {step === 4 && <Ready back={() => setStep(3)} />}
       </div>
     </div>
   )
@@ -87,7 +89,10 @@ function Welcome({ next }: { next: () => void }) {
           <li><strong>Ollama</strong> runs the language model (gpt-oss:20b) for chat and scripts.</li>
           <li><strong>ComfyUI</strong> runs the image models for renders.</li>
         </ul>
-        <p>The next step checks that both are ready. It takes a few seconds.</p>
+        <p>
+          If they aren't on this computer yet, ArchAI Studio can download and install them for you, together with the AI models. You choose
+          what to download, and the internet is used only while those downloads run.
+        </p>
       </div>
       <Nav next={next} />
     </section>
@@ -132,6 +137,19 @@ function FreeSpace({ path }: { path: string }) {
   }, [path])
   if (bytes === undefined) return null
   return <span className="field__hint">{bytes === null ? 'Free space unknown.' : `${(bytes / GB).toFixed(0)} GB free on this drive.`}</span>
+}
+
+function Downloads({ back, next }: { back: () => void; next: () => void }) {
+  return (
+    <section>
+      <h1 className="page-title">Download what you need</h1>
+      <p className="page-lede">Tick what to download. Anything already on this computer is marked Installed. You can skip this and add things later from Settings.</p>
+      <div className="wizard__fields">
+        <DownloadsPanel />
+      </div>
+      <Nav back={back} next={next} nextLabel="Continue" />
+    </section>
+  )
 }
 
 function Folders({ back, next }: { back: () => void; next: () => void }) {

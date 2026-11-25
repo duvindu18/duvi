@@ -52,7 +52,7 @@ async function checkOllama(s: Settings, deps: CheckDeps): Promise<CheckResult[]>
         title: `${model} isn't downloaded yet`,
         detail: names.length ? `Ollama has: ${names.join(', ')}.` : 'Ollama has no models yet.',
         fix: {
-          text: `Open PowerShell and run this command. It downloads the model once${model === 'gpt-oss:20b' ? ' (about 13 GB)' : ''}, then everything works offline. Or pick a model you already have in Settings.`,
+          text: `Download it from Settings → Downloads (or the previous setup step), or open PowerShell and run this command. It downloads the model once${model === 'gpt-oss:20b' ? ' (about 14 GB)' : ''}, then everything works offline. Or pick a model you already have in Settings.`,
           command: `ollama pull ${model}`
         }
       }
@@ -65,7 +65,7 @@ async function checkOllama(s: Settings, deps: CheckDeps): Promise<CheckResult[]>
         title: "Ollama isn't running",
         detail: `Nothing answered at ${s.endpoints.ollama}.`,
         fix: {
-          text: 'Start Ollama from the Start menu (it sits in the system tray, near the clock), then check again. If it is not installed yet, get it from the Ollama website. You can also start it from PowerShell:',
+          text: 'Start Ollama from the Start menu (it sits in the system tray, near the clock), then check again. If it is not installed yet, go back one step and let ArchAI Studio install it, or get it from the Ollama website. You can also start it from PowerShell:',
           command: 'ollama serve',
           link: { label: 'Download Ollama', url: 'https://ollama.com/download/windows' }
         }

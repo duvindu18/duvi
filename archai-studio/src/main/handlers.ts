@@ -12,6 +12,11 @@ import { TARGETS, scriptFileName } from '@shared/scripts'
 import { checkBindings, describeWorkflow, detectBindings, guessMode, parseApiWorkflow, type ApiWorkflow } from '@shared/images'
 import { ImagesService, toGallery, type InputImage } from './features/images'
 import { handleImageProtocol } from './protocol'
+import { SetupService } from './features/setup'
+import { guardedFetch } from './net-guard'
+import { ComfyProcess, isPortableComfy } from './services/comfy-process'
+import { extract7z, runInstaller, verifySignature } from './services/win-tools'
+import { existsSync } from 'node:fs'
 import { GpuCoordinator } from './services/gpu'
 import type { Handlers } from './ipc'
 import { freeBytesFor, runChecks, runNvidiaSmi } from './services/checks'
@@ -23,6 +28,9 @@ import type { SettingsStore } from './settings-store'
 export interface Context {
   settings: SettingsStore
   data: DataStore
+  comfyProcess: ComfyProcess
+  /** Test builds only: a fake server standing in for GitHub and Hugging Face. */
+  testDownloadOrigin?: string
 }
 
 const parentWindow = () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
@@ -76,6 +84,37 @@ export function createHandlers(ctx: Context): Handlers {
       if (!event.sender.isDestroyed()) event.sender.send(ch, p)
     }
     return { progress: (p: unknown) => send('images:progress', p), done: (d: unknown) => send('images:done', d), error: (e: unknown) => send('images:error', e) }
+  }
+
+  const s0 = () => ctx.settings.get()
+  const modelsDir = () => s0().comfy.modelsDir ?? (s0().comfy.managedDir ? join(s0().comfy.managedDir!, 'ComfyUI', 'models') : null)
+  const comfyPort = () => Number(new URL(s0().endpoints.comfy).port || 8188)
+  const t = ctx.testDownloadOrigin
+  const setup = new SetupService({
+    fetch: (url, init) => guardedFetch(url, 'setup-download', init),
+    fetchNoRedirect: (url, init) => guardedFetch(url, 'setup-download', init, { followRedirects: false }),
+    bases: t ? { githubApi: t, github: t, hf: t } : { githubApi: 'https://api.github.com', github: 'https://github.com', hf: 'https://huggingface.co' },
+    ollama,
+    comfy,
+    dataDir: dataFolder,
+    modelsDir,
+    managedComfyDir: () => s0().comfy.managedDir,
+    setManagedComfyDir: (dir) => void ctx.settings.set({ comfy: { managedDir: dir } }),
+    platform: process.platform,
+    storeBuild: Boolean(process.windowsStore),
+    verifySignature,
+    runInstaller,
+    extract7z,
+    startComfy: async (dir) => ctx.comfyProcess.start(dir, comfyPort()),
+    freeBytes: freeBytesFor,
+    ollamaOnDisk: () => Boolean(process.env.LOCALAPPDATA) && existsSync(join(process.env.LOCALAPPDATA!, 'Programs', 'Ollama', 'ollama.exe')),
+    isPortableComfy
+  })
+  const setupSink = (event: IpcMainInvokeEvent) => {
+    const send = <T>(ch: string, p: T) => {
+      if (!event.sender.isDestroyed()) event.sender.send(ch, p)
+    }
+    return { progress: (p: unknown) => send('setup:progress', p), done: (d: unknown) => send('setup:done', d) }
   }
 
   const chat = new ChatService({
@@ -301,6 +340,37 @@ export function createHandlers(ctx: Context): Handlers {
       const row = ctx.data.images().get(id)
       if (!row) throw new Error('That image is no longer in the gallery.')
       shell.showItemInFolder(row.path)
+      return true as const
+    },
+    'setup:components': async () => ({
+      statuses: await setup.status(),
+      storeBuild: Boolean(process.windowsStore),
+      modelsDir: modelsDir(),
+      managed: Boolean(s0().comfy.managedDir)
+    }),
+    'setup:plan': ({ ids }) => setup.plan(ids),
+    'setup:download': (req, event) => setup.start(req.ids, setupSink(event) as never),
+    'setup:cancel': ({ runId }) => setup.cancel(runId),
+    'setup:pickComfyFolder': async () => {
+      const win = parentWindow()
+      const opts = { title: 'Choose your ComfyUI folder', properties: ['openDirectory' as const] }
+      const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+      const dir = r.filePaths[0]
+      if (r.canceled || !dir) return { done: false }
+      const candidates = [join(dir, 'models'), join(dir, 'ComfyUI', 'models')]
+      const found = candidates.find((m) => existsSync(join(m, 'checkpoints')))
+      if (!found) throw new Error("That folder doesn't look like ComfyUI: there's no models\\checkpoints folder inside it. Choose the folder that contains ComfyUI's models folder.")
+      ctx.settings.set({ comfy: { modelsDir: found } })
+      return { done: true, modelsDir: found }
+    },
+    'comfy:start': () => {
+      const dir = s0().comfy.managedDir
+      if (!dir) throw new Error('ArchAI Studio only starts a ComfyUI it installed. Start yours as usual.')
+      ctx.comfyProcess.start(dir, comfyPort())
+      return true as const
+    },
+    'comfy:stop': () => {
+      ctx.comfyProcess.stop()
       return true as const
     },
     'gallery:trash': async ({ id }) => {

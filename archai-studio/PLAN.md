@@ -8,6 +8,12 @@ ComfyUI for images. It never uploads anything.
 
 ---
 
+> **Change (owner's request, after M5):** setup can now download and install what's needed
+> (Ollama, gpt-oss:20b, nomic-embed-text, ComfyUI portable, SDXL, SDXL Canny ControlNet and,
+> optionally, Flux.1 schnell). It runs only when you tick items and click Download, uses only the
+> official sources (GitHub releases, Hugging Face, Ollama), and checks every file's SHA-256. The
+> app stays offline otherwise. Programs are installed only by the Setup.exe build, never the Store build.
+
 ## 1. Where the code goes
 
 This git repository already holds another project (Veil, a Python and Android

@@ -94,3 +94,15 @@ Files (from the official Flux.1 releases, which you download yourself):
 4. Expect about 30–60 seconds per image on the RTX 5080, against about 10 for SDXL. Video memory is close to full,
    so keep "Take turns on the GPU" on in Settings.
 5. Switch back to an SDXL workflow. Its checkpoint choice should be unchanged.
+
+## Setup downloads (Setup.exe build)
+Best tried on a PC or Windows user account without Ollama and ComfyUI, or untick what you already have.
+1. In setup, step 3 **Download what you need**: Ollama and ComfyUI show as Installed if they're already running.
+   Flux schnell (17 GB) is unticked by default.
+2. Click **Download and install**. Watch Ollama install (a short installer window may flash), then gpt-oss:20b
+   download (about 14 GB, the longest step), then ComfyUI unpack and start, then SDXL and the ControlNet.
+3. Turn Wi-Fi off half-way through an image model, wait for the error, turn it back on, then click Download
+   again. It should resume, not start over.
+4. Afterwards: Settings → ComfyUI shows the folder, with Start/Stop buttons and "Start ComfyUI when ArchAI Studio
+   opens". Visual Studio should list sd_xl_base_1.0 and the xinsir ControlNet.
+5. If you have your own ComfyUI, use "Choose your ComfyUI folder" so image models go into its models folder.

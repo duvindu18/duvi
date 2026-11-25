@@ -18,7 +18,7 @@ export function makeDirs(): Dirs {
  * Launches the built app with throwaway folders. `seed` is written as settings.json
  * before start. By default setup counts as already done, so tests start in the app.
  */
-export async function launchApp(opts: { dirs?: Dirs; seed?: Record<string, unknown> | null } = {}): Promise<ElectronApplication> {
+export async function launchApp(opts: { dirs?: Dirs; seed?: Record<string, unknown> | null; env?: Record<string, string> } = {}): Promise<ElectronApplication> {
   const d = opts.dirs ?? makeDirs()
   const seed = opts.seed === undefined ? { firstRunComplete: true } : opts.seed
   if (seed) {
@@ -29,5 +29,5 @@ export async function launchApp(opts: { dirs?: Dirs; seed?: Record<string, unkno
   const args = ['.']
   // Containers run tests as root, where Chromium refuses its OS sandbox. CI and real PCs don't need this.
   if (process.getuid?.() === 0) args.unshift('--no-sandbox')
-  return electron.launch({ args, env: { ...process.env, ARCHAI_USER_DATA: d.userData, ARCHAI_DATA_DIR: d.data } as Record<string, string> })
+  return electron.launch({ args, env: { ...process.env, ARCHAI_USER_DATA: d.userData, ARCHAI_DATA_DIR: d.data, ...opts.env } as Record<string, string> })
 }
