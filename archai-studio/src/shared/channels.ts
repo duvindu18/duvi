@@ -27,7 +27,12 @@ export const INVOKE_CHANNELS = [
   'chat:send',
   'chat:cancel',
   'chat:renameThread',
-  'gpu:get'
+  'gpu:get',
+  'scripts:generate',
+  'scripts:explain',
+  'scripts:fix',
+  'scripts:save',
+  'scripts:list'
 ] as const
 
 export const EVENT_CHANNELS = ['chat:chunk', 'chat:done', 'chat:error', 'gpu:state'] as const

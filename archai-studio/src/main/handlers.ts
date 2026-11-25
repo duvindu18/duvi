@@ -1,10 +1,13 @@
 import { app, BrowserWindow, clipboard, dialog, nativeTheme } from 'electron'
 import { readFileSync, statSync, writeFileSync } from 'node:fs'
+import type { IpcMainInvokeEvent } from 'electron'
 import { join } from 'node:path'
 import { checkUrl } from '@shared/net-policy'
 import type { Settings } from '@shared/settings'
 import type { DataStore } from './db/store'
-import { ChatService } from './features/chat'
+import { ChatService, type ChatSink } from './features/chat'
+import { explainMessage, fixMessage, generateMessage, scriptSystemPrompt } from './features/scripts'
+import { TARGETS, scriptFileName } from '@shared/scripts'
 import { GpuCoordinator } from './services/gpu'
 import type { Handlers } from './ipc'
 import { freeBytesFor, runChecks, runNvidiaSmi } from './services/checks'
@@ -34,6 +37,12 @@ export function createHandlers(ctx: Context): Handlers {
     for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(channel, payload)
   }
   const gpu = new GpuCoordinator(() => ctx.settings.get().gpu.turnTaking, ollama, comfy, (o) => broadcast('gpu:state', o))
+  const sinkFor = (event: IpcMainInvokeEvent): ChatSink => {
+    const send = <T>(ch: string, p: T) => {
+      if (!event.sender.isDestroyed()) event.sender.send(ch, p)
+    }
+    return { chunk: (c) => send('chat:chunk', c), done: (d) => send('chat:done', d), error: (e) => send('chat:error', e) }
+  }
   const chat = new ChatService({
     ollama,
     chats: () => ctx.data.chats(),
@@ -157,18 +166,43 @@ export function createHandlers(ctx: Context): Handlers {
     },
     'chat:threads': ({ projectId }) => ctx.data.chats().threads(projectId),
     'chat:history': ({ threadId }) => ctx.data.chats().messages(threadId),
-    'chat:send': (req, event) => {
-      const send = <T>(ch: string, p: T) => {
-        if (!event.sender.isDestroyed()) event.sender.send(ch, p)
-      }
-      return chat.send(req, {
-        chunk: (c) => send('chat:chunk', c),
-        done: (d) => send('chat:done', d),
-        error: (e) => send('chat:error', e)
-      })
-    },
+    'chat:send': (req, event) => chat.send(req, sinkFor(event)),
     'chat:cancel': ({ streamId }) => chat.cancel(streamId),
     'chat:renameThread': ({ threadId, title }) => ctx.data.chats().rename(threadId, title),
-    'gpu:get': () => gpu.current()
+    'gpu:get': () => gpu.current(),
+
+    'scripts:generate': (r, event) =>
+      chat.send({ projectId: r.projectId, threadId: r.threadId, model: r.model, text: generateMessage(r.target, r.task) }, sinkFor(event), {
+        base: scriptSystemPrompt(r.target),
+        kind: 'script',
+        title: r.task
+      }),
+    'scripts:explain': (r, event) =>
+      chat.send({ projectId: r.projectId, threadId: r.threadId, model: r.model, text: explainMessage(r.target, r.code) }, sinkFor(event), {
+        base: scriptSystemPrompt(r.target),
+        kind: 'script',
+        title: `Explain ${TARGETS[r.target].name} script`
+      }),
+    'scripts:fix': (r, event) =>
+      chat.send({ projectId: r.projectId, threadId: r.threadId, model: r.model, text: fixMessage(r.target, r.code, r.error) }, sinkFor(event), {
+        base: scriptSystemPrompt(r.target),
+        kind: 'script',
+        title: `Fix ${TARGETS[r.target].name} script`
+      }),
+    'scripts:save': async ({ projectId, target, title, code }) => {
+      const t = TARGETS[target]
+      const win = parentWindow()
+      const opts = {
+        title: 'Save script',
+        defaultPath: join(app.getPath('documents'), scriptFileName(title, t.ext)),
+        filters: [{ name: `${t.name} script`, extensions: [t.ext] }]
+      }
+      const r = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
+      if (r.canceled || !r.filePath) return { done: false }
+      // Scripts are saved as UTF-8 with Windows line endings; AutoLISP and Revit both read this fine.
+      writeFileSync(r.filePath, code.replace(/\r?\n/g, '\r\n'), 'utf8')
+      return { done: true, script: ctx.data.scripts().add(projectId, target, title, code, r.filePath) }
+    },
+    'scripts:list': ({ projectId }) => ctx.data.scripts().list(projectId)
   }
 }

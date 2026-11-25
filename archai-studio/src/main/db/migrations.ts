@@ -35,5 +35,17 @@ export const MIGRATIONS: string[] = [
     created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
   );
   CREATE INDEX messages_thread ON messages(thread_id, id);
+  `,
+  /* 3: saved scripts */ `
+  CREATE TABLE scripts (
+    id          INTEGER PRIMARY KEY,
+    project_id  INTEGER NOT NULL REFERENCES projects(id),
+    target      TEXT NOT NULL,
+    title       TEXT NOT NULL,
+    code        TEXT NOT NULL,
+    path        TEXT,
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+  CREATE INDEX scripts_project ON scripts(project_id, created_at);
   `
 ]

@@ -7,6 +7,8 @@ import type { InvokeChannel } from './channels'
 import type { ChatChunk, ChatDone, ChatError, ChatMessage, ChatStarted, ModelInfo, Thread } from './chat'
 import { ChatSendSchema, type ChatSend } from './chat'
 import type { CheckResult, ServicePing } from './checks'
+import { ScriptExplainSchema, ScriptFixSchema, ScriptGenerateSchema, ScriptSaveSchema } from './scripts'
+import type { SavedScript, ScriptExplain, ScriptFix, ScriptGenerate, ScriptSave } from './scripts'
 import type { Project } from './projects'
 import { ProjectName } from './projects'
 import type { Settings, SettingsPatch } from './settings'
@@ -56,7 +58,12 @@ export const requestSchemas = {
   'chat:send': ChatSendSchema,
   'chat:cancel': z.object({ streamId: z.string().uuid() }).strict(),
   'chat:renameThread': z.object({ threadId: Id, title: z.string().trim().min(1).max(120) }).strict(),
-  'gpu:get': z.undefined()
+  'gpu:get': z.undefined(),
+  'scripts:generate': ScriptGenerateSchema,
+  'scripts:explain': ScriptExplainSchema,
+  'scripts:fix': ScriptFixSchema,
+  'scripts:save': ScriptSaveSchema,
+  'scripts:list': z.object({ projectId: Id }).strict()
 } satisfies Record<InvokeChannel, z.ZodType>
 
 export interface InvokeMap {
@@ -82,6 +89,11 @@ export interface InvokeMap {
   'chat:cancel': { req: { streamId: string }; res: boolean }
   'chat:renameThread': { req: { threadId: number; title: string }; res: Thread }
   'gpu:get': { req: undefined; res: GpuOwner }
+  'scripts:generate': { req: ScriptGenerate; res: ChatStarted }
+  'scripts:explain': { req: ScriptExplain; res: ChatStarted }
+  'scripts:fix': { req: ScriptFix; res: ChatStarted }
+  'scripts:save': { req: ScriptSave; res: { done: true; script: SavedScript } | { done: false } }
+  'scripts:list': { req: { projectId: number }; res: SavedScript[] }
 }
 
 export type GpuOwner = 'chat' | 'images' | null

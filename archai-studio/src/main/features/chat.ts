@@ -77,7 +77,8 @@ export class ChatService {
     }
   ) {}
 
-  async send(req: ChatSend, sink: ChatSink): Promise<ChatStarted> {
+  /** `opts.base` replaces the chat system prompt (Script Studio); `opts.kind` keeps script threads apart from chats. */
+  async send(req: ChatSend, sink: ChatSink, opts: { base?: string; kind?: string; title?: string } = {}): Promise<ChatStarted> {
     const chats = this.deps.chats()
     if (!this.deps.projects().get(req.projectId)) throw new Error('That project no longer exists.')
     let thread = req.threadId ? chats.thread(req.threadId) : null
@@ -85,12 +86,12 @@ export class ChatService {
     const history = thread ? chats.messages(thread.id).map((m) => ({ role: m.role, content: m.content })) : []
     history.push({ role: 'user', content: req.text })
 
-    const base = this.deps.base ?? CHAT_SYSTEM_PROMPT
+    const base = opts.base ?? this.deps.base ?? CHAT_SYSTEM_PROMPT
     const sys = this.deps.systemPrompt ? await this.deps.systemPrompt(base, req.text) : { prompt: base, skills: [] }
     const numCtx = this.deps.numCtx()
     const messages = fitHistory(sys.prompt, history, numCtx) // throws before anything is saved
 
-    thread ??= chats.createThread(req.projectId, threadTitle(req.text), req.model, this.deps.kind ?? 'chat')
+    thread ??= chats.createThread(req.projectId, threadTitle(opts.title ?? req.text), req.model, opts.kind ?? this.deps.kind ?? 'chat')
     chats.touch(thread.id, req.model)
     const userMessage = chats.addMessage(thread.id, 'user', req.text)
 

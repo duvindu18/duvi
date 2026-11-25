@@ -50,3 +50,14 @@ To see the wizard again on a PC that has already run it, delete
 7. Create a second project. Its chat list should be empty.
 8. Quit Ollama and send a message. You should see "Ollama isn't running. Start it from the Start menu, then try again."
 9. Optional: watch video memory in Task Manager → Performance → GPU. Chat should use about 13–14 GB.
+
+## M4: Script Studio
+1. Open **Script Studio**. The yellow banner should say scripts are never run by the app.
+2. Pick **Dynamo Python** and ask: *List all doors with their level, width in mm and fire rating.*
+   The script appears in the editor and the Notes below it.
+3. Copy it into a Dynamo Python node in a **copy** of a Revit model and run it. If it fails, paste the
+   red error text into **Fix this error** and click **Fix the script**.
+4. Try **Explain this script** on a script of your own (paste it into the editor first).
+5. Pick **AutoLISP**, generate a command, then **Save as .lsp**. Load it in AutoCAD with APPLOAD.
+6. Repeat once for Grasshopper (Rhino 8 Script component, Python 3), pyRevit, Blender and Excel.
+   Tell me which targets give poor results, so I can tune their prompts.

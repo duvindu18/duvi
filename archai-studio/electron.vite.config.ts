@@ -34,6 +34,6 @@ export default defineConfig({
     root: resolve('src/renderer'),
     resolve: { alias: { '@shared': resolve('src/shared'), '@renderer': resolve('src/renderer/src') } },
     plugins: [react(), cspMeta()],
-    build: { rolldownOptions: { input: { index: resolve('src/renderer/index.html') } } }
+    build: { minify: true, rolldownOptions: { input: { index: resolve('src/renderer/index.html') } } }
   }
 })

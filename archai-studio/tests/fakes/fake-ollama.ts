@@ -6,6 +6,8 @@ export interface FakeOllamaOptions {
   /** Tokens streamed back by /api/chat. */
   reply?: string[]
   tokenDelayMs?: number
+  /** Chooses the reply from the last user message (overrides `reply`). */
+  replyFor?: (lastUserMessage: string, systemPrompt: string) => string[]
   /** Reasoning tokens streamed before the reply (like gpt-oss). */
   thinking?: string[]
 }
@@ -22,18 +24,22 @@ export function startFakeOllama(opts: FakeOllamaOptions = {}): Promise<FakeServe
           models: models.map((name) => ({ name, model: name, size: 13_000_000_000, details: { parameter_size: '20B', quantization_level: 'MXFP4' } }))
         }),
       'POST /api/chat': async (_q, res, body) => {
-        const req = JSON.parse(body || '{}') as { model?: string; stream?: boolean }
+        const req = JSON.parse(body || '{}') as { model?: string; stream?: boolean; messages?: { role: string; content: string }[] }
         if (!req.model || !models.includes(req.model)) return json(res, 404, { error: `model "${req.model}" not found` })
         res.writeHead(200, { 'content-type': 'application/x-ndjson' })
         for (const t of opts.thinking ?? []) {
           res.write(JSON.stringify({ model: req.model, message: { role: 'assistant', content: '', thinking: t }, done: false }) + '\n')
         }
-        for (const t of reply) {
+        const msgs = req.messages ?? []
+        const tokens = opts.replyFor
+          ? opts.replyFor(msgs.filter((m) => m.role === 'user').at(-1)?.content ?? '', msgs.find((m) => m.role === 'system')?.content ?? '')
+          : reply
+        for (const t of tokens) {
           if (res.destroyed) return
           res.write(JSON.stringify({ model: req.model, message: { role: 'assistant', content: t }, done: false }) + '\n')
           if (opts.tokenDelayMs) await new Promise((r) => setTimeout(r, opts.tokenDelayMs))
         }
-        res.end(JSON.stringify({ model: req.model, message: { role: 'assistant', content: '' }, done: true, eval_count: reply.length }) + '\n')
+        res.end(JSON.stringify({ model: req.model, message: { role: 'assistant', content: '' }, done: true, eval_count: tokens.length }) + '\n')
       },
       'POST /api/generate': (_q, res) => json(res, 200, { done: true }),
       'POST /api/embed': (_q, res, body) => {

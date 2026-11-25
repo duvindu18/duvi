@@ -68,3 +68,10 @@ The owner is an architect, not a developer: explain decisions in plain language.
   chat model (keep_alive 0) before images (wired in M5).
 - M3: Model replies are rendered with react-markdown + remark-gfm. No raw HTML, images are shown as text, and only
   https links are live (they open in the browser).
+- M4: Script Studio reuses ChatService with `kind: 'script'` threads and a per-target system prompt
+  (resources/prompts/scripts/_common.md + <target>.md, each with conventions and a known-good example).
+  The first fenced block of the reply goes into Monaco (`extractCode`), and the rest shows as Notes.
+  Saved scripts are written as UTF-8 with CRLF and recorded in the `scripts` table. The app has no code path that executes scripts.
+- M4: Monaco 0.52.2 (ESM, bundled), core editor plus Python/TypeScript tokenizers and a small AutoLISP Monarch grammar.
+  No language workers except the base editor worker; links, hovers and suggestions are off. Script Studio is lazy-loaded
+  (startup bundle about 0.5 MB, editor chunk about 3 MB). Renderer build is minified.
