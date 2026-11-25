@@ -21,3 +21,6 @@ certs/
 .env.*
 !.env.example
 store-identity.local.json
+
+# Downloaded build outputs
+release/
