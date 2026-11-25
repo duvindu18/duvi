@@ -140,7 +140,7 @@ function tail(base, remote) {
 
 /* html classes the desktop stylesheet reads, set before first paint so nothing jumps */
 function htmlClass(p) {
-  return ['style-mono style-seedform', 'wc-' + p.controls, 'font-' + p.font, 'density-' + p.density, p.titleBar === 'none' ? 'no-wtitle' : '', p.reduceMotion ? 'reduce-motion' : '',
+  return ['style-mono style-seedform', 'wc-' + p.controls, 'font-' + p.font, 'density-' + p.density, p.darkTone === 'charcoal' ? 'dark-charcoal' : '', p.titleBar === 'none' ? 'no-wtitle' : '', p.reduceMotion ? 'reduce-motion' : '',
     p.pattern ? '' : 'no-pattern', p.glow ? '' : 'no-glow', p.followGlow ? '' : 'no-follow', p.roundCorners ? '' : 'square', p.sideCollapsed ? 'side-collapsed' : ''].filter(Boolean).join(' ');
 }
 

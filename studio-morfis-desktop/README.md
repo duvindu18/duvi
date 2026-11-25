@@ -114,7 +114,8 @@ The grid layout of a folder shows the same thumbnails File Explorer does. Files 
 
 The app follows the Seedform brand book, edition 2 (November 2026): an architecture studio in Colombo, *Architecture, grown from an idea.*
 
-- **One style, two themes:** Seedform is the app's only style. The light theme is **Cloud Dancer** (`#F0EEE9`) and the dark theme is **Phthalo** (`#123524`), the brand's signature ground. Switch with the sun and moon button.
+- **One style, light and dark:** Seedform is the app's only style. The light theme is **Cloud Dancer** (`#F0EEE9`). For dark, choose **Phthalo** (`#123524`, the brand's signature ground) or **Charcoal** (`#141414`, near-black with the same green and sand accents) in *Settings > Desktop app > Look > Dark theme*. Switch between light and dark with the sun and moon button.
+- **App icon:** the round **sf.** monogram on Phthalo, on the desktop, the taskbar and the phone.
 - **Colour:** Phthalo green for weight (primary buttons, the selected sidebar item, titles on documents), **Sand** for the seed (`#9C7A3C` on light, `#D4B786` on phthalo: the full stop, dots, focus in the dark theme), a sand tint for quiet bands, and laterite (`#A84E33`) used rarely (links, overdue, cancelled).
 - **Type:** Playfair Display Black for page headlines, project titles and big numbers; Inter for text and the interface; IBM Plex Mono for labels (project numbers and dates, uppercase, tracked +8%). All three are built in and work offline.
 - **Shape:** square-cut corners (2px), 1px hairlines instead of shadows, line icons with a 1.5px stroke and square caps. The only circle is the seed.

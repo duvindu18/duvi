@@ -1,7 +1,7 @@
 {
   "name": "studio-morfis-desktop",
   "productName": "Seedform",
-  "version": "1.16.0",
+  "version": "1.16.1",
   "description": "Seedform: projects, freelance work, folders, invoices and a voice assistant for an architecture studio.",
   "main": "src/shell/main.js",
   "author": "Studio Morfis",

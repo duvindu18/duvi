@@ -76,7 +76,7 @@
   function look() {
     var r = document.documentElement;
     if (!r.classList.contains('style-mono')) return 'graphite';
-    if (r.classList.contains('style-seedform')) return r.getAttribute('data-theme') === 'light' ? 'seed-light' : 'seed-dark';
+    if (r.classList.contains('style-seedform')) return r.getAttribute('data-theme') === 'light' ? 'seed-light' : r.classList.contains('dark-charcoal') ? 'seed-ink' : 'seed-dark';
     return r.getAttribute('data-theme') === 'light' ? 'mono-light' : 'mono-dark';
   }
   /* Mono: a flat folder, a lighter tab behind a darker front, and a label pressed into the front in a shade of the
@@ -100,6 +100,12 @@
       sq: true,
       in_progress: ['#3A6A52', '#2B5A43', '#467A60'], completed: ['#E0C79C', '#D4B786', '#B89A68'], on_hold: ['#5D7262', '#4C6152', '#6C8170'],
       not_started: ['#2A5241', '#1F4232', '#34604C'], cancelled: ['#E89272', '#E07A55', '#C2603D'], plain: ['#2A5241', '#1F4232', '#376350']
+    },
+    /* the Charcoal dark theme: the same phthalo, sand and laterite, with neutral tones in place of the green ones */
+    'seed-ink': {
+      sq: true,
+      in_progress: ['#3A6A52', '#2B5A43', '#467A60'], completed: ['#E0C79C', '#D4B786', '#B89A68'], on_hold: ['#66635D', '#545149', '#75726B'],
+      not_started: ['#3A3A37', '#2E2E2C', '#47473F'], cancelled: ['#E89272', '#E07A55', '#C2603D'], plain: ['#3A3A37', '#2E2E2C', '#4A4A44']
     },
     'mono-dark': {
       in_progress: ['#F8D54E', '#F5C400', '#DDAE00'], completed: ['#8A9862', '#6F7D47', '#7E8C55'], on_hold: ['#6A6A6A', '#555555', '#626262'],

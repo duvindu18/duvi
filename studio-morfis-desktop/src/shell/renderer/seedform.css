@@ -31,6 +31,15 @@ html.style-mono.style-seedform{
   --r-xs:2px;--r-sm:2px;--r-md:2px;--r-lg:2px;
   --sf-canopy:#F0EEE9;--sf-sprout:#D4B786
 }
+/* ===== tokens: Charcoal (the other dark theme) =====
+   The brand's ink black as the ground, Cloud Dancer text, the same raised phthalo for buttons and the selected
+   place, and sand for the seed. Chosen in Settings > Desktop app > Look > Dark theme. */
+html.style-mono.style-seedform.dark-charcoal:not([data-theme="light"]){
+  --page:#141414;--win:#141414;--surface:#1C1C1B;--surface-2:#222221;--surface-3:#2A2A28;
+  --sf-sand:#2A2A28;--sf-fill:#2B5A43;
+  --ink:#F0EEE9;--ink-2:#B3B0A8;--ink-3:#8F8C85;--line:#2E2E2C;--line-2:#3A3A37;
+  --fi-bg:#222221;--fi-line:#3A3A37;--grid-line:rgba(240,238,233,.035)
+}
 /* ===== tokens: Cloud Dancer (light) ===== */
 html.style-mono.style-seedform[data-theme="light"]{
   --page:#F0EEE9;--win:#F0EEE9;--surface:#FAF9F6;--surface-2:#EAE6DE;--surface-3:#E7DCC6;

@@ -561,6 +561,20 @@ app.whenReady().then(async () => {
     'var h=document.querySelector("#dkView h1, #view h1");o.h1=h?getComputedStyle(h).fontFamily:"";o.radius=getComputedStyle(document.querySelector(".btn")).borderRadius;' +
     'var L=document.querySelector(".wbrand .sfl");o.mark=!!(L&&L.querySelector(".sfl-full")&&L.querySelector(".sfl-mono")&&L.querySelector(".sfl-dot"));return JSON.stringify(o)})()'));
   console.log('seedform:', JSON.stringify(sfb));
+  /* the second dark theme, Charcoal, from Settings */
+  const tone = {};
+  await go('settings', 'tmp-settings');
+  tone.btn = await js(w, '(function(){var b=document.querySelector("#dkCard [data-dk=darkTone][data-v=charcoal]");if(b)b.click();return !!b})()'); await wait(900);
+  if (await js(w, 'document.documentElement.dataset.theme') === 'light') { await js(w, 'document.querySelector("[data-act=toggleTheme]").click()'); await wait(900); tone.flipped = true; }
+  await js(w, 'document.querySelector("#dkSide [data-go=home]").click()'); await wait(1200);
+  tone.bg = await js(w, 'getComputedStyle(document.body).backgroundColor');
+  await shot(w, '71-charcoal');
+  await go('settings', 'tmp-settings');
+  await js(w, 'document.querySelector("#dkCard [data-dk=darkTone][data-v=phthalo]").click()'); await wait(900);
+  tone.back = await js(w, 'getComputedStyle(document.body).backgroundColor');
+  if (tone.flipped) { await js(w, 'document.querySelector("[data-act=toggleTheme]").click()'); await wait(800); }
+  try { fs.unlinkSync(path.join(out, 'tmp-settings.png')); } catch (e) { /* none */ }
+  console.log('dark tone:', JSON.stringify(tone));
 
 
   console.log('page errors:', errors.length ? errors : 'none');
@@ -609,6 +623,7 @@ app.whenReady().then(async () => {
   expect(!vo.err3 && (vo.micState === 'listening' || vo.micState === 'loading') && vo.frames > 0, 'voice assistant: the microphone opens and hears sound: ' + JSON.stringify(vo));
   expect(!ag.err && ag.made && ag.task && ag.done && ag.stage === 2 && ag.waits && ag.moved && ag.delWaits && ag.kept && ag.undone && ag.renders && /Running/.test(ag.ra || '') && /no issued invoice|OK/.test(ag.pay || '') && ag.closeWaits, 'the assistant acts, and asks first for risky changes: ' + JSON.stringify(ag));
   expect(ag.delModel === 'ok' && ag.deletedOnServer && ag.modelRows >= 1, 'downloaded AI models listed and deleted: ' + JSON.stringify(ag));
+  expect(tone.btn && tone.bg === 'rgb(20, 20, 20)' && tone.back === 'rgb(18, 53, 36)', 'the Charcoal dark theme: ' + JSON.stringify(tone));
   expect(sfb.style && sfb.fonts.every(Boolean) && /Playfair/.test(sfb.h1) && sfb.radius === '2px' && sfb.mark, 'the Seedform style, fonts and logo: ' + JSON.stringify(sfb));
   console.log(fails.length ? 'SMOKE FAILED: ' + fails.join('; ') : 'SMOKE PASSED');
   app.exit(fails.length ? 1 : 0);

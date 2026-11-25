@@ -270,6 +270,7 @@
   var CLASS_PREFS = {
     controls: function (v) { ['windows', 'pill', 'mac'].forEach(function (k) { root.classList.toggle('wc-' + k, k === v); }); },
     /* one style: Seedform, in its light (Cloud Dancer) and dark (Phthalo) themes */
+    darkTone: function (v) { root.classList.toggle('dark-charcoal', v === 'charcoal'); var pg = page(); if (pg && pg.renderAll) pg.renderAll(); },
     style: function () { root.classList.add('style-mono', 'style-seedform'); root.classList.remove('style-graphite', 'paint', 'paint-red', 'paint-green'); },
     font: function (v) { ['inter', 'segoe', 'technical', 'system', 'studio'].forEach(function (k) { root.classList.toggle('font-' + k, k === v); }); },
     density: function (v) { ['comfortable', 'compact'].forEach(function (k) { root.classList.toggle('density-' + k, k === v); }); },
@@ -318,6 +319,7 @@
         sw('rememberWindow', 'Reopen at the same size and place') +
       '</div>' +
       '<div class="dk-sec"><h3>Look</h3>' +
+        field('Dark theme', seg('darkTone', [['phthalo', 'Phthalo green'], ['charcoal', 'Charcoal']])) +
         field('Spacing', seg('density', [['comfortable', 'Comfortable'], ['compact', 'Compact']])) +
         sw('pattern', 'Dot grid background', 'Fine dots behind the content') +
         sw('followGlow', 'Light follows the pointer', 'A soft accent glow under the pointer that lights up the dots') +

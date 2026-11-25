@@ -35,6 +35,7 @@ body{display:grid;place-items:center}
 .has-logo .track i{border-radius:0;background:var(--sprout)}
 .has-logo .cap{font-family:'Inter','Segoe UI',sans-serif;color:var(--sf-muted);font-size:12px}
 :root{--canopy:#F0EEE9;--sprout:#D4B786;--sf-bg:#123524;--sf-line:#2E5641;--sf-muted:#B5C4B9}
+:root.charcoal{--sf-bg:#141414;--sf-line:#2E2E2C;--sf-muted:#B3B0A8}
 :root.light{--canopy:#123524;--sprout:#9C7A3C;--sf-bg:#F0EEE9;--sf-line:#D6D0C4;--sf-muted:#5E5C57}
 .cap{font-size:11px;color:var(--ink-2);letter-spacing:.02em;animation:fade .3s .2s ease-out both}
 .out .card{animation:out .18s ease-in forwards}
@@ -58,7 +59,7 @@ body{display:grid;place-items:center}
 (function () {
   var q = new URLSearchParams(location.search), root = document.documentElement;
   var name = q.get('name') || 'Seedform', accent = q.get('accent') || '#7C6CF0';
-  if (q.get('theme') === 'light') root.classList.add('light');
+  if (q.get('theme') === 'light') root.classList.add('light'); else if (q.get('tone') === 'charcoal') root.classList.add('charcoal');
   if (q.get('motion') === '0') root.classList.add('still');
   if (/^#[0-9a-f]{6}$/i.test(accent)) root.style.setProperty('--accent', accent);
   document.getElementById('name').textContent = name;

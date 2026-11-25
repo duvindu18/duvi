@@ -22,6 +22,7 @@ const DEFAULTS = {
   confirmQuit: false,
   font: 'inter',               // inter | segoe | technical | system | studio
   density: 'comfortable',      // comfortable | compact
+  darkTone: 'phthalo',         // the dark theme: phthalo (the brand's green) | charcoal (near-black, the same green and sand accents)
   sideCollapsed: false,
   folderIcons: true,           // show project status on the Windows folder icons
   aiEnabled: true,
@@ -53,6 +54,7 @@ const CHOICES = {
   controls: ['windows', 'pill', 'mac'],
   style: ['seedform'],
   density: ['comfortable', 'compact'],
+  darkTone: ['phthalo', 'charcoal'],
   titleBar: ['name', 'none'],
   font: ['inter', 'segoe', 'technical', 'system', 'studio'],
   backupKeep: [3, 7, 14, 30, 90],

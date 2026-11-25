@@ -73,7 +73,7 @@ let win = null, splash = null, tray = null, quitting = false, lastSaveDir = '';
 const startHidden = process.argv.indexOf('--hidden') !== -1;
 
 const resolvedTheme = () => { const t = prefs.get('theme'); return t === 'light' || (t === 'system' && !nativeTheme.shouldUseDarkColors) ? 'light' : 'dark'; };
-const bg = () => (resolvedTheme() === 'light' ? '#E9EBF3' : '#0A0A10');
+const bg = () => (resolvedTheme() === 'light' ? '#F0EEE9' : prefs.get('darkTone') === 'charcoal' ? '#141414' : '#123524');
 const winState = () => (win && !win.isDestroyed() ? { focus: win.isFocused(), max: win.isMaximized(), full: win.isFullScreen() } : {});
 const sendWin = () => { if (win && !win.isDestroyed()) win.webContents.send('win:state', winState()); };
 
@@ -168,7 +168,7 @@ function openSplash() {
   const icon = branding.iconPng();
   /* the studio's wordmark, unless the app has been given another name or icon */
   const own = !prefs.get('branding').name && !prefs.get('branding').iconFile;
-  splash.loadFile(path.join(RENDERER, 'splash.html'), { query: { name: branding.name(), icon: require('url').pathToFileURL(icon).href, logo: own ? '1' : '', display: require('url').pathToFileURL(path.join(FONTS.playfair, 'playfair-display-latin-wght-normal.woff2')).href, text: require('url').pathToFileURL(path.join(INTER, 'inter-latin-wght-normal.woff2')).href, theme: resolvedTheme(), accent: prefs.get('accent'), motion: prefs.get('reduceMotion') ? '0' : '1' } });
+  splash.loadFile(path.join(RENDERER, 'splash.html'), { query: { name: branding.name(), icon: require('url').pathToFileURL(icon).href, logo: own ? '1' : '', display: require('url').pathToFileURL(path.join(FONTS.playfair, 'playfair-display-latin-wght-normal.woff2')).href, text: require('url').pathToFileURL(path.join(INTER, 'inter-latin-wght-normal.woff2')).href, theme: resolvedTheme(), tone: prefs.get('darkTone'), accent: prefs.get('accent'), motion: prefs.get('reduceMotion') ? '0' : '1' } });
   splash.once('ready-to-show', () => { if (splash) { splash.shownAt = Date.now(); splash.show(); } });
 }
 function closeSplash(then) {
