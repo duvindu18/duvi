@@ -49,6 +49,7 @@ export const ScriptEditor = forwardRef<ScriptEditorHandle, { language: string; t
       // Keep it undoable with Ctrl+Z.
       e.executeEdits('archai', [{ range: e.getModel()!.getFullModelRange(), text: v }])
       e.pushUndoStop()
+      e.setPosition({ lineNumber: 1, column: 1 }) // no leftover selection
       e.setScrollTop(0)
     }
   }))

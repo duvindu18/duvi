@@ -81,11 +81,12 @@ export async function startFakeComfy(opts: FakeComfyOptions = {}): Promise<FakeC
         json(res, 200, { prompt_id: id, number: counter, node_errors: {} })
         void (async () => {
           const steps = opts.steps ?? 4
+          const interruptsBefore = state.interrupted // an earlier Stop must not stop this job
           send(req.client_id, { type: 'execution_start', data: { prompt_id: id } })
           send(req.client_id, { type: 'executing', data: { node: '4', prompt_id: id } })
           for (let i = 1; i <= steps; i++) {
             await new Promise((r) => setTimeout(r, opts.stepDelayMs ?? 10))
-            if (state.interrupted) {
+            if (state.interrupted > interruptsBefore) {
               send(req.client_id, { type: 'execution_interrupted', data: { prompt_id: id } })
               return
             }

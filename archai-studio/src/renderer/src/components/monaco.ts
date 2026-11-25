@@ -53,7 +53,8 @@ function defineThemes(): void {
       'editorLineNumber.foreground': v('--text-3'),
       'editorLineNumber.activeForeground': v('--text-2'),
       'editor.lineHighlightBackground': v('--surface'),
-      'editor.selectionBackground': v('--line-strong'),
+      'editor.selectionBackground': v('--surface-2'),
+      'editor.inactiveSelectionBackground': v('--surface-2'),
       'editorCursor.foreground': v('--accent'),
       'editorIndentGuide.background1': v('--line')
     }
